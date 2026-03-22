@@ -186,6 +186,17 @@ export interface SessionMetrics {
   models: string[];
   duration: number; // ms
   permissionMode?: string;
+  contextPercent: number;
+  contextWindowSize: number;
+  tasks: TaskSummary;
+  hasRemoteControl: boolean;
+}
+
+export interface TaskSummary {
+  total: number;
+  completed: number;
+  inProgress: number;
+  pending: number;
 }
 
 export interface TurnTokens {

@@ -1,13 +1,51 @@
 import { execSync } from "node:child_process";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { request } from "node:https";
-import { platform } from "node:os";
+import { platform, homedir } from "node:os";
+import { join } from "node:path";
 import type { UsageInfo } from "../types.js";
 
 const CACHE_TTL_MS = 5 * 60_000; // 5 minutes
 const KEYCHAIN_SERVICE = "Claude Code-credentials";
 const USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage";
+const CREDENTIALS_FILE = join(homedir(), ".claude", ".credentials.json");
 
 let cachedUsage: { data: UsageInfo; timestamp: number } | null = null;
+let lastGoodUsage: UsageInfo | null = null; // preserved across rate limits
+
+// On startup, try to read last good data from claude-hud's cache file
+function loadLastGoodFromHudCache(): void {
+  if (lastGoodUsage) return; // already have data
+
+  try {
+    // Find claude-hud cache file
+    const hudPluginDir = join(homedir(), ".claude", "plugins", "claude-hud");
+    const cachePath = join(hudPluginDir, ".usage-cache.json");
+
+    if (existsSync(cachePath)) {
+      const raw = JSON.parse(readFileSync(cachePath, "utf-8"));
+      const good = raw.lastGoodData || raw.data;
+      if (good && (good.fiveHour !== null || good.sevenDay !== null)) {
+        lastGoodUsage = {
+          fiveHour: {
+            utilization: typeof good.fiveHour === "number" ? good.fiveHour : good.fiveHour?.utilization ?? null,
+            resetsAt: good.fiveHourResetAt || good.fiveHour?.resetsAt || null,
+          },
+          sevenDay: {
+            utilization: typeof good.sevenDay === "number" ? good.sevenDay : good.sevenDay?.utilization ?? null,
+            resetsAt: good.sevenDayResetAt || good.sevenDay?.resetsAt || null,
+          },
+          planName: good.planName || null,
+        };
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// Initialize on module load
+loadLastGoodFromHudCache();
 
 interface KeychainCredentials {
   claudeAiOauth?: {
@@ -20,24 +58,43 @@ function readKeychainToken(): {
   accessToken: string;
   subscriptionType: string;
 } | null {
-  if (platform() !== "darwin") return null;
+  // Try macOS keychain first
+  if (platform() === "darwin") {
+    try {
+      const raw = execSync(
+        `security find-generic-password -s "${KEYCHAIN_SERVICE}" -w 2>/dev/null`,
+        { encoding: "utf-8", timeout: 3000 }
+      ).trim();
 
-  try {
-    const raw = execSync(
-      `security find-generic-password -s "${KEYCHAIN_SERVICE}" -w 2>/dev/null`,
-      { encoding: "utf-8", timeout: 3000 }
-    ).trim();
-
-    const creds: KeychainCredentials = JSON.parse(raw);
-    if (!creds.claudeAiOauth?.accessToken) return null;
-
-    return {
-      accessToken: creds.claudeAiOauth.accessToken,
-      subscriptionType: creds.claudeAiOauth.subscriptionType || "",
-    };
-  } catch {
-    return null;
+      const creds: KeychainCredentials = JSON.parse(raw);
+      if (creds.claudeAiOauth?.accessToken) {
+        return {
+          accessToken: creds.claudeAiOauth.accessToken,
+          subscriptionType: creds.claudeAiOauth.subscriptionType || "",
+        };
+      }
+    } catch {
+      // Fall through to file-based credentials
+    }
   }
+
+  // Fallback: read from credentials file (like claude-hud does)
+  try {
+    if (existsSync(CREDENTIALS_FILE)) {
+      const raw = readFileSync(CREDENTIALS_FILE, "utf-8");
+      const creds: KeychainCredentials = JSON.parse(raw);
+      if (creds.claudeAiOauth?.accessToken) {
+        return {
+          accessToken: creds.claudeAiOauth.accessToken,
+          subscriptionType: creds.claudeAiOauth.subscriptionType || "",
+        };
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
 }
 
 function getPlanName(subscriptionType: string): string | null {
@@ -109,15 +166,20 @@ export async function getAnthropicUsage(): Promise<UsageInfo | null> {
   if (!credentials) return null;
 
   const planName = getPlanName(credentials.subscriptionType);
-  if (!planName) return null; // API user, no usage limits
+  if (!planName) return null;
 
   const apiData = await fetchUsageFromApi(credentials.accessToken);
+
   if (!apiData) {
-    return {
-      fiveHour: { utilization: null, resetsAt: null },
-      sevenDay: { utilization: null, resetsAt: null },
-      planName,
-    };
+    // API failed (rate limited, timeout, etc.)
+    // Serve last good data if available (like claude-hud does)
+    if (lastGoodUsage) {
+      const fallback: UsageInfo = { ...lastGoodUsage, planName };
+      cachedUsage = { data: fallback, timestamp: Date.now() };
+      return fallback;
+    }
+    // No last good data — return plan name at least
+    return { fiveHour: { utilization: null, resetsAt: null }, sevenDay: { utilization: null, resetsAt: null }, planName };
   }
 
   const result: UsageInfo = {
@@ -132,6 +194,7 @@ export async function getAnthropicUsage(): Promise<UsageInfo | null> {
     planName,
   };
 
+  lastGoodUsage = result;
   cachedUsage = { data: result, timestamp: Date.now() };
   return result;
 }

@@ -88,6 +88,17 @@ export interface SessionMetrics {
   models: string[];
   duration: number;
   permissionMode?: string;
+  contextPercent: number;
+  contextWindowSize: number;
+  tasks: TaskSummary;
+  hasRemoteControl: boolean;
+}
+
+export interface TaskSummary {
+  total: number;
+  completed: number;
+  inProgress: number;
+  pending: number;
 }
 
 export interface UsageInfo {

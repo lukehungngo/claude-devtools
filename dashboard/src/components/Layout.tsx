@@ -16,7 +16,7 @@ export function Layout({
   bottomPanel,
 }: LayoutProps) {
   return (
-    <div className="h-screen grid grid-rows-[76px_1fr_220px] grid-cols-[280px_1fr_320px] bg-white dark:bg-gray-950 text-gray-900 dark:text-white">
+    <div className="h-screen grid grid-rows-[116px_1fr_220px] grid-cols-[280px_1fr_420px] bg-white dark:bg-gray-950 text-gray-900 dark:text-white">
       {/* Top bar - spans all columns */}
       <header className="col-span-3">
         {topBar}
