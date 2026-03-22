@@ -1,0 +1,17 @@
+{
+  "name": "claude-devtools",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "lint": "eslint server/src/ dashboard/src/",
+    "lint:fix": "eslint server/src/ dashboard/src/ --fix"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^17.4.0",
+    "typescript-eslint": "^8.57.1"
+  }
+}

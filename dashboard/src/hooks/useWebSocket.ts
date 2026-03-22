@@ -9,29 +9,48 @@ export function useWebSocket(url: string) {
   const [messages, setMessages] = useState<WSMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectAttempts = useRef(0);
+  const unmountedRef = useRef(false);
 
   useEffect(() => {
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
+    unmountedRef.current = false;
 
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => {
-      setConnected(false);
-      // Reconnect after 2s
-      setTimeout(() => {
-        wsRef.current = new WebSocket(url);
-      }, 2000);
-    };
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        setMessages((prev) => [...prev, data]);
-      } catch {
-        // ignore
-      }
-    };
+    function connect() {
+      if (unmountedRef.current) return;
 
-    return () => ws.close();
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setConnected(true);
+        reconnectAttempts.current = 0;
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        if (unmountedRef.current) return;
+        const attempt = reconnectAttempts.current;
+        const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
+        reconnectAttempts.current = attempt + 1;
+        setTimeout(connect, delay);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          setMessages((prev) => [...prev, data]);
+        } catch {
+          // ignore
+        }
+      };
+    }
+
+    connect();
+
+    return () => {
+      unmountedRef.current = true;
+      wsRef.current?.close();
+    };
   }, [url]);
 
   const clearMessages = useCallback(() => setMessages([]), []);

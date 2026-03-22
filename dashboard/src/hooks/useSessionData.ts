@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { SessionInfo, SessionMetrics } from "../lib/types";
+import type { SessionInfo, SessionMetrics, SessionEvent } from "../lib/types";
 
 export function useSessions() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -23,20 +23,30 @@ export function useSessionMetrics(
   sessionId: string | null
 ) {
   const [metrics, setMetrics] = useState<SessionMetrics | null>(null);
+  const [events, setEvents] = useState<SessionEvent[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!projectHash || !sessionId) return;
+    if (!projectHash || !sessionId) {
+      setMetrics(null);
+      setEvents([]);
+      return;
+    }
     setLoading(true);
 
     fetch(`/api/sessions/${projectHash}/${sessionId}`)
       .then((r) => r.json())
       .then((data) => {
         setMetrics(data.metrics || null);
+        setEvents(data.events || []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setMetrics(null);
+        setEvents([]);
+        setLoading(false);
+      });
   }, [projectHash, sessionId]);
 
-  return { metrics, loading };
+  return { metrics, events, loading };
 }

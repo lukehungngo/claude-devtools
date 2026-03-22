@@ -1,0 +1,54 @@
+{
+  "permissions": {
+    "allow": [
+      "Read:*",
+      "Write:*",
+      "Edit:*",
+      "Bash:*",
+      "Glob:*",
+      "Grep:*",
+      "Agent:*",
+      "WebSearch",
+      "WebFetch:*",
+      "Skill:*",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskGet",
+      "TaskList",
+      "TaskOutput",
+      "TaskStop",
+      "NotebookEdit:*",
+      "SendMessage:*"
+    ],
+    "deny": [
+      "Read:.env*",
+      "Bash:sudo*",
+      "Bash:rm -rf /*",
+      "Bash:git push --force*"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/lint.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-stop-gate.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

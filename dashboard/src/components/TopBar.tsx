@@ -1,14 +1,3 @@
-import React from "react";
-import {
-  Sun,
-  Moon,
-  RefreshCw,
-  Clock,
-  Server,
-  Wrench,
-  Radio,
-} from "lucide-react";
-import { useTheme } from "../contexts/ThemeContext";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
 import type { UsageInfo, CostSummary, SessionMetrics } from "../lib/types";
 
@@ -16,6 +5,7 @@ interface Props {
   usage: UsageInfo | null;
   costs: CostSummary | null;
   metrics: SessionMetrics | null;
+  onToolFilter?: (toolName: string) => void;
 }
 
 function formatModelName(model: string): string {
@@ -45,23 +35,19 @@ function formatResetTime(resetsAt: string | null): string {
   return rm > 0 ? `${hrs}h${rm}m` : `${hrs}h`;
 }
 
-const toolDescriptions: Record<string, string> = {
-  Read: "Read file contents from disk",
-  Edit: "Edit/modify existing files",
-  Write: "Create or overwrite files",
-  Bash: "Execute shell commands",
-  Grep: "Search file contents with regex",
-  Glob: "Find files by name pattern",
-  Agent: "Launch sub-agents for parallel work",
-  TaskCreate: "Create todo/task items",
-  TaskUpdate: "Update task status",
-  TaskGet: "Get task details",
-  TaskList: "List all tasks",
+const toolColorMap: Record<string, string> = {
+  Read: "var(--cyan)",
+  Bash: "var(--yellow)",
+  Write: "var(--green)",
+  Edit: "var(--orange)",
+  TaskUpdate: "var(--purple)",
+  Grep: "var(--cyan)",
+  Glob: "var(--cyan)",
+  Agent: "var(--accent)",
+  WebFetch: "var(--green)",
 };
 
-export function TopBar({ usage, costs, metrics }: Props) {
-  const { theme, toggleTheme } = useTheme();
-
+export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
@@ -70,219 +56,228 @@ export function TopBar({ usage, costs, metrics }: Props) {
     ? new Set(metrics.tools.filter((t) => t.isMcp).map((t) => t.mcpServer)).size
     : 0;
 
+  const contextColor =
+    (metrics?.contextPercent ?? 0) > 80
+      ? "var(--red)"
+      : (metrics?.contextPercent ?? 0) > 50
+        ? "var(--yellow)"
+        : "var(--green)";
+
   return (
-    <div className="grid grid-cols-[280px_1fr_420px] h-full text-[11px] border-b border-gray-200 dark:border-gray-800">
-      {/* LEFT — Title */}
-      <div className="flex items-center border-r border-gray-200 dark:border-gray-800 px-4">
-        <span className="font-bold text-base">Claude DevTools</span>
-        <button
-          onClick={toggleTheme}
-          className="ml-auto p-1 rounded hover:bg-gray-800 transition shrink-0"
-          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-        >
-          {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-        </button>
-      </div>
+    <div className="topbar" style={{
+      gridArea: "topbar",
+      background: "var(--bg-1)",
+      display: "flex",
+      flexDirection: "column",
+      borderBottom: "1px solid var(--border)",
+      zIndex: 10,
+      fontFamily: "var(--font)",
+      fontSize: "13px",
+    }}>
+      {/* Row 1: Title | Tokens | Mode | Model | Branch || Right: 24h/7d + Subscription */}
+      <div className="topbar-row" style={{
+        display: "flex",
+        alignItems: "center",
+        padding: "0 20px",
+        minHeight: "32px",
+        flexWrap: "nowrap",
+        overflow: "hidden",
+        borderBottom: "1px solid var(--border)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 0, flex: 1, flexWrap: "nowrap", overflow: "hidden" }}>
+          {/* Title */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: "8px",
+            fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: "15px",
+            color: "var(--text-0)", marginRight: "16px", letterSpacing: "-0.3px", flexShrink: 0,
+          }}>
+            {metrics && (
+              <div style={{
+                width: 16, height: 16,
+                border: "2px solid var(--border-active)",
+                borderTopColor: "var(--accent)",
+                borderRadius: "50%",
+                animation: metrics.session.isActive ? "spin .8s linear infinite" : undefined,
+                opacity: metrics.session.isActive ? 1 : 0.4,
+              }} />
+            )}
+            Claude DevTools
+          </div>
 
-      {/* CENTER — Session data */}
-      <div className="flex flex-col justify-center px-5 gap-2 border-r border-gray-200 dark:border-gray-800">
-        {metrics ? (
-          <>
-            {/* Row 1: Session tokens + session info badges */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-gray-400 text-xs">Token In:</span>
-                <span className="font-bold font-mono text-sm text-white">
-                  {formatTokens(tIn)}
-                </span>
-                <span className="text-gray-400 text-xs">, Out:</span>
-                <span className="font-bold font-mono text-sm text-white">
-                  {formatTokens(tOut)}
-                </span>
-              </div>
-              <span className="relative group">
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-600 text-[9px] text-gray-500 cursor-help">
-                  i
-                </span>
-                <span className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block whitespace-nowrap px-2.5 py-1.5 rounded bg-gray-900 border border-gray-700 text-xs text-gray-200 shadow-lg pointer-events-none">
-                  Estimated API key usage: ~{formatCost(sCost)}
-                </span>
-              </span>
-              <div className="h-4 w-px bg-gray-700 mx-1" />
-              <span className="text-gray-400 text-xs">Mode:</span>
-              <span className="text-yellow-400 font-medium text-xs">
-                {metrics.session.permissionMode === "default"
+          {metrics ? (
+            <>
+              <TbStat label="Token In" value={formatTokens(tIn)} />
+              <TbStat label="Out" value={formatTokens(tOut)} />
+              <InfoIcon tooltip={`Estimated API key usage: ~${formatCost(sCost)}`} />
+              <TbSep />
+              <TbStat label="Mode" value={
+                metrics.session.permissionMode === "default"
                   ? "defaultPermissions"
-                  : metrics.session.permissionMode || "—"}
-              </span>
-              <Dot />
-              <span className="text-gray-400 text-xs">Model:</span>
-              <span className="text-blue-400 font-medium text-xs">
-                {metrics.models[0] ? formatModelName(metrics.models[0]) : "—"}
-              </span>
-              <Dot />
-              <span className="text-gray-400 text-xs">Branch:</span>
-              <span className="text-green-400 font-medium text-xs">
-                {metrics.session.gitBranch
+                  : metrics.session.permissionMode || "\u2014"
+              } valueColor="var(--yellow)" />
+              <TbSep />
+              <TbStat label="Model" value={
+                metrics.models[0] ? formatModelName(metrics.models[0]) : "\u2014"
+              } valueColor="var(--accent)" />
+              <TbSep />
+              <TbStat label="Branch" value={
+                metrics.session.gitBranch
                   ? `git:${metrics.session.gitBranch}`
-                  : "—"}
-              </span>
-              {metrics.hasRemoteControl && (
-                <>
-                  <Dot />
-                  <Radio size={11} className="text-purple-400" />
-                  <span
-                    className="text-purple-400 font-medium text-xs"
-                    title="Remote control is active"
-                  >
-                    RC
-                  </span>
-                </>
-              )}
-            </div>
-
-            {/* Row 2: Duration + Context + MCPs + Tasks */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <Clock size={12} className="text-gray-400" />
-                <span className="text-gray-200 font-mono text-xs font-medium">
-                  {formatDuration(metrics.duration)}
-                </span>
-              </div>
-              <div className="h-3 w-px bg-gray-700" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-gray-400 text-xs">Context</span>
-                <ContextBar percent={metrics.contextPercent} />
-              </div>
-              <div className="h-3 w-px bg-gray-700" />
-              <div className="flex items-center gap-1.5">
-                <Server size={11} className="text-gray-400" />
-                <span className="text-gray-200 text-xs">{mcpCount} MCPs</span>
-              </div>
-              {metrics.tasks.total > 0 && (
-                <>
-                  <div className="h-3 w-px bg-gray-700" />
-                  <div
-                    className="flex items-center gap-1.5 cursor-help"
-                    title={`${metrics.tasks.completed} completed, ${metrics.tasks.inProgress} in progress, ${metrics.tasks.pending} pending`}
-                  >
-                    <span className="text-gray-400 text-xs">Tasks</span>
-                    <span className="font-mono text-xs text-gray-200">
-                      {metrics.tasks.completed}/{metrics.tasks.total}
-                    </span>
-                    {metrics.tasks.completed === metrics.tasks.total &&
-                      metrics.tasks.total > 0 && (
-                        <span className="text-green-400 text-[10px]">
-                          ✓ all done
-                        </span>
-                      )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Row 3: Tool usage with tooltips */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <Wrench size={11} className="text-gray-500" />
-              {metrics.tools.slice(0, 8).map((t) => {
-                const shortName = t.name.startsWith("mcp__")
-                  ? t.name.split("__").pop() || t.name
-                  : t.name;
-                const desc =
-                  toolDescriptions[shortName] ||
-                  (t.isMcp
-                    ? `MCP tool from ${t.mcpServer}`
-                    : `Tool: ${shortName}`);
-                return (
-                  <span
-                    key={t.name}
-                    className="inline-flex items-center gap-0.5 cursor-help text-xs"
-                    title={`${desc}\n${t.count} calls, ${t.errors} errors`}
-                  >
-                    <span className="text-green-400">✓</span>
-                    <span className="text-cyan-300">{shortName}</span>
-                    <span className="text-gray-500 font-mono">×{t.count}</span>
-                  </span>
-                );
-              })}
-            </div>
-          </>
-        ) : (
-          <div className="flex items-center gap-3">
-            <Tag>Session</Tag>
-            <span className="text-gray-500 text-xs">
+                  : "\u2014"
+              } valueColor="var(--green)" />
+            </>
+          ) : (
+            <span style={{ color: "var(--text-2)", fontSize: "12px" }}>
               Select a session from the sidebar
             </span>
-          </div>
-        )}
-      </div>
-
-      {/* RIGHT — Global data (24h/7d tokens + subscription) */}
-      <div className="flex flex-col justify-center px-4 gap-1.5 overflow-hidden">
-        {/* Row 1: 24h tokens */}
-        <div className="flex items-center gap-2">
-          <Tag>24h</Tag>
-          {costs ? (
-            <TokenLine
-              tIn={costs.tokenIn24h}
-              tOut={costs.tokenOut24h}
-              cost={costs.cost24h}
-              costLabel={`Estimated API key usage (${costs.sessionCount24h} sessions)`}
-            />
-          ) : (
-            <span className="text-gray-500">...</span>
           )}
         </div>
 
-        {/* Row 2: 7d tokens */}
-        <div className="flex items-center gap-2">
-          <Tag>7d</Tag>
-          {costs ? (
-            <TokenLine
-              tIn={costs.tokenIn7d}
-              tOut={costs.tokenOut7d}
-              cost={costs.cost7d}
-              costLabel={`Estimated API key usage (${costs.sessionCount7d} sessions)`}
-            />
-          ) : (
-            <span className="text-gray-500">...</span>
-          )}
-        </div>
-
-        {/* Row 3: Subscription */}
-        <div className="flex items-center gap-2">
-          <Tag>Subscription</Tag>
-          {usage ? (
-            <>
+        {/* Right: Subscription box */}
+        <div className="tb-sub-box" style={{
+          display: "flex", flexDirection: "column", gap: "3px",
+          padding: "6px 0 6px 20px",
+          borderLeft: "1px solid var(--border)",
+          marginLeft: "16px",
+          fontSize: "12px",
+          flexShrink: 0,
+        }}>
+          <SubRow label="24h" costs={costs} period="24h" />
+          <SubRow label="7d" costs={costs} period="7d" />
+          {usage && (
+            <div className="tb-sub-row" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               {usage.planName && (
-                <span className="px-1.5 py-px rounded text-[10px] font-semibold bg-purple-600 text-white">
+                <span className="tb-sub-badge" style={{
+                  padding: "2px 7px", borderRadius: "4px", fontSize: "10px",
+                  fontWeight: 700, textTransform: "uppercase",
+                  background: "var(--accent)", color: "#fff",
+                }}>
                   {usage.planName}
                 </span>
               )}
-              {usage.fiveHour.utilization !== null ||
-              usage.sevenDay.utilization !== null ? (
+              {(usage.fiveHour.utilization !== null || usage.sevenDay.utilization !== null) ? (
                 <>
-                  <UsageBar
-                    label="5h"
-                    value={usage.fiveHour.utilization}
-                    resetsAt={usage.fiveHour.resetsAt}
-                  />
-                  <UsageBar
-                    label="7d"
-                    value={usage.sevenDay.utilization}
-                    resetsAt={usage.sevenDay.resetsAt}
-                  />
+                  <UsageBar label="5h" value={usage.fiveHour.utilization} resetsAt={usage.fiveHour.resetsAt} />
+                  <UsageBar label="7d" value={usage.sevenDay.utilization} resetsAt={usage.sevenDay.resetsAt} />
                 </>
               ) : (
-                <span className="text-gray-500 text-[10px]">
-                  Usage data temporarily unavailable (rate limited)
+                <span style={{ color: "var(--text-2)", fontSize: "10px" }}>
+                  Usage data unavailable
                 </span>
               )}
-            </>
-          ) : (
-            <span className="text-gray-500">Not available</span>
+            </div>
           )}
         </div>
+      </div>
+
+      {/* Row 2: Duration | Context bar | MCP count | Tasks */}
+      <div className="topbar-row" style={{
+        display: "flex",
+        alignItems: "center",
+        padding: "0 20px",
+        minHeight: "32px",
+        flexWrap: "nowrap",
+        overflow: "hidden",
+        borderBottom: "1px solid var(--border)",
+      }}>
+        {metrics ? (
+          <>
+            <TbStat label="Duration" value={formatDuration(metrics.duration)} />
+            <TbSep />
+            <div className="tb-stat" style={{ display: "flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap", fontSize: "13px" }}>
+              <span style={{ color: "var(--text-2)" }}>Context</span>
+              <div style={{
+                display: "flex", alignItems: "center", gap: "4px",
+              }}>
+                <div style={{
+                  width: 70, height: 5,
+                  background: "var(--bg-4)",
+                  borderRadius: 2,
+                  overflow: "hidden",
+                  position: "relative",
+                }}>
+                  <div style={{
+                    height: "100%",
+                    width: `${metrics.contextPercent}%`,
+                    background: contextColor,
+                    borderRadius: 2,
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                  }} />
+                </div>
+                <span style={{ color: "var(--text-0)", fontWeight: 600 }}>
+                  {metrics.contextPercent}%
+                </span>
+              </div>
+            </div>
+            <TbSep />
+            <TbStat label="MCP" value={`${mcpCount}`} valueColor="var(--cyan)" />
+            {metrics.tasks.total > 0 && (
+              <>
+                <TbSep />
+                <TbStat
+                  label="Tasks"
+                  value={`${metrics.tasks.completed}/${metrics.tasks.total}`}
+                  valueColor={
+                    metrics.tasks.completed === metrics.tasks.total
+                      ? "var(--green)"
+                      : "var(--text-0)"
+                  }
+                />
+              </>
+            )}
+          </>
+        ) : (
+          <span style={{ color: "var(--text-2)", fontSize: "12px" }}>&mdash;</span>
+        )}
+      </div>
+
+      {/* Row 3: Tool usage badges */}
+      <div className="topbar-row" style={{
+        display: "flex",
+        alignItems: "center",
+        padding: "0 20px",
+        minHeight: "28px",
+        flexWrap: "nowrap",
+        overflow: "hidden",
+      }}>
+        {metrics ? (
+          metrics.tools.slice(0, 10).map((t) => {
+            const shortName = t.name.startsWith("mcp__")
+              ? t.name.split("__").pop() || t.name
+              : t.name;
+            const checkColor = toolColorMap[shortName] || "var(--text-1)";
+            return (
+              <span
+                key={t.name}
+                className="tb-tool"
+                onClick={() => onToolFilter?.(shortName)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "2px 8px",
+                  borderRadius: "3px",
+                  fontSize: "12px",
+                  color: "var(--text-1)",
+                  whiteSpace: "nowrap",
+                  marginRight: "6px",
+                  cursor: "pointer",
+                }}
+                title={`${shortName}: ${t.count} calls, ${t.errors} errors — click to filter log`}
+              >
+                <span style={{ color: checkColor, marginRight: "1px" }}>&#10003;</span>
+                <span>{shortName}</span>
+                <span style={{ color: "var(--text-2)", fontFamily: "var(--font)" }}>
+                  &times;{t.count}
+                </span>
+              </span>
+            );
+          })
+        ) : (
+          <span style={{ color: "var(--text-2)", fontSize: "12px" }}>&mdash;</span>
+        )}
       </div>
     </div>
   );
@@ -290,66 +285,84 @@ export function TopBar({ usage, costs, metrics }: Props) {
 
 /* --- Reusable pieces --- */
 
-function Dot() {
-  return <span className="text-gray-600">|</span>;
+function TbSep() {
+  return (
+    <div className="tb-sep" style={{
+      width: 1, height: 16,
+      background: "var(--border)",
+      margin: "0 12px",
+      flexShrink: 0,
+    }} />
+  );
 }
 
-function TokenLine({
-  tIn,
-  tOut,
-  cost,
-  costLabel,
+function TbStat({
+  label,
+  value,
+  valueColor,
 }: {
-  tIn: number;
-  tOut: number;
-  cost: number;
-  costLabel: string;
+  label: string;
+  value: string;
+  valueColor?: string;
 }) {
   return (
-    <div className="flex items-center gap-1">
-      <span className="text-gray-400">Token In:</span>
-      <span className="font-semibold font-mono">{formatTokens(tIn)}</span>
-      <span className="text-gray-400">, Out:</span>
-      <span className="font-semibold font-mono">{formatTokens(tOut)}</span>
-      <span className="relative group ml-1">
-        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-gray-600 text-[9px] text-gray-500 cursor-help">
-          i
-        </span>
-        <span className="absolute left-1/2 -translate-x-1/2 top-5 z-50 hidden group-hover:block whitespace-nowrap px-2 py-1 rounded bg-gray-900 border border-gray-700 text-[11px] text-gray-200 shadow-lg pointer-events-none">
-          {costLabel}: ~{formatCost(cost)}
-        </span>
+    <div className="tb-stat" style={{
+      display: "flex", alignItems: "center", gap: "5px",
+      color: "var(--text-2)", whiteSpace: "nowrap", fontSize: "13px",
+    }}>
+      <span className="label" style={{ color: "var(--text-2)" }}>{label}</span>
+      <span className="val" style={{
+        color: valueColor || "var(--text-0)",
+        fontWeight: 600,
+      }}>
+        {value}
       </span>
     </div>
   );
 }
 
-function Tag({ children }: { children: React.ReactNode }) {
+function InfoIcon({ tooltip }: { tooltip: string }) {
   return (
-    <span className="inline-flex items-center justify-center px-2 py-0.5 rounded bg-gray-800 text-gray-300 text-[10px] font-medium shrink-0 min-w-[80px]">
-      {children}
+    <span
+      className="info-icon"
+      style={{
+        width: 14, height: 14, borderRadius: "50%",
+        border: "1px solid var(--text-2)",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        fontSize: "9px", color: "var(--text-2)",
+        cursor: "help", marginLeft: "2px",
+      }}
+      title={tooltip}
+    >
+      i
     </span>
   );
 }
 
-function ContextBar({ percent }: { percent: number }) {
-  const color =
-    percent > 80
-      ? "bg-red-500"
-      : percent > 50
-        ? "bg-yellow-500"
-        : "bg-green-500";
+function SubRow({
+  label,
+  costs,
+  period,
+}: {
+  label: string;
+  costs: CostSummary | null;
+  period: "24h" | "7d";
+}) {
+  const tIn = period === "24h" ? costs?.tokenIn24h : costs?.tokenIn7d;
+  const tOut = period === "24h" ? costs?.tokenOut24h : costs?.tokenOut7d;
 
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${color}`}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-      <span className="font-mono text-xs text-gray-200 font-medium">
-        {percent}%
+    <div className="tb-sub-row" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <span className="tb-sub-label" style={{ color: "var(--text-2)", minWidth: "24px" }}>
+        {label}
       </span>
+      {costs ? (
+        <span className="tb-sub-val" style={{ color: "var(--text-0)" }}>
+          In: {formatTokens(tIn ?? 0)} Out: {formatTokens(tOut ?? 0)}
+        </span>
+      ) : (
+        <span style={{ color: "var(--text-2)" }}>...</span>
+      )}
     </div>
   );
 }
@@ -363,29 +376,41 @@ function UsageBar({
   value: number | null;
   resetsAt: string | null;
 }) {
-  const available = value !== null;
   const pct = value ?? 0;
-  const color =
-    pct > 80 ? "bg-red-500" : pct > 50 ? "bg-yellow-500" : "bg-green-500";
+  const barColor =
+    pct > 80 ? "var(--red)" : pct > 50 ? "var(--yellow)" : "var(--green)";
   const resetStr = resetsAt ? formatResetTime(resetsAt) : "";
 
   return (
     <div
-      className="flex items-center gap-1"
+      className="tb-usage-bar"
+      style={{
+        display: "flex", alignItems: "center", gap: "5px",
+        fontSize: "11px", color: "var(--text-2)",
+      }}
       title={resetStr ? `Resets in ${resetStr}` : undefined}
     >
-      <RefreshCw size={9} className="text-gray-500" />
-      <span className="text-gray-400 text-[10px]">{label}</span>
-      <div className="w-12 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-        {available && (
-          <div
-            className={`h-full rounded-full transition-all ${color}`}
-            style={{ width: `${pct}%` }}
-          />
+      <span>{label}</span>
+      <div style={{
+        width: 40, height: 4,
+        background: "var(--bg-4)",
+        borderRadius: 2,
+        overflow: "hidden",
+        position: "relative",
+      }}>
+        {value !== null && (
+          <div style={{
+            height: "100%",
+            width: `${pct}%`,
+            background: barColor,
+            borderRadius: 2,
+            position: "absolute",
+            left: 0, top: 0,
+          }} />
         )}
       </div>
-      <span className="font-mono text-[10px] text-gray-300">
-        {available ? `${pct}%` : "N/A"}
+      <span style={{ fontFamily: "var(--font)", fontSize: "10px", color: "var(--text-1)" }}>
+        {value !== null ? `${pct}%` : "N/A"}
       </span>
     </div>
   );

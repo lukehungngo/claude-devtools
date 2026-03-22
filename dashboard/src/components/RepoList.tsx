@@ -1,8 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, ChevronDown, GitBranch, FolderOpen } from "lucide-react";
 import type { RepoGroup, SessionInfo } from "../lib/types";
-
-type Filter = "active" | "archived" | "all";
 
 interface Props {
   repos: RepoGroup[];
@@ -12,7 +9,6 @@ interface Props {
 }
 
 export function RepoList({ repos, loading, selected, onSelect }: Props) {
-  const [filter, setFilter] = useState<Filter>("active");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpand = (cwd: string) => {
@@ -24,96 +20,189 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
     });
   };
 
-  const filteredRepos = repos
-    .map((repo) => {
-      const sessions = repo.sessions.filter((s) => {
-        if (filter === "active") return s.isActive;
-        if (filter === "archived") return !s.isActive;
-        return true;
-      });
-      return { ...repo, sessions };
-    })
-    .filter((repo) => {
-      if (filter === "active") return repo.hasActiveSessions;
-      if (filter === "archived") return !repo.hasActiveSessions || repo.sessions.length > 0;
-      return true;
-    });
-
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-gray-200 dark:border-gray-800">
-        <h1 className="text-sm font-bold mb-2">Repositories</h1>
-        <div className="flex gap-1">
-          {(["active", "archived", "all"] as Filter[]).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-2 py-1 text-xs rounded transition ${
-                filter === f
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-              }`}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
+    <div className="panel sidebar" style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      {/* Panel header */}
+      <div
+        className="panel-header"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "8px 12px",
+          borderBottom: "1px solid var(--border)",
+          flexShrink: 0,
+          background: "var(--bg-2)",
+        }}
+      >
+        <div
+          className="panel-title"
+          style={{
+            fontSize: "11px",
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            color: "var(--text-2)",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          Repositories
+        </div>
+        <div className="panel-actions" style={{ display: "flex", gap: "4px" }}>
+          <button
+            className="panel-action"
+            style={{
+              width: 24,
+              height: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "var(--radius-sm)",
+              color: "var(--text-2)",
+              cursor: "pointer",
+              background: "transparent",
+              border: "none",
+              fontSize: "14px",
+            }}
+            title="Add repository"
+          >
+            +
+          </button>
+          <button
+            className="panel-action"
+            style={{
+              width: 24,
+              height: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "var(--radius-sm)",
+              color: "var(--text-2)",
+              cursor: "pointer",
+              background: "transparent",
+              border: "none",
+              fontSize: "12px",
+            }}
+            title="Filter"
+          >
+            &#9776;
+          </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
+      {/* Body */}
+      <div
+        className="panel-body"
+        style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: 0 }}
+      >
         {loading ? (
-          <p className="text-gray-500 text-sm p-2">Loading...</p>
-        ) : filteredRepos.length === 0 ? (
-          <p className="text-gray-500 text-sm p-2">No repositories found</p>
+          <p style={{ color: "var(--text-2)", fontSize: "12px", padding: "12px" }}>
+            Loading...
+          </p>
+        ) : repos.length === 0 ? (
+          <p style={{ color: "var(--text-2)", fontSize: "12px", padding: "12px" }}>
+            No repositories found
+          </p>
         ) : (
-          <ul className="space-y-0.5">
-            {filteredRepos.map((repo) => (
-              <li key={repo.cwd}>
-                <button
-                  onClick={() => toggleExpand(repo.cwd)}
-                  className="w-full text-left px-2 py-1.5 rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-1.5 transition"
-                >
-                  {expanded.has(repo.cwd) ? (
-                    <ChevronDown size={14} className="shrink-0 text-gray-400" />
-                  ) : (
-                    <ChevronRight size={14} className="shrink-0 text-gray-400" />
-                  )}
-                  <FolderOpen size={14} className="shrink-0 text-blue-400" />
-                  <span className="truncate font-medium">{repo.repoName}</span>
-                  {repo.hasActiveSessions && (
-                    <span className="ml-auto w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                  )}
-                </button>
+          repos.map((repo) => {
+            const isExpanded = expanded.has(repo.cwd);
+            const isActiveRepo =
+              selected !== null &&
+              repo.sessions.some(
+                (s) =>
+                  s.projectHash === selected.projectHash &&
+                  s.id === selected.sessionId
+              );
 
-                {expanded.has(repo.cwd) && (
-                  <div className="ml-5 mt-0.5 space-y-0.5">
-                    {repo.gitBranch && (
-                      <div className="flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-500">
-                        <GitBranch size={10} />
-                        {repo.gitBranch}
-                      </div>
-                    )}
-                    {repo.sessions.map((session) => (
-                      <SessionItem
-                        key={`${session.projectHash}/${session.id}`}
-                        session={session}
-                        isSelected={
-                          selected?.projectHash === session.projectHash &&
-                          selected?.sessionId === session.id
-                        }
-                        onSelect={() =>
-                          onSelect({
-                            projectHash: session.projectHash,
-                            sessionId: session.id,
-                          })
-                        }
-                      />
-                    ))}
+            return (
+              <div key={repo.cwd}>
+                {/* Repo item */}
+                <div
+                  className={`repo-item${isActiveRepo ? " active" : ""}`}
+                  style={{
+                    padding: "8px 12px 8px 16px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    cursor: "pointer",
+                    transition: "all .1s",
+                    borderLeft: isActiveRepo
+                      ? "2px solid var(--accent)"
+                      : "2px solid transparent",
+                    background: isActiveRepo ? "var(--accent-dim)" : "transparent",
+                  }}
+                  onClick={() => toggleExpand(repo.cwd)}
+                >
+                  <span
+                    className="repo-status"
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      background: repo.hasActiveSessions
+                        ? "var(--green)"
+                        : "var(--yellow)",
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      className="repo-name"
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        color: "var(--text-0)",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {repo.repoName}
+                    </div>
+                    <div
+                      className="repo-meta"
+                      style={{
+                        fontSize: "10px",
+                        color: "var(--text-2)",
+                        marginTop: "1px",
+                        display: "flex",
+                        gap: "8px",
+                      }}
+                    >
+                      {repo.gitBranch && (
+                        <span style={{ color: "var(--cyan)" }}>{repo.gitBranch}</span>
+                      )}
+                      <span>{repo.sessions.length} sessions</span>
+                    </div>
                   </div>
-                )}
-              </li>
-            ))}
-          </ul>
+                  <span style={{ color: "var(--text-2)", fontSize: "10px", flexShrink: 0 }}>
+                    {isExpanded ? "\u25BC" : "\u25B6"}
+                  </span>
+                </div>
+
+                {/* Sessions */}
+                {isExpanded &&
+                  repo.sessions.map((session) => (
+                    <SessionItem
+                      key={`${session.projectHash}/${session.id}`}
+                      session={session}
+                      isSelected={
+                        selected?.projectHash === session.projectHash &&
+                        selected?.sessionId === session.id
+                      }
+                      onSelect={() =>
+                        onSelect({
+                          projectHash: session.projectHash,
+                          sessionId: session.id,
+                        })
+                      }
+                    />
+                  ))}
+              </div>
+            );
+          })
         )}
       </div>
     </div>
@@ -130,49 +219,64 @@ function SessionItem({
   onSelect: () => void;
 }) {
   const timeAgo = getTimeAgo(session.lastModified);
-  const [copied, setCopied] = useState(false);
   const displayName = session.sessionName || session.id.slice(0, 8);
-  const fullId = session.sessionName
-    ? `${session.sessionName}\nID: ${session.id}\n\nDouble-click to copy`
-    : `${session.id}\n\nDouble-click to copy`;
-
-  const handleDoubleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    navigator.clipboard.writeText(session.sessionName || session.id);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
 
   return (
-    <button
+    <div
+      className={`session-item${isSelected ? " active" : ""}`}
+      style={{
+        padding: "6px 12px 6px 24px",
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        cursor: "pointer",
+        transition: "all .1s",
+        borderLeft: isSelected
+          ? "2px solid var(--accent)"
+          : "2px solid transparent",
+        background: isSelected ? "var(--accent-dim)" : "transparent",
+      }}
       onClick={onSelect}
-      onDoubleClick={handleDoubleClick}
-      title={fullId}
-      className={`group/session w-full text-left px-2 py-1.5 rounded text-xs transition ${
-        isSelected
-          ? "bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-600/30"
-          : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-      }`}
     >
-      <div className="flex items-center gap-1.5">
+      <span
+        className="session-hash"
+        style={{
+          fontFamily: "var(--font)",
+          fontSize: "11px",
+          color: "var(--purple)",
+        }}
+      >
+        {displayName}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-            session.isActive ? "bg-green-500" : "bg-gray-400"
-          }`}
-        />
-        <span className={`truncate ${session.sessionName ? "" : "font-mono"} group-hover/session:hidden`}>
-          {displayName}
+          className="session-detail"
+          style={{ fontSize: "10px", color: "var(--text-2)" }}
+        >
+          {session.eventCount} events
         </span>
-        <span className="truncate hidden group-hover/session:inline text-gray-400">
-          {copied ? "✓ Copied!" : "Double-click to copy"}
+      </div>
+      {session.subagentCount > 0 && (
+        <span
+          className="session-agents"
+          style={{
+            fontSize: "9px",
+            padding: "1px 5px",
+            borderRadius: "8px",
+            background: "var(--bg-4)",
+            color: "var(--text-1)",
+          }}
+        >
+          {session.subagentCount}a
         </span>
-        <span className="ml-auto text-gray-500 shrink-0">{timeAgo}</span>
-      </div>
-      <div className="mt-0.5 text-gray-500 ml-3">
-        {session.eventCount} events · {session.subagentCount} agents
-      </div>
-    </button>
+      )}
+      <span
+        className="session-time"
+        style={{ fontSize: "10px", color: "var(--text-2)", flexShrink: 0 }}
+      >
+        {timeAgo}
+      </span>
+    </div>
   );
 }
 

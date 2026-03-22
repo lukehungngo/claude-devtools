@@ -136,7 +136,7 @@ export function computeMetrics(
   // Aggregate tokens
   const tokensByModel: Record<string, AggregatedTokens> = {};
   const tokensByTurn: TurnTokens[] = [];
-  let totalTokens: AggregatedTokens = {
+  const totalTokens: AggregatedTokens = {
     inputTokens: 0,
     outputTokens: 0,
     cacheWriteTokens: 0,

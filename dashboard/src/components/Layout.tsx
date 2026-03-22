@@ -2,43 +2,85 @@ import { ReactNode } from "react";
 
 interface LayoutProps {
   topBar: ReactNode;
-  leftSidebar: ReactNode;
+  sidebar: ReactNode;
   center: ReactNode;
-  rightSidebar: ReactNode;
-  bottomPanel: ReactNode;
+  topRight: ReactNode;
+  bottomRight: ReactNode;
 }
 
 export function Layout({
   topBar,
-  leftSidebar,
+  sidebar,
   center,
-  rightSidebar,
-  bottomPanel,
+  topRight,
+  bottomRight,
 }: LayoutProps) {
   return (
-    <div className="h-screen grid grid-rows-[116px_1fr_220px] grid-cols-[280px_1fr_420px] bg-white dark:bg-gray-950 text-gray-900 dark:text-white">
-      {/* Top bar - spans all columns */}
-      <header className="col-span-3">
-        {topBar}
-      </header>
+    <div
+      className="app"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "280px 1fr 1fr",
+        gridTemplateRows: "auto 1fr 1fr",
+        gridTemplateAreas: `
+          "topbar topbar topbar"
+          "sidebar terminal graph"
+          "sidebar terminal agents-log"
+        `,
+        height: "100vh",
+        gap: "1px",
+        background: "var(--border)",
+      }}
+    >
+      <header style={{ gridArea: "topbar" }}>{topBar}</header>
 
-      {/* Left sidebar */}
-      <aside className="border-r border-gray-200 dark:border-gray-800 overflow-y-auto">
-        {leftSidebar}
+      <aside
+        style={{
+          gridArea: "sidebar",
+          background: "var(--bg-1)",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {sidebar}
       </aside>
 
-      {/* Center - main content */}
-      <main className="overflow-hidden">{center}</main>
+      <main
+        style={{
+          gridArea: "terminal",
+          background: "var(--bg-1)",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {center}
+      </main>
 
-      {/* Right sidebar */}
-      <aside className="border-l border-gray-200 dark:border-gray-800 overflow-y-auto">
-        {rightSidebar}
-      </aside>
+      <section
+        style={{
+          gridArea: "graph",
+          background: "var(--bg-1)",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {topRight}
+      </section>
 
-      {/* Bottom panel - spans all columns */}
-      <footer className="col-span-3 border-t border-gray-200 dark:border-gray-800">
-        {bottomPanel}
-      </footer>
+      <section
+        style={{
+          gridArea: "agents-log",
+          background: "var(--bg-1)",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {bottomRight}
+      </section>
     </div>
   );
 }

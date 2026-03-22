@@ -1,16 +1,15 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Layout } from "./components/Layout";
 import { RepoList } from "./components/RepoList";
 import { TopBar } from "./components/TopBar";
 import { AgentFlowDAG } from "./components/AgentFlowDAG";
 import { AgentLogs } from "./components/AgentLogs";
-import { BottomPanel } from "./components/BottomPanel";
+import { SessionViewer } from "./components/viewer/SessionViewer";
 import { useRepos } from "./hooks/useRepos";
 import { useSessionMetrics } from "./hooks/useSessionData";
+import { useEventStream } from "./hooks/useEventStream";
 import { useUsage } from "./hooks/useUsage";
 import { useCosts } from "./hooks/useCosts";
-import { useAgentLogs } from "./hooks/useAgentLogs";
-import { usePermissions } from "./hooks/usePermissions";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
 function Dashboard() {
@@ -19,70 +18,144 @@ function Dashboard() {
     projectHash: string;
     sessionId: string;
   } | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState("main");
 
-  const { metrics, loading: metricsLoading } = useSessionMetrics(
+  // Cross-panel shared state
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [toolFilter, setToolFilter] = useState<string | null>(null);
+
+  const { metrics, events, loading: metricsLoading } = useSessionMetrics(
     selected?.projectHash ?? null,
     selected?.sessionId ?? null
   );
+  const { liveEvents, isLive } = useEventStream(
+    metrics?.session?.path ?? null
+  );
+  const allEvents = useMemo(
+    () => [...events, ...liveEvents],
+    [events, liveEvents]
+  );
   const { usage } = useUsage();
   const { costs } = useCosts();
-  const { logs, loading: logsLoading } = useAgentLogs(
-    selected?.projectHash ?? null,
-    selected?.sessionId ?? null,
-    selectedAgent
-  );
-  const { permissions, decide } = usePermissions();
 
   const agents = metrics?.dag.nodes || [];
 
   return (
     <Layout
-      topBar={<TopBar usage={usage} costs={costs} metrics={metrics} />}
-      leftSidebar={
+      topBar={
+        <TopBar
+          usage={usage}
+          costs={costs}
+          metrics={metrics}
+          onToolFilter={(tool) => {
+            // Toggle: click same tool again to clear filter
+            setToolFilter((prev) => (prev === tool ? null : tool));
+          }}
+        />
+      }
+      sidebar={
         <RepoList
           repos={repos}
           loading={reposLoading}
           selected={selected}
           onSelect={(s) => {
             setSelected(s);
-            setSelectedAgent("main");
+            setSelectedAgent(null);
+            setToolFilter(null);
           }}
         />
       }
       center={
         !selected ? (
-          <div className="flex items-center justify-center h-full text-gray-400">
-            <div className="text-center">
-              <h2 className="text-xl font-bold mb-1">Claude DevTools</h2>
-              <p className="text-sm">
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            color: "var(--text-2)",
+          }}>
+            <div style={{ textAlign: "center" }}>
+              <h2 style={{
+                fontSize: "18px",
+                fontWeight: 700,
+                marginBottom: "4px",
+                color: "var(--text-0)",
+                fontFamily: "var(--font-sans)",
+              }}>
+                Claude DevTools
+              </h2>
+              <p style={{ fontSize: "12px", color: "var(--text-2)" }}>
                 Select a session from the sidebar to begin
               </p>
             </div>
           </div>
         ) : metricsLoading ? (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            color: "var(--text-2)",
+          }}>
             Loading session...
           </div>
         ) : metrics ? (
-          <AgentFlowDAG dag={metrics.dag} onSelectAgent={setSelectedAgent} />
+          <SessionViewer
+            events={allEvents}
+            metrics={metrics}
+            isLive={isLive}
+            sessionCwd={metrics.session.cwd}
+          />
         ) : (
-          <div className="flex items-center justify-center h-full text-red-400">
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            color: "var(--red)",
+          }}>
             Failed to load session
           </div>
         )
       }
-      rightSidebar={
+      topRight={
+        !selected ? (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            color: "var(--text-2)",
+            fontSize: "12px",
+          }}>
+            Agent Graph
+          </div>
+        ) : metricsLoading ? (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            color: "var(--text-2)",
+            fontSize: "12px",
+          }}>
+            Loading...
+          </div>
+        ) : metrics ? (
+          <AgentFlowDAG
+            dag={metrics.dag}
+            selectedAgent={selectedAgent}
+            onSelectAgent={setSelectedAgent}
+          />
+        ) : null
+      }
+      bottomRight={
         <AgentLogs
-          logs={logs}
-          loading={logsLoading}
+          events={allEvents}
           agents={agents}
           selectedAgent={selectedAgent}
+          toolFilter={toolFilter}
           onSelectAgent={setSelectedAgent}
         />
-      }
-      bottomPanel={
-        <BottomPanel permissions={permissions} onDecidePermission={decide} />
       }
     />
   );
