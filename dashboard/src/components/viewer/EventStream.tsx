@@ -17,6 +17,40 @@ interface EventStreamProps {
   events: SessionEvent[];
 }
 
+// ─── Aggregation ──────────────────────────────────────────────────────
+
+interface AggregatedEvent {
+  event: SessionEvent;
+  count: number;
+}
+
+/** Collapse consecutive progress events with the same label into a single entry */
+function aggregateProgressEvents(events: SessionEvent[]): AggregatedEvent[] {
+  const result: AggregatedEvent[] = [];
+  for (const event of events) {
+    if (event.type === "progress") {
+      const label =
+        event.data?.hookName || event.data?.type || "progress";
+      const prev = result[result.length - 1];
+      if (prev && prev.event.type === "progress") {
+        const prevProgress = prev.event as ProgressEvent;
+        const prevLabel =
+          prevProgress.data?.hookName ||
+          prevProgress.data?.type ||
+          "progress";
+        if (prevLabel === label) {
+          prev.count++;
+          continue;
+        }
+      }
+    }
+    result.push({ event, count: 1 });
+  }
+  return result;
+}
+
+// ─── Render helpers ───────────────────────────────────────────────────
+
 /** Build a map of tool_use_id -> ToolResultContent across all user events */
 function buildToolResultMap(events: SessionEvent[]): Map<string, ToolResultContent> {
   const map = new Map<string, ToolResultContent>();
@@ -161,7 +195,7 @@ function renderAssistantEvent(
   );
 }
 
-function renderProgressEvent(event: ProgressEvent) {
+function renderProgressEvent(event: ProgressEvent, count: number) {
   const label = event.data?.hookName || event.data?.type || "progress";
 
   return (
@@ -181,6 +215,18 @@ function renderProgressEvent(event: ProgressEvent) {
           {event.data.command}
         </span>
       )}
+      {count > 1 && (
+        <span
+          style={{
+            marginLeft: "6px",
+            fontSize: "10px",
+            color: "var(--accent)",
+            fontWeight: 600,
+          }}
+        >
+          x{count}
+        </span>
+      )}
     </div>
   );
 }
@@ -193,6 +239,8 @@ export function EventStream({ events }: EventStreamProps) {
   const visibleEvents = truncated
     ? events.slice(events.length - MAX_VISIBLE)
     : events;
+
+  const aggregated = aggregateProgressEvents(visibleEvents);
 
   return (
     <div
@@ -216,14 +264,14 @@ export function EventStream({ events }: EventStreamProps) {
           Showing last {MAX_VISIBLE} of {events.length} events
         </div>
       )}
-      {visibleEvents.map((event) => {
+      {aggregated.map(({ event, count }) => {
         switch (event.type) {
           case "user":
             return renderUserEvent(event);
           case "assistant":
             return renderAssistantEvent(event, toolResultMap);
           case "progress":
-            return renderProgressEvent(event);
+            return renderProgressEvent(event, count);
           case "queue-operation":
             // Typically not displayed
             return null;

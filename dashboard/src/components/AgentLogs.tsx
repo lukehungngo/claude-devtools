@@ -19,6 +19,10 @@ export interface LogEntry {
   isError: boolean;
 }
 
+interface AggregatedLogEntry extends LogEntry {
+  count: number;
+}
+
 type FilterTab =
   | "All"
   | "Main"
@@ -257,6 +261,26 @@ export function eventsToLogEntries(
   return entries;
 }
 
+// ─── Aggregate consecutive identical log entries ──────────────────────
+
+function aggregateLogEntries(entries: LogEntry[]): AggregatedLogEntry[] {
+  const result: AggregatedLogEntry[] = [];
+  for (const entry of entries) {
+    const prev = result[result.length - 1];
+    if (
+      prev &&
+      prev.message === entry.message &&
+      prev.agentId === entry.agentId &&
+      prev.toolName === entry.toolName
+    ) {
+      prev.count++;
+      continue;
+    }
+    result.push({ ...entry, count: 1 });
+  }
+  return result;
+}
+
 // ─── Inline highlighting for messages ────────────────────────────────
 
 function highlightMessage(msg: string): React.ReactNode {
@@ -369,12 +393,18 @@ export function AgentLogs({
     return result;
   }, [allEntries, activeFilter, toolFilter]);
 
+  // Aggregate consecutive identical entries
+  const aggregatedEntries = useMemo(
+    () => aggregateLogEntries(filteredEntries),
+    [filteredEntries]
+  );
+
   // Auto-scroll
   useEffect(() => {
     if (autoScroll && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [filteredEntries, autoScroll]);
+  }, [aggregatedEntries, autoScroll]);
 
   // Detect manual scroll-up to pause auto-scroll
   const handleScroll = useCallback(() => {
@@ -532,7 +562,7 @@ export function AgentLogs({
           padding: 0,
         }}
       >
-        {filteredEntries.length === 0 ? (
+        {aggregatedEntries.length === 0 ? (
           events.length === 0 ? (
             <div
               style={{
@@ -566,11 +596,11 @@ export function AgentLogs({
         ) : (
           (() => {
             const MAX_VISIBLE = 500;
-            const total = filteredEntries.length;
+            const total = aggregatedEntries.length;
             const truncated = total > MAX_VISIBLE;
             const visibleEntries = truncated
-              ? filteredEntries.slice(total - MAX_VISIBLE)
-              : filteredEntries;
+              ? aggregatedEntries.slice(total - MAX_VISIBLE)
+              : aggregatedEntries;
 
             return (
               <>
@@ -641,7 +671,7 @@ export function AgentLogs({
                   {normalizeAgentTypeLabel(entry.agentType)}
                 </div>
 
-                {/* Message */}
+                {/* Message + count badge */}
                 <div
                   style={{
                     color: "var(--text-1)",
@@ -649,9 +679,29 @@ export function AgentLogs({
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
                   }}
                 >
-                  {highlightMessage(entry.message)}
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {highlightMessage(entry.message)}
+                  </span>
+                  {entry.count > 1 && (
+                    <span
+                      style={{
+                        fontSize: "9px",
+                        padding: "1px 5px",
+                        borderRadius: "8px",
+                        fontWeight: 600,
+                        background: "var(--bg-4)",
+                        color: "var(--text-2)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      x{entry.count}
+                    </span>
+                  )}
                 </div>
 
                 {/* Action badge */}

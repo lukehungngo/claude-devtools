@@ -14,6 +14,7 @@ import {
   getPendingPermissions,
   getPermissionStatus,
 } from "../hooks/permission-handler.js";
+import type { SessionEvent } from "../types.js";
 import type { ServerState } from "./server.js";
 import { broadcast } from "./server.js";
 
@@ -84,7 +85,26 @@ export function setupRoutes(state?: ServerState): Router {
         subagentMeta
       );
 
-      res.json({ metrics, events: mainEvents });
+      // Merge main + subagent events, sorted by timestamp
+      const allSubEvents: SessionEvent[] = [];
+      for (const evts of subagentEvents.values()) {
+        allSubEvents.push(...evts);
+      }
+      const allEvents = [...mainEvents, ...allSubEvents].sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+
+      // Convert subagentMeta Map to plain object for JSON serialization
+      const subagentMetaObj: Record<
+        string,
+        { agentType: string; description: string }
+      > = {};
+      for (const [id, meta] of subagentMeta.entries()) {
+        subagentMetaObj[id] = meta;
+      }
+
+      res.json({ metrics, events: allEvents, subagentMeta: subagentMetaObj });
     } catch (err) {
       res.status(500).json({ error: "Failed to load session" });
     }
