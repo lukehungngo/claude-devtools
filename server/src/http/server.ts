@@ -36,8 +36,8 @@ export function startHttpServer(port: number = 3142): Promise<{
       ws.on("close", () => state.clients.delete(ws));
     });
 
-    // API routes
-    app.use("/api", setupRoutes());
+    // API routes (pass state for WebSocket broadcasting)
+    app.use("/api", setupRoutes(state));
 
     // Serve React SPA (built dashboard)
     const publicDir = join(__dirname, "public");

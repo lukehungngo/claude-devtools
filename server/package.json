@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --outdir=dist --format=esm --external:express --external:ws --external:chokidar --external:open",
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/dev-server.ts",
+    "dev:mcp": "tsx watch src/index.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

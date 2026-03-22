@@ -6,6 +6,10 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": "http://localhost:3142",
+      "/ws": {
+        target: "ws://localhost:3142",
+        ws: true,
+      },
     },
   },
   build: {

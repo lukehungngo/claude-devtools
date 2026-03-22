@@ -9,6 +9,8 @@ import type {
 } from "../types.js";
 import { calculateTokenCost } from "./metrics.js";
 
+const ACTIVE_THRESHOLD_MS = 30_000; // 30 seconds
+
 export function buildAgentDAG(
   mainEvents: SessionEvent[],
   subagentEvents: Map<string, SessionEvent[]>,
@@ -20,12 +22,16 @@ export function buildAgentDAG(
   // Main session node
   const mainTokens = aggregateTokens(mainEvents);
   const mainToolCalls = countToolCalls(mainEvents);
+  const mainMcpCalls = countMcpToolCalls(mainEvents);
+  const mainStatus = determineAgentStatus(mainEvents);
   nodes.push({
     id: "main",
     type: "main",
     description: "Main session",
     tokenUsage: mainTokens,
     toolCalls: mainToolCalls,
+    mcpToolCalls: mainMcpCalls,
+    status: mainStatus,
     startTime: mainEvents[0]?.timestamp,
     endTime: mainEvents[mainEvents.length - 1]?.timestamp,
   });
@@ -52,14 +58,18 @@ export function buildAgentDAG(
     const meta = subagentMeta.get(agentId);
     const tokens = aggregateTokens(events);
     const toolCalls = countToolCalls(events);
+    const mcpCalls = countMcpToolCalls(events);
+    const status = determineAgentStatus(events);
 
     nodes.push({
       id: agentId,
       type: meta?.agentType || "unknown",
       description: meta?.description || agentId,
-      parentId: "main", // default, refined by edges
+      parentId: "main",
       tokenUsage: tokens,
       toolCalls,
+      mcpToolCalls: mcpCalls,
+      status,
       startTime: events[0]?.timestamp,
       endTime: events[events.length - 1]?.timestamp,
     });
@@ -73,7 +83,32 @@ export function buildAgentDAG(
   return { nodes, edges };
 }
 
-function aggregateTokens(events: SessionEvent[]): AggregatedTokens {
+function determineAgentStatus(
+  events: SessionEvent[]
+): "active" | "completed" | "error" {
+  if (events.length === 0) return "completed";
+
+  const lastEvent = events[events.length - 1];
+  const lastTimestamp = new Date(lastEvent.timestamp).getTime();
+  const isRecent = Date.now() - lastTimestamp < ACTIVE_THRESHOLD_MS;
+
+  // Check if last tool_result has error
+  for (let i = events.length - 1; i >= Math.max(0, events.length - 3); i--) {
+    const evt = events[i];
+    if (evt.type === "assistant") {
+      for (const content of evt.message.content) {
+        if (content.type === "tool_result" && content.is_error) {
+          return "error";
+        }
+      }
+    }
+  }
+
+  if (isRecent) return "active";
+  return "completed";
+}
+
+export function aggregateTokens(events: SessionEvent[]): AggregatedTokens {
   let inputTokens = 0;
   let outputTokens = 0;
   let cacheWriteTokens = 0;
@@ -97,7 +132,13 @@ function aggregateTokens(events: SessionEvent[]): AggregatedTokens {
     cacheReadTokens,
   });
 
-  return { inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens, totalCost };
+  return {
+    inputTokens,
+    outputTokens,
+    cacheWriteTokens,
+    cacheReadTokens,
+    totalCost,
+  };
 }
 
 function countToolCalls(events: SessionEvent[]): number {
@@ -106,6 +147,19 @@ function countToolCalls(events: SessionEvent[]): number {
     if (event.type !== "assistant") continue;
     for (const content of event.message.content) {
       if (content.type === "tool_use") count++;
+    }
+  }
+  return count;
+}
+
+function countMcpToolCalls(events: SessionEvent[]): number {
+  let count = 0;
+  for (const event of events) {
+    if (event.type !== "assistant") continue;
+    for (const content of event.message.content) {
+      if (content.type === "tool_use" && content.name.startsWith("mcp__")) {
+        count++;
+      }
     }
   }
   return count;

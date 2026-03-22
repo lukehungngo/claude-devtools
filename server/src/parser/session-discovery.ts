@@ -1,8 +1,10 @@
 import { readdirSync, statSync, existsSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { homedir } from "node:os";
-import type { SessionInfo, SessionEvent } from "../types.js";
+import type { SessionInfo, SessionEvent, RepoGroup } from "../types.js";
 import { parseJsonlFile } from "./jsonl-reader.js";
+
+const ACTIVE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function getClaudeProjectsDir(): string {
   return join(homedir(), ".claude", "projects");
@@ -34,21 +36,48 @@ export function discoverSessions(): SessionInfo[] {
         ).length;
       }
 
-      // Count events (fast: count lines)
+      // Read file content for event count and metadata extraction
       const content = readFileSync(filePath, "utf-8");
-      const eventCount = content.split("\n").filter((l) => l.trim()).length;
+      const lines = content.split("\n").filter((l) => l.trim());
+      const eventCount = lines.length;
 
-      // Get start time from first event
-      const firstLine = content.split("\n").find((l) => l.trim());
+      // Extract metadata from first few events
       let startTime = stat.birthtime.toISOString();
-      if (firstLine) {
+      let cwd: string | undefined;
+      let gitBranch: string | undefined;
+      let permissionMode: string | undefined;
+      let model: string | undefined;
+
+      for (let i = 0; i < Math.min(lines.length, 10); i++) {
         try {
-          const first = JSON.parse(firstLine);
-          if (first.timestamp) startTime = first.timestamp;
+          const evt = JSON.parse(lines[i]);
+          if (i === 0 && evt.timestamp) startTime = evt.timestamp;
+          if (evt.cwd && !cwd) cwd = evt.cwd;
+          if (evt.gitBranch && !gitBranch) gitBranch = evt.gitBranch;
+          if (evt.permissionMode && !permissionMode) permissionMode = evt.permissionMode;
+          if (evt.message?.model && !model) model = evt.message.model;
         } catch {
-          // ignore
+          // skip malformed lines
         }
       }
+
+      // Also check last few events for model (assistant events come later)
+      if (!model) {
+        for (let i = lines.length - 1; i >= Math.max(0, lines.length - 5); i--) {
+          try {
+            const evt = JSON.parse(lines[i]);
+            if (evt.message?.model) {
+              model = evt.message.model;
+              break;
+            }
+          } catch {
+            // skip
+          }
+        }
+      }
+
+      const isActive =
+        Date.now() - new Date(stat.mtime).getTime() < ACTIVE_THRESHOLD_MS;
 
       sessions.push({
         id: sessionId,
@@ -58,6 +87,11 @@ export function discoverSessions(): SessionInfo[] {
         lastModified: stat.mtime.toISOString(),
         eventCount,
         subagentCount,
+        cwd,
+        gitBranch,
+        permissionMode,
+        model,
+        isActive,
       });
     }
   }
@@ -69,6 +103,45 @@ export function discoverSessions(): SessionInfo[] {
   );
 
   return sessions;
+}
+
+export function discoverRepoGroups(): RepoGroup[] {
+  const sessions = discoverSessions();
+  const repoMap = new Map<string, SessionInfo[]>();
+
+  for (const session of sessions) {
+    const key = session.cwd || session.projectHash;
+    if (!repoMap.has(key)) {
+      repoMap.set(key, []);
+    }
+    repoMap.get(key)!.push(session);
+  }
+
+  const repos: RepoGroup[] = [];
+  for (const [cwd, repoSessions] of repoMap) {
+    const hasActiveSessions = repoSessions.some((s) => s.isActive);
+    const lastActive = repoSessions[0]?.lastModified || "";
+    const gitBranch = repoSessions.find((s) => s.gitBranch)?.gitBranch;
+
+    repos.push({
+      cwd,
+      repoName: basename(cwd),
+      gitBranch,
+      sessions: repoSessions,
+      lastActive,
+      hasActiveSessions,
+    });
+  }
+
+  // Sort: repos with active sessions first, then by last active
+  repos.sort((a, b) => {
+    if (a.hasActiveSessions !== b.hasActiveSessions) {
+      return a.hasActiveSessions ? -1 : 1;
+    }
+    return new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime();
+  });
+
+  return repos;
 }
 
 export function loadFullSession(sessionInfo: SessionInfo): {

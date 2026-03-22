@@ -1,18 +1,44 @@
 import { ReactNode } from "react";
 
+interface LayoutProps {
+  topBar: ReactNode;
+  leftSidebar: ReactNode;
+  center: ReactNode;
+  rightSidebar: ReactNode;
+  bottomPanel: ReactNode;
+}
+
 export function Layout({
-  sidebar,
-  children,
-}: {
-  sidebar: ReactNode;
-  children: ReactNode;
-}) {
+  topBar,
+  leftSidebar,
+  center,
+  rightSidebar,
+  bottomPanel,
+}: LayoutProps) {
   return (
-    <div className="flex h-screen bg-gray-950">
-      <aside className="w-72 border-r border-gray-800 overflow-y-auto">
-        {sidebar}
+    <div className="h-screen grid grid-rows-[76px_1fr_220px] grid-cols-[280px_1fr_320px] bg-white dark:bg-gray-950 text-gray-900 dark:text-white">
+      {/* Top bar - spans all columns */}
+      <header className="col-span-3">
+        {topBar}
+      </header>
+
+      {/* Left sidebar */}
+      <aside className="border-r border-gray-200 dark:border-gray-800 overflow-y-auto">
+        {leftSidebar}
       </aside>
-      <main className="flex-1 overflow-hidden">{children}</main>
+
+      {/* Center - main content */}
+      <main className="overflow-hidden">{center}</main>
+
+      {/* Right sidebar */}
+      <aside className="border-l border-gray-200 dark:border-gray-800 overflow-y-auto">
+        {rightSidebar}
+      </aside>
+
+      {/* Bottom panel - spans all columns */}
+      <footer className="col-span-3 border-t border-gray-200 dark:border-gray-800">
+        {bottomPanel}
+      </footer>
     </div>
   );
 }

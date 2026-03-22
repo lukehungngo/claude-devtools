@@ -1,92 +1,97 @@
 import { useState } from "react";
 import { Layout } from "./components/Layout";
-import { SessionSelector } from "./components/SessionSelector";
-import { SummaryCards } from "./components/SummaryCards";
+import { RepoList } from "./components/RepoList";
+import { TopBar } from "./components/TopBar";
 import { AgentFlowDAG } from "./components/AgentFlowDAG";
-import { TokenChart } from "./components/TokenChart";
-import { ToolStats } from "./components/ToolStats";
-import { CommandInput } from "./components/CommandInput";
-import { useSessions, useSessionMetrics } from "./hooks/useSessionData";
+import { AgentLogs } from "./components/AgentLogs";
+import { BottomPanel } from "./components/BottomPanel";
+import { useRepos } from "./hooks/useRepos";
+import { useSessionMetrics } from "./hooks/useSessionData";
+import { useUsage } from "./hooks/useUsage";
+import { useCosts } from "./hooks/useCosts";
+import { useAgentLogs } from "./hooks/useAgentLogs";
+import { usePermissions } from "./hooks/usePermissions";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
-export default function App() {
-  const { sessions, loading: sessionsLoading } = useSessions();
+function Dashboard() {
+  const { repos, loading: reposLoading } = useRepos();
   const [selected, setSelected] = useState<{
     projectHash: string;
     sessionId: string;
   } | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState("main");
 
   const { metrics, loading: metricsLoading } = useSessionMetrics(
     selected?.projectHash ?? null,
     selected?.sessionId ?? null
   );
+  const { usage } = useUsage();
+  const { costs } = useCosts();
+  const { logs, loading: logsLoading } = useAgentLogs(
+    selected?.projectHash ?? null,
+    selected?.sessionId ?? null,
+    selectedAgent
+  );
+  const { permissions, decide } = usePermissions();
 
-  const [activeTab, setActiveTab] = useState<
-    "flow" | "tokens" | "tools" | "command"
-  >("flow");
+  const agents = metrics?.dag.nodes || [];
 
   return (
     <Layout
-      sidebar={
-        <SessionSelector
-          sessions={sessions}
-          loading={sessionsLoading}
+      topBar={<TopBar usage={usage} costs={costs} metrics={metrics} />}
+      leftSidebar={
+        <RepoList
+          repos={repos}
+          loading={reposLoading}
           selected={selected}
-          onSelect={setSelected}
+          onSelect={(s) => {
+            setSelected(s);
+            setSelectedAgent("main");
+          }}
         />
       }
-    >
-      {!selected ? (
-        <div className="flex items-center justify-center h-full text-gray-500">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2">Claude DevTools</h2>
-            <p>Select a session from the sidebar to begin</p>
+      center={
+        !selected ? (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            <div className="text-center">
+              <h2 className="text-xl font-bold mb-1">Claude DevTools</h2>
+              <p className="text-sm">
+                Select a session from the sidebar to begin
+              </p>
+            </div>
           </div>
-        </div>
-      ) : metricsLoading ? (
-        <div className="flex items-center justify-center h-full text-gray-500">
-          Loading session...
-        </div>
-      ) : metrics ? (
-        <div className="flex flex-col h-full">
-          <SummaryCards metrics={metrics} />
+        ) : metricsLoading ? (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            Loading session...
+          </div>
+        ) : metrics ? (
+          <AgentFlowDAG dag={metrics.dag} onSelectAgent={setSelectedAgent} />
+        ) : (
+          <div className="flex items-center justify-center h-full text-red-400">
+            Failed to load session
+          </div>
+        )
+      }
+      rightSidebar={
+        <AgentLogs
+          logs={logs}
+          loading={logsLoading}
+          agents={agents}
+          selectedAgent={selectedAgent}
+          onSelectAgent={setSelectedAgent}
+        />
+      }
+      bottomPanel={
+        <BottomPanel permissions={permissions} onDecidePermission={decide} />
+      }
+    />
+  );
+}
 
-          {/* Tab bar */}
-          <div className="flex gap-1 px-4 pt-2 border-b border-gray-800">
-            {(
-              [
-                ["flow", "Agent Flow"],
-                ["tokens", "Tokens & Cost"],
-                ["tools", "Tools"],
-                ["command", "Command"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                className={`px-4 py-2 text-sm rounded-t-lg transition ${
-                  activeTab === key
-                    ? "bg-gray-800 text-white"
-                    : "text-gray-400 hover:text-gray-200"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab content */}
-          <div className="flex-1 overflow-auto p-4">
-            {activeTab === "flow" && <AgentFlowDAG dag={metrics.dag} />}
-            {activeTab === "tokens" && <TokenChart metrics={metrics} />}
-            {activeTab === "tools" && <ToolStats tools={metrics.tools} />}
-            {activeTab === "command" && <CommandInput />}
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-center h-full text-red-400">
-          Failed to load session
-        </div>
-      )}
-    </Layout>
+export default function App() {
+  return (
+    <ThemeProvider>
+      <Dashboard />
+    </ThemeProvider>
   );
 }

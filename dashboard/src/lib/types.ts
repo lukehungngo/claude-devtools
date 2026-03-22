@@ -8,6 +8,20 @@ export interface SessionInfo {
   lastModified: string;
   eventCount: number;
   subagentCount: number;
+  cwd?: string;
+  gitBranch?: string;
+  permissionMode?: string;
+  model?: string;
+  isActive?: boolean;
+}
+
+export interface RepoGroup {
+  cwd: string;
+  repoName: string;
+  gitBranch?: string;
+  sessions: SessionInfo[];
+  lastActive: string;
+  hasActiveSessions: boolean;
 }
 
 export interface AgentNode {
@@ -17,6 +31,8 @@ export interface AgentNode {
   parentId?: string;
   tokenUsage: AggregatedTokens;
   toolCalls: number;
+  mcpToolCalls: number;
+  status: "active" | "completed" | "error";
   startTime?: string;
   endTime?: string;
 }
@@ -72,4 +88,39 @@ export interface SessionMetrics {
   models: string[];
   duration: number;
   permissionMode?: string;
+}
+
+export interface UsageInfo {
+  fiveHour: { utilization: number | null; resetsAt: string | null };
+  sevenDay: { utilization: number | null; resetsAt: string | null };
+  planName: string | null;
+}
+
+export interface CostSummary {
+  cost24h: number;
+  cost7d: number;
+  sessionCount24h: number;
+  sessionCount7d: number;
+  tokenIn24h: number;
+  tokenOut24h: number;
+  tokenIn7d: number;
+  tokenOut7d: number;
+}
+
+export interface PermissionRequest {
+  id: string;
+  sessionId: string;
+  agentId: string;
+  toolName: string;
+  input: Record<string, unknown>;
+  timestamp: string;
+  status: "pending" | "approved" | "denied";
+}
+
+export interface AgentLogEntry {
+  timestamp: string;
+  eventType: string;
+  agentId: string;
+  contentPreview: string;
+  uuid: string;
 }
