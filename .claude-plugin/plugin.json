@@ -1,0 +1,9 @@
+{
+  "name": "claude-devtools",
+  "version": "0.1.0",
+  "description": "Browser dashboard for visualizing Claude Code session logs, agent flows, token usage, and costs. Includes command input.",
+  "author": {
+    "name": "AgentWall"
+  },
+  "keywords": ["devtools", "visualization", "debugging", "observability"]
+}
