@@ -130,11 +130,26 @@ function SessionItem({
   onSelect: () => void;
 }) {
   const timeAgo = getTimeAgo(session.lastModified);
+  const [copied, setCopied] = useState(false);
+  const displayName = session.sessionName || session.id.slice(0, 8);
+  const fullId = session.sessionName
+    ? `${session.sessionName}\nID: ${session.id}\n\nDouble-click to copy`
+    : `${session.id}\n\nDouble-click to copy`;
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(session.sessionName || session.id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
     <button
       onClick={onSelect}
-      className={`w-full text-left px-2 py-1.5 rounded text-xs transition ${
+      onDoubleClick={handleDoubleClick}
+      title={fullId}
+      className={`group/session w-full text-left px-2 py-1.5 rounded text-xs transition ${
         isSelected
           ? "bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-600/30"
           : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -146,8 +161,13 @@ function SessionItem({
             session.isActive ? "bg-green-500" : "bg-gray-400"
           }`}
         />
-        <span className="font-mono truncate">{session.id.slice(0, 8)}</span>
-        <span className="ml-auto text-gray-500">{timeAgo}</span>
+        <span className={`truncate ${session.sessionName ? "" : "font-mono"} group-hover/session:hidden`}>
+          {displayName}
+        </span>
+        <span className="truncate hidden group-hover/session:inline text-gray-400">
+          {copied ? "✓ Copied!" : "Double-click to copy"}
+        </span>
+        <span className="ml-auto text-gray-500 shrink-0">{timeAgo}</span>
       </div>
       <div className="mt-0.5 text-gray-500 ml-3">
         {session.eventCount} events · {session.subagentCount} agents

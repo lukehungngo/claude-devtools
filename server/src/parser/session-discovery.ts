@@ -47,6 +47,8 @@ export function discoverSessions(): SessionInfo[] {
       let gitBranch: string | undefined;
       let permissionMode: string | undefined;
       let model: string | undefined;
+      let sessionName: string | undefined;
+      let slug: string | undefined;
 
       for (let i = 0; i < Math.min(lines.length, 10); i++) {
         try {
@@ -56,10 +58,31 @@ export function discoverSessions(): SessionInfo[] {
           if (evt.gitBranch && !gitBranch) gitBranch = evt.gitBranch;
           if (evt.permissionMode && !permissionMode) permissionMode = evt.permissionMode;
           if (evt.message?.model && !model) model = evt.message.model;
+          // Session name: custom-title event or slug field
+          if (evt.type === "custom-title" && evt.customTitle) sessionName = evt.customTitle;
+          if (evt.slug && !slug) slug = evt.slug;
         } catch {
           // skip malformed lines
         }
       }
+
+      // Also scan for custom-title deeper in the file (user may /rename later)
+      if (!sessionName) {
+        for (let i = lines.length - 1; i >= Math.max(0, lines.length - 20); i--) {
+          try {
+            const evt = JSON.parse(lines[i]);
+            if (evt.type === "custom-title" && evt.customTitle) {
+              sessionName = evt.customTitle;
+              break;
+            }
+          } catch {
+            // skip
+          }
+        }
+      }
+
+      // Fallback: use slug as session name
+      if (!sessionName && slug) sessionName = slug;
 
       // Also check last few events for model (assistant events come later)
       if (!model) {
@@ -92,6 +115,7 @@ export function discoverSessions(): SessionInfo[] {
         permissionMode,
         model,
         isActive,
+        sessionName,
       });
     }
   }

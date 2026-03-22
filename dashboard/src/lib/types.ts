@@ -13,6 +13,7 @@ export interface SessionInfo {
   permissionMode?: string;
   model?: string;
   isActive?: boolean;
+  sessionName?: string;
 }
 
 export interface RepoGroup {
