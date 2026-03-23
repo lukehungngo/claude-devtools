@@ -2,24 +2,7 @@ import { useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { AgentNode } from "../lib/types";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
-
-/** Color mapping by agent type for border */
-const typeBorderColors: Record<string, string> = {
-  // Default agent types
-  main: "var(--accent)",
-  Explore: "var(--cyan)",
-  Plan: "var(--yellow)",
-  "general-purpose": "var(--green)",
-  General: "var(--green)",
-  // MAS agent types
-  orchestrator: "var(--orange)",
-  engineer: "var(--teal)",
-  reviewer: "var(--purple)",
-  "bug-fixer": "var(--rose)",
-  researcher: "var(--sky)",
-  "differential-reviewer": "var(--pink)",
-  "ui-ux-designer": "var(--pink)",
-};
+import { getAgentColor } from "../lib/agentColors";
 
 /** Status dot color */
 const statusDotColors: Record<string, string> = {
@@ -27,10 +10,6 @@ const statusDotColors: Record<string, string> = {
   completed: "var(--green)",
   error: "var(--red)",
 };
-
-function getBorderColor(type: string): string {
-  return typeBorderColors[type] || "var(--border-active)";
-}
 
 function computeNodeDuration(node: AgentNode): number | null {
   if (!node.startTime) return null;
@@ -42,7 +21,7 @@ function computeNodeDuration(node: AgentNode): number | null {
 
 export function AgentNodeCard({ data }: NodeProps) {
   const node = data.agent as AgentNode;
-  const borderColor = getBorderColor(node.type);
+  const borderColor = getAgentColor(node.type);
   const dotColor = statusDotColors[node.status] || "var(--text-2)";
   const isRunning = node.status === "active";
   const isMain = node.type === "main";

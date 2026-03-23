@@ -8,6 +8,7 @@ import {
   type DefaultEdgeOptions,
 } from "@xyflow/react";
 import dagre from "@dagrejs/dagre";
+import { getAgentColor, LEGEND_ENTRIES } from "../lib/agentColors";
 import "@xyflow/react/dist/style.css";
 import type { AgentDAG } from "../lib/types";
 import { formatCost, formatTokens } from "../lib/cost";
@@ -274,17 +275,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
             zIndex: 5,
           }}
         >
-          {([
-            ["Main", "var(--accent)"],
-            ["Explore", "var(--cyan)"],
-            ["Plan", "var(--yellow)"],
-            ["General", "var(--green)"],
-            ["Orchestrator", "var(--orange)"],
-            ["Engineer", "var(--teal)"],
-            ["Reviewer", "var(--purple)"],
-            ["Bug-fixer", "var(--rose)"],
-            ["Researcher", "var(--sky)"],
-          ] as const).map(([name, color]) => (
+          {LEGEND_ENTRIES.map(([name, color]) => (
             <div
               key={name}
               style={{

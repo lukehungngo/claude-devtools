@@ -98,37 +98,7 @@ const FIXED_TABS = ["All", "Errors"] as const;
 
 // ─── Agent type colors ───────────────────────────────────────────────
 
-const agentBadgeStyles: Record<
-  string,
-  { background: string; color: string }
-> = {
-  // Default agent types
-  main: { background: "var(--accent-dim)", color: "var(--accent)" },
-  Explore: { background: "var(--cyan-dim)", color: "var(--cyan)" },
-  Plan: { background: "var(--yellow-dim)", color: "var(--yellow)" },
-  "general-purpose": { background: "var(--green-dim)", color: "var(--green)" },
-  General: { background: "var(--green-dim)", color: "var(--green)" },
-  // MAS agent types
-  orchestrator: { background: "var(--orange-dim)", color: "var(--orange)" },
-  engineer: { background: "var(--teal-dim)", color: "var(--teal)" },
-  reviewer: { background: "var(--purple-dim)", color: "var(--purple)" },
-  "bug-fixer": { background: "var(--rose-dim)", color: "var(--rose)" },
-  researcher: { background: "var(--sky-dim)", color: "var(--sky)" },
-  "differential-reviewer": { background: "var(--pink-dim)", color: "var(--pink)" },
-  "ui-ux-designer": { background: "var(--pink-dim)", color: "var(--pink)" },
-};
-
-function getAgentBadgeStyle(agentType: string): {
-  background: string;
-  color: string;
-} {
-  return (
-    agentBadgeStyles[agentType] || {
-      background: "var(--bg-4)",
-      color: "var(--text-2)",
-    }
-  );
-}
+import { getAgentBadgeStyle } from "../lib/agentColors";
 
 // ─── Action badge colors ─────────────────────────────────────────────
 
