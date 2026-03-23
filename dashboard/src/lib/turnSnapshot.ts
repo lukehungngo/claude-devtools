@@ -3,6 +3,7 @@ import type {
   UserEvent,
   AssistantEvent,
   ContentItem,
+  SubagentMeta,
 } from "./types";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -64,7 +65,8 @@ function extractPromptText(event: UserEvent): string {
 function buildTurn(
   turnNumber: number,
   promptText: string,
-  events: SessionEvent[]
+  events: SessionEvent[],
+  agentMeta?: SubagentMeta
 ): TurnSnapshot {
   // Compute cost from assistant events
   let cost = 0;
@@ -99,7 +101,7 @@ function buildTurn(
     } else {
       agentMap.set(agentId, {
         count: event.type === "assistant" ? 1 : 0,
-        agentType: "main", // default; we don't have DAG info here
+        agentType: agentMeta?.[agentId]?.agentType ?? (agentId === "main" ? "main" : agentId),
         lastEvent: event,
         cost: eventCost,
       });
@@ -153,7 +155,8 @@ function buildTurn(
 // ─── Main function ───────────────────────────────────────────────────
 
 export function groupEventsIntoTurns(
-  events: SessionEvent[]
+  events: SessionEvent[],
+  agentMeta?: SubagentMeta
 ): TurnSnapshot[] {
   if (events.length === 0) return [];
 
@@ -166,7 +169,7 @@ export function groupEventsIntoTurns(
     if (isTurnBoundary(event)) {
       // Flush previous turn if it has events
       if (currentEvents.length > 0) {
-        turns.push(buildTurn(turnNumber, currentPrompt, currentEvents));
+        turns.push(buildTurn(turnNumber, currentPrompt, currentEvents, agentMeta));
         turnNumber++;
         currentEvents = [];
       }
@@ -179,7 +182,7 @@ export function groupEventsIntoTurns(
 
   // Flush remaining events
   if (currentEvents.length > 0) {
-    turns.push(buildTurn(turnNumber, currentPrompt, currentEvents));
+    turns.push(buildTurn(turnNumber, currentPrompt, currentEvents, agentMeta));
   }
 
   return turns;

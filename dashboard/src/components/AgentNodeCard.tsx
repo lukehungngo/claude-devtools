@@ -37,6 +37,7 @@ export function AgentNodeCard({ data }: NodeProps) {
   const isRunning = node.status === "active";
   const isMain = node.type === "main";
   const isSelected = data.selected as boolean | undefined;
+  const isFrozen = data.frozen as boolean | undefined;
   const [hovered, setHovered] = useState(false);
 
   const duration = computeNodeDuration(node);
@@ -77,7 +78,7 @@ export function AgentNodeCard({ data }: NodeProps) {
             color: "var(--text-1)",
             whiteSpace: "nowrap",
             zIndex: 50,
-            pointerEvents: "none",
+            pointerEvents: "auto",
             boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
             lineHeight: 1.6,
           }}
@@ -95,6 +96,31 @@ export function AgentNodeCard({ data }: NodeProps) {
           <div>Cost: {formatCost(node.tokenUsage.totalCost)}</div>
           <div>Tools: {node.toolCalls}{node.mcpToolCalls > 0 ? ` (${node.mcpToolCalls} MCP)` : ""}</div>
           <div>Status: {node.status}</div>
+          {(data.onViewInLog as ((id: string) => void) | undefined) && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                (data.onViewInLog as (id: string) => void)(node.id);
+              }}
+              style={{
+                marginTop: "4px",
+                paddingTop: "4px",
+                borderTop: "1px solid var(--border)",
+                color: "var(--accent)",
+                cursor: "pointer",
+                fontSize: "10px",
+                fontWeight: 600,
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLDivElement).style.textDecoration = "underline";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLDivElement).style.textDecoration = "none";
+              }}
+            >
+              View in Agent Log \u2192
+            </div>
+          )}
         </div>
       )}
       <Handle
@@ -112,7 +138,7 @@ export function AgentNodeCard({ data }: NodeProps) {
             borderRadius: "50%",
             background: dotColor,
             flexShrink: 0,
-            animation: isRunning
+            animation: isRunning && !isFrozen
               ? "pulse-opacity 1.5s ease-in-out infinite"
               : undefined,
           }}

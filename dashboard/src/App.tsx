@@ -41,7 +41,7 @@ function Dashboard() {
   const { costs } = useCosts();
 
   const agents = metrics?.dag.nodes || [];
-  const turns = useMemo(() => groupEventsIntoTurns(allEvents), [allEvents]);
+  const turns = useMemo(() => groupEventsIntoTurns(allEvents, subagentMeta), [allEvents, subagentMeta]);
 
   return (
     <Layout

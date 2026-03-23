@@ -17,7 +17,7 @@ export function Layout({
   sidebarCollapsed = false,
   onToggleSidebar,
 }: LayoutProps) {
-  const sidebarWidth = sidebarCollapsed ? "48px" : "280px";
+  const sidebarWidth = sidebarCollapsed ? "48px" : "260px";
 
   return (
     <div

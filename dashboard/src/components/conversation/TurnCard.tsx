@@ -4,6 +4,8 @@ import type { SessionEvent, AssistantEvent, ContentItem } from "../../lib/types"
 import { normalizeContent } from "../../lib/normalizeContent";
 import { formatCost } from "../../lib/cost";
 import { AgentPills } from "./AgentPills";
+import { ThinkingBlock } from "../viewer/ThinkingBlock";
+import { ResponseBlock } from "../viewer/ResponseBlock";
 import { ToolEntries } from "./ToolEntries";
 
 interface TurnCardProps {
@@ -26,57 +28,6 @@ function formatTime(ts: string): string {
 }
 
 // ─── Content renderers ───────────────────────────────────────────────
-
-function ThinkingBlock({ text }: { text: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const preview = text.slice(0, 120);
-
-  return (
-    <div
-      style={{
-        padding: "6px 10px",
-        margin: "4px 0",
-        borderRadius: "6px",
-        background: "var(--bg-3)",
-        border: "1px solid var(--border)",
-        fontSize: "11px",
-        fontFamily: "var(--font)",
-        color: "var(--text-2)",
-        cursor: "pointer",
-      }}
-      onClick={() => setExpanded(!expanded)}
-    >
-      <span style={{ color: "var(--purple)", fontWeight: 600, fontSize: "9px", marginRight: "6px" }}>
-        THINKING
-      </span>
-      {expanded ? (
-        <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-          {text}
-        </span>
-      ) : (
-        <span>{preview}{text.length > 120 ? "..." : ""}</span>
-      )}
-    </div>
-  );
-}
-
-function ResponseText({ text }: { text: string }) {
-  return (
-    <div
-      style={{
-        padding: "4px 0",
-        fontSize: "12px",
-        lineHeight: 1.6,
-        color: "var(--text-0)",
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
-        fontFamily: "var(--font-sans, system-ui)",
-      }}
-    >
-      {text}
-    </div>
-  );
-}
 
 function extractResponseContent(events: SessionEvent[]): ContentItem[] {
   const items: ContentItem[] = [];
@@ -231,9 +182,9 @@ export function TurnCard({
           {/* Response content */}
           {responseContent.map((item, i) =>
             item.type === "thinking" && "thinking" in item ? (
-              <ThinkingBlock key={`thinking-${i}`} text={item.thinking} />
+              <ThinkingBlock key={`thinking-${i}`} content={item} />
             ) : item.type === "text" && "text" in item ? (
-              <ResponseText key={`text-${i}`} text={item.text} />
+              <ResponseBlock key={`text-${i}`} text={item.text} />
             ) : null
           )}
         </div>

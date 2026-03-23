@@ -18,7 +18,7 @@ const nodeTypes = { agentCard: AgentNodeCard };
 const NODE_WIDTH = 140;
 const NODE_HEIGHT = 56;
 
-function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null) {
+function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null, frozen = false, onViewInLog?: (agentId: string) => void) {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: "TB", nodesep: 40, ranksep: 60 });
@@ -41,7 +41,7 @@ function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null) {
         x: pos.x - NODE_WIDTH / 2,
         y: pos.y - NODE_HEIGHT / 2,
       },
-      data: { agent: n, selected: n.id === selectedAgent },
+      data: { agent: n, selected: n.id === selectedAgent, frozen, onViewInLog },
     };
   });
 
@@ -52,13 +52,13 @@ function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null) {
       id: `e-${i}`,
       source: e.source,
       target: e.target,
-      animated: isActive,
+      animated: frozen ? false : isActive,
       style: {
         stroke: isActive
           ? "var(--accent)"
           : "var(--border-active)",
         strokeWidth: 1.5,
-        strokeDasharray: isActive ? "5 3" : undefined,
+        strokeDasharray: frozen ? undefined : (isActive ? "5 3" : undefined),
       },
       markerEnd: {
         type: "arrowclosed" as const,
@@ -76,14 +76,16 @@ interface GraphInnerProps {
   dag: AgentDAG;
   selectedAgent: string | null;
   onSelectAgent?: (agentId: string) => void;
+  frozen?: boolean;
+  onViewInLog?: (agentId: string) => void;
 }
 
-function GraphInner({ dag, selectedAgent, onSelectAgent }: GraphInnerProps) {
+function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewInLog }: GraphInnerProps) {
   const { fitView, zoomIn, zoomOut } = useReactFlow();
 
   const { nodes, edges } = useMemo(
-    () => getLayoutedElements(dag, selectedAgent),
-    [dag, selectedAgent]
+    () => getLayoutedElements(dag, selectedAgent, frozen, onViewInLog),
+    [dag, selectedAgent, frozen, onViewInLog]
   );
 
   const handleNodeClick = useCallback(
@@ -354,15 +356,19 @@ interface Props {
   dag: AgentDAG;
   selectedAgent: string | null;
   onSelectAgent?: (agentId: string) => void;
+  frozen?: boolean;
+  onViewInLog?: (agentId: string) => void;
 }
 
-export function AgentFlowDAG({ dag, selectedAgent, onSelectAgent }: Props) {
+export function AgentFlowDAG({ dag, selectedAgent, onSelectAgent, frozen, onViewInLog }: Props) {
   return (
     <ReactFlowProvider>
       <GraphInner
         dag={dag}
         selectedAgent={selectedAgent}
         onSelectAgent={onSelectAgent}
+        frozen={frozen}
+        onViewInLog={onViewInLog}
       />
     </ReactFlowProvider>
   );

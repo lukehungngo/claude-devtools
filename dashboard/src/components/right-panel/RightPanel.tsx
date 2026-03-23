@@ -117,6 +117,14 @@ export function RightPanel({
     [onSelectAgent]
   );
 
+  const handleSwitchToGraph = useCallback(
+    (agentId: string) => {
+      onSelectAgent(agentId);
+      setActivePrimaryTab("graph");
+    },
+    [onSelectAgent]
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Primary tabs */}
@@ -191,6 +199,8 @@ export function RightPanel({
               dag={filteredDag}
               selectedAgent={selectedAgent}
               onSelectAgent={handleAgentSelect}
+              frozen={!isLiveTurn}
+              onViewInLog={handleAgentSelect}
             />
           ) : (
             <div
@@ -214,6 +224,7 @@ export function RightPanel({
             selectedAgent={selectedAgent}
             toolFilter={toolFilter}
             onSelectAgent={onSelectAgent}
+            onSwitchToGraph={handleSwitchToGraph}
           />
         )}
       </div>

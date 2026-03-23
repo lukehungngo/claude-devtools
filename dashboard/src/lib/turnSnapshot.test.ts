@@ -243,3 +243,46 @@ describe("groupEventsIntoTurns", () => {
     expect(turns[0].endTime).toBe("2026-01-01T00:00:05Z");
   });
 });
+
+describe("groupEventsIntoTurns with agentMeta", () => {
+  it("propagates agentType from agentMeta into agent summaries", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+      makeAssistantEvent({
+        agentId: "agent-explore-abc",
+        timestamp: "2026-01-01T00:00:02Z",
+      }),
+      makeAssistantEvent({
+        agentId: "agent-plan-def",
+        timestamp: "2026-01-01T00:00:03Z",
+      }),
+    ];
+    const agentMeta = {
+      "agent-explore-abc": { agentType: "Explore", description: "explores code" },
+      "agent-plan-def": { agentType: "Plan", description: "plans work" },
+    };
+    const turns = groupEventsIntoTurns(events, agentMeta);
+    expect(turns).toHaveLength(1);
+    const agents = turns[0].agents;
+    expect(agents).toHaveLength(3);
+    expect(agents.find((a) => a.agentId === "main")!.agentType).toBe("main");
+    expect(agents.find((a) => a.agentId === "agent-explore-abc")!.agentType).toBe("Explore");
+    expect(agents.find((a) => a.agentId === "agent-plan-def")!.agentType).toBe("Plan");
+  });
+
+  it("falls back to agentId when agentMeta is not provided", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "agent-unknown-xyz",
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].agents[0].agentType).toBe("agent-unknown-xyz");
+  });
+});
