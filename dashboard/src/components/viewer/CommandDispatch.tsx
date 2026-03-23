@@ -13,7 +13,7 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
   const [lastSentPrompt, setLastSentPrompt] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
 
   // Auto-resize textarea to fit content
   const adjustHeight = useCallback(() => {
@@ -27,7 +27,7 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
     adjustHeight();
   }, [prompt, adjustHeight]);
 
-  async function submitPrompt() {
+  function submitPrompt() {
     if (!prompt.trim() || running) return;
 
     const currentPrompt = prompt;
@@ -36,78 +36,68 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
     setOutput([]);
     setRunning(true);
 
-    const controller = new AbortController();
-    abortRef.current = controller;
+    const xhr = new XMLHttpRequest();
+    xhrRef.current = xhr;
+    let lastIndex = 0;
 
-    try {
-      const response = await fetch("/api/command", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: planMode ? `[Plan mode] ${currentPrompt}` : currentPrompt,
-          cwd: sessionCwd,
-        }),
-        signal: controller.signal,
-      });
+    xhr.open("POST", "/api/command");
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("Accept", "text/event-stream");
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+    xhr.onprogress = () => {
+      const newText = xhr.responseText.substring(lastIndex);
+      lastIndex = xhr.responseText.length;
 
-      if (!reader) throw new Error("No response stream");
-
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // Keep incomplete last line in buffer
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.type === "stdout") {
+      const lines = newText.split("\n");
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.type === "stdout") {
+            setOutput((prev) => [...prev, data.text]);
+          } else if (data.type === "stderr") {
+            if (!isIgnoredStderrWarning(data.text as string)) {
               setOutput((prev) => [...prev, data.text]);
-            } else if (data.type === "stderr") {
-              if (!isIgnoredStderrWarning(data.text as string)) {
-                setOutput((prev) => [...prev, data.text]);
-              }
-            } else if (data.type === "done" && data.exitCode !== 0) {
-              setOutput((prev) => [
-                ...prev,
-                `\nProcess exited with code ${data.exitCode}`,
-              ]);
-            } else if (data.type === "error") {
-              setOutput((prev) => [
-                ...prev,
-                `\nError: ${data.message}`,
-              ]);
             }
-            if (outputRef.current) {
-              outputRef.current.scrollTop = outputRef.current.scrollHeight;
-            }
-          } catch {
-            // ignore parse errors
+          } else if (data.type === "done" && data.exitCode !== 0) {
+            setOutput((prev) => [
+              ...prev,
+              `\nProcess exited with code ${data.exitCode}`,
+            ]);
+          } else if (data.type === "error") {
+            setOutput((prev) => [
+              ...prev,
+              `\nError: ${data.message}`,
+            ]);
           }
+        } catch {
+          // ignore parse errors
         }
       }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        setOutput((prev) => [...prev, "[Aborted]"]);
-      } else {
-        setOutput((prev) => [
-          ...prev,
-          `Error: ${err instanceof Error ? err.message : "Unknown error"}`,
-        ]);
+
+      if (outputRef.current) {
+        outputRef.current.scrollTop = outputRef.current.scrollHeight;
       }
-    } finally {
-      abortRef.current = null;
+    };
+
+    xhr.onloadend = () => {
+      xhrRef.current = null;
       setRunning(false);
       textareaRef.current?.focus();
-    }
+    };
+
+    xhr.onerror = () => {
+      setOutput((prev) => [...prev, "Error: Connection failed"]);
+      xhrRef.current = null;
+      setRunning(false);
+    };
+
+    xhr.send(
+      JSON.stringify({
+        prompt: planMode ? `[Plan mode] ${currentPrompt}` : currentPrompt,
+        cwd: sessionCwd,
+      })
+    );
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -118,7 +108,7 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
   }
 
   function handleStop() {
-    abortRef.current?.abort();
+    xhrRef.current?.abort();
   }
 
   return (
