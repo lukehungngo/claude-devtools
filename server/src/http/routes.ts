@@ -15,6 +15,7 @@ import {
   getPendingPermissions,
   getPermissionStatus,
 } from "../hooks/permission-handler.js";
+import { sessionManager } from "../sessions/session-manager.js";
 import type { SessionEvent } from "../types.js";
 import type { ServerState } from "./server.js";
 import { broadcast } from "./server.js";
@@ -194,60 +195,55 @@ export function setupRoutes(state?: ServerState): Router {
     res.json({ permissions: getPendingPermissions() });
   });
 
-  // Command input (v1: simple prompt)
+  // Command input — uses Agent SDK to fork + resume sessions
   router.post("/command", async (req, res) => {
     const { prompt, cwd, sessionId } = req.body;
     if (!prompt) {
       return res.status(400).json({ error: "Missing prompt" });
     }
+    if (!sessionId) {
+      return res.status(400).json({ error: "Missing sessionId — cannot send prompt without a session to fork from" });
+    }
+
+    // Wire up session manager to server state for WS broadcasts
+    if (state) {
+      sessionManager.setState(state);
+    }
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
 
     try {
-      const { spawn } = await import("node:child_process");
-      const args = sessionId ? ["--resume", sessionId, "-p", prompt] : ["-p", prompt];
-      const child = spawn("claude", args, {
-        cwd: cwd || process.cwd(),
-        env: { ...process.env },
-      });
+      const query = await sessionManager.sendPrompt(
+        sessionId,
+        prompt,
+        cwd || process.cwd()
+      );
 
-      child.stdin.end();
-
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
-      res.setHeader("X-Accel-Buffering", "no");
-      res.flushHeaders();
-
+      // Clean up on client disconnect
       req.on("close", () => {
-        child.kill();
+        sessionManager.closeSession(sessionId);
       });
 
-      child.stdout.on("data", (data: Buffer) => {
-        res.write(
-          `data: ${JSON.stringify({ type: "stdout", text: data.toString() })}\n\n`
-        );
-      });
+      // Stream SDK messages as SSE events
+      for await (const message of query) {
+        const sseData = sdkMessageToSSE(message);
+        if (sseData) {
+          res.write(`data: ${JSON.stringify(sseData)}\n\n`);
+        }
+      }
 
-      child.stderr.on("data", (data: Buffer) => {
-        res.write(
-          `data: ${JSON.stringify({ type: "stderr", text: data.toString() })}\n\n`
-        );
-      });
-
-      child.on("close", (code) => {
-        res.write(
-          `data: ${JSON.stringify({ type: "done", exitCode: code })}\n\n`
-        );
-        res.end();
-      });
-
-      child.on("error", (err) => {
-        res.write(
-          `data: ${JSON.stringify({ type: "error", message: err.message })}\n\n`
-        );
-        res.end();
-      });
+      res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+      res.end();
     } catch (err) {
-      res.status(500).json({ error: "Failed to execute command" });
+      const errMsg = err instanceof Error ? err.message : "Unknown error";
+      res.write(
+        `data: ${JSON.stringify({ type: "error", message: errMsg })}\n\n`
+      );
+      res.end();
     }
   });
 
@@ -287,4 +283,66 @@ export function setupRoutes(state?: ServerState): Router {
   });
 
   return router;
+}
+
+// ─── SDK message → SSE event adapter ────────────────────────────────
+
+interface SSEEvent {
+  type: string;
+  [key: string]: unknown;
+}
+
+function sdkMessageToSSE(msg: import("../sessions/session-manager.js").SDKMessage): SSEEvent | null {
+  switch (msg.type) {
+    case "assistant": {
+      // Extract text content from assistant message
+      const textParts = (msg.message?.content || [])
+        .filter((c: { type: string }) => c.type === "text")
+        .map((c: { type: string; text?: string }) => c.text || "");
+      const toolUses = (msg.message?.content || [])
+        .filter((c: { type: string }) => c.type === "tool_use")
+        .map((c: { type: string; name?: string; input?: unknown }) => ({
+          name: c.name,
+          input: c.input,
+        }));
+      return {
+        type: "assistant",
+        text: textParts.join(""),
+        toolUses,
+        sessionId: msg.session_id,
+      };
+    }
+    case "result":
+      return {
+        type: "result",
+        subtype: msg.subtype,
+        cost: "cost_usd" in msg ? msg.cost_usd : undefined,
+        duration: "duration_ms" in msg ? msg.duration_ms : undefined,
+        sessionId: msg.session_id,
+      };
+    case "system":
+      if (msg.subtype === "init") {
+        return {
+          type: "system",
+          subtype: "init",
+          sessionId: msg.session_id,
+        };
+      }
+      return null;
+    case "stream_event":
+      // Partial assistant message — forward for live streaming
+      return {
+        type: "stream",
+        text:
+          "content_block_delta" in msg
+            ? (msg as Record<string, unknown>).content_block_delta
+            : undefined,
+      };
+    default:
+      // Forward other message types with minimal info
+      return {
+        type: msg.type,
+        sessionId: "session_id" in msg ? msg.session_id : undefined,
+      };
+  }
 }

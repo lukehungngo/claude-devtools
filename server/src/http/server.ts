@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { setupRoutes } from "./routes.js";
 import { startWatcher } from "./watcher.js";
+import { sessionManager } from "../sessions/session-manager.js";
 
 let __dirname: string;
 try {
@@ -51,6 +52,10 @@ export function startHttpServer(port: number = 3142): Promise<{
 
     // Start file watcher
     startWatcher(state);
+
+    // Initialize session manager
+    sessionManager.setState(state);
+    sessionManager.startCleanup();
 
     // Try preferred port, fall back to random
     server.on("error", (err: NodeJS.ErrnoException) => {

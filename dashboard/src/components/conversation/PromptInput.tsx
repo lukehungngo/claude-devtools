@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { isIgnoredStderrWarning } from "../../lib/filterStderrWarnings";
 
 interface PromptInputProps {
   sessionCwd?: string;
@@ -10,6 +9,7 @@ export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
   const [sseStatus, setSseStatus] = useState<"idle" | "streaming" | "error">("idle");
+  const [responseText, setResponseText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -27,6 +27,7 @@ export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
     const currentPrompt = prompt;
     setPrompt("");
     setRunning(true);
+    setResponseText("");
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -45,7 +46,8 @@ export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errBody = await response.text().catch(() => "");
+        throw new Error(`HTTP ${response.status}: ${response.statusText}${errBody ? ` — ${errBody}` : ""}`);
       }
 
       const reader = response.body?.getReader();
@@ -66,12 +68,25 @@ export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
           if (!line.startsWith("data: ")) continue;
           try {
             const data = JSON.parse(line.slice(6));
-            if (data.type === "stderr" && isIgnoredStderrWarning(data.text as string)) {
-              continue;
-            }
-            // Consume SSE events — real-time view shows them via WebSocket
-            if (data.type === "result") {
-              setSseStatus("idle");
+
+            switch (data.type) {
+              case "assistant":
+                // Accumulate response text
+                if (data.text) {
+                  setResponseText((prev) => prev + data.text);
+                }
+                break;
+              case "result":
+                setSseStatus("idle");
+                break;
+              case "done":
+                setSseStatus("idle");
+                break;
+              case "error":
+                setSseStatus("error");
+                break;
+              // Other message types (system, stream) — silently consumed
+              // The real-time view picks up events via WebSocket/JSONL watcher
             }
           } catch {
             // ignore parse errors
@@ -86,8 +101,10 @@ export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
     } finally {
       abortRef.current = null;
       setRunning(false);
-      // Reset status after a brief delay for error visibility
-      setTimeout(() => setSseStatus("idle"), 2000);
+      setTimeout(() => {
+        setSseStatus("idle");
+        setResponseText("");
+      }, 5000);
     }
   }
 
@@ -102,6 +119,8 @@ export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
     abortRef.current?.abort();
   }
 
+  const shortId = sessionId ? sessionId.slice(0, 8) : null;
+
   return (
     <div
       className="conv-input-wrap"
@@ -112,6 +131,45 @@ export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
         flexShrink: 0,
       }}
     >
+      {/* Forked session indicator */}
+      {sessionId && (
+        <div
+          style={{
+            fontSize: "9px",
+            color: "var(--text-2)",
+            marginBottom: "4px",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+          }}
+        >
+          <span style={{ color: "var(--yellow)", fontSize: "10px" }}>{"\u26A0"}</span>
+          Sends as forked conversation from session {shortId}...
+        </div>
+      )}
+
+      {/* Response preview */}
+      {responseText && (
+        <div
+          style={{
+            fontSize: "11px",
+            color: "var(--text-1)",
+            background: "var(--bg-2)",
+            borderRadius: "6px",
+            padding: "6px 10px",
+            marginBottom: "6px",
+            maxHeight: "120px",
+            overflow: "auto",
+            whiteSpace: "pre-wrap",
+            fontFamily: "var(--font)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          {responseText.slice(0, 2000)}
+          {responseText.length > 2000 && "..."}
+        </div>
+      )}
+
       <div
         className="conv-input-box"
         style={{
@@ -130,7 +188,11 @@ export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Send a prompt to Claude Code..."
+          placeholder={
+            sessionId
+              ? `Send to forked session (${shortId}...)...`
+              : "Send a prompt to Claude Code..."
+          }
           disabled={running}
           style={{
             flex: 1,
@@ -154,7 +216,7 @@ export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
               animation: "pulse 1.2s ease-in-out infinite",
               flexShrink: 0,
             }}
-            title="Streaming response..."
+            title="Streaming response from Claude..."
           />
         )}
         {sseStatus === "error" && (
