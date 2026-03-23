@@ -307,4 +307,87 @@ describe("eventsToLogEntries — SPEC-driven tests", () => {
       expect(entries[0].timestamp).toBe("2026-03-23T15:30:45Z");
     });
   });
+
+  describe("error filtering behavior", () => {
+    it("correctly filters entries to show only errors", () => {
+      const events: SessionEvent[] = [
+        makeUserEvent([
+          {
+            type: "tool_result",
+            tool_use_id: "t1",
+            content: "success result",
+            is_error: false,
+          },
+        ]),
+        makeUserEvent([
+          {
+            type: "tool_result",
+            tool_use_id: "t2",
+            content: "error result",
+            is_error: true,
+          },
+        ]),
+        makeUserEvent([{ type: "text", text: "regular text" }]),
+        makeUserEvent([
+          {
+            type: "tool_result",
+            tool_use_id: "t3",
+            content: "another error",
+            is_error: true,
+          },
+        ]),
+      ];
+
+      const entries = eventsToLogEntries(events, []);
+      const errorEntries = entries.filter((e) => e.isError);
+
+      expect(entries).toHaveLength(4);
+      expect(errorEntries).toHaveLength(2);
+      expect(errorEntries[0].message).toContain("error result");
+      expect(errorEntries[1].message).toContain("another error");
+    });
+
+    it("computes correct error count from all entries", () => {
+      const events: SessionEvent[] = [
+        makeUserEvent([
+          {
+            type: "tool_result",
+            tool_use_id: "t1",
+            content: "success 1",
+            is_error: false,
+          },
+        ]),
+        makeUserEvent([
+          {
+            type: "tool_result",
+            tool_use_id: "t2",
+            content: "error 1",
+            is_error: true,
+          },
+        ]),
+        makeUserEvent([
+          {
+            type: "tool_result",
+            tool_use_id: "t3",
+            content: "error 2",
+            is_error: true,
+          },
+        ]),
+        makeUserEvent([
+          {
+            type: "tool_result",
+            tool_use_id: "t4",
+            content: "error 3",
+            is_error: true,
+          },
+        ]),
+      ];
+
+      const entries = eventsToLogEntries(events, []);
+      const errorCount = entries.filter((e) => e.isError).length;
+
+      expect(errorCount).toBe(3);
+      expect(entries.length).toBe(4);
+    });
+  });
 });

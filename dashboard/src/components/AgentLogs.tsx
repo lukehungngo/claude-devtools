@@ -94,7 +94,7 @@ function groupByInvocation(entries: AggregatedLogEntry[]): InvocationGroup[] {
 
 
 // Fixed tabs that always appear
-const FIXED_TABS = ["All", "Errors"] as const;
+const FIXED_TABS = ["All"] as const;
 
 // ─── Agent type colors ───────────────────────────────────────────────
 
@@ -408,7 +408,8 @@ export function AgentLogs({
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<string>("All");
+  const [agentTypeFilter, setAgentTypeFilter] = useState<string>("All");
+  const [showErrorsOnly, setShowErrorsOnly] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Transform events to log entries
@@ -426,35 +427,25 @@ export function AgentLogs({
     }
     // Fixed tabs first, then dynamic agent tabs
     const dynamicTabs = Array.from(agentTypes).sort();
-    return ["All", ...dynamicTabs, "Errors"];
+    return ["All", ...dynamicTabs];
   }, [allEntries]);
+
+  const errorCount = useMemo(() => allEntries.filter(e => e.isError).length, [allEntries]);
 
   // Apply filters
   const filteredEntries = useMemo(() => {
     let result = allEntries;
-
-    if (activeFilter === "All") {
-      // No filter
-    } else if (activeFilter === "Errors") {
+    if (agentTypeFilter !== "All") {
+      result = result.filter((e) => normalizeAgentTypeLabel(e.agentType) === agentTypeFilter);
+    }
+    if (showErrorsOnly) {
       result = result.filter((e) => e.isError);
-    } else {
-      // Dynamic agent type filter
-      result = result.filter((e) => {
-        const label = normalizeAgentTypeLabel(e.agentType);
-        return label === activeFilter;
-      });
     }
-
-    // Tool filter from TopBar
     if (toolFilter) {
-      result = result.filter(
-        (e) =>
-          e.toolName?.toLowerCase() === toolFilter.toLowerCase()
-      );
+      result = result.filter((e) => e.toolName?.toLowerCase() === toolFilter.toLowerCase());
     }
-
     return result;
-  }, [allEntries, activeFilter, toolFilter]);
+  }, [allEntries, agentTypeFilter, showErrorsOnly, toolFilter]);
 
   // Aggregate consecutive identical entries
   const aggregatedEntries = useMemo(
@@ -602,11 +593,11 @@ export function AgentLogs({
         }}
       >
         {filterTabs.map((tab) => {
-          const isActive = activeFilter === tab;
+          const isActive = agentTypeFilter === tab;
           return (
             <button
               key={tab}
-              onClick={() => setActiveFilter(tab)}
+              onClick={() => setAgentTypeFilter(tab)}
               style={{
                 padding: "3px 8px",
                 borderRadius: "3px",
@@ -629,6 +620,29 @@ export function AgentLogs({
             </button>
           );
         })}
+        {/* Divider */}
+        <div style={{ width: 1, height: 16, background: "var(--border)", margin: "0 8px", flexShrink: 0, alignSelf: "center" }} />
+        {/* Error toggle */}
+        <button
+          onClick={() => setShowErrorsOnly(prev => !prev)}
+          aria-pressed={showErrorsOnly}
+          style={{
+            padding: "3px 8px",
+            borderRadius: "3px",
+            fontSize: "10px",
+            cursor: "pointer",
+            transition: "all 0.15s",
+            border: showErrorsOnly ? "1px solid var(--red)" : "1px solid transparent",
+            background: showErrorsOnly ? "var(--red-dim)" : "transparent",
+            color: showErrorsOnly ? "var(--red)" : "var(--text-2)",
+            fontFamily: "inherit",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+            marginLeft: "auto",
+          }}
+        >
+          {"\u26A0"} Errors{errorCount > 0 ? ` (${errorCount})` : ""}
+        </button>
         {toolFilter && (
           <span
             style={{

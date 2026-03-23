@@ -286,3 +286,62 @@ describe("groupEventsIntoTurns with agentMeta", () => {
     expect(turns[0].agents[0].agentType).toBe("agent-unknown-xyz");
   });
 });
+
+describe("promptText handling for TurnCard expand/collapse", () => {
+  it("preserves long prompt text correctly", () => {
+    const longPrompt = "This is a very long prompt text that might cause overflow in the UI component and needs to be handled correctly for expand/collapse functionality. ".repeat(5);
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: longPrompt, timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+
+    expect(turns).toHaveLength(1);
+    expect(turns[0].promptText).toBe(longPrompt);
+    expect(turns[0].promptText.length).toBeGreaterThan(200);
+  });
+
+  it("preserves multiline prompt text with newlines", () => {
+    const multilinePrompt = "First line of prompt\nSecond line with details\nThird line with more instructions\n\nFinal paragraph";
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: multilinePrompt, timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+
+    expect(turns).toHaveLength(1);
+    expect(turns[0].promptText).toBe(multilinePrompt);
+    expect(turns[0].promptText).toContain('\n');
+    expect(turns[0].promptText.split('\n')).toHaveLength(5);
+  });
+
+  it("handles empty prompt text for turns without external user events", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+
+    expect(turns).toHaveLength(1);
+    expect(turns[0].promptText).toBe("");
+    expect(turns[0].turnNumber).toBe(1);
+  });
+
+  it("preserves special characters and symbols in prompt text", () => {
+    const specialPrompt = "Test with symbols: @#$%^&*(){}[]|\\:;\"'<>,.?/~`+=- and unicode: 🚀 ✨ 🔥";
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: specialPrompt, timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+
+    expect(turns).toHaveLength(1);
+    expect(turns[0].promptText).toBe(specialPrompt);
+    expect(turns[0].promptText).toContain('🚀');
+    expect(turns[0].promptText).toContain('\\');
+  });
+});

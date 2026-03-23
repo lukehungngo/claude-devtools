@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import type { SessionEvent, AssistantEvent, ContentItem } from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
@@ -40,6 +40,34 @@ export function TurnCard({
   onAgentPillClick,
 }: TurnCardProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [promptExpanded, setPromptExpanded] = useState(false);
+  const promptRef = useRef<HTMLSpanElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  useEffect(() => {
+    const checkOverflow = () => {
+      const el = promptRef.current;
+      if (el && !promptExpanded) {
+        setIsOverflowing(el.scrollWidth > el.clientWidth);
+      }
+    };
+
+    // Check overflow on mount or when dependencies change
+    checkOverflow();
+
+    // Add resize listener
+    const handleResize = () => {
+      checkOverflow();
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [turn.promptText, promptExpanded]);
+
   const isRunning = turn.status === "running";
   const responseContent = extractResponseContent(turn.events);
 
@@ -99,16 +127,51 @@ export function TurnCard({
 
         {/* Prompt preview */}
         <span
+          ref={promptRef}
           style={{
             flex: 1,
             fontSize: "11px",
             color: "var(--text-1)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            ...(promptExpanded
+              ? { whiteSpace: "pre-wrap", overflow: "visible", wordBreak: "break-word" }
+              : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }),
           }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (turn.promptText) setPromptExpanded((prev) => !prev);
+          }}
+          onKeyDown={(e) => {
+            if ((e.key === "Enter" || e.key === " ") && turn.promptText) {
+              e.stopPropagation();
+              e.preventDefault();
+              setPromptExpanded((prev) => !prev);
+            }
+          }}
+          {...(turn.promptText
+            ? {
+                role: "button",
+                tabIndex: 0,
+                "aria-expanded": promptExpanded,
+                "aria-label": promptExpanded
+                  ? "Collapse prompt text"
+                  : "Expand prompt text",
+              }
+            : {})}
         >
           {turn.promptText}
+          {turn.promptText && (isOverflowing || promptExpanded) && (
+            <span
+              style={{
+                fontSize: "9px",
+                color: "var(--text-2)",
+                marginLeft: "4px",
+                flexShrink: 0,
+              }}
+              aria-hidden="true"
+            >
+              {promptExpanded ? "(less)" : "(more)"}
+            </span>
+          )}
         </span>
 
         {/* Status dot */}

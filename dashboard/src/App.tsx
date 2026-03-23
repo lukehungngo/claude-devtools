@@ -111,6 +111,7 @@ function Dashboard() {
             metrics={metrics}
             isLive={isLive}
             sessionCwd={metrics.session.cwd}
+            sessionId={selected?.sessionId}
             highlightedTurnIndex={highlightedTurnIndex}
             onAgentPillClick={(agentId) => {
               setSelectedAgent(agentId);
