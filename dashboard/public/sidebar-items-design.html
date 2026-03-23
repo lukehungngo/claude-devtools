@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sidebar Items — Design Proposal</title>
+<style>
+  :root {
+    --bg-0: #0a0e17;
+    --bg-1: #0f1420;
+    --bg-2: #151b2b;
+    --bg-3: #1a2236;
+    --bg-4: #212b42;
+    --border: #1e2740;
+    --border-active: #2d3a5c;
+    --text-0: #e2e8f0;
+    --text-1: #94a3b8;
+    --text-2: #64748b;
+    --accent: #6366f1;
+    --accent-dim: #4f46e520;
+    --green: #22c55e;
+    --green-dim: #22c55e20;
+    --yellow: #eab308;
+    --cyan: #06b6d4;
+    --purple: #a78bfa;
+    --font-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #07090f;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--text-0);
+    padding: 40px;
+    display: flex;
+    gap: 48px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-2);
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ──────────────────────────────────────
+     SIDEBAR SHELL
+  ────────────────────────────────────── */
+  .sidebar {
+    width: 216px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .panel-title {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-2);
+  }
+
+  .filter-tabs {
+    display: flex;
+    gap: 1px;
+  }
+
+  .filter-tab {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 5px;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--text-2);
+  }
+
+  .filter-tab.active {
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  /* ──────────────────────────────────────
+     CURRENT DESIGN (before)
+  ────────────────────────────────────── */
+  .repo-item-current {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px 8px 14px;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+  }
+
+  .repo-item-current:hover { background: var(--bg-2); }
+
+  .repo-item-current .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .repo-item-current .info { flex: 1; min-width: 0; }
+
+  .repo-item-current .name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .repo-item-current .meta {
+    font-size: 10px;
+    color: var(--text-2);
+    display: flex;
+    gap: 6px;
+    margin-top: 1px;
+  }
+
+  .repo-item-current .arrow {
+    font-size: 9px;
+    color: var(--text-2);
+    flex-shrink: 0;
+  }
+
+  /* session — current (wrapping problem) */
+  .session-item-current {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    padding: 5px 10px 5px 22px;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+  }
+
+  .session-item-current:hover { background: var(--bg-2); }
+
+  .session-name-current {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--purple);
+    flex-shrink: 0;
+  }
+
+  .session-branch-current {
+    font-size: 10px;
+    color: var(--cyan);
+    flex-shrink: 0;
+  }
+
+  .session-meta-current {
+    font-size: 10px;
+    color: var(--text-2);
+    flex-shrink: 0;
+  }
+
+  /* ──────────────────────────────────────
+     PROPOSED DESIGN (after)
+  ────────────────────────────────────── */
+
+  /* Repo item — proposed */
+  .repo-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 8px 6px 12px;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+    transition: background 80ms;
+  }
+
+  .repo-item:hover { background: rgba(255,255,255,0.03); }
+
+  .repo-item.active {
+    border-left-color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .repo-item .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .repo-item .body { flex: 1; min-width: 0; }
+
+  .repo-item .name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+  }
+
+  .repo-item .sub {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 1px;
+    line-height: 1.3;
+  }
+
+  .repo-item .branch {
+    font-size: 10px;
+    color: var(--cyan);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 90px;
+  }
+
+  .repo-item .sep {
+    font-size: 10px;
+    color: var(--border-active);
+  }
+
+  .repo-item .count {
+    font-size: 10px;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+
+  .repo-item .chevron {
+    font-size: 8px;
+    color: var(--text-2);
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  /* Session item — proposed */
+  .session-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 20px;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+    transition: background 80ms;
+  }
+
+  .session-item:hover { background: rgba(255,255,255,0.03); }
+
+  .session-item.selected {
+    border-left-color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .live-badge {
+    font-family: var(--font-mono);
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 1px 4px;
+    border-radius: 2px;
+    background: var(--green);
+    color: var(--bg-1);
+    flex-shrink: 0;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  .session-name {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--purple);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .session-name.running {
+    color: var(--text-0);
+    font-weight: 600;
+  }
+
+  .session-stats {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .session-stat {
+    font-size: 10px;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+
+  .stat-dot {
+    width: 2px; height: 2px;
+    border-radius: 50%;
+    background: var(--border-active);
+    flex-shrink: 0;
+  }
+
+  /* subagent badge */
+  .subagent-badge {
+    font-size: 9px;
+    padding: 0px 4px;
+    border-radius: 99px;
+    background: var(--bg-4);
+    color: var(--text-1);
+    flex-shrink: 0;
+    line-height: 1.6;
+  }
+
+  /* ──────────────────────────────────────
+     VARIANT — branch shown inline in session
+  ────────────────────────────────────── */
+  .session-item-v2 {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 20px;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+    transition: background 80ms;
+  }
+
+  .session-item-v2:hover { background: rgba(255,255,255,0.03); }
+
+  .session-item-v2 .left {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .session-item-v2 .right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  /* ──────────────────────────────────────
+     ANNOTATIONS
+  ────────────────────────────────────── */
+  .annotation {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    font-size: 10px;
+    color: var(--text-2);
+    padding: 4px 0;
+  }
+
+  .ann-arrow { color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+  .ann-bad   { color: #ef4444; }
+  .ann-good  { color: #22c55e; }
+  .ann-text  { line-height: 1.5; }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 2px 0;
+  }
+
+  .section-label {
+    padding: 5px 10px 3px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--border-active);
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════
+     COLUMN 1 — CURRENT (before)
+════════════════════════════════════ -->
+<div class="column">
+  <div class="label">Current — problems</div>
+
+  <div class="sidebar">
+    <div class="panel-header">
+      <span class="panel-title">Repositories</span>
+      <div class="filter-tabs">
+        <span class="filter-tab active">Active</span>
+        <span class="filter-tab">Archived</span>
+        <span class="filter-tab">All</span>
+      </div>
+    </div>
+
+    <!-- repo item — collapsed -->
+    <div class="repo-item-current">
+      <span class="dot" style="background:var(--green)"></span>
+      <div class="info">
+        <div class="name">claude-devtools</div>
+        <div class="meta">
+          <span style="color:var(--cyan)">4 branches</span>
+          <span>60 sessions</span>
+        </div>
+      </div>
+      <span class="arrow">▶</span>
+    </div>
+
+    <!-- repo item — expanded, active -->
+    <div class="repo-item-current" style="border-left-color:var(--accent);background:var(--accent-dim)">
+      <span class="dot" style="background:var(--green)"></span>
+      <div class="info">
+        <div class="name">claude-mas-template</div>
+        <div class="meta">
+          <span style="color:var(--cyan)">main</span>
+          <span>6 sessions</span>
+        </div>
+      </div>
+      <span class="arrow">▼</span>
+    </div>
+
+    <!-- session items — showing wrapping problem -->
+    <div class="session-item-current">
+      <span class="live-badge">LIVE</span>
+      <span class="session-name-current">linked-hopping-panda</span>
+      <span class="session-branch-current">main</span>
+      <span class="session-meta-current">24 events</span>
+      <span class="session-meta-current">16m</span>
+    </div>
+
+    <div class="session-item-current">
+      <span class="session-name-current">busy-jumping-fox</span>
+      <span class="session-branch-current">main</span>
+      <span class="session-meta-current">8 events</span>
+      <span class="session-meta-current">2h</span>
+    </div>
+
+    <div class="session-item-current">
+      <span class="session-name-current">fluent-walking-cat</span>
+      <span class="session-branch-current">main</span>
+      <span class="session-meta-current">142 events</span>
+      <span class="session-meta-current">1d</span>
+    </div>
+
+    <!-- another repo -->
+    <div class="repo-item-current">
+      <span class="dot" style="background:var(--yellow)"></span>
+      <div class="info">
+        <div class="name">sidebar-task6</div>
+        <div class="meta">
+          <span style="color:var(--cyan)">fix/sidebar-task6</span>
+          <span>4 sessions</span>
+        </div>
+      </div>
+      <span class="arrow">▶</span>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <span class="ann-arrow">↑</span>
+    <span class="ann-text">
+      <span class="ann-bad">Session rows wrap</span> — branch + events + time
+      don't fit 216px. Creates 2-line items with inconsistent height.
+    </span>
+  </div>
+  <div class="annotation">
+    <span class="ann-arrow">↑</span>
+    <span class="ann-text">
+      <span class="ann-bad">Padding py-2 (8px)</span> on repo items —
+      too much breathing room for a compact tool panel.
+    </span>
+  </div>
+  <div class="annotation">
+    <span class="ann-arrow">↑</span>
+    <span class="ann-text">
+      <span class="ann-bad">No branch on session row</span> adds value when
+      repo has multiple branches, but wastes space on single-branch repos.
+    </span>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════
+     COLUMN 2 — PROPOSED (after)
+════════════════════════════════════ -->
+<div class="column">
+  <div class="label">Proposed — changes</div>
+
+  <div class="sidebar">
+    <div class="panel-header">
+      <span class="panel-title">Repositories</span>
+      <div class="filter-tabs">
+        <span class="filter-tab active">Active</span>
+        <span class="filter-tab">Archived</span>
+        <span class="filter-tab">All</span>
+      </div>
+    </div>
+
+    <!-- repo item — collapsed -->
+    <div class="repo-item">
+      <span class="dot" style="background:var(--green)"></span>
+      <div class="body">
+        <div class="name">claude-devtools</div>
+        <div class="sub">
+          <span class="branch">4 branches</span>
+          <span class="sep">·</span>
+          <span class="count">60 sessions</span>
+        </div>
+      </div>
+      <span class="chevron">▶</span>
+    </div>
+
+    <!-- repo item — expanded + active -->
+    <div class="repo-item active">
+      <span class="dot" style="background:var(--green)"></span>
+      <div class="body">
+        <div class="name">claude-mas-template</div>
+        <div class="sub">
+          <span class="branch">main</span>
+          <span class="sep">·</span>
+          <span class="count">6 sessions</span>
+        </div>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+
+    <!-- session items — single row each -->
+    <div class="session-item selected">
+      <span class="live-badge">LIVE</span>
+      <span class="session-name running">linked-hopping-panda</span>
+      <div class="session-stats">
+        <span class="session-stat">24</span>
+        <span class="stat-dot"></span>
+        <span class="session-stat">16m</span>
+      </div>
+    </div>
+
+    <div class="session-item">
+      <span class="session-name">busy-jumping-fox</span>
+      <div class="session-stats">
+        <span class="session-stat">8</span>
+        <span class="stat-dot"></span>
+        <span class="session-stat">2h</span>
+      </div>
+    </div>
+
+    <div class="session-item">
+      <span class="session-name">fluent-walking-cat</span>
+      <div class="session-stats">
+        <span class="subagent-badge">3a</span>
+        <span class="session-stat">142</span>
+        <span class="stat-dot"></span>
+        <span class="session-stat">1d</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- another repo -->
+    <div class="repo-item">
+      <span class="dot" style="background:var(--yellow)"></span>
+      <div class="body">
+        <div class="name">sidebar-task6</div>
+        <div class="sub">
+          <span class="branch">fix/sidebar-task6</span>
+          <span class="sep">·</span>
+          <span class="count">4 sessions</span>
+        </div>
+      </div>
+      <span class="chevron">▶</span>
+    </div>
+
+    <div class="repo-item">
+      <span class="dot" style="background:var(--yellow)"></span>
+      <div class="body">
+        <div class="name">tasks-3-4-5</div>
+        <div class="sub">
+          <span class="branch">fix/tasks-3-4-5</span>
+          <span class="sep">·</span>
+          <span class="count">7 sessions</span>
+        </div>
+      </div>
+      <span class="chevron">▶</span>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <span class="ann-arrow">↑</span>
+    <span class="ann-text">
+      <span class="ann-good">Session row = always 1 line.</span>
+      Drop "events" label; show count only. Group <code>N · time</code>
+      right-aligned so name gets all remaining space.
+    </span>
+  </div>
+  <div class="annotation">
+    <span class="ann-arrow">↑</span>
+    <span class="ann-text">
+      <span class="ann-good">Repo item padding py-1.5 (6px).</span>
+      Tighter without feeling cramped. 6px vs 8px = ~25% more items visible.
+    </span>
+  </div>
+  <div class="annotation">
+    <span class="ann-arrow">↑</span>
+    <span class="ann-text">
+      <span class="ann-good">Branch moved to repo sub-row only.</span>
+      Redundant on each session row — already visible on parent.
+    </span>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════
+     COLUMN 3 — EDGE CASES
+════════════════════════════════════ -->
+<div class="column">
+  <div class="label">Edge cases</div>
+
+  <div class="sidebar">
+    <div class="panel-header">
+      <span class="panel-title">Repositories</span>
+      <div class="filter-tabs">
+        <span class="filter-tab active">Active</span>
+        <span class="filter-tab">Archived</span>
+        <span class="filter-tab">All</span>
+      </div>
+    </div>
+
+    <!-- Long repo name -->
+    <div class="repo-item">
+      <span class="dot" style="background:var(--green)"></span>
+      <div class="body">
+        <div class="name">very-long-repository-name-here</div>
+        <div class="sub">
+          <span class="branch">feature/some-very-long-branch</span>
+          <span class="sep">·</span>
+          <span class="count">12</span>
+        </div>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+
+    <!-- multi-branch repo -->
+    <div class="repo-item">
+      <span class="dot" style="background:var(--green)"></span>
+      <div class="body">
+        <div class="name">claude-devtools</div>
+        <div class="sub">
+          <span class="branch">4 branches</span>
+          <span class="sep">·</span>
+          <span class="count">60</span>
+        </div>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+
+    <!-- running + subagent + long name session -->
+    <div class="session-item selected">
+      <span class="live-badge">LIVE</span>
+      <span class="session-name running">intelligent-leaping-panther</span>
+      <div class="session-stats">
+        <span class="subagent-badge">5a</span>
+        <span class="session-stat">1.2k</span>
+        <span class="stat-dot"></span>
+        <span class="session-stat">43m</span>
+      </div>
+    </div>
+
+    <!-- normal session -->
+    <div class="session-item">
+      <span class="session-name">quick-moving-fox</span>
+      <div class="session-stats">
+        <span class="session-stat">34</span>
+        <span class="stat-dot"></span>
+        <span class="session-stat">3h</span>
+      </div>
+    </div>
+
+    <!-- zero event session -->
+    <div class="session-item">
+      <span class="session-name">new-fresh-session</span>
+      <div class="session-stats">
+        <span class="session-stat">0</span>
+        <span class="stat-dot"></span>
+        <span class="session-stat">now</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- inactive repo, no sessions -->
+    <div class="repo-item" style="opacity:0.55">
+      <span class="dot" style="background:var(--text-2)"></span>
+      <div class="body">
+        <div class="name">archived-old-project</div>
+        <div class="sub">
+          <span class="branch">main</span>
+          <span class="sep">·</span>
+          <span class="count">2 sessions</span>
+        </div>
+      </div>
+      <span class="chevron">▶</span>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <span class="ann-arrow">↑</span>
+    <span class="ann-text">Long names truncate cleanly with ellipsis — <code>min-width:0</code> + <code>overflow:hidden</code> on flex children.</span>
+  </div>
+  <div class="annotation">
+    <span class="ann-arrow">↑</span>
+    <span class="ann-text">Counts ≥1000 shown as <code>1.2k</code> to avoid overflow.</span>
+  </div>
+  <div class="annotation">
+    <span class="ann-arrow">↑</span>
+    <span class="ann-text">Archived repos dimmed at 55% opacity.</span>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════
+     COLUMN 4 — SPACING SPEC
+════════════════════════════════════ -->
+<div class="column" style="max-width:260px">
+  <div class="label">Spacing + type spec</div>
+
+  <div style="display:flex;flex-direction:column;gap:8px;font-size:10px;color:var(--text-1);line-height:1.7">
+
+    <div style="color:var(--text-0);font-weight:600;font-size:11px">Repo item</div>
+    <div>Padding: <code style="color:var(--cyan)">py-1.5 pr-2 pl-3</code> (6px / 8px / 12px)</div>
+    <div>Gap between dot and body: <code style="color:var(--cyan)">gap-1.75</code> (6px)</div>
+    <div>Repo name: <code style="color:var(--cyan)">text-md font-semibold</code> → 12px/600</div>
+    <div>Sub-row: <code style="color:var(--cyan)">text-sm</code> → 10px/400</div>
+    <div>Branch color: <code style="color:var(--cyan)">text-dt-cyan</code></div>
+    <div>Count color: <code style="color:var(--text-2)">text-dt-text2</code></div>
+    <div>Separator "·": <code style="color:var(--text-2)">text-dt-border-active</code></div>
+    <div>Status dot: <code style="color:var(--cyan)">w-1.5 h-1.5</code> (6px)</div>
+
+    <div style="height:8px;border-top:1px solid var(--border);margin-top:4px"></div>
+
+    <div style="color:var(--text-0);font-weight:600;font-size:11px">Session item</div>
+    <div>Padding: <code style="color:var(--cyan)">py-1 pr-2 pl-5</code> (4px / 8px / 20px)</div>
+    <div>Gap: <code style="color:var(--cyan)">gap-1.5</code> (5px)</div>
+    <div>Session name: <code style="color:var(--cyan)">font-mono text-base</code> → 11px</div>
+    <div>Name color (idle): <code style="color:var(--purple)">text-dt-purple</code></div>
+    <div>Name color (live): <code style="color:var(--text-0)">text-dt-text0 font-semibold</code></div>
+    <div>Stats (count · time): <code style="color:var(--cyan)">text-sm text-dt-text2</code> → 10px</div>
+    <div>Stat separator: 2×2px circle, <code style="color:var(--text-2)">bg-dt-border-active</code></div>
+    <div>LIVE badge: <code style="color:var(--cyan)">text-2xs font-bold</code> → 7px</div>
+    <div>Subagent badge: <code style="color:var(--cyan)">text-xs rounded-full</code> → 9px</div>
+
+    <div style="height:8px;border-top:1px solid var(--border);margin-top:4px"></div>
+
+    <div style="color:var(--text-0);font-weight:600;font-size:11px">Key layout rules</div>
+    <div>Session name: <code style="color:var(--cyan)">flex:1 min-w-0 truncate</code></div>
+    <div>Stats group: <code style="color:var(--cyan)">flex-shrink-0</code> — never truncates</div>
+    <div>Large counts: format as <code style="color:var(--cyan)">1.2k</code> above 999</div>
+    <div>Remove branch from session row (visible on parent repo row)</div>
+  </div>
+</div>
+
+</body>
+</html>

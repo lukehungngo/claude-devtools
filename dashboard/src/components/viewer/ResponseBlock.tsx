@@ -8,17 +8,21 @@ export function ResponseBlock({ text }: ResponseBlockProps) {
   // Detect bullet points and format them
   const lines = text.split("\n");
   const hasBullets = lines.some(
-    (l) => l.trimStart().startsWith("- ") || l.trimStart().startsWith("* ") || l.trimStart().match(/^\d+\.\s/)
+    (l) =>
+      l.trimStart().startsWith("- ") ||
+      l.trimStart().startsWith("* ") ||
+      l.trimStart().match(/^\d+\.\s/),
   );
 
   // Detect success markers
-  const isSuccess = text.startsWith("\u2713") || text.startsWith("Done") || text.startsWith("Successfully");
+  const isSuccess =
+    text.startsWith("\u2713") ||
+    text.startsWith("Done") ||
+    text.startsWith("Successfully");
 
   return (
-    <div className="text-dt-text0 font-mono text-lg leading-[1.6] mb-1.5 whitespace-pre-wrap break-words border-l-2 border-dt-green pl-2">
-      {isSuccess && (
-        <span className="text-dt-green mr-1">{"\u2713"}</span>
-      )}
+    <div className="text-dt-text0 font-mono text-md leading-[1.6] mb-1.5 whitespace-pre-wrap break-words border-l-2 border-dt-green pl-2">
+      {isSuccess && <span className="text-dt-green mr-1">{"\u2713"}</span>}
       {hasBullets ? (
         lines.map((line, i) => {
           const trimmed = line.trimStart();
@@ -29,10 +33,12 @@ export function ResponseBlock({ text }: ResponseBlockProps) {
 
           if (isBullet) {
             // Replace leading - or * with a styled bullet
-            const bulletText = trimmed.replace(/^[-*]\s/, "").replace(/^\d+\.\s/, "");
+            const bulletText = trimmed
+              .replace(/^[-*]\s/, "")
+              .replace(/^\d+\.\s/, "");
             return (
               <div key={i} className="pl-3">
-                <span className="text-dt-text2 mr-1">{"\u2022"}</span>
+                <span className="text-dt-text1 mr-1">{"\u2022"}</span>
                 {bulletText}
               </div>
             );

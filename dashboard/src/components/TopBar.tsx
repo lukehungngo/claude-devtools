@@ -108,14 +108,12 @@ export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
 
           {metrics ? (
             <>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 whitespace-nowrap">
                 <TbStat label="Token In" value={formatTokens(tIn)} />
-                <div className="flex items-center gap-1">
-                  <TbStat label="Out" value={formatTokens(tOut)} />
-                  <InfoIcon
-                    tooltip={`Estimated API key usage: ~${formatCost(sCost)}`}
-                  />
-                </div>
+                <TbStat label="Out" value={formatTokens(tOut)} />
+                <InfoIcon
+                  tooltip={`Estimated API key usage: ~${formatCost(sCost)}`}
+                />
               </div>
               <TbSep />
               <TbStat
