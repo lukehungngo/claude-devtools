@@ -23,6 +23,9 @@ export function ConversationView({
   onAgentPillClick,
 }: ConversationViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showScrollDown, setShowScrollDown] = useState(false);
 
@@ -58,6 +61,45 @@ export function ConversationView({
     setAutoScroll(atBottom);
     setShowScrollDown(!atBottom);
   }, []);
+
+  // Handle Ctrl+F to open search
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        setShowSearch(true);
+        // Focus search input on next frame
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+      }
+      if (e.key === "Escape" && showSearch) {
+        setShowSearch(false);
+        setSearchQuery("");
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showSearch]);
+
+  // Filter turns by search query
+  const filteredTurns = useMemo(() => {
+    if (!searchQuery.trim()) return turns;
+    const q = searchQuery.toLowerCase();
+    return turns.filter((turn) => {
+      // Search in prompt text
+      if (turn.promptText.toLowerCase().includes(q)) return true;
+      // Search in event content
+      for (const event of turn.events) {
+        if (event.type === "assistant" || event.type === "user") {
+          const msg = (event as { message?: { content?: unknown } }).message;
+          const contentStr = typeof msg?.content === "string"
+            ? msg.content
+            : JSON.stringify(msg?.content || "");
+          if (contentStr.toLowerCase().includes(q)) return true;
+        }
+      }
+      return false;
+    });
+  }, [turns, searchQuery]);
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
@@ -153,6 +195,56 @@ export function ConversationView({
         </div>
       </div>
 
+      {/* Search bar (Ctrl+F) */}
+      {showSearch && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "6px 12px",
+            background: "var(--bg-2)",
+            borderBottom: "1px solid var(--border)",
+            flexShrink: 0,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.5, flexShrink: 0 }}>
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search turns..."
+            style={{
+              flex: 1,
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              color: "var(--text-0)",
+              fontFamily: "var(--font)",
+              fontSize: "11px",
+            }}
+          />
+          <span style={{ fontSize: "10px", color: "var(--text-2)", flexShrink: 0 }}>
+            {filteredTurns.length}/{turns.length}
+          </span>
+          <button
+            onClick={() => { setShowSearch(false); setSearchQuery(""); }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--text-2)",
+              cursor: "pointer",
+              fontSize: "14px",
+              padding: "0 2px",
+            }}
+          >
+            {"×"}
+          </button>
+        </div>
+      )}
+
       {/* Turn list (scrollable) */}
       <div
         ref={scrollRef}
@@ -164,7 +256,7 @@ export function ConversationView({
           position: "relative",
         }}
       >
-        {turns.length === 0 ? (
+        {filteredTurns.length === 0 ? (
           <div
             style={{
               display: "flex",
@@ -178,11 +270,11 @@ export function ConversationView({
             No events to display
           </div>
         ) : (
-          turns.map((turn, i) => (
+          filteredTurns.map((turn) => (
             <TurnCard
               key={turn.turnNumber}
               turn={turn}
-              isHighlighted={highlightedTurnIndex === i}
+              isHighlighted={highlightedTurnIndex === turns.indexOf(turn)}
               onAgentPillClick={onAgentPillClick}
             />
           ))

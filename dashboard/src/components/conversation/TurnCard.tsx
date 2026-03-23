@@ -3,6 +3,7 @@ import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import type { SessionEvent, AssistantEvent, ContentItem } from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
 import { formatCost } from "../../lib/cost";
+import { formatTime } from "../../lib/formatTime";
 import { AgentPills } from "./AgentPills";
 import { ThinkingBlock } from "../viewer/ThinkingBlock";
 import { ResponseBlock } from "../viewer/ResponseBlock";
@@ -12,19 +13,6 @@ interface TurnCardProps {
   turn: TurnSnapshot;
   isHighlighted?: boolean;
   onAgentPillClick?: (agentId: string) => void;
-}
-
-function formatTime(ts: string): string {
-  try {
-    return new Date(ts).toLocaleTimeString("en-US", {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    return ts;
-  }
 }
 
 // ─── Content renderers ───────────────────────────────────────────────

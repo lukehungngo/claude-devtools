@@ -8,6 +8,7 @@ interface PromptInputProps {
 export function PromptInput({ sessionCwd }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
+  const [sseStatus, setSseStatus] = useState<"idle" | "streaming" | "error">("idle");
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -29,6 +30,7 @@ export function PromptInput({ sessionCwd }: PromptInputProps) {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    setSseStatus("streaming");
     try {
       const response = await fetch("/api/command", {
         method: "POST",
@@ -65,7 +67,10 @@ export function PromptInput({ sessionCwd }: PromptInputProps) {
             if (data.type === "stderr" && isIgnoredStderrWarning(data.text as string)) {
               continue;
             }
-            // Just consume SSE events — the real-time view will show them via WebSocket
+            // Consume SSE events — real-time view shows them via WebSocket
+            if (data.type === "result") {
+              setSseStatus("idle");
+            }
           } catch {
             // ignore parse errors
           }
@@ -74,10 +79,13 @@ export function PromptInput({ sessionCwd }: PromptInputProps) {
     } catch (err) {
       if (!(err instanceof DOMException && err.name === "AbortError")) {
         console.error("Command dispatch error:", err);
+        setSseStatus("error");
       }
     } finally {
       abortRef.current = null;
       setRunning(false);
+      // Reset status after a brief delay for error visibility
+      setTimeout(() => setSseStatus("idle"), 2000);
     }
   }
 
@@ -133,6 +141,31 @@ export function PromptInput({ sessionCwd }: PromptInputProps) {
             caretColor: "var(--accent)",
           }}
         />
+        {/* SSE status indicator */}
+        {running && sseStatus === "streaming" && (
+          <span
+            style={{
+              width: "6px",
+              height: "6px",
+              borderRadius: "50%",
+              background: "var(--green)",
+              animation: "pulse 1.2s ease-in-out infinite",
+              flexShrink: 0,
+            }}
+            title="Streaming response..."
+          />
+        )}
+        {sseStatus === "error" && (
+          <span
+            style={{
+              fontSize: "9px",
+              color: "var(--red)",
+              fontWeight: 600,
+            }}
+          >
+            Error
+          </span>
+        )}
         {running ? (
           <button
             onClick={handleStop}

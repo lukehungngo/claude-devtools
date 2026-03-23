@@ -8,6 +8,8 @@ import type {
   SubagentMeta,
 } from "../lib/types";
 import { normalizeContent } from "../lib/normalizeContent";
+import { formatTime } from "../lib/formatTime";
+import { formatCost, formatDuration } from "../lib/cost";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -19,11 +21,17 @@ export interface LogEntry {
   message: string;
   toolName: string | null;
   isError: boolean;
+  /** Estimated cost for this log entry (from assistant events) */
+  cost: number;
 }
 
 interface AggregatedLogEntry extends LogEntry {
   count: number;
 }
+
+/** Sonnet pricing constants for per-entry cost estimation */
+const INPUT_COST_PER_TOKEN = 0.000003;
+const OUTPUT_COST_PER_TOKEN = 0.000015;
 interface InvocationGroup {
   agentId: string;
   agentType: string;
@@ -31,12 +39,24 @@ interface InvocationGroup {
   entries: AggregatedLogEntry[];
   startTime: string;
   endTime: string;
+  /** Duration in milliseconds */
+  durationMs: number;
+  /** Estimated cost (sonnet pricing) */
+  cost: number;
 }
 
 
 type FlatItem =
   | { kind: "header"; group: InvocationGroup; groupKey: string }
   | { kind: "entry"; entry: AggregatedLogEntry; groupKey: string };
+
+function computeGroupDuration(startTime: string, endTime: string): number {
+  try {
+    return new Date(endTime).getTime() - new Date(startTime).getTime();
+  } catch {
+    return 0;
+  }
+}
 function groupByInvocation(entries: AggregatedLogEntry[]): InvocationGroup[] {
   if (entries.length === 0) return [];
   const groups: InvocationGroup[] = [];
@@ -55,12 +75,19 @@ function groupByInvocation(entries: AggregatedLogEntry[]): InvocationGroup[] {
         entries: [entry],
         startTime: entry.timestamp,
         endTime: entry.timestamp,
+        durationMs: 0,
+        cost: entry.cost,
       };
       groups.push(currentGroup);
     } else {
       currentGroup.entries.push(entry);
       currentGroup.endTime = entry.timestamp;
+      currentGroup.cost += entry.cost;
     }
+  }
+  // Compute duration for each group
+  for (const group of groups) {
+    group.durationMs = computeGroupDuration(group.startTime, group.endTime);
   }
   return groups;
 }
@@ -235,7 +262,15 @@ export function eventsToLogEntries(
 
     if (event.type === "assistant") {
       const assistantEvent = event as AssistantEvent;
-      for (const content of normalizeContent(assistantEvent.message?.content)) {
+      // Compute event cost from token usage
+      const usage = assistantEvent.message?.usage;
+      const eventCost = usage
+        ? (usage.input_tokens ?? 0) * INPUT_COST_PER_TOKEN +
+          (usage.output_tokens ?? 0) * OUTPUT_COST_PER_TOKEN
+        : 0;
+      const contentItems = normalizeContent(assistantEvent.message?.content);
+      const costPerItem = contentItems.length > 0 ? eventCost / contentItems.length : 0;
+      for (const content of contentItems) {
         const info = extractToolInfo(content);
         if (info) {
           entries.push({
@@ -249,6 +284,7 @@ export function eventsToLogEntries(
             message: info.message,
             toolName: info.toolName || null,
             isError: content.type === "tool_result" && !!content.is_error,
+            cost: costPerItem,
           });
         }
       }
@@ -264,6 +300,7 @@ export function eventsToLogEntries(
             message: (typeof content.content === "string" ? content.content : JSON.stringify(content.content)).slice(0, 120),
             toolName: content.is_error ? "error" : "result",
             isError: !!content.is_error,
+            cost: 0,
           });
         } else if (content.type === "text") {
           entries.push({
@@ -274,6 +311,7 @@ export function eventsToLogEntries(
             message: (content.text || "").slice(0, 120),
             toolName: null,
             isError: false,
+            cost: 0,
           });
         }
       }
@@ -286,6 +324,7 @@ export function eventsToLogEntries(
         message: `${event.operation}: ${event.content?.slice(0, 80) || ""}`,
         toolName: event.operation === "enqueue" ? "spawn" : "completed",
         isError: false,
+        cost: 0,
       });
     }
     // Skip progress events for cleaner log
@@ -335,7 +374,14 @@ function highlightMessage(msg: string): React.ReactNode {
         key={match.index}
         onClick={(e) => {
           e.stopPropagation();
-          // TODO: Phase 5+ would open in editor
+          // Open file in editor via server API
+          fetch("/api/open-file", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filePath: text }),
+          }).catch(() => {
+            // Silently fail — editor may not be available
+          });
         }}
         style={{
           color: "var(--cyan)",
@@ -465,7 +511,7 @@ export function AgentLogs({
   const virtualizer = useVirtualizer({
     count: flatItems.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => flatItems[index]?.kind === "header" ? 28 : 32,
+    estimateSize: (index: number) => flatItems[index]?.kind === "header" ? 28 : 32,
     overscan: 20,
   });
 
@@ -747,6 +793,24 @@ export function AgentLogs({
                       <span style={{ color: "var(--text-2)", fontSize: "9px" }}>
                         {formatTime(group.startTime)} - {formatTime(group.endTime)}
                       </span>
+                      {group.durationMs > 0 && (
+                        <span style={{ color: "var(--text-2)", fontSize: "9px", fontFamily: "var(--font)" }}>
+                          {formatDuration(group.durationMs)}
+                        </span>
+                      )}
+                      {group.cost > 0 && (
+                        <span style={{
+                          fontSize: "9px",
+                          padding: "1px 5px",
+                          borderRadius: "3px",
+                          fontWeight: 600,
+                          background: "var(--green-dim)",
+                          color: "var(--green)",
+                          fontFamily: "var(--font)",
+                        }}>
+                          {formatCost(group.cost)}
+                        </span>
+                      )}
                       <span style={{
                         fontSize: "9px",
                         padding: "1px 5px",
@@ -872,20 +936,6 @@ export function AgentLogs({
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
-
-function formatTime(ts: string): string {
-  try {
-    return new Date(ts).toLocaleTimeString("en-US", {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    return ts;
-  }
-}
-
 function normalizeAgentTypeLabel(type: string): string {
   if (type === "general-purpose") return "General";
   return type;

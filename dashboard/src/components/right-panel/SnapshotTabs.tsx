@@ -1,5 +1,6 @@
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { formatCost } from "../../lib/cost";
+import { formatTimeShort } from "../../lib/formatTime";
 
 interface SnapshotTabsProps {
   turns: TurnSnapshot[];
@@ -7,18 +8,6 @@ interface SnapshotTabsProps {
   openIndices: Set<number>;
   onSelect: (index: number) => void;
   onClose: (index: number) => void;
-}
-
-function formatTime(ts: string): string {
-  try {
-    return new Date(ts).toLocaleTimeString("en-US", {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return ts;
-  }
 }
 
 export function SnapshotTabs({
@@ -103,7 +92,7 @@ export function SnapshotTabs({
             <span>T{turn.turnNumber}</span>
             {/* Time */}
             <span style={{ opacity: 0.6, fontSize: "9px" }}>
-              {formatTime(turn.startTime)}
+              {formatTimeShort(turn.startTime)}
             </span>
             {/* Cost */}
             {turn.cost > 0 && (

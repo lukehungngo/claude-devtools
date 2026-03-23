@@ -11,9 +11,23 @@ import type {
 export interface AgentSummary {
   agentId: string;
   agentType: string;
+  /** Human-readable display name for the agent */
+  displayName: string;
   invocationCount: number;
   status: "running" | "completed" | "error";
   cost: number;
+  /** Input tokens consumed by this agent in the turn */
+  tokensIn: number;
+  /** Output tokens produced by this agent in the turn */
+  tokensOut: number;
+  /** Tool names used by this agent in the turn */
+  tools: string[];
+}
+
+export interface CostBreakdown {
+  total: number;
+  tokensIn: number;
+  tokensOut: number;
 }
 
 export interface TurnSnapshot {
@@ -22,13 +36,25 @@ export interface TurnSnapshot {
   events: SessionEvent[];
   agents: AgentSummary[];
   status: "running" | "completed";
+  /** Flat cost number (sonnet-only pricing) — kept for backward compatibility */
   cost: number;
+  /** Detailed cost breakdown with input/output token costs */
+  costBreakdown: CostBreakdown;
   startTime: string;
+  /** When the turn completed (same as endTime for completed turns, empty for running) */
+  completedAt: string;
   endTime: string;
 }
 
-// ─── Sonnet pricing (matches dag-builder.ts) ─────────────────────────
-
+/**
+ * Hardcoded Claude 3.5 Sonnet pricing for per-turn cost estimation.
+ * These values must be manually updated when Anthropic changes rates.
+ * They match the sonnet pricing in server/src/analyzer/dag-builder.ts.
+ *
+ * NOTE: This is sonnet-only pricing. The top-level SessionMetrics uses
+ * per-model pricing from MODEL_PRICING in server/src/analyzer/metrics.ts,
+ * which may produce different cost totals for sessions using non-sonnet models.
+ */
 const INPUT_COST_PER_TOKEN = 0.000003;
 const OUTPUT_COST_PER_TOKEN = 0.000015;
 
@@ -62,6 +88,11 @@ function extractPromptText(event: UserEvent): string {
 
 // ─── Build turn from accumulated events ──────────────────────────────
 
+/**
+ * Build a TurnSnapshot from accumulated events.
+ * @note Per-turn cost uses hardcoded sonnet pricing (INPUT_COST_PER_TOKEN / OUTPUT_COST_PER_TOKEN).
+ * This may differ from the per-model pricing in SessionMetrics.tokens.totalCost.
+ */
 function buildTurn(
   turnNumber: number,
   promptText: string,
@@ -70,23 +101,40 @@ function buildTurn(
 ): TurnSnapshot {
   // Compute cost from assistant events
   let cost = 0;
+  let totalTokensIn = 0;
+  let totalTokensOut = 0;
   const agentMap = new Map<
     string,
-    { count: number; agentType: string; lastEvent: SessionEvent; cost: number }
+    { count: number; agentType: string; lastEvent: SessionEvent; cost: number; tokensIn: number; tokensOut: number; tools: Set<string> }
   >();
 
   for (const event of events) {
     const agentId = event.agentId ?? "main";
 
     let eventCost = 0;
+    let eventTokensIn = 0;
+    let eventTokensOut = 0;
+    const eventTools: string[] = [];
+
     if (event.type === "assistant") {
       const asst = event as AssistantEvent;
       const usage = asst.message?.usage;
       if (usage) {
-        eventCost =
-          (usage.input_tokens ?? 0) * INPUT_COST_PER_TOKEN +
-          (usage.output_tokens ?? 0) * OUTPUT_COST_PER_TOKEN;
+        eventTokensIn = usage.input_tokens ?? 0;
+        eventTokensOut = usage.output_tokens ?? 0;
+        eventCost = eventTokensIn * INPUT_COST_PER_TOKEN + eventTokensOut * OUTPUT_COST_PER_TOKEN;
         cost += eventCost;
+        totalTokensIn += eventTokensIn;
+        totalTokensOut += eventTokensOut;
+      }
+      // Collect tool names from content
+      const contentArr = asst.message?.content;
+      if (Array.isArray(contentArr)) {
+        for (const item of contentArr) {
+          if (item.type === "tool_use" && "name" in item) {
+            eventTools.push(item.name);
+          }
+        }
       }
     }
 
@@ -96,7 +144,10 @@ function buildTurn(
       if (event.type === "assistant") {
         existing.count++;
         existing.cost += eventCost;
+        existing.tokensIn += eventTokensIn;
+        existing.tokensOut += eventTokensOut;
       }
+      for (const t of eventTools) existing.tools.add(t);
       existing.lastEvent = event;
     } else {
       agentMap.set(agentId, {
@@ -104,6 +155,9 @@ function buildTurn(
         agentType: agentMeta?.[agentId]?.agentType ?? (agentId === "main" ? "main" : agentId),
         lastEvent: event,
         cost: eventCost,
+        tokensIn: eventTokensIn,
+        tokensOut: eventTokensOut,
+        tools: new Set(eventTools),
       });
     }
   }
@@ -124,9 +178,13 @@ function buildTurn(
     agents.push({
       agentId,
       agentType: info.agentType,
+      displayName: agentMeta?.[agentId]?.description || info.agentType,
       invocationCount: info.count,
       status: agentStatus,
       cost: info.cost,
+      tokensIn: info.tokensIn,
+      tokensOut: info.tokensOut,
+      tools: Array.from(info.tools),
     });
   }
 
@@ -140,6 +198,8 @@ function buildTurn(
     }
   }
 
+  const endTime = events[events.length - 1]?.timestamp ?? "";
+
   return {
     turnNumber,
     promptText,
@@ -147,8 +207,14 @@ function buildTurn(
     agents,
     status,
     cost,
+    costBreakdown: {
+      total: cost,
+      tokensIn: totalTokensIn * INPUT_COST_PER_TOKEN,
+      tokensOut: totalTokensOut * OUTPUT_COST_PER_TOKEN,
+    },
     startTime: events[0]?.timestamp ?? "",
-    endTime: events[events.length - 1]?.timestamp ?? "",
+    completedAt: status === "completed" ? endTime : "",
+    endTime,
   };
 }
 

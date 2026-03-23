@@ -1,3 +1,4 @@
+import { execSync } from "child_process";
 import { Router, json } from "express";
 import {
   discoverSessions,
@@ -246,6 +247,41 @@ export function setupRoutes(state?: ServerState): Router {
       });
     } catch (err) {
       res.status(500).json({ error: "Failed to execute command" });
+    }
+  });
+
+
+  // Open file in editor (cross-panel interaction)
+  router.post("/open-file", (req, res) => {
+    try {
+      const { filePath, line } = req.body as { filePath?: string; line?: number };
+      if (!filePath || typeof filePath !== "string") {
+        res.status(400).json({ error: "filePath is required" });
+        return;
+      }
+
+      // Security: basic path validation - must be absolute and no traversal
+      if (!filePath.startsWith("/") || filePath.includes("..")) {
+        res.status(400).json({ error: "Invalid file path" });
+        return;
+      }
+
+      // Try VS Code first, then fall back to $EDITOR
+      const lineArg = line ? `:${line}` : "";
+      try {
+        execSync(`code --goto "${filePath}${lineArg}"`, { timeout: 5000 });
+        res.json({ success: true, editor: "vscode" });
+      } catch {
+        const editor = process.env.EDITOR || "vim";
+        try {
+          execSync(`${editor} "${filePath}"`, { timeout: 5000 });
+          res.json({ success: true, editor });
+        } catch {
+          res.status(500).json({ error: "No editor available" });
+        }
+      }
+    } catch (err) {
+      res.status(500).json({ error: "Failed to open file" });
     }
   });
 
