@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import type { RepoGroup, SessionInfo } from "../lib/types";
 
 type FilterMode = "active" | "archived" | "all";
@@ -105,7 +105,7 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
               <div key={repo.cwd}>
                 {/* Repo item */}
                 <div
-                  className={`repo-item flex items-center gap-2 cursor-pointer transition-all duration-100 py-2 pr-3 pl-4 border-l-2 ${
+                  className={`repo-item flex items-center gap-2 cursor-pointer transition-all duration-100 py-1.5 pr-3 pl-4 border-l-2 ${
                     isActiveRepo
                       ? "border-dt-accent bg-dt-accent-dim"
                       : "border-transparent bg-transparent"
@@ -121,7 +121,7 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
                     <div className="text-md font-semibold text-dt-text0 truncate">
                       {repo.repoName}
                     </div>
-                    <div className="text-sm text-dt-text2 mt-px flex gap-2">
+                    <div className="text-sm text-dt-text2 mt-px">
                       {branches.length === 1 && (
                         <span className="text-dt-cyan">{branches[0]}</span>
                       )}
@@ -129,6 +129,9 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
                         <span className="text-dt-cyan">
                           {branches.length} branches
                         </span>
+                      )}
+                      {branches.length > 0 && (
+                        <span className="mx-1 opacity-40">·</span>
                       )}
                       <span>{repo.sessions.length} sessions</span>
                     </div>
@@ -177,6 +180,12 @@ function SessionItem({
   const timeAgo = getTimeAgo(session.lastModified);
   const displayName = session.sessionName || session.id.slice(0, 8);
 
+  const handleDoubleClick = (e: React.MouseEvent<HTMLSpanElement>) => {
+    e.stopPropagation();
+    const text = session.sessionName || session.id;
+    navigator.clipboard.writeText(text);
+  };
+
   return (
     <div
       className={`session-item flex items-center gap-2 cursor-pointer transition-all duration-100 py-1.5 pr-3 pl-6 border-l-2 ${
@@ -192,28 +201,29 @@ function SessionItem({
         </span>
       )}
       <span
-        className={`font-mono text-base ${
+        className={`font-mono text-base flex-1 min-w-0 truncate ${
           session.isRunning
             ? "text-dt-text0 font-semibold"
             : "text-dt-purple font-normal"
         }`}
+        onDoubleClick={handleDoubleClick}
+        title={session.sessionName ? session.id : undefined}
       >
         {displayName}
       </span>
-      {session.gitBranch && (
-        <span className="text-xs text-dt-cyan">{session.gitBranch}</span>
-      )}
-      <div className="flex-1 min-w-0">
-        <span className="text-sm text-dt-text2">
-          {session.eventCount} events
-        </span>
+      <div className="flex items-center gap-1 shrink-0 text-sm text-dt-text2">
+        {session.subagentCount > 0 && (
+          <span className="text-xs px-1 py-px rounded-full bg-dt-bg4 text-dt-text1">
+            {session.subagentCount}a
+          </span>
+        )}
+        <span>{session.eventCount}</span>
+        <span
+          className="inline-block w-0.5 h-0.5 rounded-full bg-dt-text2 opacity-60"
+          style={{ marginTop: "1px" }}
+        />
+        <span>{timeAgo}</span>
       </div>
-      {session.subagentCount > 0 && (
-        <span className="text-xs px-1.25 py-px rounded-full bg-dt-bg4 text-dt-text1">
-          {session.subagentCount}a
-        </span>
-      )}
-      <span className="text-sm text-dt-text2 shrink-0">{timeAgo}</span>
     </div>
   );
 }
