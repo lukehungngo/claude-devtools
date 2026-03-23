@@ -514,72 +514,29 @@ export function AgentLogs({
   }, []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div className="flex flex-col h-full">
       {/* Panel header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "8px 12px",
-          borderBottom: "1px solid var(--border)",
-          flexShrink: 0,
-          background: "var(--bg-2)",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "11px",
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            color: "var(--text-2)",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-          }}
-        >
+      <div className="flex items-center justify-between px-3 py-2 border-b border-dt-border shrink-0 bg-dt-bg2">
+        <div className="text-base font-semibold uppercase tracking-[0.5px] text-dt-text2 flex items-center gap-1.5">
           <svg
             width="14"
             height="14"
             viewBox="0 0 16 16"
             fill="currentColor"
-            style={{ opacity: 0.6 }}
+            className="opacity-60"
           >
             <path d="M1.5 1.75V13.5h13.75a.75.75 0 010 1.5H.75a.75.75 0 01-.75-.75V1.75a.75.75 0 011.5 0z" />
           </svg>
           Agents Log
-          <span
-            style={{
-              fontSize: "9px",
-              padding: "1px 5px",
-              borderRadius: "8px",
-              fontWeight: 600,
-              background: "var(--accent-dim)",
-              color: "var(--accent)",
-            }}
-          >
+          <span className="text-xs px-1.25 py-px rounded-full font-semibold bg-dt-accent-dim text-dt-accent">
             {agents.length} agents
           </span>
         </div>
-        <div style={{ display: "flex", gap: "4px" }}>
+        <div className="flex gap-1">
           {!autoScroll && (
             <button
               onClick={resumeAutoScroll}
-              style={{
-                width: 24,
-                height: 24,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "var(--radius-sm)",
-                color: "var(--accent)",
-                cursor: "pointer",
-                border: "none",
-                background: "var(--accent-dim)",
-                transition: "all 0.15s",
-                fontSize: "12px",
-              }}
+              className="w-6 h-6 flex items-center justify-center rounded-dt-sm text-dt-accent cursor-pointer border-none bg-dt-accent-dim transition-all text-sm"
               title="Resume auto-scroll"
             >
               &#x2193;
@@ -589,57 +546,25 @@ export function AgentLogs({
       </div>
 
       {/* Filter bar — dynamic tabs */}
-      <div
-        style={{
-          display: "flex",
-          gap: "4px",
-          padding: "6px 12px",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--bg-2)",
-          flexShrink: 0,
-          overflowX: "auto",
-          scrollbarWidth: "none",
-        }}
-      >
+      <div className="flex gap-1 px-3 py-2 border-b border-dt-border bg-dt-bg2 shrink-0 overflow-x-auto [scrollbar-width:none] dt-scrollbar">
         {filterTabs.map((tab) => {
           const isActive = activeFilter === tab;
           return (
             <button
               key={tab}
               onClick={() => setActiveFilter(tab)}
-              style={{
-                padding: "3px 8px",
-                borderRadius: "3px",
-                fontSize: "10px",
-                color: isActive ? "var(--text-0)" : "var(--text-2)",
-                cursor: "pointer",
-                transition: "all 0.15s",
-                border: isActive
-                  ? "1px solid var(--accent)"
-                  : "1px solid transparent",
-                background: isActive
-                  ? "var(--accent-dim)"
-                  : "transparent",
-                fontFamily: "inherit",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
+              className={`px-2.5 py-1 rounded-xl text-sm cursor-pointer transition-all border whitespace-nowrap shrink-0 ${
+                isActive
+                  ? "text-dt-text0 border-dt-accent bg-dt-accent-dim"
+                  : "text-dt-text2 border-transparent bg-transparent"
+              }`}
             >
               {tab}
             </button>
           );
         })}
         {toolFilter && (
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "10px",
-              color: "var(--orange)",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-            }}
-          >
+          <span className="ml-auto text-sm text-dt-orange flex items-center gap-1">
             Tool: {toolFilter}
           </span>
         )}
@@ -649,42 +574,18 @@ export function AgentLogs({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          overflowX: "hidden",
-          padding: 0,
-          position: "relative",
-        }}
+        className="flex-1 overflow-y-auto overflow-x-hidden p-0 relative dt-scrollbar"
       >
         {aggregatedEntries.length === 0 ? (
           events.length === 0 ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                color: "var(--text-2)",
-                fontSize: "11px",
-                gap: "8px",
-              }}
-            >
-              <svg width="32" height="32" viewBox="0 0 16 16" fill="currentColor" style={{ opacity: 0.3 }}>
+            <div className="flex flex-col items-center justify-center h-full text-dt-text2 text-base gap-2">
+              <svg width="32" height="32" viewBox="0 0 16 16" fill="currentColor" className="opacity-30">
                 <path d="M1.5 1.75V13.5h13.75a.75.75 0 010 1.5H.75a.75.75 0 01-.75-.75V1.75a.75.75 0 011.5 0z" />
               </svg>
               <span>Select a session to view agent logs</span>
             </div>
           ) : (
-            <div
-              style={{
-                padding: "20px",
-                textAlign: "center",
-                color: "var(--text-2)",
-                fontSize: "11px",
-              }}
-            >
+            <div className="p-5 text-center text-dt-text2 text-base">
               No matching log entries
             </div>
           )
@@ -731,8 +632,8 @@ export function AgentLogs({
                         display: "flex",
                         alignItems: "center",
                         gap: "8px",
-                        padding: "4px 12px",
-                        fontSize: "10px",
+                        padding: "8px 12px",
+                        fontSize: "11px",
                         background: "var(--bg-2)",
                         borderBottom: "1px solid var(--border)",
                         cursor: "pointer",
@@ -763,20 +664,20 @@ export function AgentLogs({
                       >
                         {normalizeAgentTypeLabel(group.agentType)}
                       </span>
-                      <span style={{ color: "var(--text-2)", fontSize: "9px" }}>
+                      <span style={{ color: "var(--text-2)", fontSize: "10px" }}>
                         inv #{group.invocationNumber}
                       </span>
-                      <span style={{ color: "var(--text-2)", fontSize: "9px" }}>
+                      <span style={{ color: "var(--text-2)", fontSize: "10px" }}>
                         {formatTime(group.startTime)} - {formatTime(group.endTime)}
                       </span>
                       {group.durationMs > 0 && (
-                        <span style={{ color: "var(--text-2)", fontSize: "9px", fontFamily: "var(--font)" }}>
+                        <span style={{ color: "var(--text-2)", fontSize: "10px", fontFamily: "var(--font)" }}>
                           {formatDuration(group.durationMs)}
                         </span>
                       )}
                       {group.cost > 0 && (
                         <span style={{
-                          fontSize: "9px",
+                          fontSize: "10px",
                           padding: "1px 5px",
                           borderRadius: "3px",
                           fontWeight: 600,
@@ -788,7 +689,7 @@ export function AgentLogs({
                         </span>
                       )}
                       <span style={{
-                        fontSize: "9px",
+                        fontSize: "10px",
                         padding: "1px 5px",
                         borderRadius: "8px",
                         fontWeight: 600,
@@ -826,7 +727,7 @@ export function AgentLogs({
                       display: "grid",
                       gridTemplateColumns: "68px 80px 1fr auto",
                       gap: "8px",
-                      padding: "6px 12px",
+                      padding: "8px 12px",
                       fontSize: "11px",
                       borderBottom: "1px solid var(--border)",
                       alignItems: "start",
@@ -875,7 +776,7 @@ export function AgentLogs({
                       </span>
                       {entry.count > 1 && (
                         <span style={{
-                          fontSize: "9px",
+                          fontSize: "10px",
                           padding: "1px 5px",
                           borderRadius: "8px",
                           fontWeight: 600,
@@ -889,7 +790,7 @@ export function AgentLogs({
                     </div>
                     {entry.toolName && (
                       <div style={{
-                        fontSize: "9px",
+                        fontSize: "10px",
                         padding: "1px 5px",
                         borderRadius: "3px",
                         whiteSpace: "nowrap",

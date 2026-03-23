@@ -37,18 +37,62 @@
   --sky-dim: #38bdf820;
   --font: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --radius: 8px;
-  --radius-sm: 4px;
 }
 
 @layer base {
+  html {
+    font-size: 13px;
+  }
+
   html, body {
     height: 100%;
     background: var(--bg-0);
     color: var(--text-0);
     font-family: var(--font-sans);
-    font-size: 13px;
     overflow: hidden;
+  }
+
+  body {
+    font-size: 13px;
+  }
+}
+
+@layer components {
+  .dt-panel {
+    @apply border border-dt-border rounded-dt bg-dt-bg2;
+  }
+
+  .dt-row {
+    @apply flex items-center;
+  }
+
+  .dt-row-1 {
+    @apply flex items-center gap-1;
+  }
+
+  .dt-row-2 {
+    @apply flex items-center gap-2;
+  }
+
+  .dt-meta {
+    @apply font-mono text-sm text-dt-text2;
+  }
+
+  .dt-caption {
+    @apply text-sm text-dt-text1;
+  }
+
+  .dt-title {
+    @apply font-sans text-2xl font-bold text-dt-text0 tracking-tight;
+  }
+
+  .dt-pill {
+    @apply inline-flex items-center rounded-xl border border-dt-border px-2.5 py-0.5 text-base;
+  }
+
+  .dt-scrollbar {
+    scrollbar-color: var(--bg-4) transparent;
+    scrollbar-width: thin;
   }
 }
 

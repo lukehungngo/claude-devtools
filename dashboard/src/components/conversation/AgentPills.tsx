@@ -29,15 +29,7 @@ export function AgentPills({ agents, onPillClick }: AgentPillsProps) {
   if (agents.length === 0) return null;
 
   return (
-    <div
-      className="conv-agent-summary"
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "6px",
-        padding: "8px 0",
-      }}
-    >
+    <div className="conv-agent-summary flex flex-wrap gap-1.5 py-2">
       {agents.map((agent) => {
         const colors = getAgentColor(agent.agentType);
         const isRunning = agent.status === "running";
@@ -45,63 +37,25 @@ export function AgentPills({ agents, onPillClick }: AgentPillsProps) {
         return (
           <button
             key={agent.agentId}
-            className="conv-agent-pill"
             onClick={() => onPillClick?.(agent.agentId)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "5px",
-              padding: "3px 8px",
-              borderRadius: "4px",
-              border: "none",
-              background: colors.bg,
-              color: colors.color,
-              fontSize: "10px",
-              fontWeight: 600,
-              fontFamily: "var(--font)",
-              cursor: "pointer",
-              transition: "opacity 0.15s",
-            }}
+            className="inline-flex items-center gap-1 px-2.5 py-0.75 rounded-xl border-none text-base font-semibold font-mono cursor-pointer transition-opacity"
+            style={{ background: colors.bg, color: colors.color }}
           >
             {/* Status dot */}
             <span
-              className="pill-status"
-              style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: isRunning
-                  ? "var(--accent)"
-                  : "var(--green)",
-                animation: isRunning
-                  ? "pulse 1.2s ease-in-out infinite"
-                  : "none",
-                flexShrink: 0,
-              }}
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRunning ? "bg-dt-accent animate-pulse-opacity" : "bg-dt-green"}`}
             />
             {/* Agent name */}
             <span>{agent.agentType === "main" ? "Main" : agent.agentType}</span>
             {/* Count */}
             {agent.invocationCount > 1 && (
-              <span
-                className="pill-count"
-                style={{
-                  opacity: 0.7,
-                  fontSize: "9px",
-                }}
-              >
+              <span className="pill-count opacity-70 text-sm">
                 x{agent.invocationCount}
               </span>
             )}
             {/* Cost */}
             {agent.cost > 0 && (
-              <span
-                className="pill-cost"
-                style={{
-                  opacity: 0.7,
-                  fontSize: "9px",
-                }}
-              >
+              <span className="pill-cost opacity-70 text-sm">
                 {formatCost(agent.cost)}
               </span>
             )}

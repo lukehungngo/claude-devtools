@@ -3,9 +3,10 @@ import { isIgnoredStderrWarning } from "../../lib/filterStderrWarnings";
 
 interface PromptInputProps {
   sessionCwd?: string;
+  sessionId?: string;
 }
 
-export function PromptInput({ sessionCwd }: PromptInputProps) {
+export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
   const [sseStatus, setSseStatus] = useState<"idle" | "streaming" | "error">("idle");
@@ -38,6 +39,7 @@ export function PromptInput({ sessionCwd }: PromptInputProps) {
         body: JSON.stringify({
           prompt: currentPrompt,
           cwd: sessionCwd,
+          sessionId: sessionId,
         }),
         signal: controller.signal,
       });
@@ -101,28 +103,8 @@ export function PromptInput({ sessionCwd }: PromptInputProps) {
   }
 
   return (
-    <div
-      className="conv-input-wrap"
-      style={{
-        padding: "12px 16px",
-        borderTop: "1px solid var(--border)",
-        background: "var(--bg-1)",
-        flexShrink: 0,
-      }}
-    >
-      <div
-        className="conv-input-box"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          background: "var(--bg-2)",
-          border: "1px solid var(--border)",
-          borderRadius: "12px",
-          padding: "8px 12px",
-          transition: "border-color 0.15s",
-        }}
-      >
+    <div className="conv-input-wrap px-4 pt-2.5 pb-3.5 border-t border-dt-border bg-dt-bg1 shrink-0">
+      <div className="conv-input-box flex items-center gap-2 bg-dt-bg2 border border-dt-border rounded-xl px-4 py-3 transition-colors">
         <input
           ref={inputRef}
           value={prompt}
@@ -130,55 +112,24 @@ export function PromptInput({ sessionCwd }: PromptInputProps) {
           onKeyDown={handleKeyDown}
           placeholder="Send a prompt to Claude Code..."
           disabled={running}
-          style={{
-            flex: 1,
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            color: "var(--text-0)",
-            fontFamily: "var(--font)",
-            fontSize: "12px",
-            caretColor: "var(--accent)",
-          }}
+          className="flex-1 bg-transparent border-none outline-none text-dt-text0 font-mono text-lg caret-dt-accent"
         />
         {/* SSE status indicator */}
         {running && sseStatus === "streaming" && (
           <span
-            style={{
-              width: "6px",
-              height: "6px",
-              borderRadius: "50%",
-              background: "var(--green)",
-              animation: "pulse 1.2s ease-in-out infinite",
-              flexShrink: 0,
-            }}
+            className="w-1.5 h-1.5 rounded-full bg-dt-green animate-pulse-opacity shrink-0"
             title="Streaming response..."
           />
         )}
         {sseStatus === "error" && (
-          <span
-            style={{
-              fontSize: "9px",
-              color: "var(--red)",
-              fontWeight: 600,
-            }}
-          >
+          <span className="text-xs text-dt-red font-semibold">
             Error
           </span>
         )}
         {running ? (
           <button
             onClick={handleStop}
-            style={{
-              padding: "4px 10px",
-              borderRadius: "8px",
-              background: "var(--red-dim)",
-              border: "none",
-              color: "var(--red)",
-              fontSize: "10px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            className="px-2.5 py-1 rounded-dt bg-dt-red-dim border-none text-dt-red text-base font-semibold cursor-pointer"
           >
             {"\u25A0"} Stop
           </button>
@@ -186,21 +137,11 @@ export function PromptInput({ sessionCwd }: PromptInputProps) {
           <button
             onClick={submitPrompt}
             disabled={!prompt.trim()}
-            style={{
-              padding: "4px 10px",
-              borderRadius: "8px",
-              background: prompt.trim()
-                ? "var(--accent)"
-                : "var(--bg-3)",
-              border: "none",
-              color: prompt.trim()
-                ? "#fff"
-                : "var(--text-2)",
-              fontSize: "10px",
-              fontWeight: 600,
-              cursor: prompt.trim() ? "pointer" : "default",
-              transition: "all 0.15s",
-            }}
+            className={`px-2.5 py-1 rounded-dt border-none text-base font-semibold transition-all ${
+              prompt.trim()
+                ? "bg-dt-accent text-white cursor-pointer"
+                : "bg-dt-bg3 text-dt-text2 cursor-default"
+            }`}
           >
             Send
           </button>

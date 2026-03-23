@@ -48,52 +48,26 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
   };
 
   return (
-    <div className="panel sidebar" style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+    <div className="panel sidebar flex flex-col h-full overflow-hidden">
       {/* Panel header */}
       <div
-        className="panel-header"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "8px 12px",
-          borderBottom: "1px solid var(--border)",
-          flexShrink: 0,
-          background: "var(--bg-2)",
-        }}
+        className="panel-header flex items-center justify-between px-3 py-2 border-b border-dt-border shrink-0 bg-dt-bg2"
       >
         <div
-          className="panel-title"
-          style={{
-            fontSize: "11px",
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            color: "var(--text-2)",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-          }}
+          className="panel-title text-base font-semibold uppercase tracking-wide text-dt-text2 flex items-center gap-1.5"
         >
           Repositories
         </div>
-        <div className="panel-actions" style={{ display: "flex", gap: "2px" }}>
+        <div className="panel-actions flex gap-0.5">
           {(["active", "archived", "all"] as const).map((mode) => (
             <button
               key={mode}
               onClick={() => setFilterMode(mode)}
-              style={{
-                padding: "2px 6px",
-                fontSize: "9px",
-                fontWeight: filterMode === mode ? 600 : 400,
-                color: filterMode === mode ? "var(--accent)" : "var(--text-2)",
-                background: filterMode === mode ? "var(--accent-dim)" : "transparent",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                cursor: "pointer",
-                textTransform: "uppercase",
-                letterSpacing: "0.3px",
-              }}
+              className={`px-1.5 py-0.5 text-xs rounded-dt-sm cursor-pointer uppercase tracking-[0.3px] border-none ${
+                filterMode === mode
+                  ? "font-semibold text-dt-accent bg-dt-accent-dim"
+                  : "font-normal text-dt-text2 bg-transparent"
+              }`}
             >
               {mode}
             </button>
@@ -102,16 +76,13 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
       </div>
 
       {/* Body */}
-      <div
-        className="panel-body"
-        style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: 0 }}
-      >
+      <div className="panel-body flex-1 overflow-y-auto overflow-x-hidden p-0 dt-scrollbar">
         {loading ? (
-          <p style={{ color: "var(--text-2)", fontSize: "12px", padding: "12px" }}>
+          <p className="text-dt-text2 text-sm p-3">
             Loading...
           </p>
         ) : filteredRepos.length === 0 ? (
-          <p style={{ color: "var(--text-2)", fontSize: "12px", padding: "12px" }}>
+          <p className="text-dt-text2 text-sm p-3">
             {filterMode === "all"
               ? "No repositories found"
               : `No ${filterMode} sessions`}
@@ -138,71 +109,41 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
               <div key={repo.cwd}>
                 {/* Repo item */}
                 <div
-                  className={`repo-item${isActiveRepo ? " active" : ""}`}
-                  style={{
-                    padding: "8px 12px 8px 16px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    cursor: "pointer",
-                    transition: "all .1s",
-                    borderLeft: isActiveRepo
-                      ? "2px solid var(--accent)"
-                      : "2px solid transparent",
-                    background: isActiveRepo ? "var(--accent-dim)" : "transparent",
-                  }}
+                  className={`repo-item flex items-center gap-2 cursor-pointer transition-all duration-100 py-2 pr-3 pl-4 border-l-2 ${
+                    isActiveRepo
+                      ? "border-dt-accent bg-dt-accent-dim"
+                      : "border-transparent bg-transparent"
+                  }`}
                   onClick={() => toggleExpand(repo.cwd)}
                 >
                   <span
-                    className="repo-status"
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      flexShrink: 0,
-                      background: repo.hasActiveSessions
-                        ? "var(--green)"
-                        : "var(--yellow)",
-                    }}
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      repo.hasActiveSessions ? "bg-dt-green" : "bg-dt-yellow"
+                    }`}
                   />
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="flex-1 min-w-0">
                     <div
-                      className="repo-name"
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "var(--text-0)",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
+                      className="text-md font-semibold text-dt-text0 truncate"
                     >
                       {repo.repoName}
                     </div>
                     <div
-                      className="repo-meta"
-                      style={{
-                        fontSize: "10px",
-                        color: "var(--text-2)",
-                        marginTop: "1px",
-                        display: "flex",
-                        gap: "8px",
-                      }}
+                      className="text-sm text-dt-text2 mt-px flex gap-2"
                     >
                       {branches.length === 1 && (
-                        <span style={{ color: "var(--cyan)" }}>
+                        <span className="text-dt-cyan">
                           {branches[0]}
                         </span>
                       )}
                       {branches.length > 1 && (
-                        <span style={{ color: "var(--cyan)" }}>
+                        <span className="text-dt-cyan">
                           {branches.length} branches
                         </span>
                       )}
                       <span>{repo.sessions.length} sessions</span>
                     </div>
                   </div>
-                  <span style={{ color: "var(--text-2)", fontSize: "10px", flexShrink: 0 }}>
+                  <span className="text-dt-text2 text-xs shrink-0">
                     {isExpanded ? "\u25BC" : "\u25B6"}
                   </span>
                 </div>
@@ -248,84 +189,48 @@ function SessionItem({
 
   return (
     <div
-      className={`session-item${isSelected ? " active" : ""}`}
-      style={{
-        padding: "6px 12px 6px 24px",
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        cursor: "pointer",
-        transition: "all .1s",
-        borderLeft: isSelected
-          ? "2px solid var(--accent)"
-          : "2px solid transparent",
-        background: isSelected ? "var(--accent-dim)" : "transparent",
-      }}
+      className={`session-item flex items-center gap-2 cursor-pointer transition-all duration-100 py-1.5 pr-3 pl-6 border-l-2 ${
+        isSelected
+          ? "border-dt-accent bg-dt-accent-dim"
+          : "border-transparent bg-transparent"
+      }`}
       onClick={onSelect}
     >
       {session.isRunning && (
         <span
-          style={{
-            fontSize: "8px",
-            fontWeight: 700,
-            padding: "1px 4px",
-            borderRadius: "3px",
-            background: "var(--green)",
-            color: "var(--bg-1)",
-            letterSpacing: "0.5px",
-            flexShrink: 0,
-            animation: "pulse-opacity 2s ease-in-out infinite",
-          }}
+          className="text-2xs font-bold px-1 py-px rounded-dt-xs bg-dt-green text-dt-bg1 tracking-[0.5px] shrink-0 animate-pulse-opacity"
         >
           LIVE
         </span>
       )}
       <span
-        className="session-hash"
-        style={{
-          fontFamily: "var(--font)",
-          fontSize: "11px",
-          color: session.isRunning ? "var(--text-0)" : "var(--purple)",
-          fontWeight: session.isRunning ? 600 : 400,
-        }}
+        className={`font-mono text-base ${
+          session.isRunning ? "text-dt-text0 font-semibold" : "text-dt-purple font-normal"
+        }`}
       >
         {displayName}
       </span>
       {session.gitBranch && (
-        <span
-          style={{
-            fontSize: "9px",
-            color: "var(--cyan)",
-          }}
-        >
+        <span className="text-xs text-dt-cyan">
           {session.gitBranch}
         </span>
       )}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="flex-1 min-w-0">
         <span
-          className="session-detail"
-          style={{ fontSize: "10px", color: "var(--text-2)" }}
+          className="text-sm text-dt-text2"
         >
           {session.eventCount} events
         </span>
       </div>
       {session.subagentCount > 0 && (
         <span
-          className="session-agents"
-          style={{
-            fontSize: "9px",
-            padding: "1px 5px",
-            borderRadius: "8px",
-            background: "var(--bg-4)",
-            color: "var(--text-1)",
-          }}
+          className="text-xs px-1.25 py-px rounded-full bg-dt-bg4 text-dt-text1"
         >
           {session.subagentCount}a
         </span>
       )}
       <span
-        className="session-time"
-        style={{ fontSize: "10px", color: "var(--text-2)", flexShrink: 0 }}
+        className="text-sm text-dt-text2 shrink-0"
       >
         {timeAgo}
       </span>

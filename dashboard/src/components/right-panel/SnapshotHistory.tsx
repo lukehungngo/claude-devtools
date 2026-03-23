@@ -35,57 +35,21 @@ export function SnapshotHistory({
   return (
     <div
       ref={dropdownRef}
-      style={{ position: "relative", display: "inline-flex" }}
+      className="relative inline-flex"
     >
       <button
-        className="snap-history-btn"
         onClick={() => setIsOpen(!isOpen)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "4px",
-          padding: "5px 8px",
-          fontSize: "10px",
-          fontWeight: 600,
-          fontFamily: "var(--font)",
-          color: "var(--text-2)",
-          background: "transparent",
-          border: "none",
-          cursor: "pointer",
-          transition: "color 0.15s",
-        }}
+        className="flex items-center gap-1 px-2 py-1.25 text-sm font-semibold font-mono text-dt-text2 bg-transparent border-none cursor-pointer transition-colors"
       >
         <Clock size={12} />
-        <span
-          style={{
-            fontSize: "9px",
-            padding: "1px 4px",
-            borderRadius: "6px",
-            background: "var(--bg-4)",
-            color: "var(--text-2)",
-          }}
-        >
+        <span className="text-xs px-1 py-px rounded-dt-md bg-dt-bg4 text-dt-text2">
           {closedCount}
         </span>
       </button>
 
       {isOpen && (
         <div
-          className="snap-history-dropdown"
-          style={{
-            position: "absolute",
-            top: "100%",
-            right: 0,
-            zIndex: 50,
-            minWidth: "180px",
-            maxHeight: "200px",
-            overflowY: "auto",
-            background: "var(--bg-2)",
-            border: "1px solid var(--border)",
-            borderRadius: "6px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-            padding: "4px",
-          }}
+          className="absolute top-full right-0 z-50 min-w-45 max-h-50 overflow-y-auto bg-dt-bg2 border border-dt-border rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.3)] p-1 dt-scrollbar"
         >
           {turns.map((turn, i) => {
             if (openIndices.has(i)) return null;
@@ -96,30 +60,10 @@ export function SnapshotHistory({
                   onOpen(i);
                   setIsOpen(false);
                 }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  width: "100%",
-                  padding: "6px 8px",
-                  fontSize: "10px",
-                  fontFamily: "var(--font)",
-                  color: "var(--text-1)",
-                  background: "transparent",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                  transition: "background 0.1s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "var(--bg-3)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                }}
+                className="flex items-center justify-between w-full px-2 py-1.5 text-sm font-mono text-dt-text1 bg-transparent border-none rounded-dt-sm cursor-pointer transition-colors hover:bg-dt-bg3"
               >
                 <span>Turn {turn.turnNumber}: {turn.promptText.slice(0, 30)}{turn.promptText.length > 30 ? "..." : ""}</span>
-                <span style={{ color: "var(--accent)", fontWeight: 600, fontSize: "9px" }}>Open</span>
+                <span className="text-dt-accent font-semibold text-xs">Open</span>
               </button>
             );
           })}

@@ -12,32 +12,32 @@ describe("formatTokens", () => {
     expect(formatTokens(500)).toBe("500");
   });
 
-  it("formats 1000 as '1.0K'", () => {
-    expect(formatTokens(1000)).toBe("1.0K");
+  it("formats 1000 as '1K'", () => {
+    expect(formatTokens(1000)).toBe("1K");
   });
 
-  it("formats 1234 as '1.2K'", () => {
-    expect(formatTokens(1234)).toBe("1.2K");
+  it("formats 1234 as '1K' after rounding", () => {
+    expect(formatTokens(1234)).toBe("1K");
   });
 
-  it("formats 10500 as '10.5K'", () => {
-    expect(formatTokens(10500)).toBe("10.5K");
+  it("formats 10500 as '11K' after rounding", () => {
+    expect(formatTokens(10500)).toBe("11K");
   });
 
-  it("formats 1000000 as '1.0M'", () => {
-    expect(formatTokens(1000000)).toBe("1.0M");
+  it("formats 1000000 as '1M'", () => {
+    expect(formatTokens(1000000)).toBe("1M");
   });
 
-  it("formats 1234567 as '1.2M'", () => {
-    expect(formatTokens(1234567)).toBe("1.2M");
+  it("formats 1234567 as '1M' after rounding", () => {
+    expect(formatTokens(1234567)).toBe("1M");
   });
 
-  it("formats 15000000 as '15.0M'", () => {
-    expect(formatTokens(15000000)).toBe("15.0M");
+  it("formats 15000000 as '15M'", () => {
+    expect(formatTokens(15000000)).toBe("15M");
   });
 
-  it("formats values just below 1M in K", () => {
-    expect(formatTokens(999999)).toBe("1000.0K");
+  it("formats values just below 1M in K with rounding", () => {
+    expect(formatTokens(999999)).toBe("1000K");
   });
 });
 

@@ -3,9 +3,10 @@ import { isIgnoredStderrWarning } from "../../lib/filterStderrWarnings";
 
 interface CommandDispatchProps {
   sessionCwd?: string;
+  sessionId?: string;
 }
 
-export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
+export function CommandDispatch({ sessionCwd, sessionId }: CommandDispatchProps) {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
   const [planMode, setPlanMode] = useState(false);
@@ -46,6 +47,7 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
         body: JSON.stringify({
           prompt: planMode ? `[Plan mode] ${currentPrompt}` : currentPrompt,
           cwd: sessionCwd,
+          sessionId: sessionId,
         }),
         signal: controller.signal,
       });
@@ -122,71 +124,25 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        flexShrink: 0,
-        margin: "8px 12px",
-        borderRadius: "8px",
-        border: "1px solid var(--border)",
-        background: "var(--bg-2)",
-        overflow: "hidden",
-      }}
-    >
+    <div className="flex flex-col shrink-0 mx-3 my-2 rounded-dt border border-dt-border bg-dt-bg2 overflow-hidden">
       {/* Sent prompt display */}
       {lastSentPrompt && (
         <div
-          style={{
-            padding: "8px 16px",
-            fontFamily: "var(--font)",
-            fontSize: "12px",
-            lineHeight: 1.5,
-            color: "var(--text-1)",
-            borderBottom:
-              output.length > 0 || running
-                ? "1px solid var(--border)"
-                : "none",
-            display: "flex",
-            gap: "8px",
-            alignItems: "flex-start",
-          }}
+          className={`px-4 py-2 font-mono text-sm leading-[1.5] text-dt-text1 flex gap-2 items-start ${
+            output.length > 0 || running ? "border-b border-dt-border" : ""
+          }`}
         >
-          <span
-            style={{
-              color: "var(--accent)",
-              fontWeight: 700,
-              flexShrink: 0,
-              lineHeight: 1.5,
-            }}
-          >
+          <span className="text-dt-accent font-bold shrink-0 leading-[1.5]">
             {"\u276F"}
           </span>
-          <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <span className="whitespace-pre-wrap break-words">
             {lastSentPrompt}
           </span>
           {running && (
             <span
-              style={{
-                flexShrink: 0,
-                marginLeft: "auto",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                fontSize: "10px",
-                color: "var(--accent)",
-                fontWeight: 600,
-              }}
+              className="shrink-0 ml-auto inline-flex items-center gap-1.5 text-xxs text-dt-accent font-semibold"
             >
-              <span
-                style={{
-                  width: "6px",
-                  height: "6px",
-                  borderRadius: "50%",
-                  background: "var(--accent)",
-                  animation: "pulse 1.2s ease-in-out infinite",
-                }}
-              />
+              <span className="w-1.5 h-1.5 rounded-full bg-dt-accent animate-pulse-opacity" />
               Running
             </span>
           )}
@@ -197,18 +153,7 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
       {output.length > 0 && (
         <div
           ref={outputRef}
-          style={{
-            maxHeight: "200px",
-            overflowY: "auto",
-            padding: "8px 16px",
-            background: "var(--bg-3)",
-            fontFamily: "var(--font)",
-            fontSize: "11px",
-            lineHeight: 1.6,
-            color: "var(--text-1)",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}
+          className="max-h-50 overflow-y-auto px-4 py-2 bg-dt-bg3 font-mono text-xs leading-[1.6] text-dt-text1 whitespace-pre-wrap break-words dt-scrollbar"
         >
           {output.map((line, i) => (
             <div key={i}>{line}</div>
@@ -218,16 +163,9 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
 
       {/* Textarea input */}
       <div
-        style={{
-          display: "flex",
-          alignItems: "flex-end",
-          gap: "8px",
-          padding: "10px 12px",
-          borderTop:
-            output.length > 0 || lastSentPrompt
-              ? "1px solid var(--border)"
-              : "none",
-        }}
+        className={`flex items-end gap-2 px-3 py-2.5 ${
+          output.length > 0 || lastSentPrompt ? "border-t border-dt-border" : ""
+        }`}
       >
         <textarea
           ref={textareaRef}
@@ -237,53 +175,17 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
           placeholder="Send a prompt to Claude Code..."
           disabled={running}
           rows={1}
-          style={{
-            flex: 1,
-            minHeight: "44px",
-            maxHeight: "200px",
-            resize: "none",
-            background: "var(--bg-3)",
-            border: "1px solid var(--border)",
-            borderRadius: "8px",
-            outline: "none",
-            color: "var(--text-0)",
-            fontFamily: "var(--font)",
-            fontSize: "12px",
-            lineHeight: 1.5,
-            padding: "12px 16px",
-            caretColor: "var(--accent)",
-            transition: "border-color 0.15s",
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = "var(--accent)";
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = "var(--border)";
-          }}
+          className="flex-1 min-h-11 max-h-50 resize-none bg-dt-bg3 border border-dt-border rounded-dt outline-none text-dt-text0 font-mono text-sm leading-[1.5] px-4 py-3 caret-dt-accent transition-colors focus:border-dt-accent"
         />
-        <div
-          style={{
-            display: "flex",
-            gap: "4px",
-            alignItems: "center",
-            paddingBottom: "4px",
-          }}
-        >
+        <div className="flex gap-1 items-center pb-1">
           <button
             type="button"
             onClick={() => setPlanMode(!planMode)}
-            style={{
-              padding: "4px 8px",
-              borderRadius: "var(--radius-sm)",
-              background: planMode ? "var(--accent-dim)" : "var(--bg-3)",
-              border: planMode
-                ? "1px solid var(--accent)"
-                : "1px solid var(--border)",
-              color: planMode ? "var(--accent)" : "var(--text-2)",
-              fontSize: "10px",
-              cursor: "pointer",
-              transition: "all .15s",
-            }}
+            className={`px-2 py-1 rounded-dt-sm border text-xxs cursor-pointer transition-all ${
+              planMode
+                ? "bg-dt-accent-dim border-dt-accent text-dt-accent"
+                : "bg-dt-bg3 border-dt-border text-dt-text2"
+            }`}
           >
             Plan
           </button>
@@ -291,30 +193,13 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
             <button
               type="button"
               onClick={handleStop}
-              style={{
-                padding: "4px 8px",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--bg-3)",
-                border: "1px solid var(--border)",
-                color: "var(--red)",
-                fontSize: "10px",
-                cursor: "pointer",
-                transition: "all .15s",
-              }}
+              className="px-2 py-1 rounded-dt-sm bg-dt-bg3 border border-dt-border text-dt-red text-xxs cursor-pointer transition-all"
             >
               {"\u25A0"} Stop
             </button>
           )}
         </div>
       </div>
-
-      {/* Pulse animation */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-      `}</style>
     </div>
   );
 }

@@ -30,9 +30,24 @@ function formatResetTime(resetsAt: string | null): string {
   if (ms <= 0) return "now";
   const mins = Math.floor(ms / 60_000);
   if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  const rm = mins % 60;
-  return rm > 0 ? `${hrs}h${rm}m` : `${hrs}h`;
+
+  const hoursTotal = Math.floor(mins / 60);
+  const remainingMins = mins % 60;
+  if (hoursTotal < 24) {
+    return remainingMins > 0
+      ? `${hoursTotal}h ${remainingMins}m`
+      : `${hoursTotal}h`;
+  }
+
+  const days = Math.floor(hoursTotal / 24);
+  const remainingHours = hoursTotal % 24;
+  if (days < 7) {
+    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+  }
+
+  const weeks = Math.floor(days / 7);
+  const remainingDays = days % 7;
+  return remainingDays > 0 ? `${weeks}w ${remainingDays}d` : `${weeks}w`;
 }
 
 const toolColorMap: Record<string, string> = {
@@ -64,104 +79,109 @@ export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
         : "var(--green)";
 
   return (
-    <div className="topbar" style={{
-      gridArea: "topbar",
-      background: "var(--bg-1)",
-      display: "flex",
-      flexDirection: "column",
-      borderBottom: "1px solid var(--border)",
-      zIndex: 10,
-      fontFamily: "var(--font)",
-      fontSize: "13px",
-    }}>
+    <div
+      className="topbar bg-dt-bg1 flex flex-col border-b border-dt-border z-10 font-mono text-lg"
+      style={{ gridArea: "topbar" }}
+    >
       {/* Row 1: Title | Tokens | Mode | Model | Branch || Right: 24h/7d + Subscription */}
-      <div className="topbar-row" style={{
-        display: "flex",
-        alignItems: "center",
-        padding: "0 20px",
-        minHeight: "32px",
-        flexWrap: "nowrap",
-        overflow: "hidden",
-        borderBottom: "1px solid var(--border)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 0, flex: 1, flexWrap: "nowrap", overflow: "hidden" }}>
+      <div className="topbar-row flex items-center px-5 min-h-8 flex-nowrap overflow-hidden border-b border-dt-border">
+        <div className="flex items-center gap-0 flex-1 flex-nowrap overflow-hidden">
           {/* Title */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: "8px",
-            fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: "15px",
-            color: "var(--text-0)", marginRight: "16px", letterSpacing: "-0.3px", flexShrink: 0,
-          }}>
+          <div className="flex items-center gap-2 font-sans font-bold text-2xl text-dt-text0 mr-4 tracking-[-0.3px] shrink-0">
             {metrics && (
-              <div style={{
-                width: 16, height: 16,
-                border: "2px solid var(--border-active)",
-                borderTopColor: "var(--accent)",
-                borderRadius: "50%",
-                animation: metrics.session.isActive ? "spin .8s linear infinite" : undefined,
-                opacity: metrics.session.isActive ? 1 : 0.4,
-              }} />
+              <div
+                style={{
+                  width: 16,
+                  height: 16,
+                  border: "2px solid var(--border-active)",
+                  borderTopColor: "var(--accent)",
+                  borderRadius: "50%",
+                  animation: metrics.session.isActive
+                    ? "spin .8s linear infinite"
+                    : undefined,
+                  opacity: metrics.session.isActive ? 1 : 0.4,
+                }}
+              />
             )}
             Claude DevTools
           </div>
 
           {metrics ? (
             <>
-              <TbStat label="Token In" value={formatTokens(tIn)} />
-              <TbStat label="Out" value={formatTokens(tOut)} />
-              <InfoIcon tooltip={`Estimated API key usage: ~${formatCost(sCost)}`} />
+              <div className="flex items-center gap-3">
+                <TbStat label="Token In" value={formatTokens(tIn)} />
+                <div className="flex items-center gap-1">
+                  <TbStat label="Out" value={formatTokens(tOut)} />
+                  <InfoIcon
+                    tooltip={`Estimated API key usage: ~${formatCost(sCost)}`}
+                  />
+                </div>
+              </div>
               <TbSep />
-              <TbStat label="Mode" value={
-                metrics.session.permissionMode === "default"
-                  ? "defaultPermissions"
-                  : metrics.session.permissionMode || "\u2014"
-              } valueColor="var(--yellow)" />
+              <TbStat
+                label="Mode"
+                value={
+                  metrics.session.permissionMode === "default"
+                    ? "defaultPermissions"
+                    : metrics.session.permissionMode || "\u2014"
+                }
+                valueColor="var(--yellow)"
+              />
               <TbSep />
-              <TbStat label="Model" value={
-                metrics.models[0] ? formatModelName(metrics.models[0]) : "\u2014"
-              } valueColor="var(--accent)" />
+              <TbStat
+                label="Model"
+                value={
+                  metrics.models[0]
+                    ? formatModelName(metrics.models[0])
+                    : "\u2014"
+                }
+                valueColor="var(--accent)"
+              />
               <TbSep />
-              <TbStat label="Branch" value={
-                metrics.session.gitBranch
-                  ? `git:${metrics.session.gitBranch}`
-                  : "\u2014"
-              } valueColor="var(--green)" />
+              <TbStat
+                label="Branch"
+                value={
+                  metrics.session.gitBranch
+                    ? `git:${metrics.session.gitBranch}`
+                    : "\u2014"
+                }
+                valueColor="var(--green)"
+              />
             </>
           ) : (
-            <span style={{ color: "var(--text-2)", fontSize: "12px" }}>
+            <span className="text-dt-text2 text-sm">
               Select a session from the sidebar
             </span>
           )}
         </div>
 
         {/* Right: Subscription box */}
-        <div className="tb-sub-box" style={{
-          display: "flex", flexDirection: "column", gap: "3px",
-          padding: "6px 0 6px 20px",
-          borderLeft: "1px solid var(--border)",
-          marginLeft: "16px",
-          fontSize: "12px",
-          flexShrink: 0,
-        }}>
+        <div className="tb-sub-box flex flex-col gap-0.75 py-1.5 pl-5 border-l border-dt-border ml-4 text-md shrink-0">
           <SubRow label="24h" costs={costs} period="24h" />
           <SubRow label="7d" costs={costs} period="7d" />
           {usage && (
-            <div className="tb-sub-row" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div className="tb-sub-row flex items-center gap-2">
               {usage.planName && (
-                <span className="tb-sub-badge" style={{
-                  padding: "2px 7px", borderRadius: "4px", fontSize: "10px",
-                  fontWeight: 700, textTransform: "uppercase",
-                  background: "var(--accent)", color: "#fff",
-                }}>
+                <span className="tb-sub-badge px-1.75 py-0.5 rounded-dt-sm text-xxs font-bold uppercase bg-dt-accent text-white">
                   {usage.planName}
                 </span>
               )}
-              {(usage.fiveHour.utilization !== null || usage.sevenDay.utilization !== null) ? (
+              {usage.fiveHour.utilization !== null ||
+              usage.sevenDay.utilization !== null ? (
                 <>
-                  <UsageBar label="5h" value={usage.fiveHour.utilization} resetsAt={usage.fiveHour.resetsAt} />
-                  <UsageBar label="7d" value={usage.sevenDay.utilization} resetsAt={usage.sevenDay.resetsAt} />
+                  <UsageBar
+                    label="Session"
+                    value={usage.fiveHour.utilization}
+                    resetsAt={usage.fiveHour.resetsAt}
+                  />
+                  <UsageBar
+                    label="Week"
+                    value={usage.sevenDay.utilization}
+                    resetsAt={usage.sevenDay.resetsAt}
+                  />
                 </>
               ) : (
-                <span style={{ color: "var(--text-2)", fontSize: "10px" }}>
+                <span className="text-dt-text2 text-xxs">
                   Usage data unavailable
                 </span>
               )}
@@ -171,48 +191,47 @@ export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
       </div>
 
       {/* Row 2: Duration | Context bar | MCP count | Tasks */}
-      <div className="topbar-row" style={{
-        display: "flex",
-        alignItems: "center",
-        padding: "0 20px",
-        minHeight: "32px",
-        flexWrap: "nowrap",
-        overflow: "hidden",
-        borderBottom: "1px solid var(--border)",
-      }}>
+      <div className="topbar-row flex items-center px-5 min-h-8 flex-nowrap overflow-hidden border-b border-dt-border">
         {metrics ? (
           <>
             <TbStat label="Duration" value={formatDuration(metrics.duration)} />
             <TbSep />
-            <div className="tb-stat" style={{ display: "flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap", fontSize: "13px" }}>
-              <span style={{ color: "var(--text-2)" }}>Context</span>
-              <div style={{
-                display: "flex", alignItems: "center", gap: "4px",
-              }}>
-                <div style={{
-                  width: 70, height: 5,
-                  background: "var(--bg-4)",
-                  borderRadius: 2,
-                  overflow: "hidden",
-                  position: "relative",
-                }}>
-                  <div style={{
-                    height: "100%",
-                    width: `${metrics.contextPercent}%`,
-                    background: contextColor,
+            <div className="tb-stat flex items-center gap-1 whitespace-nowrap text-lg">
+              <span className="text-dt-text2">Context</span>
+              <div className="flex items-center gap-1">
+                <div
+                  style={{
+                    width: 70,
+                    height: 5,
+                    background: "var(--bg-4)",
                     borderRadius: 2,
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                  }} />
+                    overflow: "hidden",
+                    position: "relative",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${metrics.contextPercent}%`,
+                      background: contextColor,
+                      borderRadius: 2,
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                    }}
+                  />
                 </div>
-                <span style={{ color: "var(--text-0)", fontWeight: 600 }}>
+                <span className="text-dt-text0 font-semibold">
                   {metrics.contextPercent}%
                 </span>
               </div>
             </div>
             <TbSep />
-            <TbStat label="MCP" value={`${mcpCount}`} valueColor="var(--cyan)" />
+            <TbStat
+              label="MCP"
+              value={`${mcpCount}`}
+              valueColor="var(--cyan)"
+            />
             {metrics.tasks.total > 0 && (
               <>
                 <TbSep />
@@ -229,19 +248,12 @@ export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
             )}
           </>
         ) : (
-          <span style={{ color: "var(--text-2)", fontSize: "12px" }}>&mdash;</span>
+          <span className="text-dt-text2 text-sm">&mdash;</span>
         )}
       </div>
 
       {/* Row 3: Tool usage badges */}
-      <div className="topbar-row" style={{
-        display: "flex",
-        alignItems: "center",
-        padding: "0 20px",
-        minHeight: "28px",
-        flexWrap: "nowrap",
-        overflow: "hidden",
-      }}>
+      <div className="topbar-row flex items-center px-5 min-h-7 flex-nowrap overflow-hidden">
         {metrics ? (
           metrics.tools.slice(0, 10).map((t) => {
             const shortName = t.name.startsWith("mcp__")
@@ -251,32 +263,22 @@ export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
             return (
               <span
                 key={t.name}
-                className="tb-tool"
                 onClick={() => onToolFilter?.(shortName)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  padding: "2px 8px",
-                  borderRadius: "3px",
-                  fontSize: "12px",
-                  color: "var(--text-1)",
-                  whiteSpace: "nowrap",
-                  marginRight: "6px",
-                  cursor: "pointer",
-                }}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-dt-xs text-md text-dt-text1 whitespace-nowrap mr-1.5 cursor-pointer"
                 title={`${shortName}: ${t.count} calls, ${t.errors} errors — click to filter log`}
               >
-                <span style={{ color: checkColor, marginRight: "1px" }}>&#10003;</span>
+                <span style={{ color: checkColor, marginRight: "1px" }}>
+                  &#10003;
+                </span>
                 <span>{shortName}</span>
-                <span style={{ color: "var(--text-2)", fontFamily: "var(--font)" }}>
+                <span className="text-dt-text2 font-mono">
                   &times;{t.count}
                 </span>
               </span>
             );
           })
         ) : (
-          <span style={{ color: "var(--text-2)", fontSize: "12px" }}>&mdash;</span>
+          <span className="text-dt-text2 text-sm">&mdash;</span>
         )}
       </div>
     </div>
@@ -286,14 +288,7 @@ export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
 /* --- Reusable pieces --- */
 
 function TbSep() {
-  return (
-    <div className="tb-sep" style={{
-      width: 1, height: 16,
-      background: "var(--border)",
-      margin: "0 12px",
-      flexShrink: 0,
-    }} />
-  );
+  return <div className="tb-sep w-px h-4 bg-dt-border mx-3 shrink-0" />;
 }
 
 function TbStat({
@@ -306,15 +301,15 @@ function TbStat({
   valueColor?: string;
 }) {
   return (
-    <div className="tb-stat" style={{
-      display: "flex", alignItems: "center", gap: "5px",
-      color: "var(--text-2)", whiteSpace: "nowrap", fontSize: "13px",
-    }}>
-      <span className="label" style={{ color: "var(--text-2)" }}>{label}</span>
-      <span className="val" style={{
-        color: valueColor || "var(--text-0)",
-        fontWeight: 600,
-      }}>
+    <div className="tb-stat flex items-center gap-1 whitespace-nowrap text-lg text-dt-text2">
+      <span className="label text-dt-text2">{label}</span>
+      <span
+        className="val"
+        style={{
+          color: valueColor || "var(--text-0)",
+          fontWeight: 600,
+        }}
+      >
         {value}
       </span>
     </div>
@@ -324,14 +319,7 @@ function TbStat({
 function InfoIcon({ tooltip }: { tooltip: string }) {
   return (
     <span
-      className="info-icon"
-      style={{
-        width: 14, height: 14, borderRadius: "50%",
-        border: "1px solid var(--text-2)",
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        fontSize: "9px", color: "var(--text-2)",
-        cursor: "help", marginLeft: "2px",
-      }}
+      className="w-3.5 h-3.5 rounded-full border border-dt-text2 inline-flex items-center justify-center text-2xs text-dt-text2 cursor-help ml-0.5"
       title={tooltip}
     >
       i
@@ -352,16 +340,15 @@ function SubRow({
   const tOut = period === "24h" ? costs?.tokenOut24h : costs?.tokenOut7d;
 
   return (
-    <div className="tb-sub-row" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-      <span className="tb-sub-label" style={{ color: "var(--text-2)", minWidth: "24px" }}>
-        {label}
-      </span>
+    <div className="tb-sub-row flex items-center gap-2">
+      <span className="tb-sub-label text-dt-text2 min-w-6">{label}</span>
       {costs ? (
-        <span className="tb-sub-val" style={{ color: "var(--text-0)" }}>
-          In: {formatTokens(tIn ?? 0)} Out: {formatTokens(tOut ?? 0)}
+        <span className="tb-sub-val text-dt-text0 flex gap-2">
+          <span>In: {formatTokens(tIn ?? 0)}</span>
+          <span>Out: {formatTokens(tOut ?? 0)}</span>
         </span>
       ) : (
-        <span style={{ color: "var(--text-2)" }}>...</span>
+        <span className="text-dt-text2">...</span>
       )}
     </div>
   );
@@ -380,38 +367,39 @@ function UsageBar({
   const barColor =
     pct > 80 ? "var(--red)" : pct > 50 ? "var(--yellow)" : "var(--green)";
   const resetStr = resetsAt ? formatResetTime(resetsAt) : "";
+  const resetLabel = resetStr ? `reset in ${resetStr}` : "reset unknown";
 
   return (
     <div
-      className="tb-usage-bar"
-      style={{
-        display: "flex", alignItems: "center", gap: "5px",
-        fontSize: "11px", color: "var(--text-2)",
-      }}
+      className="flex items-center gap-1 text-sm text-dt-text2 whitespace-nowrap"
       title={resetStr ? `Resets in ${resetStr}` : undefined}
     >
       <span>{label}</span>
-      <div style={{
-        width: 40, height: 4,
-        background: "var(--bg-4)",
-        borderRadius: 2,
-        overflow: "hidden",
-        position: "relative",
-      }}>
+      <div
+        style={{
+          width: 40,
+          height: 4,
+          background: "var(--bg-4)",
+          borderRadius: 2,
+          overflow: "hidden",
+          position: "relative",
+        }}
+      >
         {value !== null && (
-          <div style={{
-            height: "100%",
-            width: `${pct}%`,
-            background: barColor,
-            borderRadius: 2,
-            position: "absolute",
-            left: 0, top: 0,
-          }} />
+          <div
+            style={{
+              height: "100%",
+              width: `${pct}%`,
+              background: barColor,
+              borderRadius: 2,
+              position: "absolute",
+              left: 0,
+              top: 0,
+            }}
+          />
         )}
       </div>
-      <span style={{ fontFamily: "var(--font)", fontSize: "10px", color: "var(--text-1)" }}>
-        {value !== null ? `${pct}%` : "N/A"}
-      </span>
+      <span className="font-mono text-xs text-dt-text1">{resetLabel} |</span>
     </div>
   );
 }

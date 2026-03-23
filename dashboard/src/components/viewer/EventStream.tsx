@@ -103,7 +103,7 @@ function renderUserEvent(event: UserEvent) {
   // If we only have error blocks, render them
   if (textParts.length === 0 && errorBlocks.length > 0) {
     return (
-      <div key={event.uuid} style={{ marginBottom: "6px" }}>
+      <div key={event.uuid} className="mb-1.5">
         {errorBlocks}
       </div>
     );
@@ -115,32 +115,15 @@ function renderUserEvent(event: UserEvent) {
   return (
     <div
       key={event.uuid}
-      style={{
-        display: "flex",
-        gap: "0",
-        marginBottom: "2px",
-        marginTop: "12px",
-      }}
+      className="flex gap-0 mb-0.5 mt-3"
     >
       <span
-        style={{
-          color: "var(--accent)",
-          whiteSpace: "pre",
-          userSelect: "none",
-          fontFamily: "var(--font)",
-          fontSize: "12px",
-        }}
+        className="text-dt-accent whitespace-pre select-none font-mono text-sm"
       >
         {"\u276F"}{" "}
       </span>
       <span
-        style={{
-          color: "var(--text-0)",
-          fontFamily: "var(--font)",
-          fontSize: "12px",
-          lineHeight: 1.6,
-          wordBreak: "break-word",
-        }}
+        className="text-dt-text0 font-mono text-sm leading-[1.6] break-words"
       >
         {displayText}
       </span>
@@ -189,7 +172,7 @@ function renderAssistantEvent(
   if (blocks.length === 0) return null;
 
   return (
-    <div key={event.uuid} style={{ marginBottom: "6px" }}>
+    <div key={event.uuid} className="mb-1.5">
       {blocks}
     </div>
   );
@@ -201,29 +184,16 @@ function renderProgressEvent(event: ProgressEvent, count: number) {
   return (
     <div
       key={event.uuid}
-      style={{
-        color: "var(--text-2)",
-        fontFamily: "var(--font)",
-        fontSize: "11px",
-        marginBottom: "2px",
-        opacity: 0.7,
-      }}
+      className="text-dt-text2 font-mono text-xs mb-0.5 opacity-70"
     >
       {"\u2026"} {label}
       {event.data?.command && (
-        <span style={{ marginLeft: "6px", color: "var(--text-2)" }}>
+        <span className="ml-1.5 text-dt-text2">
           {event.data.command}
         </span>
       )}
       {count > 1 && (
-        <span
-          style={{
-            marginLeft: "6px",
-            fontSize: "10px",
-            color: "var(--accent)",
-            fontWeight: 600,
-          }}
-        >
+        <span className="ml-1.5 text-xxs text-dt-accent font-semibold">
           x{count}
         </span>
       )}
@@ -243,24 +213,9 @@ export function EventStream({ events }: EventStreamProps) {
   const aggregated = aggregateProgressEvents(visibleEvents);
 
   return (
-    <div
-      style={{
-        fontFamily: "var(--font)",
-        fontSize: "12px",
-        lineHeight: 1.6,
-      }}
-    >
+    <div className="font-mono text-sm leading-[1.6]">
       {truncated && (
-        <div
-          style={{
-            padding: "6px 0",
-            textAlign: "center",
-            fontSize: "10px",
-            color: "var(--text-2)",
-            borderBottom: "1px solid var(--border)",
-            marginBottom: "8px",
-          }}
-        >
+        <div className="py-1.5 text-center text-xxs text-dt-text2 border-b border-dt-border mb-2">
           Showing last {MAX_VISIBLE} of {events.length} events
         </div>
       )}

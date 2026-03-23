@@ -22,17 +22,7 @@ export function SnapshotTabs({
   if (openTurns.length === 0) return null;
 
   return (
-    <div
-      className="snapshot-tabs"
-      style={{
-        display: "flex",
-        overflowX: "auto",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--bg-2)",
-        flexShrink: 0,
-        scrollbarWidth: "none",
-      }}
-    >
+    <div className="snapshot-tabs flex overflow-x-auto border-b border-dt-border bg-dt-bg2 shrink-0 [scrollbar-width:none] dt-scrollbar">
       {openTurns.map((turn) => {
         const realIndex = turns.indexOf(turn);
         const isActive = realIndex === activeIndex;
@@ -42,80 +32,43 @@ export function SnapshotTabs({
         return (
           <button
             key={turn.turnNumber}
-            className="snap-tab"
             onClick={() => onSelect(realIndex)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              padding: "5px 8px",
-              fontSize: "10px",
-              fontWeight: 600,
-              fontFamily: "var(--font)",
-              color: isActive
-                ? isLive
-                  ? "var(--accent)"
-                  : "var(--text-0)"
-                : "var(--text-2)",
-              background: isActive ? "var(--bg-1)" : "transparent",
-              border: "none",
-              borderBottom: isActive
-                ? `2px solid ${isLive ? "var(--accent)" : "var(--text-1)"}`
-                : "2px solid transparent",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              transition: "all 0.15s",
-              flexShrink: 0,
-            }}
+            className={`flex items-center gap-1 pl-2.5 pr-2 py-1.5 text-sm font-semibold font-mono border-none cursor-pointer whitespace-nowrap transition-all shrink-0 border-b-2 ${
+              isActive
+                ? `${isLive ? "text-dt-accent border-dt-accent" : "text-dt-text0 border-dt-text1"} bg-dt-bg1`
+                : "text-dt-text2 border-transparent bg-transparent"
+            }`}
           >
             {/* Status dot */}
             <span
-              className="snap-dot"
-              style={{
-                width: "5px",
-                height: "5px",
-                borderRadius: "50%",
-                background:
-                  isRunning && isLive
-                    ? "var(--accent)"
-                    : turn.status === "completed"
-                      ? "var(--green)"
-                      : "var(--text-2)",
-                animation:
-                  isRunning && isLive
-                    ? "pulse 1.2s ease-in-out infinite"
-                    : "none",
-                flexShrink: 0,
-              }}
+              className={`w-1.25 h-1.25 rounded-full shrink-0 ${
+                isRunning && isLive
+                  ? "bg-dt-accent animate-pulse-opacity"
+                  : turn.status === "completed"
+                    ? "bg-dt-green"
+                    : "bg-dt-text2"
+              }`}
             />
             {/* Turn label */}
             <span>T{turn.turnNumber}</span>
             {/* Time */}
-            <span style={{ opacity: 0.6, fontSize: "9px" }}>
+            <span className="opacity-60 text-xs">
               {formatTimeShort(turn.startTime)}
             </span>
             {/* Cost */}
             {turn.cost > 0 && (
-              <span style={{ opacity: 0.6, fontSize: "9px" }}>
+              <span className="opacity-60 text-xs">
                 {formatCost(turn.cost)}
               </span>
             )}
             {/* Close button (not for live tab) */}
             {!isLive && (
               <span
-                className="snap-close"
                 onClick={(e) => {
                   e.stopPropagation();
                   onClose(realIndex);
                 }}
-                style={{
-                  marginLeft: "2px",
-                  fontSize: "10px",
-                  color: "var(--text-2)",
-                  cursor: "pointer",
-                  opacity: 0.6,
-                  lineHeight: 1,
-                }}
+                className="ml-0.5 text-sm text-dt-text2 cursor-pointer opacity-60 leading-none"
               >
                 {"\u00D7"}
               </span>

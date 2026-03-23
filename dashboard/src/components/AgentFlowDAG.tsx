@@ -121,70 +121,28 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div className="flex flex-col h-full">
       {/* Panel header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "8px 12px",
-          borderBottom: "1px solid var(--border)",
-          flexShrink: 0,
-          background: "var(--bg-2)",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "11px",
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            color: "var(--text-2)",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-          }}
-        >
+      <div className="flex items-center justify-between px-3 py-2 border-b border-dt-border shrink-0 bg-dt-bg2">
+        <div className="text-base font-semibold uppercase tracking-[0.5px] text-dt-text2 flex items-center gap-1.5">
           <svg
             width="14"
             height="14"
             viewBox="0 0 16 16"
             fill="currentColor"
-            style={{ opacity: 0.6 }}
+            className="opacity-60"
           >
             <path d="M1.5 1.75V13.5h13.75a.75.75 0 010 1.5H.75a.75.75 0 01-.75-.75V1.75a.75.75 0 011.5 0zm14.28 2.53l-5.25 5.25a.75.75 0 01-1.06 0L7 7.06 4.28 9.78a.75.75 0 01-1.06-1.06l3.25-3.25a.75.75 0 011.06 0L10 8.94l4.72-4.72a.75.75 0 111.06 1.06z" />
           </svg>
           Agent Graph
-          <span
-            style={{
-              fontSize: "9px",
-              padding: "1px 5px",
-              borderRadius: "8px",
-              fontWeight: 600,
-              background: frozen ? "var(--bg-4)" : "var(--accent-dim)",
-              color: frozen ? "var(--text-2)" : "var(--accent)",
-            }}
-          >
+          <span className={`text-xs px-1.25 py-px rounded-full font-semibold ${frozen ? "bg-dt-bg4 text-dt-text2" : "bg-dt-accent-dim text-dt-accent"}`}>
             {frozen ? "snapshot" : "real-time"}
           </span>
         </div>
-        <div style={{ display: "flex", gap: "4px" }}>
+        <div className="flex gap-1">
           <button
             onClick={handleFitView}
-            style={{
-              width: 24,
-              height: 24,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "var(--radius-sm)",
-              color: "var(--text-2)",
-              cursor: "pointer",
-              border: "none",
-              background: "transparent",
-              transition: "all 0.15s",
-            }}
+            className="w-6 h-6 flex items-center justify-center rounded-dt-sm text-dt-text2 cursor-pointer border-none bg-transparent transition-all"
             title="Fit to view"
           >
             &#x22A1;
@@ -194,10 +152,8 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
 
       {/* Graph canvas */}
       <div
+        className="flex-1 relative overflow-hidden"
         style={{
-          flex: 1,
-          position: "relative",
-          overflow: "hidden",
           background:
             "radial-gradient(circle at 50% 50%, var(--bg-2) 0%, var(--bg-1) 100%)",
         }}
@@ -215,15 +171,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
 
         {/* Graph toolbar (bottom-left) */}
         <div
-          style={{
-            position: "absolute",
-            bottom: 48,
-            left: 12,
-            display: "flex",
-            flexDirection: "column",
-            gap: "2px",
-            zIndex: 5,
-          }}
+          className="absolute bottom-12 left-3 flex flex-col gap-0.5 z-[5]"
         >
           {[
             { label: "+", title: "Zoom in", action: () => zoomIn() },
@@ -242,20 +190,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
               key={btn.title}
               onClick={btn.action}
               title={btn.title}
-              style={{
-                width: 28,
-                height: 28,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "var(--bg-3)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-sm)",
-                color: "var(--text-2)",
-                cursor: "pointer",
-                fontSize: "14px",
-                transition: "all 0.15s",
-              }}
+              className="w-7 h-7 flex items-center justify-center bg-dt-bg3 border border-dt-border rounded-dt-sm text-dt-text2 cursor-pointer text-md transition-all"
             >
               {btn.label}
             </button>
@@ -264,25 +199,12 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
 
         {/* Legend (top-right) */}
         <div
-          style={{
-            position: "absolute",
-            top: 8,
-            right: 12,
-            display: "flex",
-            gap: "12px",
-            fontSize: "10px",
-            color: "var(--text-2)",
-            zIndex: 5,
-          }}
+          className="absolute top-2 right-3 flex gap-3 text-sm text-dt-text2 z-[5]"
         >
           {LEGEND_ENTRIES.map(([name, color]) => (
             <div
               key={name}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-              }}
+              className="flex items-center gap-1"
             >
               <div
                 style={{
@@ -299,46 +221,29 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
 
         {/* Stats bar (bottom overlay) */}
         <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 36,
-            display: "flex",
-            alignItems: "center",
-            gap: "24px",
-            padding: "0 15px",
-            background: "var(--bg-1)",
-            opacity: 0.9,
-            borderTop: "1px solid var(--border)",
-            fontFamily: "var(--font)",
-            fontSize: "10px",
-            color: "var(--text-2)",
-            zIndex: 5,
-          }}
+          className="absolute bottom-0 left-0 right-0 h-9 flex items-center gap-4 px-3.5 bg-dt-bg1 opacity-90 border-t border-dt-border font-mono text-base text-dt-text2 z-[5]"
         >
           <span>
             Agents:{" "}
-            <span style={{ color: "var(--text-0)" }}>{totalAgents}</span>
+            <span className="text-dt-text0">{totalAgents}</span>
           </span>
           <span>
             Running:{" "}
-            <span style={{ color: "var(--cyan)" }}>{runningCount}</span>
+            <span className="text-dt-cyan">{runningCount}</span>
           </span>
           <span>
             Completed:{" "}
-            <span style={{ color: "var(--green)" }}>{completedCount}</span>
+            <span className="text-dt-green">{completedCount}</span>
           </span>
           <span>
             Total Cost:{" "}
-            <span style={{ color: "var(--text-0)" }}>
+            <span className="text-dt-text0">
               {formatCost(totalCost)}
             </span>
           </span>
           <span>
             Tokens:{" "}
-            <span style={{ color: "var(--text-0)" }}>
+            <span className="text-dt-text0">
               {formatTokens(totalTokens)}
             </span>
           </span>

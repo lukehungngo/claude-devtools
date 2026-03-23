@@ -15,21 +15,9 @@ export function ResponseBlock({ text }: ResponseBlockProps) {
   const isSuccess = text.startsWith("\u2713") || text.startsWith("Done") || text.startsWith("Successfully");
 
   return (
-    <div
-      style={{
-        color: "var(--text-0)",
-        fontFamily: "var(--font)",
-        fontSize: "12px",
-        lineHeight: 1.6,
-        marginBottom: "6px",
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
-        borderLeft: "2px solid var(--green)",
-        paddingLeft: "8px",
-      }}
-    >
+    <div className="text-dt-text0 font-mono text-lg leading-[1.6] mb-1.5 whitespace-pre-wrap break-words border-l-2 border-dt-green pl-2">
       {isSuccess && (
-        <span style={{ color: "var(--green)", marginRight: "4px" }}>{"\u2713"}</span>
+        <span className="text-dt-green mr-1">{"\u2713"}</span>
       )}
       {hasBullets ? (
         lines.map((line, i) => {
@@ -43,8 +31,8 @@ export function ResponseBlock({ text }: ResponseBlockProps) {
             // Replace leading - or * with a styled bullet
             const bulletText = trimmed.replace(/^[-*]\s/, "").replace(/^\d+\.\s/, "");
             return (
-              <div key={i} style={{ paddingLeft: "12px" }}>
-                <span style={{ color: "var(--text-2)", marginRight: "4px" }}>{"\u2022"}</span>
+              <div key={i} className="pl-3">
+                <span className="text-dt-text2 mr-1">{"\u2022"}</span>
                 {bulletText}
               </div>
             );

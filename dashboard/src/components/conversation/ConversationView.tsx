@@ -10,6 +10,7 @@ interface ConversationViewProps {
   metrics: SessionMetrics | null;
   isLive?: boolean;
   sessionCwd?: string;
+  sessionId?: string;
   highlightedTurnIndex?: number;
   onAgentPillClick?: (agentId: string) => void;
 }
@@ -19,6 +20,7 @@ export function ConversationView({
   metrics,
   isLive,
   sessionCwd,
+  sessionId,
   highlightedTurnIndex,
   onAgentPillClick,
 }: ConversationViewProps) {
@@ -110,86 +112,33 @@ export function ConversationView({
   }, []);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        background: "var(--bg-1)",
-        overflow: "hidden",
-      }}
-    >
+    <div className="flex flex-col h-full bg-dt-bg1 overflow-hidden">
       {/* Panel header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 12px",
-          height: "32px",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--bg-2)",
-          flexShrink: 0,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            fontSize: "12px",
-            fontWeight: 600,
-            fontFamily: "var(--font-sans)",
-            color: "var(--text-0)",
-          }}
-        >
+      <div className="flex items-center justify-between px-3 h-8 border-b border-dt-border bg-dt-bg2 shrink-0">
+        <div className="flex items-center gap-2 text-base font-semibold font-sans text-dt-text0">
           <svg
             width="14"
             height="14"
             viewBox="0 0 16 16"
             fill="currentColor"
-            style={{ opacity: 0.7 }}
+            className="opacity-70"
           >
             <path d="M1.5 2.75C1.5 1.784 2.284 1 3.25 1h9.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0112.75 13H8.061l-2.574 2.573A1.458 1.458 0 013 14.543V13H3.25A1.75 1.75 0 011.5 11.25v-8.5z" />
           </svg>
           Conversation
           {isLive && (
-            <span
-              style={{
-                fontSize: "9px",
-                fontWeight: 600,
-                color: "var(--green)",
-                background: "var(--green-dim)",
-                padding: "1px 6px",
-                borderRadius: "3px",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
+            <span className="text-2xs font-semibold text-dt-green bg-dt-green-dim px-1.5 py-px rounded-dt-xs uppercase tracking-[0.5px]">
               live
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+        <div className="flex gap-1 items-center">
           {metrics?.permissionMode && (
-            <span
-              style={{
-                fontSize: "10px",
-                color: "var(--text-2)",
-                padding: "3px 8px",
-                borderRadius: "3px",
-                background: "var(--bg-3)",
-              }}
-            >
+            <span className="text-sm text-dt-text2 px-2 py-0.75 rounded-dt-xs bg-dt-bg3">
               {metrics.permissionMode}
             </span>
           )}
-          <span
-            style={{
-              fontSize: "10px",
-              color: "var(--text-2)",
-            }}
-          >
+          <span className="text-sm text-dt-text2">
             {turns.length} turn{turns.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -197,18 +146,8 @@ export function ConversationView({
 
       {/* Search bar (Ctrl+F) */}
       {showSearch && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "6px 12px",
-            background: "var(--bg-2)",
-            borderBottom: "1px solid var(--border)",
-            flexShrink: 0,
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.5, flexShrink: 0 }}>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-dt-bg2 border-b border-dt-border shrink-0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="opacity-50 shrink-0">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
@@ -216,29 +155,14 @@ export function ConversationView({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search turns..."
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: "var(--text-0)",
-              fontFamily: "var(--font)",
-              fontSize: "11px",
-            }}
+            className="flex-1 bg-transparent border-none outline-none text-dt-text0 font-mono text-base"
           />
-          <span style={{ fontSize: "10px", color: "var(--text-2)", flexShrink: 0 }}>
+          <span className="text-sm text-dt-text2 shrink-0">
             {filteredTurns.length}/{turns.length}
           </span>
           <button
             onClick={() => { setShowSearch(false); setSearchQuery(""); }}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--text-2)",
-              cursor: "pointer",
-              fontSize: "14px",
-              padding: "0 2px",
-            }}
+            className="bg-none border-none text-dt-text2 cursor-pointer text-md px-0.5"
           >
             {"×"}
           </button>
@@ -249,24 +173,10 @@ export function ConversationView({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "12px 16px",
-          position: "relative",
-        }}
+        className="flex-1 overflow-y-auto px-4 py-3 relative dt-scrollbar"
       >
         {filteredTurns.length === 0 ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              color: "var(--text-2)",
-              fontSize: "12px",
-            }}
-          >
+          <div className="flex items-center justify-center h-full text-dt-text2 text-base">
             No events to display
           </div>
         ) : (
@@ -284,29 +194,11 @@ export function ConversationView({
       {/* Scroll-to-bottom button */}
       {showScrollDown && (
         <div
-          style={{
-            position: "absolute",
-            bottom: "120px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 10,
-          }}
+          className="absolute bottom-30 left-1/2 -translate-x-1/2 z-10"
         >
           <button
             onClick={scrollToBottom}
-            style={{
-              background: "var(--bg-3)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius)",
-              color: "var(--text-1)",
-              padding: "4px 12px",
-              fontSize: "12px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-            }}
+            className="bg-dt-bg3 border border-dt-border rounded-dt text-dt-text1 px-3 py-1 text-sm cursor-pointer flex items-center gap-1 shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
           >
             {"\u2193"} New turns
           </button>
@@ -317,7 +209,7 @@ export function ConversationView({
       <CostStrip metrics={metrics} />
 
       {/* Command input */}
-      <PromptInput sessionCwd={sessionCwd} />
+      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} />
     </div>
   );
 }

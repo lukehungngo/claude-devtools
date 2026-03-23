@@ -73,36 +73,18 @@ function Dashboard() {
       }
       center={
         !selected ? (
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            color: "var(--text-2)",
-          }}>
-            <div style={{ textAlign: "center" }}>
-              <h2 style={{
-                fontSize: "18px",
-                fontWeight: 700,
-                marginBottom: "4px",
-                color: "var(--text-0)",
-                fontFamily: "var(--font-sans)",
-              }}>
+          <div className="flex items-center justify-center h-full text-dt-text2">
+            <div className="text-center">
+              <h2 className="text-xl font-bold mb-1 text-dt-text0 font-sans">
                 Claude DevTools
               </h2>
-              <p style={{ fontSize: "12px", color: "var(--text-2)" }}>
+              <p className="text-sm text-dt-text2">
                 Select a session from the sidebar to begin
               </p>
             </div>
           </div>
         ) : metricsLoading ? (
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            color: "var(--text-2)",
-          }}>
+          <div className="flex items-center justify-center h-full text-dt-text2">
             Loading session...
           </div>
         ) : metrics ? (
@@ -111,6 +93,7 @@ function Dashboard() {
             metrics={metrics}
             isLive={isLive}
             sessionCwd={metrics.session.cwd}
+            sessionId={metrics.session.id}
             highlightedTurnIndex={highlightedTurnIndex}
             onAgentPillClick={(agentId) => {
               setSelectedAgent(agentId);
@@ -118,38 +101,18 @@ function Dashboard() {
             }}
           />
         ) : (
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            color: "var(--red)",
-          }}>
+          <div className="flex items-center justify-center h-full text-dt-red">
             Failed to load session
           </div>
         )
       }
       rightPanel={
         !selected ? (
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            color: "var(--text-2)",
-            fontSize: "12px",
-          }}>
+          <div className="flex items-center justify-center h-full text-sm text-dt-text2">
             Agent Panel
           </div>
         ) : metricsLoading ? (
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            color: "var(--text-2)",
-            fontSize: "12px",
-          }}>
+          <div className="flex items-center justify-center h-full text-sm text-dt-text2">
             Loading...
           </div>
         ) : metrics ? (

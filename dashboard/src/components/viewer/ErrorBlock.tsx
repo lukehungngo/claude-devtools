@@ -4,21 +4,7 @@ interface ErrorBlockProps {
 
 export function ErrorBlock({ message }: ErrorBlockProps) {
   return (
-    <div
-      style={{
-        color: "var(--red)",
-        background: "var(--red-dim)",
-        borderRadius: "var(--radius-sm)",
-        padding: "8px 10px",
-        margin: "6px 0",
-        borderLeft: "2px solid var(--red)",
-        fontFamily: "var(--font)",
-        fontSize: "11px",
-        lineHeight: 1.6,
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
-      }}
-    >
+    <div className="text-dt-red bg-dt-red-dim rounded-dt-sm px-2.5 py-2 my-1.5 border-l-2 border-dt-red font-mono text-xs leading-[1.6] whitespace-pre-wrap break-words">
       {message}
     </div>
   );

@@ -19,61 +19,28 @@ export function PrimaryTabs({
   ];
 
   return (
-    <div
-      className="primary-tabs"
-      style={{
-        display: "flex",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--bg-2)",
-        flexShrink: 0,
-      }}
-    >
+    <div className="primary-tabs flex border-b border-dt-border bg-dt-bg2 shrink-0">
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
           <button
             key={tab.id}
-            className="primary-tab"
             onClick={() => onTabChange(tab.id)}
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "6px",
-              padding: "8px 12px",
-              fontSize: "11px",
-              fontWeight: 600,
-              fontFamily: "var(--font-sans)",
-              color: isActive ? "var(--text-0)" : "var(--text-2)",
-              background: isActive ? "var(--bg-1)" : "transparent",
-              border: "none",
-              borderBottom: isActive
-                ? "2px solid var(--accent)"
-                : "2px solid transparent",
-              cursor: "pointer",
-              transition: "all 0.15s",
-              textTransform: "uppercase",
-              letterSpacing: "0.3px",
-            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-base font-semibold font-sans border-none cursor-pointer transition-all uppercase tracking-[0.5px] border-b-2 ${
+              isActive
+                ? "text-dt-text0 bg-dt-bg1 border-dt-accent"
+                : "text-dt-text2 bg-transparent border-transparent"
+            }`}
           >
             <span>{tab.icon}</span>
             <span>{tab.label}</span>
             {tab.badge > 0 && (
               <span
-                className="tab-badge"
-                style={{
-                  fontSize: "9px",
-                  padding: "1px 5px",
-                  borderRadius: "8px",
-                  fontWeight: 600,
-                  background: isActive
-                    ? "var(--accent-dim)"
-                    : "var(--bg-4)",
-                  color: isActive
-                    ? "var(--accent)"
-                    : "var(--text-2)",
-                }}
+                className={`text-xs px-1.25 py-px rounded-full font-semibold ${
+                  isActive
+                    ? "bg-dt-accent-dim text-dt-accent"
+                    : "bg-dt-bg4 text-dt-text2"
+                }`}
               >
                 {tab.badge}
               </span>

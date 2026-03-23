@@ -11,44 +11,32 @@ export function CostStrip({ metrics }: CostStripProps) {
   const sessionHash = metrics.session.id.slice(0, 8);
 
   return (
-    <div
-      style={{
-        fontSize: "10px",
-        color: "var(--text-2)",
-        display: "flex",
-        gap: "10px",
-        padding: "4px 16px",
-        borderTop: "1px solid var(--border)",
-        background: "var(--bg-2)",
-        fontFamily: "var(--font)",
-        flexShrink: 0,
-      }}
-    >
+    <div className="text-base text-dt-text2 flex gap-3 px-4 py-1.5 border-t border-dt-border bg-dt-bg2 font-mono shrink-0">
       <div>
         Tokens:{" "}
-        <span style={{ color: "var(--text-1)" }}>
+        <span className="text-dt-text1">
           In: {formatTokens(metrics.tokens.inputTokens)}
         </span>{" "}
         {"\u00B7"}{" "}
-        <span style={{ color: "var(--text-1)" }}>
+        <span className="text-dt-text1">
           Out: {formatTokens(metrics.tokens.outputTokens)}
         </span>
       </div>
       <div>
         Cost:{" "}
-        <span style={{ color: "var(--text-1)" }}>
+        <span className="text-dt-text1">
           {formatCost(metrics.tokens.totalCost)}
         </span>
       </div>
       <div>
         Duration:{" "}
-        <span style={{ color: "var(--text-1)" }}>
+        <span className="text-dt-text1">
           {formatDuration(metrics.duration)}
         </span>
       </div>
-      <div style={{ marginLeft: "auto" }}>
+      <div className="ml-auto">
         Session:{" "}
-        <span style={{ color: "var(--purple)" }}>{sessionHash}</span>
+        <span className="text-dt-purple">{sessionHash}</span>
       </div>
     </div>
   );

@@ -33,19 +33,12 @@ export function AgentNodeCard({ data }: NodeProps) {
 
   return (
     <div
+      className="bg-dt-bg3 rounded-md px-2.5 py-1.5 min-w-30 max-w-40 cursor-pointer transition-all relative"
       style={{
-        background: "var(--bg-3)",
         border: `1.5px solid ${borderColor}`,
-        borderRadius: "6px",
-        padding: "6px 10px",
-        minWidth: "120px",
-        maxWidth: "160px",
-        cursor: "pointer",
-        transition: "all 0.2s",
         filter: isMain ? `drop-shadow(0 0 6px ${borderColor})` : undefined,
         outline: isSelected ? `2px solid ${borderColor}` : undefined,
         outlineOffset: isSelected ? "2px" : undefined,
-        position: "relative",
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -53,26 +46,12 @@ export function AgentNodeCard({ data }: NodeProps) {
       {/* Hover tooltip */}
       {hovered && (
         <div
+          className="absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 bg-dt-bg1 border border-dt-border-active rounded-md px-2.5 py-2 text-xxs font-mono text-dt-text1 whitespace-nowrap z-50 pointer-events-auto shadow-[0_4px_12px_rgba(0,0,0,0.4)] leading-[1.6]"
           style={{
-            position: "absolute",
-            bottom: "calc(100% + 8px)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "var(--bg-1)",
-            border: "1px solid var(--border-active)",
-            borderRadius: "6px",
-            padding: "8px 10px",
-            fontSize: "10px",
-            fontFamily: "var(--font)",
-            color: "var(--text-1)",
-            whiteSpace: "nowrap",
-            zIndex: 50,
             pointerEvents: "auto",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-            lineHeight: 1.6,
           }}
         >
-          <div style={{ fontWeight: 700, color: "var(--text-0)", marginBottom: "2px" }}>
+          <div className="font-bold text-dt-text0 mb-0.5">
             {node.type} {node.id !== "main" ? `(${node.id.slice(0, 8)})` : ""}
           </div>
           {node.startTime && (
@@ -119,60 +98,27 @@ export function AgentNodeCard({ data }: NodeProps) {
       />
 
       {/* Row 1: status dot + label */}
-      <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+      <div className="flex items-center gap-1">
         <span
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRunning && !isFrozen ? "animate-pulse-opacity" : ""}`}
           style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
             background: dotColor,
-            flexShrink: 0,
-            animation: isRunning && !isFrozen
-              ? "pulse-opacity 1.5s ease-in-out infinite"
-              : undefined,
           }}
         />
-        <span
-          style={{
-            fontSize: "10px",
-            fontWeight: 600,
-            color: "var(--text-0)",
-            fontFamily: "var(--font-sans)",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
+        <span className="text-xxs font-semibold text-dt-text0 font-sans whitespace-nowrap overflow-hidden text-ellipsis">
           {node.type}
         </span>
       </div>
 
       {/* Row 2: description */}
       {node.description && (
-        <div
-          style={{
-            fontSize: "8px",
-            color: "var(--text-2)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            marginTop: "2px",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
+        <div className="text-3xs text-dt-text2 uppercase tracking-[0.5px] mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
           {node.description}
         </div>
       )}
 
       {/* Row 3: status text */}
-      <div
-        style={{
-          fontSize: "8px",
-          color: dotColor,
-          marginTop: "2px",
-        }}
-      >
+      <div className="text-3xs mt-0.5" style={{ color: dotColor }}>
         {node.status === "completed"
           ? "\u2713 completed"
           : node.status === "active"

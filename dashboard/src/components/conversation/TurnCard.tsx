@@ -1,6 +1,10 @@
 import { useState } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
-import type { SessionEvent, AssistantEvent, ContentItem } from "../../lib/types";
+import type {
+  SessionEvent,
+  AssistantEvent,
+  ContentItem,
+} from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
 import { formatCost } from "../../lib/cost";
 import { formatTime } from "../../lib/formatTime";
@@ -40,129 +44,91 @@ export function TurnCard({
   onAgentPillClick,
 }: TurnCardProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [promptExpanded, setPromptExpanded] = useState(false);
   const isRunning = turn.status === "running";
   const responseContent = extractResponseContent(turn.events);
+  const canExpandPrompt = turn.promptText.length > 100;
 
   return (
     <div
-      className={`conv-turn ${collapsed ? "collapsed" : ""} ${isHighlighted ? "highlighted" : ""}`}
-      style={{
-        borderRadius: "8px",
-        border: "1px solid var(--border)",
-        background: isHighlighted
-          ? "var(--accent-dim)"
-          : "var(--bg-2)",
-        marginBottom: "8px",
-        overflow: "hidden",
-        transition: "background 0.15s",
-      }}
+      className={`conv-turn ${collapsed ? "collapsed" : ""} ${isHighlighted ? "highlighted" : ""} rounded-dt border border-dt-border mb-2 overflow-hidden transition-colors ${
+        isHighlighted ? "bg-dt-accent-dim" : "bg-dt-bg2"
+      }`}
     >
       {/* Header */}
       <div
-        className="conv-turn-header"
         onClick={() => setCollapsed(!collapsed)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "8px 12px",
-          cursor: "pointer",
-          userSelect: "none",
-        }}
+        className="flex items-center gap-2.5 px-4 py-3 cursor-pointer select-none"
       >
         {/* Expand icon */}
         <span
-          style={{
-            fontSize: "10px",
-            color: "var(--text-2)",
-            transition: "transform 0.15s",
-            transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
-            flexShrink: 0,
-          }}
+          className="text-sm text-dt-text2 transition-transform shrink-0"
+          style={{ transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
         >
           {"\u25BC"}
         </span>
 
         {/* Turn label */}
-        <span
-          style={{
-            fontSize: "10px",
-            fontWeight: 700,
-            color: "var(--accent)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            flexShrink: 0,
-          }}
-        >
+        <span className="text-sm font-bold text-dt-accent uppercase tracking-[0.5px] shrink-0">
           PROMPT {"\u00B7"} TURN {turn.turnNumber}
         </span>
 
-        {/* Prompt preview */}
-        <span
-          style={{
-            flex: 1,
-            fontSize: "11px",
-            color: "var(--text-1)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {turn.promptText}
-        </span>
+        <div className="flex-1" />
 
         {/* Status dot */}
         <span
-          style={{
-            width: "6px",
-            height: "6px",
-            borderRadius: "50%",
-            background: isRunning ? "var(--accent)" : "var(--green)",
-            animation: isRunning ? "pulse 1.2s ease-in-out infinite" : "none",
-            flexShrink: 0,
-          }}
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRunning ? "bg-dt-accent animate-pulse-opacity" : "bg-dt-green"}`}
         />
 
         {/* Time */}
-        <span
-          style={{
-            fontSize: "10px",
-            color: "var(--text-2)",
-            fontFamily: "var(--font)",
-            flexShrink: 0,
-          }}
-        >
+        <span className="text-sm text-dt-text2 font-mono shrink-0">
           {formatTime(turn.startTime)}
         </span>
 
         {/* Cost */}
         {turn.cost > 0 && (
-          <span
-            style={{
-              fontSize: "10px",
-              color: "var(--text-2)",
-              fontFamily: "var(--font)",
-              flexShrink: 0,
-            }}
-          >
+          <span className="text-sm text-dt-text2 font-mono shrink-0">
             {formatCost(turn.cost)}
           </span>
         )}
       </div>
 
-      {/* Body */}
-      {!collapsed && (
-        <div
-          className="conv-turn-body"
+      {/* User prompt */}
+      <div
+        className={`flex gap-2 pr-4 pb-3 pl-9 ${promptExpanded ? "items-start" : "items-center"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="text-sm font-bold text-dt-accent uppercase tracking-[0.4px] shrink-0">
+          USER PROMPT
+        </span>
+        <span
+          className="flex-1 min-w-0 text-lg text-dt-text1"
           style={{
-            padding: "0 12px 10px 30px",
+            overflow: "hidden",
+            textOverflow: promptExpanded ? "clip" : "ellipsis",
+            whiteSpace: promptExpanded ? "normal" : "nowrap",
+            wordBreak: promptExpanded ? "break-word" : "normal",
+            lineHeight: promptExpanded ? 1.35 : 1.2,
           }}
         >
+          {turn.promptText}
+        </span>
+        {canExpandPrompt && (
+          <button
+            type="button"
+            onClick={() => setPromptExpanded((prev) => !prev)}
+            className="shrink-0 text-xs font-semibold text-dt-accent bg-transparent border-none cursor-pointer p-0 leading-none"
+          >
+            {promptExpanded ? "less" : "more"}
+          </button>
+        )}
+      </div>
+
+      {/* Body */}
+      {!collapsed && (
+        <div className="conv-turn-body pr-4 pb-3 pl-9">
           {/* Agent pills */}
-          <AgentPills
-            agents={turn.agents}
-            onPillClick={onAgentPillClick}
-          />
+          <AgentPills agents={turn.agents} onPillClick={onAgentPillClick} />
 
           {/* Tool entries */}
           <ToolEntries events={turn.events} />
@@ -173,7 +139,7 @@ export function TurnCard({
               <ThinkingBlock key={`thinking-${i}`} content={item} />
             ) : item.type === "text" && "text" in item ? (
               <ResponseBlock key={`text-${i}`} text={item.text} />
-            ) : null
+            ) : null,
           )}
         </div>
       )}

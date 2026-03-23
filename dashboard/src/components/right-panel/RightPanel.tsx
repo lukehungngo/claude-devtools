@@ -126,7 +126,7 @@ export function RightPanel({
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div className="flex flex-col h-full">
       {/* Primary tabs */}
       <PrimaryTabs
         activeTab={activePrimaryTab}
@@ -136,13 +136,7 @@ export function RightPanel({
       />
 
       {/* Snapshot tabs row */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          background: "var(--bg-2)",
-        }}
-      >
+      <div className="flex items-center bg-dt-bg2">
         <SnapshotTabs
           turns={turns}
           activeIndex={activeSnapshotIndex}
@@ -159,28 +153,14 @@ export function RightPanel({
 
       {/* Freeze/live badge */}
       <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-          padding: "4px 12px",
-          background: "var(--bg-2)",
-          borderBottom: "1px solid var(--border)",
-          fontSize: "9px",
-          fontWeight: 600,
-          color: isLiveTurn ? "var(--green)" : "var(--text-2)",
-        }}
+        className={`flex items-center gap-1.5 px-3 py-1 bg-dt-bg2 border-b border-dt-border text-2xs font-semibold ${
+          isLiveTurn ? "text-dt-green" : "text-dt-text2"
+        }`}
       >
         {isLiveTurn ? (
           <>
             <span
-              style={{
-                width: "5px",
-                height: "5px",
-                borderRadius: "50%",
-                background: "var(--green)",
-                animation: "pulse 1.2s ease-in-out infinite",
-              }}
+              className="w-1.25 h-1.25 rounded-full bg-dt-green animate-pulse-opacity"
             />
             Real-Time
           </>
@@ -192,7 +172,7 @@ export function RightPanel({
       </div>
 
       {/* Tab content */}
-      <div style={{ flex: 1, overflow: "hidden" }}>
+      <div className="flex-1 overflow-hidden">
         {activePrimaryTab === "graph" ? (
           filteredDag ? (
             <AgentFlowDAG
@@ -203,16 +183,7 @@ export function RightPanel({
               onViewInLog={handleAgentSelect}
             />
           ) : (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                color: "var(--text-2)",
-                fontSize: "12px",
-              }}
-            >
+            <div className="flex items-center justify-center h-full text-dt-text2 text-sm">
               No agent data
             </div>
           )

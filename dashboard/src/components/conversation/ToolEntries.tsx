@@ -71,71 +71,36 @@ export function ToolEntries({ events }: ToolEntriesProps) {
   if (entries.length === 0) return null;
 
   return (
-    <div
-      className="conv-tool-entries"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "2px",
-        padding: "4px 0",
-      }}
-    >
+    <div className="conv-tool-entries flex flex-col gap-0.5 py-1">
       {entries.map((entry) => {
         const icon = STATUS_ICONS[entry.status];
 
         return (
           <div
             key={entry.id}
-            className="conv-tool-entry"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "3px 0",
-              fontSize: "11px",
-              fontFamily: "var(--font)",
-            }}
+            className="flex items-center gap-2 py-0.75 text-base font-mono"
           >
             {/* Status icon */}
             <span
-              className="tool-icon"
               style={{
                 color: icon.color,
-                fontSize: "10px",
                 width: "14px",
                 textAlign: "center",
-                flexShrink: 0,
               }}
+              className="text-xxs w-3.5 text-center shrink-0"
             >
               {icon.char}
             </span>
             {/* Tool name badge */}
             <span
-              className="tool-name"
-              style={{
-                padding: "1px 6px",
-                borderRadius: "3px",
-                background: "var(--orange)",
-                color: "#000",
-                fontSize: "9px",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
+              className="px-1.5 py-px rounded-dt-xs bg-dt-orange text-black text-sm font-semibold whitespace-nowrap shrink-0"
             >
               {entry.name}
             </span>
             {/* File path / command */}
             {entry.target && (
               <span
-                className="tool-target"
-                style={{
-                  color: "var(--text-2)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  fontSize: "10px",
-                }}
+                className="text-dt-text2 overflow-hidden text-ellipsis whitespace-nowrap text-sm"
               >
                 {entry.target}
               </span>

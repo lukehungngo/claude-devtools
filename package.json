@@ -4,8 +4,8 @@
   "type": "module",
   "version": "1.0.0",
   "scripts": {
-    "lint": "eslint server/src/ dashboard/src/",
-    "lint:fix": "eslint server/src/ dashboard/src/ --fix"
+    "lint": "eslint server/src/ dashboard/src/ && pnpm --dir dashboard lint:styles",
+    "lint:fix": "eslint server/src/ dashboard/src/ --fix && pnpm --dir dashboard lint:styles"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

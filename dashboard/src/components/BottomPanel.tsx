@@ -38,7 +38,7 @@ export function BottomPanel({ permissions, onDecidePermission }: Props) {
         >
           Permissions
           {pendingCount > 0 && (
-            <span className="px-1.5 py-0.5 bg-yellow-500 text-white rounded-full text-[10px] leading-none">
+            <span className="px-1.5 py-0.5 bg-yellow-500 text-white rounded-full text-xxs leading-none">
               {pendingCount}
             </span>
           )}

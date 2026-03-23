@@ -55,7 +55,7 @@ function renderEditDiff(lines: string[]) {
     else if (trimmed.startsWith("-")) color = "var(--red)";
 
     return (
-      <div key={i} style={{ color, fontFamily: "var(--font)", fontSize: "11px" }}>
+      <div key={i} className="font-mono text-xs" style={{ color }}>
         {line}
       </div>
     );
@@ -94,36 +94,23 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
   if (!expanded) {
     return (
       <div
-        style={{
-          margin: "4px 0",
-          paddingLeft: "8px",
-          cursor: "pointer",
-          transition: "opacity 0.15s ease",
-        }}
+        className="my-1 pl-2 cursor-pointer transition-opacity"
         onClick={() => setExpanded(true)}
       >
         <div
-          style={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: "6px",
-            fontSize: "11px",
-            color: "var(--text-1)",
-            fontFamily: "var(--font)",
-            lineHeight: 1.6,
-          }}
+          className="flex items-baseline gap-1.5 text-xs text-dt-text1 font-mono leading-[1.6]"
         >
-          <span style={{ color: "var(--cyan)", userSelect: "none" }}>{"\u23FA"}</span>
-          <span style={{ color: "var(--orange)", fontWeight: 600 }}>{toolName}</span>
+          <span className="text-dt-cyan select-none">{"\u23FA"}</span>
+          <span className="text-dt-orange font-semibold">{toolName}</span>
           {argsSummary && (
-            <span style={{ color: "var(--text-2)", fontSize: "10px" }}>
+            <span className="text-dt-text2 text-xxs">
               ({argsSummary.length > 40 ? argsSummary.slice(0, 40) + "..." : argsSummary})
             </span>
           )}
           {hasOutput && (
             <>
-              <span style={{ color: "var(--text-2)", userSelect: "none" }}>{"\u23BF"}</span>
-              <span style={{ color: "var(--text-2)", fontSize: "10px" }}>
+              <span className="text-dt-text2 select-none">{"\u23BF"}</span>
+              <span className="text-dt-text2 text-xxs">
                 {firstOutputLine.trim().length > 50
                   ? firstOutputLine.trim().slice(0, 50) + "..."
                   : firstOutputLine.trim()}
@@ -132,7 +119,7 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
             </>
           )}
           {hasError && (
-            <span style={{ color: "var(--red)", fontSize: "10px" }}>error</span>
+            <span className="text-dt-red text-xxs">error</span>
           )}
         </div>
       </div>
@@ -140,26 +127,14 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
   }
 
   return (
-    <div style={{
-      margin: "4px 0",
-      borderLeft: `2px solid var(--cyan)`,
-      paddingLeft: "8px",
-      transition: "opacity 0.15s ease",
-    }}>
+    <div className="my-1 border-l-2 border-dt-cyan pl-2 transition-opacity">
       {/* Tool header line */}
       <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "6px",
-          fontSize: "11px",
-          color: "var(--text-1)",
-          cursor: hasOutput ? "pointer" : "default",
-        }}
+        className={`flex items-center gap-1.5 text-xs text-dt-text1 ${hasOutput ? "cursor-pointer" : "cursor-default"}`}
         onClick={() => hasOutput && setExpanded(!expanded)}
       >
-        <span style={{ color: "var(--cyan)", userSelect: "none" }}>{"\u26A1"}</span>
-        <span style={{ color: "var(--orange)", fontWeight: 600 }}>
+        <span className="text-dt-cyan select-none">{"\u26A1"}</span>
+        <span className="text-dt-orange font-semibold">
           {toolName}
         </span>
         {filePath && (
@@ -168,18 +143,10 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
               e.stopPropagation();
             }}
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
               background: "var(--bg-4)",
-              padding: "2px 6px",
-              borderRadius: "3px",
-              fontSize: "10px",
               color: "var(--cyan)",
-              cursor: "pointer",
-              textDecoration: "none",
-              transition: "text-decoration 0.1s",
             }}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-dt-xs text-xxs cursor-pointer transition-[text-decoration]"
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLSpanElement).style.textDecoration = "underline";
             }}
@@ -192,36 +159,24 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
           </span>
         )}
         {isBash && command && (
-          <span style={{ color: "var(--text-1)", fontWeight: 600 }}>
+          <span className="text-dt-text1 font-semibold">
             {command.length > 80 ? command.slice(0, 80) + "..." : command}
           </span>
         )}
         {hasOutput && (
-          <span style={{ color: "var(--text-2)", fontSize: "10px", marginLeft: "auto" }}>
+          <span className="text-dt-text2 text-xxs ml-auto">
             {expanded ? "\u25BC" : "\u25B6"}
           </span>
         )}
         {hasError && (
-          <span style={{ color: "var(--red)", fontSize: "10px" }}>error</span>
+          <span className="text-dt-red text-xxs">error</span>
         )}
       </div>
 
       {/* Collapsible output block */}
       {expanded && hasOutput && (
         <div
-          style={{
-            background: "var(--bg-3)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-sm)",
-            padding: "8px 10px",
-            margin: "4px 0 6px 0",
-            fontSize: "11px",
-            fontFamily: "var(--font)",
-            maxHeight: "300px",
-            overflowY: "auto",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}
+          className="bg-dt-bg3 border border-dt-border rounded-dt-sm px-2.5 py-2 my-1 mb-1.5 text-xs font-mono max-h-75 overflow-y-auto whitespace-pre-wrap break-words dt-scrollbar"
         >
           {isEdit ? (
             renderEditDiff(lines)

@@ -17,7 +17,7 @@ export function PermissionPanel({ permissions, onDecide }: Props) {
         <span className="text-xs font-semibold">
           Permissions
           {pending.length > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 bg-yellow-500 text-white rounded-full text-[10px]">
+            <span className="ml-1 px-1.5 py-0.5 bg-yellow-500 text-white rounded-full text-xxs">
               {pending.length}
             </span>
           )}
@@ -38,7 +38,7 @@ export function PermissionPanel({ permissions, onDecide }: Props) {
               <div className="font-mono font-medium truncate">
                 {p.toolName}
               </div>
-              <div className="text-gray-500 truncate text-[10px]">
+              <div className="text-gray-500 truncate text-xxs">
                 {JSON.stringify(p.input).slice(0, 60)}
               </div>
             </div>

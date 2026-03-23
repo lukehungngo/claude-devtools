@@ -17,22 +17,10 @@ export function ThinkingBlock({ content }: ThinkingBlockProps) {
     return (
       <div
         onClick={() => setExpanded(true)}
-        style={{
-          color: "var(--text-1)",
-          fontStyle: "italic",
-          opacity: 0.8,
-          borderLeft: "2px solid var(--purple)",
-          paddingLeft: "8px",
-          margin: "4px 0",
-          fontFamily: "var(--font)",
-          fontSize: "12px",
-          lineHeight: 1.6,
-          cursor: "pointer",
-          transition: "opacity 0.15s ease",
-        }}
+        className="text-dt-text1 italic opacity-80 border-l-2 border-dt-purple pl-2 my-1 font-mono text-md leading-[1.6] cursor-pointer transition-opacity"
       >
         {text.slice(0, 80)}...{" "}
-        <span style={{ color: "var(--text-2)", fontSize: "10px" }}>
+        <span className="text-dt-text2 text-xs">
           (click to expand)
         </span>
       </div>
@@ -42,21 +30,9 @@ export function ThinkingBlock({ content }: ThinkingBlockProps) {
   return (
     <div
       onClick={isLong ? () => setExpanded(!expanded) : undefined}
-      style={{
-        color: "var(--text-1)",
-        fontStyle: "italic",
-        opacity: 0.8,
-        borderLeft: "2px solid var(--purple)",
-        paddingLeft: "8px",
-        margin: "4px 0",
-        fontFamily: "var(--font)",
-        fontSize: "12px",
-        lineHeight: 1.6,
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
-        cursor: isLong ? "pointer" : "default",
-        transition: "opacity 0.15s ease",
-      }}
+      className={`text-dt-text1 italic opacity-80 border-l-2 border-dt-purple pl-2 my-1 font-mono text-md leading-[1.6] whitespace-pre-wrap break-words transition-opacity ${
+        isLong ? "cursor-pointer" : "cursor-default"
+      }`}
     >
       {text}
     </div>

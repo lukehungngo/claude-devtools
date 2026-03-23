@@ -21,7 +21,7 @@ export function Layout({
 
   return (
     <div
-      className="app"
+      className="app bg-dt-border"
       style={{
         display: "grid",
         gridTemplateColumns: `${sidebarWidth} 1fr 520px`,
@@ -32,47 +32,24 @@ export function Layout({
         `,
         height: "100vh",
         gap: "1px",
-        background: "var(--border)",
         transition: "grid-template-columns 0.2s ease",
       }}
     >
-      <header style={{ gridArea: "topbar" }}>{topBar}</header>
+      <header className="overflow-hidden" style={{ gridArea: "topbar" }}>{topBar}</header>
 
       <aside
-        style={{
-          gridArea: "sidebar",
-          background: "var(--bg-1)",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
+        className="overflow-hidden bg-dt-bg1 flex flex-col"
+        style={{ gridArea: "sidebar" }}
       >
         {/* Collapse toggle */}
         <div
-          style={{
-            display: "flex",
-            justifyContent: sidebarCollapsed ? "center" : "flex-end",
-            padding: "4px",
-            flexShrink: 0,
-          }}
+          className={`flex p-1 shrink-0 ${sidebarCollapsed ? "justify-center" : "justify-end"}`}
         >
           <button
             onClick={onToggleSidebar}
-            style={{
-              width: 24,
-              height: 24,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "var(--radius-sm)",
-              color: "var(--text-2)",
-              cursor: "pointer",
-              background: "transparent",
-              border: "none",
-              fontSize: "12px",
-              transition: "transform 0.2s",
-              transform: sidebarCollapsed ? "rotate(180deg)" : "none",
-            }}
+            className={`w-6 h-6 flex items-center justify-center rounded-dt-sm text-dt-text2 cursor-pointer bg-transparent border-none text-sm transition-transform ${
+              sidebarCollapsed ? "rotate-180" : ""
+            }`}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             &#x25C0;
@@ -80,37 +57,22 @@ export function Layout({
         </div>
         {/* Sidebar content - hidden when collapsed */}
         <div
-          style={{
-            flex: 1,
-            overflow: "hidden",
-            display: sidebarCollapsed ? "none" : "flex",
-            flexDirection: "column",
-          }}
+          className={`flex-1 overflow-hidden ${sidebarCollapsed ? "hidden" : "flex flex-col"}`}
         >
           {sidebar}
         </div>
       </aside>
 
       <main
-        style={{
-          gridArea: "center",
-          background: "var(--bg-1)",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
+        className="bg-dt-bg1 overflow-hidden flex flex-col min-w-0"
+        style={{ gridArea: "center" }}
       >
         {center}
       </main>
 
       <section
-        style={{
-          gridArea: "right-panel",
-          background: "var(--bg-1)",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
+        className="bg-dt-bg1 overflow-hidden flex flex-col min-w-0"
+        style={{ gridArea: "right-panel" }}
       >
         {rightPanel}
       </section>

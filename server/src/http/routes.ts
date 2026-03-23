@@ -196,57 +196,86 @@ export function setupRoutes(state?: ServerState): Router {
 
   // Command input (v1: simple prompt)
   router.post("/command", async (req, res) => {
-    const { prompt, cwd } = req.body;
+    const { prompt, cwd, sessionId } = req.body;
     if (!prompt) {
       return res.status(400).json({ error: "Missing prompt" });
     }
 
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    const controller = new AbortController();
+    req.on("close", () => {
+      controller.abort();
+    });
+
     try {
-      const { spawn } = await import("node:child_process");
-      const child = spawn("claude", ["-p", prompt], {
-        cwd: cwd || process.cwd(),
-        env: { ...process.env },
+      const { query } = await import("@anthropic-ai/claude-agent-sdk");
+      
+      const responseStream = query({
+        prompt,
+        options: {
+          abortController: controller,
+          cwd: cwd || process.cwd(),
+          resume: sessionId,
+          forkSession: false,
+          canUseTool: async (toolName, input) => {
+            const permission = addPermissionRequest({
+              sessionId: sessionId || "unknown",
+              agentId: "main",
+              toolName,
+              input: input as Record<string, unknown>,
+            });
+
+            if (state) {
+              broadcast(state, { type: "permission-request", permission });
+            }
+
+            return new Promise((resolve) => {
+              const check = setInterval(() => {
+                const status = getPermissionStatus(permission.id);
+                if (status?.status === "approved") {
+                  clearInterval(check);
+                  resolve({ behavior: "allow" });
+                } else if (status?.status === "denied") {
+                  clearInterval(check);
+                  resolve({ behavior: "deny", message: "User denied permission" });
+                }
+              }, 500);
+            });
+          }
+        }
       });
 
-      child.stdin.end();
+      for await (const message of responseStream) {
+        if (message.type === "stream_event") {
+          const event = message.event as any;
+          if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+            res.write(
+              `data: ${JSON.stringify({ type: "stdout", text: event.delta.text })}\n\n`
+            );
+          }
+        } else if (message.type === "assistant") {
+          // Turn completed
+        } else if (message.type === "error" as any) {
+          res.write(
+            `data: ${JSON.stringify({ type: "error", message: (message as any).error?.message || "Unknown error" })}\n\n`
+          );
+        }
+      }
 
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
-      res.setHeader("X-Accel-Buffering", "no");
-      res.flushHeaders();
-
-      req.on("close", () => {
-        child.kill();
-      });
-
-      child.stdout.on("data", (data: Buffer) => {
-        res.write(
-          `data: ${JSON.stringify({ type: "stdout", text: data.toString() })}\n\n`
-        );
-      });
-
-      child.stderr.on("data", (data: Buffer) => {
-        res.write(
-          `data: ${JSON.stringify({ type: "stderr", text: data.toString() })}\n\n`
-        );
-      });
-
-      child.on("close", (code) => {
-        res.write(
-          `data: ${JSON.stringify({ type: "done", exitCode: code })}\n\n`
-        );
-        res.end();
-      });
-
-      child.on("error", (err) => {
-        res.write(
-          `data: ${JSON.stringify({ type: "error", message: err.message })}\n\n`
-        );
-        res.end();
-      });
+      res.write(
+        `data: ${JSON.stringify({ type: "done", exitCode: 0 })}\n\n`
+      );
+      res.end();
     } catch (err) {
-      res.status(500).json({ error: "Failed to execute command" });
+      res.write(
+        `data: ${JSON.stringify({ type: "error", message: err instanceof Error ? err.message : String(err) })}\n\n`
+      );
+      res.end();
     }
   });
 

@@ -9,6 +9,7 @@ interface SessionViewerProps {
   metrics: SessionMetrics | null;
   isLive?: boolean;
   sessionCwd?: string;
+  sessionId?: string;
 }
 
 export function SessionViewer({
@@ -16,6 +17,7 @@ export function SessionViewer({
   metrics,
   isLive,
   sessionCwd,
+  sessionId,
 }: SessionViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -51,78 +53,30 @@ export function SessionViewer({
   }, []);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        background: "var(--bg-1)",
-        overflow: "hidden",
-      }}
-    >
+    <div className="flex flex-col h-full bg-dt-bg1 overflow-hidden">
       {/* Panel header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 12px",
-          height: "32px",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--bg-2)",
-          flexShrink: 0,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            fontSize: "12px",
-            fontWeight: 600,
-            fontFamily: "var(--font-sans)",
-            color: "var(--text-0)",
-          }}
-        >
+      <div className="flex items-center justify-between px-3 h-8 border-b border-dt-border bg-dt-bg2 shrink-0">
+        <div className="flex items-center gap-2 text-sm font-semibold font-sans text-dt-text0">
           <svg
             width="14"
             height="14"
             viewBox="0 0 16 16"
             fill="currentColor"
-            style={{ opacity: 0.7 }}
+            className="opacity-70"
           >
             <path d="M0 2.75C0 1.784.784 1 1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0114.25 15H1.75A1.75 1.75 0 010 13.25V2.75zm1.75-.25a.25.25 0 00-.25.25v10.5c0 .138.112.25.25.25h12.5a.25.25 0 00.25-.25V2.75a.25.25 0 00-.25-.25H1.75z" />
             <path d="M7 11a1 1 0 100-2H4a1 1 0 100 2h3zm4.75-3.5L9 5.25v3.5l2.75-2.25z" />
           </svg>
           Claude CLI
           {isLive && (
-            <span
-              style={{
-                fontSize: "9px",
-                fontWeight: 600,
-                color: "var(--green)",
-                background: "var(--green-dim)",
-                padding: "1px 6px",
-                borderRadius: "3px",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
+            <span className="text-2xs font-semibold text-dt-green bg-dt-green-dim px-1.5 py-px rounded-dt-xs uppercase tracking-[0.5px]">
               live
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+        <div className="flex gap-1 items-center">
           {metrics?.permissionMode && (
-            <span
-              style={{
-                fontSize: "10px",
-                color: "var(--text-2)",
-                padding: "3px 8px",
-                borderRadius: "3px",
-                background: "var(--bg-3)",
-              }}
-            >
+            <span className="text-xxs text-dt-text2 px-2 py-0.75 rounded-dt-xs bg-dt-bg3">
               {metrics.permissionMode}
             </span>
           )}
@@ -133,24 +87,10 @@ export function SessionViewer({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "12px 16px",
-          position: "relative",
-        }}
+        className="flex-1 overflow-y-auto px-4 py-3 relative dt-scrollbar"
       >
         {events.length === 0 ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              color: "var(--text-2)",
-              fontSize: "12px",
-            }}
-          >
+          <div className="flex items-center justify-center h-full text-dt-text2 text-sm">
             No events to display
           </div>
         ) : (
@@ -161,29 +101,11 @@ export function SessionViewer({
       {/* Scroll-to-bottom button */}
       {showScrollDown && (
         <div
-          style={{
-            position: "absolute",
-            bottom: "120px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 10,
-          }}
+          className="absolute bottom-30 left-1/2 -translate-x-1/2 z-10"
         >
           <button
             onClick={scrollToBottom}
-            style={{
-              background: "var(--bg-3)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius)",
-              color: "var(--text-1)",
-              padding: "4px 12px",
-              fontSize: "12px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-            }}
+            className="bg-dt-bg3 border border-dt-border rounded-dt text-dt-text1 px-3 py-1 text-sm cursor-pointer flex items-center gap-1 shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
           >
             {"\u2193"} New events
           </button>
@@ -194,7 +116,7 @@ export function SessionViewer({
       <CostStrip metrics={metrics} />
 
       {/* Command input */}
-      <CommandDispatch sessionCwd={sessionCwd} />
+      <CommandDispatch sessionCwd={sessionCwd} sessionId={sessionId} />
     </div>
   );
 }
