@@ -36,3 +36,4 @@ Thumbs.db
 # Development
 .pnpm-debug.log
 docs
+worktrees/

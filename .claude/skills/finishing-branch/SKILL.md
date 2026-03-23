@@ -16,9 +16,9 @@ Final verification, present options to human, clean up.
 Run the full suite one last time:
 
 ```bash
-echo "No linter configured"        # Must be clean
-cd server && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit   # Must be clean
-echo "No test runner configured"        # All must pass
+{{lint-command}}        # Must be clean
+{{typecheck-command}}   # Must be clean
+{{test-command}}        # All must pass
 ```
 
 If anything fails → fix before proceeding.
@@ -31,6 +31,7 @@ git log main..HEAD --oneline   # Commits in this branch
 ```
 
 Check:
+
 - [ ] No unintended file changes
 - [ ] No debug prints or TODOs
 - [ ] No `.env` or secrets committed
@@ -42,18 +43,31 @@ Check:
 ## Branch Complete: {branch-name}
 
 ### Summary
+
 {2-3 sentences on what was built}
 
 ### Changes
+
 - {X} files changed, {Y} insertions, {Z} deletions
 - {N} new tests added
 
 ### Build Status
+
 - Lint: PASS
 - Typecheck: PASS
 - Tests: PASS ({total})
 
+### Requirements Coverage
+
+| #   | Requirement | Status                  |
+| --- | ----------- | ----------------------- |
+| 1   | {from PRD}  | MET / PARTIAL / MISSING |
+
+{Include the Requirements Validation Report from the validation step if available.
+If no validation was run, explicitly note: "Requirements validation was not performed."}
+
 ### Options
+
 1. **Merge** — `git checkout main && git merge {branch}`
 2. **Create PR** — `gh pr create --title "{title}" --body "{body}"`
 3. **Keep branch** — Leave as-is for further work
