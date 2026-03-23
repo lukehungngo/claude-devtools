@@ -5,6 +5,7 @@ import type { SessionInfo, SessionEvent, RepoGroup } from "../types.js";
 import { parseJsonlFile } from "./jsonl-reader.js";
 
 const ACTIVE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
+const RUNNING_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
 function getClaudeProjectsDir(): string {
   return join(homedir(), ".claude", "projects");
@@ -99,8 +100,9 @@ export function discoverSessions(): SessionInfo[] {
         }
       }
 
-      const isActive =
-        Date.now() - new Date(stat.mtime).getTime() < ACTIVE_THRESHOLD_MS;
+      const ageMs = Date.now() - new Date(stat.mtime).getTime();
+      const isActive = ageMs < ACTIVE_THRESHOLD_MS;
+      const isRunning = ageMs < RUNNING_THRESHOLD_MS;
 
       sessions.push({
         id: sessionId,
@@ -115,6 +117,7 @@ export function discoverSessions(): SessionInfo[] {
         permissionMode,
         model,
         isActive,
+        isRunning,
         sessionName,
       });
     }

@@ -62,6 +62,7 @@ const OUTPUT_COST_PER_TOKEN = 0.000015;
 
 function isTurnBoundary(event: SessionEvent): event is UserEvent {
   if (event.type !== "user") return false;
+  if (event.isSidechain) return false; // Subagent prompts are not turn boundaries
   const userEvent = event as UserEvent;
   if (userEvent.userType !== "external") return false;
 
