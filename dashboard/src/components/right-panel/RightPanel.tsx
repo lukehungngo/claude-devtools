@@ -12,6 +12,13 @@ import { SnapshotHistory } from "./SnapshotHistory";
 import { AgentFlowDAG } from "../AgentFlowDAG";
 import { AgentLogs } from "../AgentLogs";
 
+/** Exported for overflow regression tests (TASK-005) */
+export const SNAPSHOT_ROW_WRAPPER_CLASS =
+  "flex items-center bg-dt-bg2 min-w-0 overflow-hidden";
+
+/** Exported for overflow regression tests (TASK-005) */
+export const TAB_CONTENT_WRAPPER_CLASS = "flex-1 min-w-0 overflow-hidden";
+
 interface RightPanelProps {
   turns: TurnSnapshot[];
   dag: AgentDAG | null;
@@ -23,6 +30,8 @@ interface RightPanelProps {
   onSelectAgent: (id: string) => void;
   onSnapshotSelect?: (turnIndex: number) => void;
   requestedTab?: "graph" | "log";
+  /** Driven externally (e.g., middle-panel turn click) to sync active snapshot */
+  externalActiveIndex?: number | null;
 }
 
 export function RightPanel({
@@ -36,6 +45,7 @@ export function RightPanel({
   onSelectAgent,
   onSnapshotSelect,
   requestedTab,
+  externalActiveIndex,
 }: RightPanelProps) {
   const [activePrimaryTab, setActivePrimaryTab] = useState<PrimaryTab>("graph");
   const [activeSnapshotIndex, setActiveSnapshotIndex] = useState<number>(
@@ -57,9 +67,22 @@ export function RightPanel({
     }
   }, [requestedTab, selectedAgent, toolFilter]);
 
-  // Keep active snapshot in sync with turns length
+  // Sync active snapshot when driven from outside (e.g., middle-panel turn click).
+  // Guard: do NOT call onSnapshotSelect here — that would create a feedback loop.
   useEffect(() => {
-    if (turns.length > 0) {
+    if (externalActiveIndex != null) {
+      setActiveSnapshotIndex(externalActiveIndex);
+      setOpenSnapshots((prev) => {
+        if (prev.has(externalActiveIndex)) return prev;
+        return new Set([...prev, externalActiveIndex]);
+      });
+    }
+  }, [externalActiveIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep active snapshot in sync with turns length.
+  // Skip auto-advance when an external index is driving the selection.
+  useEffect(() => {
+    if (turns.length > 0 && externalActiveIndex == null) {
       const lastIndex = turns.length - 1;
       if (!openSnapshots.has(lastIndex)) {
         setOpenSnapshots((prev) => new Set([...prev, lastIndex]));
@@ -144,7 +167,7 @@ export function RightPanel({
       />
 
       {/* Snapshot tabs row */}
-      <div className="flex items-center bg-dt-bg2">
+      <div className={SNAPSHOT_ROW_WRAPPER_CLASS}>
         <SnapshotTabs
           turns={turns}
           activeIndex={activeSnapshotIndex}
@@ -178,7 +201,7 @@ export function RightPanel({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-hidden">
+      <div className={TAB_CONTENT_WRAPPER_CLASS}>
         {activePrimaryTab === "graph" ? (
           filteredDag ? (
             <AgentFlowDAG

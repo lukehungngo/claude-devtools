@@ -16,6 +16,13 @@ import { AgentNodeCard } from "./AgentNodeCard";
 
 const nodeTypes = { agentCard: AgentNodeCard };
 
+/** Exported for overflow regression tests (TASK-005) */
+export const LEGEND_CONTAINER_CLASS =
+  "absolute top-2 left-0 right-0 flex gap-2 px-3 overflow-x-auto [scrollbar-width:none] text-sm text-dt-text2 z-[5]";
+
+/** Exported for overflow regression tests (TASK-005) */
+export const LEGEND_ITEM_CLASS = "flex items-center gap-1 shrink-0 whitespace-nowrap";
+
 const NODE_WIDTH = 140;
 const NODE_HEIGHT = 56;
 
@@ -197,14 +204,12 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
           ))}
         </div>
 
-        {/* Legend (top-right) */}
-        <div
-          className="absolute top-2 right-3 flex gap-3 text-sm text-dt-text2 z-[5]"
-        >
+        {/* Legend (top, full-width scrollable strip) */}
+        <div className={LEGEND_CONTAINER_CLASS}>
           {LEGEND_ENTRIES.map(([name, color]) => (
             <div
               key={name}
-              className="flex items-center gap-1"
+              className={LEGEND_ITEM_CLASS}
             >
               <div
                 style={{
