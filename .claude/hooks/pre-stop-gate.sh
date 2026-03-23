@@ -6,9 +6,8 @@
 
 set -euo pipefail
 
-# CUSTOMIZE THESE LINES:
 LINT_CMD="pnpm lint --quiet"
-TEST_CMD="echo 'No test runner configured'"
+TEST_CMD="cd server && pnpm test && cd ../dashboard && pnpm test"
 
 LINT_RESULT=$($LINT_CMD 2>&1 || true)
 TEST_RESULT=$($TEST_CMD 2>&1 | tail -5 || true)

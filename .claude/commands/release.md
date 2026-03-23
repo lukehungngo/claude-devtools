@@ -12,10 +12,10 @@ Run ALL of these. Any failure blocks the release.
 
 ```bash
 # 1. Tests
-echo "No test runner configured"
+cd server && pnpm test && cd ../dashboard && pnpm test
 
 # 2. Lint
-echo "No linter configured"
+pnpm lint
 
 # 3. Type check
 cd server && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit
@@ -28,7 +28,7 @@ make build
 
 - [ ] No `.env` files or secrets in the repo
 - [ ] No hardcoded credentials
-- [ ] Dependencies are up to date (`cd server && pnpm audit && cd ../dashboard && pnpm audit`)
+- [ ] Dependencies are up to date (`{{dependency-audit-command}}`)
 - [ ] No known vulnerabilities in dependencies
 
 ## Documentation
@@ -40,7 +40,7 @@ make build
 ## Version Bump
 
 ```bash
-# Update version in server/package.json and dashboard/package.json
+# Update version in {{version-file}} (e.g., pyproject.toml, package.json)
 # Follow semver: MAJOR.MINOR.PATCH
 ```
 

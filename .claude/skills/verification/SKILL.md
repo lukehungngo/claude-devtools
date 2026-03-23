@@ -13,9 +13,9 @@ Never declare done without running this checklist. "It works on my machine" is n
 
 ### Build Verification
 
-- [ ] `{{lint-command}}` — clean, zero warnings
-- [ ] `{{typecheck-command}}` — clean, zero errors
-- [ ] `{{test-command}}` — all pass, zero failures
+- [ ] `pnpm lint` — clean, zero warnings
+- [ ] `cd server && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit` — clean, zero errors
+- [ ] `cd server && pnpm test && cd ../dashboard && pnpm test` — all pass, zero failures
 
 ### Code Verification
 

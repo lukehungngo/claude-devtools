@@ -16,13 +16,11 @@ Check if `$ARGUMENTS` contains `--auto`. If yes → **autonomous mode** (no huma
    - `--auto`: skip clarification, assume requirements are complete as given.
 
 2. **Branch** — Create an isolated workspace:
-
    ```bash
    git worktree add -b feature/{{name}} .worktrees/{{name}}
    cd .worktrees/{{name}}
    ```
-
-   Verify clean baseline: `{{test-command}}` must pass.
+   Verify clean baseline: `cd server && pnpm test && cd ../dashboard && pnpm test` must pass.
 
 3. **Plan** — Use `writing-plans` skill to create an implementation plan with bite-sized tasks (2-5 min each).
    - Interactive: present plan to human for approval before proceeding.
@@ -84,7 +82,7 @@ Check if `$ARGUMENTS` contains `--auto`. If yes → **autonomous mode** (no huma
 
    Dispatch the **Reviewer agent** (`mas:reviewer:reviewer`) with a requirements-validation mandate:
 
-   ````
+   ```
    Agent(
      subagent_type: "mas:reviewer:reviewer",
      prompt: """
@@ -111,7 +109,9 @@ Check if `$ARGUMENTS` contains `--auto`. If yes → **autonomous mode** (no huma
      - Are edge cases mentioned in the PRD handled?
      - Does the overall system behavior match what was specified?
 
-     ## Output — Requirements Validation Report
+     ## Output
+     Write your report to `docs/reports/requirements-validation.md`
+
      ```markdown
      ## Requirements Validation Report
 
@@ -128,11 +128,9 @@ Check if `$ARGUMENTS` contains `--auto`. If yes → **autonomous mode** (no huma
 
      ### Verdict
      ALL MET / GAPS FOUND / CRITICAL GAPS
-   ````
-
-   """
+     ```
+     """
    )
-
    ```
 
    **On verdict:**
@@ -140,8 +138,6 @@ Check if `$ARGUMENTS` contains `--auto`. If yes → **autonomous mode** (no huma
    - **GAPS FOUND** → re-dispatch Orchestrator with the gap list to fill them (max 1 remediation cycle), then re-validate
    - **CRITICAL GAPS** → stop and escalate to human immediately
    - `--auto`: on GAPS FOUND, auto-remediate (1 cycle). On CRITICAL GAPS, still escalate.
-
-   ```
 
 6. **Verify** — Use `verification` skill for final technical checks:
    - All tests pass

@@ -10,7 +10,6 @@
 
 set -euo pipefail
 
-# CUSTOMIZE THIS LINE:
 LINT_CMD="pnpm lint --quiet"
 
 # Only lint if source files were recently changed

@@ -13,8 +13,8 @@
 - **relevant_files:** [list of exact file paths that CAN be touched]
 - **do_not_touch:** [list of file paths that MUST NOT be modified]
 - **reference_files:** [list of files to read for context, but not modify]
-- **proposal:** [link to approved research proposal, if applicable]
-- **design_spec:** [link to approved design spec, if applicable — only for UI tasks]
+- **proposal:** [path to approved research proposal in `docs/plans/`, if applicable]
+- **design_spec:** [path to approved design spec in `docs/design/`, if applicable — only for UI tasks]
 
 ## Objective
 
@@ -24,8 +24,8 @@
 
 Each criterion MUST be a runnable shell command:
 
-- [ ] `echo "No test runner configured"` passes
-- [ ] `echo "No linter configured"` clean
+- [ ] `cd server && pnpm test && cd ../dashboard && pnpm test` passes
+- [ ] `pnpm lint` clean
 - [ ] `cd server && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit` clean
 - [ ] `{specific functional check}` — e.g., `curl localhost:8080/api/health | jq .status`
 
@@ -35,4 +35,9 @@ Each criterion MUST be a runnable shell command:
 
 ## Output
 
-Write result to `tasks/done/TASK-{id}-result.md`
+Write result based on task type:
+- **research** → `docs/plans/TASK-{id}-research-r{round}.md`
+- **design** → `docs/design/TASK-{id}-design.md` + `docs/design/TASK-{id}-mockup.html`
+- **impl** → `docs/results/TASK-{id}-result.md`
+- **review** → `docs/reports/TASK-{id}-review.md`
+- **bugfix** → `docs/reports/TASK-{id}-bugfix-result.md`

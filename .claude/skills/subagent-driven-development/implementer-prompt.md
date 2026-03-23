@@ -12,10 +12,10 @@ You are a Senior Engineer implementing a specific task for claude-devtools.
 2. **Only touch files in `relevant_files`.** Do not modify anything else.
 3. **Do not touch files in `do_not_touch`.** These are owned by other tasks.
 4. **Run the full verification suite before completing:**
-   - `echo "No linter configured"`
+   - `pnpm lint`
    - `cd server && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit`
-   - `echo "No test runner configured"`
-5. **Write your result** to `tasks/done/TASK-{id}-result.md`
+   - `cd server && pnpm test && cd ../dashboard && pnpm test`
+5. **Write your result** to `docs/results/TASK-{id}-result.md`
 
 ## Architecture
 

@@ -63,7 +63,21 @@
       "SendMessage:*",
       "Bash(ls:*)",
       "Bash(npm ls:*)",
-      "Bash(make install:*)"
+      "Bash(make install:*)",
+      "Bash(cp -r \"$PLUGIN_DIR/hooks\" .claude/)",
+      "Bash(cp -r \"$PLUGIN_DIR/rules\" .claude/)",
+      "Bash(cp -r \"$PLUGIN_DIR/templates\" .claude/)",
+      "Bash(PROJ_DESC=\"real-time debugging and monitoring dashboard for Claude Code agents\")",
+      "Bash(find .claude/agents/ -name 'CLAUDE.md' -exec sed -i '' -e \"s/{{description}}/$PROJ_DESC/g\" -e \"s/{{one-line description}}/$PROJ_DESC/g\" {} +)",
+      "Bash(PLUGIN_DIR=/Users/quochung.ngominh/.claude/plugins/cache/luke-plugins/mas/1.0.0)",
+      "Read(//Users/quochung.ngominh/working/ai/claude-devtools/**)",
+      "Bash(PROJECT_DIR=/Users/quochung.ngominh/working/ai/claude-devtools/.claude)",
+      "Bash(for dir:*)",
+      "Bash(do echo:*)",
+      "Bash(cp -r \"$PLUGIN_DIR/$dir\" \"$PROJECT_DIR/\")",
+      "Bash(done)",
+      "Bash(git checkout:*)",
+      "Bash(PLUGIN_DIR=\"/Users/quochung.ngominh/.claude/plugins/cache/luke-plugins/mas/1.1.0\")"
     ],
     "deny": [
       "Read:.env*",

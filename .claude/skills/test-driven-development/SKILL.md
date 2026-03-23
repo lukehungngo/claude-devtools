@@ -32,7 +32,7 @@ Write one minimal test showing what should happen.
 
 ```bash
 # Run and confirm FAILURE
-echo "No test runner configured" path/to/test
+cd server && pnpm test && cd ../dashboard && pnpm test path/to/test
 ```
 
 Confirm: Test fails (not errors). Failure is expected. Fails because feature is missing.
@@ -43,7 +43,7 @@ Write the simplest code to pass the test. Don't add features, refactor, or "impr
 
 ```bash
 # Run and confirm PASS
-echo "No test runner configured" path/to/test
+cd server && pnpm test && cd ../dashboard && pnpm test path/to/test
 ```
 
 Confirm: Test passes. Other tests still pass. No warnings.

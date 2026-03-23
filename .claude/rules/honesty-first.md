@@ -23,7 +23,10 @@ When a metrics integrity incident occurs:
 
 ## P0 Lessons
 
-<!-- Add P0 lessons here as they occur. Format:
-### YYYY-MM-DD: {Title}
-{What happened. What this rule prevents.}
--->
+### 2026-03-23: Spec audit coverage inflation risk
+The spec audit (TASK-010) measured 69% P0 coverage with known gaps documented. This number was reported honestly with explicit methodology (manual verification against invariants). This rule prevents future audits from using weaker methodology to produce higher numbers.
+
+### Project-specific integrity notes
+- **Token/cost metrics must match JSONL source data.** The dashboard displays costs computed from `MODEL_PRICING` — if pricing is stale, label it clearly rather than presenting wrong numbers as accurate.
+- **DAG node costs use sonnet-only pricing** — this is a known discrepancy vs top-level per-model pricing. Document this gap; do not hide it.
+- **Live event buffer cap (2000)** — when reporting event counts for long sessions, note that mid-stream events may be missing from the live feed. Do not report live feed counts as complete session counts.

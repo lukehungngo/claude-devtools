@@ -52,6 +52,6 @@ After implementation, dispatch the Reviewer agent with structured context for a 
 
 ## After Review
 
-- **APPROVED:** Mark task done, move to `tasks/done/`
+- **APPROVED:** Mark task done, move to `docs/tasks/done/`
 - **BLOCKED:** Do NOT argue with the reviewer. Fix the issues via Bug-Fixer agent, then re-request review.
 - **Max 2 review cycles.** If still BLOCKED after 2 cycles → escalate to human.

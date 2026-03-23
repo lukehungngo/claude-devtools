@@ -7,7 +7,7 @@ A comprehensive debugging and monitoring dashboard for Claude Code agents — re
 ```bash
 make install                     # dev install (server + dashboard)
 pnpm install                     # root devDeps (eslint)
-echo 'No test runner configured' # run tests
+cd server && pnpm test && cd ../dashboard && pnpm test  # run tests (vitest)
 pnpm lint                        # lint (eslint)
 pnpm lint:fix                    # lint + autofix
 cd server && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit  # type check
@@ -18,7 +18,7 @@ make build                       # build
 
 - TypeScript 5.x (monorepo: server + dashboard)
 - React 18, Vite 5, TailwindCSS 3, Express 4, MCP SDK, Recharts, XYFlow
-- No test framework configured yet
+- Vitest for testing (both server and dashboard)
 - ESLint 9 (flat config) with typescript-eslint + react-hooks plugin
 
 ## Project Type
@@ -29,24 +29,32 @@ make build                       # build
 
 These are non-negotiable — violating any of these is a P0:
 
-1. **{{Invariant 1}}** — {{Why it matters}}
-2. **{{Invariant 2}}** — {{Why it matters}}
-3. **{{Invariant 3}}** — {{Why it matters}}
+1. **Filesystem JSONL is the single source of truth** — All session data comes from Claude Code's `~/.claude/projects/` JSONL files. The server never persists or mutates session data; it is read-only from disk. Breaking this means data divergence between what Claude Code wrote and what the dashboard shows.
+2. **Incremental parsing with byte offsets** — `parseJsonlIncremental()` tracks file byte offsets to avoid re-reading entire files. Always append-only reads. Re-reading full files on every change would make long sessions (10k+ events) unusable.
+3. **Fail-safe parsing (skip malformed lines)** — Both full and incremental JSONL parsers catch JSON errors per-line and continue. A single corrupted line must never crash the session load or block subsequent events.
+4. **Metrics computed server-side, not client-side** — Token aggregation, cost calculation, and DAG building happen in `computeMetrics()`. The dashboard receives pre-computed `SessionMetrics`. This ensures consistent numbers across clients and avoids floating-point drift.
+5. **WebSocket broadcasts only new events** — The watcher never resends historical data. Dashboard must fetch the full session via REST first, then layer live events on top. This keeps bandwidth low for long-running sessions.
 
 ## Core Flow
 
 ```
-{{Describe your system's main data flow}}
-  → {{step 1}}
-  → {{step 2}}
-  → {{step 3}}
-  → {{step 4}}
+Claude Code Agent (writes .jsonl events to ~/.claude/projects/)
+  → File Watcher (chokidar monitors JSONL files for changes)
+  → Parser (incremental JSONL reader, byte-offset tracking, line-by-line)
+  → Analyzer (computeMetrics: token aggregation, cost calc, DAG building)
+  → HTTP API (REST endpoints) + WebSocket (live event broadcast)
+  → Dashboard (React SPA: useSessionMetrics + useEventStream hooks)
+  → Components (AgentFlowDAG, TokenChart, EventStream, CommandDispatch)
 ```
 
 ## Key Gotchas
 
-- **{{Gotcha 1}}** — {{How to handle it}}
-- **{{Gotcha 2}}** — {{How to handle it}}
+- **Model pricing is hardcoded** — `server/src/analyzer/metrics.ts` has a hand-coded `MODEL_PRICING` table. No API fetch. Must be manually updated when Anthropic changes rates.
+- **DAG node costs always use sonnet pricing** — `aggregateTokens()` in `dag-builder.ts` hardcodes sonnet pricing for per-node cost. Top-level metrics use per-model pricing. This causes discrepancies in the agent breakdown view.
+- **Content can be string or ContentItem[]** — Dashboard types allow both. `normalizeContent.ts` must coerce strings to arrays. Forgetting this causes runtime crashes in EventStream.
+- **Live event buffer capped at 2000** — `useEventStream.ts` drops oldest events beyond 2000. Very long sessions lose mid-stream events on the live feed (full REST fetch is not capped).
+- **MCP tools detected by name prefix only** — `countMcpToolCalls()` checks if tool name starts with `mcp__`. Custom tools with that prefix get miscounted; MCP tools without it get missed.
+- **Permission state is in-memory only** — `permission-handler.ts` stores requests in a Map. Lost on server restart. No cross-instance persistence.
 
 ## Mandatory Workflow
 

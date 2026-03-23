@@ -70,7 +70,7 @@ For projects with a UI, design tasks precede implementation tasks:
 - **Files:** reference: src/components/Card.tsx, src/styles/tokens.ts
 - **Approach:** Define component spec with states (loading, empty, error, populated), responsive breakpoints, and accessibility checklist
 - **Tests:** N/A (design spec, not code)
-- **Verify:** `test -f tasks/done/TASK-001-design.md`
+- **Verify:** `test -f docs/design/TASK-001-design.md`
 - **Depends on:** none
 - **Est:** 3 min
 

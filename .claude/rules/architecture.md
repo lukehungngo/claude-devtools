@@ -6,21 +6,11 @@ Define non-negotiable architecture rules. Violating any of these is a P0.
 
 ## Invariants
 
-<!-- CUSTOMIZE: Replace these with YOUR project's invariants -->
-
-1. **{{Invariant 1}}** — {{Why. What happens if violated.}}
-2. **{{Invariant 2}}** — {{Why. What happens if violated.}}
-3. **{{Invariant 3}}** — {{Why. What happens if violated.}}
-
-## Examples from Real Projects
-
-Use these as inspiration for defining your own:
-
-- **"Never execute user code."** (Security scanner) — All analysis via AST only. Running user code is a critical vulnerability.
-- **"Static by default."** (CLI tool) — No network calls unless explicit flag is passed.
-- **"Fail safe."** (Any tool) — Parse error on input → warning + skip. Never crash the entire operation.
-- **"No direct database access from controllers."** (Web app) — All DB access through repository layer.
-- **"All API responses are typed."** (API server) — Every endpoint has a response schema. No `any` types.
+1. **Filesystem JSONL is the single source of truth** — All session data comes from Claude Code's `~/.claude/projects/` JSONL files. The server never persists or mutates session data; it is read-only from disk. Violating this causes data divergence between what Claude Code wrote and what the dashboard shows.
+2. **Incremental parsing with byte offsets** — `parseJsonlIncremental()` tracks file byte offsets to avoid re-reading entire files. Always append-only reads. Re-reading full files on every change makes long sessions (10k+ events) unusable.
+3. **Fail-safe parsing (skip malformed lines)** — Both full and incremental JSONL parsers catch JSON errors per-line and continue. A single corrupted line must never crash the session load or block subsequent events.
+4. **Metrics computed server-side, not client-side** — Token aggregation, cost calculation, and DAG building happen in `computeMetrics()`. The dashboard receives pre-computed `SessionMetrics`. This ensures consistent numbers across clients and avoids floating-point drift.
+5. **WebSocket broadcasts only new events** — The watcher never resends historical data. Dashboard must fetch the full session via REST first, then layer live events on top. Violating this causes bandwidth explosion for long-running sessions.
 
 ## How to Add New Invariants
 
