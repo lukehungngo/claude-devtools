@@ -30,6 +30,55 @@ function computeNodeDuration(node: AgentNode): number | null {
   return end - start;
 }
 
+
+/** Generate segmented activity ring for multi-invocation agents */
+function ActivityRing({ segments, color, size }: { segments: number; color: string; size: number }) {
+  if (segments <= 1) return null;
+  const maxSegments = Math.min(segments, 12); // Cap visual segments
+  const radius = size / 2 - 2;
+  const circumference = 2 * Math.PI * radius;
+  const gapAngle = 8; // degrees gap between segments
+  const totalGapDeg = gapAngle * maxSegments;
+  const segmentDeg = (360 - totalGapDeg) / maxSegments;
+  const segmentLen = (segmentDeg / 360) * circumference;
+  const gapLen = (gapAngle / 360) * circumference;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      style={{
+        position: "absolute",
+        top: -3,
+        left: -3,
+        pointerEvents: "none",
+      }}
+    >
+      {Array.from({ length: maxSegments }).map((_, i) => {
+        const rotation = i * (segmentDeg + gapAngle) - 90;
+        return (
+          <circle
+            key={i}
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke={color}
+            strokeWidth={2}
+            strokeDasharray={`${segmentLen} ${circumference - segmentLen}`}
+            strokeDashoffset={0}
+            strokeLinecap="round"
+            opacity={0.7}
+            transform={`rotate(${rotation} ${size / 2} ${size / 2})`}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+const NODE_RING_SIZE = 170; // slightly larger than max node width + padding
+
 export function AgentNodeCard({ data }: NodeProps) {
   const node = data.agent as AgentNode;
   const borderColor = getBorderColor(node.type);
@@ -38,6 +87,7 @@ export function AgentNodeCard({ data }: NodeProps) {
   const isMain = node.type === "main";
   const isSelected = data.selected as boolean | undefined;
   const isFrozen = data.frozen as boolean | undefined;
+  const invocationCount = (data.invocationCount as number) || 1;
   const [hovered, setHovered] = useState(false);
 
   const duration = computeNodeDuration(node);
@@ -61,6 +111,14 @@ export function AgentNodeCard({ data }: NodeProps) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      {/* Activity ring for multi-invocation agents */}
+      {invocationCount > 1 && (
+        <ActivityRing
+          segments={invocationCount}
+          color={borderColor}
+          size={NODE_RING_SIZE}
+        />
+      )}
       {/* Hover tooltip */}
       {hovered && (
         <div

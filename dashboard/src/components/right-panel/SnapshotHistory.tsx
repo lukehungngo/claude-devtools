@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { Clock } from "lucide-react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 
 interface SnapshotHistoryProps {
@@ -54,7 +55,7 @@ export function SnapshotHistory({
           transition: "color 0.15s",
         }}
       >
-        {"\u{1F551}"}{/* Clock icon */}
+        <Clock size={12} />
         <span
           style={{
             fontSize: "9px",

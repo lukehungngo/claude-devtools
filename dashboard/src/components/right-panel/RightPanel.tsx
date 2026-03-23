@@ -53,7 +53,7 @@ export function RightPanel({
   }, [requestedTab, selectedAgent, toolFilter]);
 
   // Keep active snapshot in sync with turns length
-  useMemo(() => {
+  useEffect(() => {
     if (turns.length > 0) {
       const lastIndex = turns.length - 1;
       if (!openSnapshots.has(lastIndex)) {

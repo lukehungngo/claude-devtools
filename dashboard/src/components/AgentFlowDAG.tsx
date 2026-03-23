@@ -41,7 +41,7 @@ function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null, frozen
         x: pos.x - NODE_WIDTH / 2,
         y: pos.y - NODE_HEIGHT / 2,
       },
-      data: { agent: n, selected: n.id === selectedAgent, frozen, onViewInLog },
+      data: { agent: n, selected: n.id === selectedAgent, frozen, onViewInLog, invocationCount: Math.max(1, Math.ceil(n.toolCalls / 5)) },
     };
   });
 
@@ -161,11 +161,11 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
               padding: "1px 5px",
               borderRadius: "8px",
               fontWeight: 600,
-              background: "var(--accent-dim)",
-              color: "var(--accent)",
+              background: frozen ? "var(--bg-4)" : "var(--accent-dim)",
+              color: frozen ? "var(--text-2)" : "var(--accent)",
             }}
           >
-            real-time
+            {frozen ? "snapshot" : "real-time"}
           </span>
         </div>
         <div style={{ display: "flex", gap: "4px" }}>
