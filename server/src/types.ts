@@ -132,6 +132,7 @@ export interface SessionInfo {
   permissionMode?: string;
   model?: string;
   isActive?: boolean;
+  isRunning?: boolean;
   sessionName?: string;
 }
 

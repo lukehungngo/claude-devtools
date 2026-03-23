@@ -15,17 +15,27 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
   const [filterMode, setFilterMode] = useState<FilterMode>("active");
 
   const filteredRepos = useMemo(() => {
-    if (filterMode === "all") return repos;
+    const filtered = filterMode === "all"
+      ? repos
+      : repos
+          .map((repo) => {
+            const filteredSessions = repo.sessions.filter((s) =>
+              filterMode === "active" ? s.isActive : !s.isActive
+            );
+            if (filteredSessions.length === 0) return null;
+            return { ...repo, sessions: filteredSessions };
+          })
+          .filter(Boolean) as RepoGroup[];
 
-    return repos
-      .map((repo) => {
-        const filteredSessions = repo.sessions.filter((s) =>
-          filterMode === "active" ? s.isActive : !s.isActive
-        );
-        if (filteredSessions.length === 0) return null;
-        return { ...repo, sessions: filteredSessions };
-      })
-      .filter(Boolean) as RepoGroup[];
+    // Sort sessions within each repo: running first, then by lastModified
+    return filtered.map((repo) => ({
+      ...repo,
+      sessions: [...repo.sessions].sort((a, b) => {
+        if (a.isRunning && !b.isRunning) return -1;
+        if (!a.isRunning && b.isRunning) return 1;
+        return new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime();
+      }),
+    }));
   }, [repos, filterMode]);
 
   const toggleExpand = (cwd: string) => {
@@ -253,12 +263,30 @@ function SessionItem({
       }}
       onClick={onSelect}
     >
+      {session.isRunning && (
+        <span
+          style={{
+            fontSize: "8px",
+            fontWeight: 700,
+            padding: "1px 4px",
+            borderRadius: "3px",
+            background: "var(--green)",
+            color: "var(--bg-1)",
+            letterSpacing: "0.5px",
+            flexShrink: 0,
+            animation: "pulse-opacity 2s ease-in-out infinite",
+          }}
+        >
+          LIVE
+        </span>
+      )}
       <span
         className="session-hash"
         style={{
           fontFamily: "var(--font)",
           fontSize: "11px",
-          color: "var(--purple)",
+          color: session.isRunning ? "var(--text-0)" : "var(--purple)",
+          fontWeight: session.isRunning ? 600 : 400,
         }}
       >
         {displayName}
