@@ -24,7 +24,11 @@ export function SessionViewer({
   // Auto-scroll when new events arrive and autoScroll is enabled
   useEffect(() => {
     if (autoScroll && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      });
     }
   }, [events.length, autoScroll]);
 
