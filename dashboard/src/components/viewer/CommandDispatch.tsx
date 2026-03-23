@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { isIgnoredStderrWarning } from "../../lib/filterStderrWarnings";
 
 interface CommandDispatchProps {
   sessionCwd?: string;
@@ -54,22 +55,39 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
 
       if (!reader) throw new Error("No response stream");
 
+      let buffer = "";
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // Keep incomplete last line in buffer
 
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           try {
             const data = JSON.parse(line.slice(6));
-            if (data.type === "stdout" || data.type === "stderr") {
+            if (data.type === "stdout") {
               setOutput((prev) => [...prev, data.text]);
-              if (outputRef.current) {
-                outputRef.current.scrollTop = outputRef.current.scrollHeight;
+            } else if (data.type === "stderr") {
+              if (!isIgnoredStderrWarning(data.text as string)) {
+                setOutput((prev) => [...prev, data.text]);
               }
+            } else if (data.type === "done" && data.exitCode !== 0) {
+              setOutput((prev) => [
+                ...prev,
+                `\nProcess exited with code ${data.exitCode}`,
+              ]);
+            } else if (data.type === "error") {
+              setOutput((prev) => [
+                ...prev,
+                `\nError: ${data.message}`,
+              ]);
+            }
+            if (outputRef.current) {
+              outputRef.current.scrollTop = outputRef.current.scrollHeight;
             }
           } catch {
             // ignore parse errors

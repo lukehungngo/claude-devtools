@@ -415,15 +415,13 @@ export function AgentLogs({
     }
   }, [aggregatedEntries, autoScroll]);
 
-  // Detect manual scroll-up to pause auto-scroll
+  // Detect scroll position to toggle auto-scroll
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return;
     const el = scrollRef.current;
     const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-    if (!isAtBottom && autoScroll) {
-      setAutoScroll(false);
-    }
-  }, [autoScroll]);
+    setAutoScroll(isAtBottom);
+  }, []);
 
   const resumeAutoScroll = useCallback(() => {
     setAutoScroll(true);
@@ -627,7 +625,7 @@ export function AgentLogs({
                     Showing last {MAX_VISIBLE} of {total} entries
                   </div>
                 )}
-                {visibleEntries.map((entry) => {
+                {visibleEntries.map((entry, i) => {
             const badgeStyle = getAgentBadgeStyle(entry.agentType);
             const actionStyle = getActionBadgeStyle(entry.toolName);
             const isHighlighted =
@@ -635,7 +633,7 @@ export function AgentLogs({
 
             return (
               <div
-                key={entry.uuid}
+                key={`${entry.uuid}-${i}`}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "68px 80px 1fr auto",
