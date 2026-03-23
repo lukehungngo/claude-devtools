@@ -5,11 +5,20 @@ import { formatCost, formatTokens, formatDuration } from "../lib/cost";
 
 /** Color mapping by agent type for border */
 const typeBorderColors: Record<string, string> = {
+  // Default agent types
   main: "var(--accent)",
   Explore: "var(--cyan)",
   Plan: "var(--yellow)",
   "general-purpose": "var(--green)",
   General: "var(--green)",
+  // MAS agent types
+  orchestrator: "var(--orange)",
+  engineer: "var(--teal)",
+  reviewer: "var(--purple)",
+  "bug-fixer": "var(--rose)",
+  researcher: "var(--sky)",
+  "differential-reviewer": "var(--pink)",
+  "ui-ux-designer": "var(--pink)",
 };
 
 /** Status dot color */

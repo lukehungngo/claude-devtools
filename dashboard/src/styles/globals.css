@@ -24,7 +24,17 @@
   --cyan: #06b6d4;
   --cyan-dim: #06b6d420;
   --orange: #f97316;
+  --orange-dim: #f9731620;
   --purple: #a78bfa;
+  --purple-dim: #a78bfa20;
+  --pink: #ec4899;
+  --pink-dim: #ec489920;
+  --teal: #14b8a6;
+  --teal-dim: #14b8a620;
+  --rose: #f43f5e;
+  --rose-dim: #f43f5e20;
+  --sky: #38bdf8;
+  --sky-dim: #38bdf820;
   --font: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --radius: 8px;

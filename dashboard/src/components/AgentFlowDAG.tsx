@@ -279,6 +279,11 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
             ["Explore", "var(--cyan)"],
             ["Plan", "var(--yellow)"],
             ["General", "var(--green)"],
+            ["Orchestrator", "var(--orange)"],
+            ["Engineer", "var(--teal)"],
+            ["Reviewer", "var(--purple)"],
+            ["Bug-fixer", "var(--rose)"],
+            ["Researcher", "var(--sky)"],
           ] as const).map(([name, color]) => (
             <div
               key={name}
