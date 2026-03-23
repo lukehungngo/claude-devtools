@@ -196,14 +196,15 @@ export function setupRoutes(state?: ServerState): Router {
 
   // Command input (v1: simple prompt)
   router.post("/command", async (req, res) => {
-    const { prompt, cwd } = req.body;
+    const { prompt, cwd, sessionId } = req.body;
     if (!prompt) {
       return res.status(400).json({ error: "Missing prompt" });
     }
 
     try {
       const { spawn } = await import("node:child_process");
-      const child = spawn("claude", ["-p", prompt], {
+      const args = sessionId ? ["--resume", sessionId, "-p", prompt] : ["-p", prompt];
+      const child = spawn("claude", args, {
         cwd: cwd || process.cwd(),
         env: { ...process.env },
       });

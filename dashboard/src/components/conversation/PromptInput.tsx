@@ -3,9 +3,10 @@ import { isIgnoredStderrWarning } from "../../lib/filterStderrWarnings";
 
 interface PromptInputProps {
   sessionCwd?: string;
+  sessionId?: string;
 }
 
-export function PromptInput({ sessionCwd }: PromptInputProps) {
+export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
   const [sseStatus, setSseStatus] = useState<"idle" | "streaming" | "error">("idle");
@@ -38,6 +39,7 @@ export function PromptInput({ sessionCwd }: PromptInputProps) {
         body: JSON.stringify({
           prompt: currentPrompt,
           cwd: sessionCwd,
+          sessionId,
         }),
         signal: controller.signal,
       });

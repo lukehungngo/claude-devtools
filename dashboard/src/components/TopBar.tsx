@@ -78,13 +78,13 @@ export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
       <div className="topbar-row" style={{
         display: "flex",
         alignItems: "center",
-        padding: "0 20px",
-        minHeight: "32px",
-        flexWrap: "nowrap",
-        overflow: "hidden",
+        padding: "4px 20px",
+        minHeight: "auto",
+        flexWrap: "wrap",
+        rowGap: "4px",
         borderBottom: "1px solid var(--border)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 0, flex: 1, flexWrap: "nowrap", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 0, flex: 1, flexWrap: "wrap", rowGap: "4px" }}>
           {/* Title */}
           <div style={{
             display: "flex", alignItems: "center", gap: "8px",
@@ -174,10 +174,10 @@ export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
       <div className="topbar-row" style={{
         display: "flex",
         alignItems: "center",
-        padding: "0 20px",
-        minHeight: "32px",
-        flexWrap: "nowrap",
-        overflow: "hidden",
+        padding: "4px 20px",
+        minHeight: "auto",
+        flexWrap: "wrap",
+        rowGap: "4px",
         borderBottom: "1px solid var(--border)",
       }}>
         {metrics ? (
@@ -237,10 +237,10 @@ export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
       <div className="topbar-row" style={{
         display: "flex",
         alignItems: "center",
-        padding: "0 20px",
-        minHeight: "28px",
-        flexWrap: "nowrap",
-        overflow: "hidden",
+        padding: "4px 20px",
+        minHeight: "auto",
+        flexWrap: "wrap",
+        rowGap: "4px",
       }}>
         {metrics ? (
           metrics.tools.slice(0, 10).map((t) => {

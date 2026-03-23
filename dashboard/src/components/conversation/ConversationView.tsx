@@ -10,6 +10,7 @@ interface ConversationViewProps {
   metrics: SessionMetrics | null;
   isLive?: boolean;
   sessionCwd?: string;
+  sessionId?: string;
   highlightedTurnIndex?: number;
   onAgentPillClick?: (agentId: string) => void;
 }
@@ -19,6 +20,7 @@ export function ConversationView({
   metrics,
   isLive,
   sessionCwd,
+  sessionId,
   highlightedTurnIndex,
   onAgentPillClick,
 }: ConversationViewProps) {
@@ -317,7 +319,7 @@ export function ConversationView({
       <CostStrip metrics={metrics} />
 
       {/* Command input */}
-      <PromptInput sessionCwd={sessionCwd} />
+      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} />
     </div>
   );
 }
