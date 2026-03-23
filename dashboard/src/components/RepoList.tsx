@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { RepoGroup, SessionInfo } from "../lib/types";
+
+type FilterMode = "active" | "archived" | "all";
 
 interface Props {
   repos: RepoGroup[];
@@ -10,6 +12,21 @@ interface Props {
 
 export function RepoList({ repos, loading, selected, onSelect }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [filterMode, setFilterMode] = useState<FilterMode>("active");
+
+  const filteredRepos = useMemo(() => {
+    if (filterMode === "all") return repos;
+
+    return repos
+      .map((repo) => {
+        const filteredSessions = repo.sessions.filter((s) =>
+          filterMode === "active" ? s.isActive : !s.isActive
+        );
+        if (filteredSessions.length === 0) return null;
+        return { ...repo, sessions: filteredSessions };
+      })
+      .filter(Boolean) as RepoGroup[];
+  }, [repos, filterMode]);
 
   const toggleExpand = (cwd: string) => {
     setExpanded((prev) => {
@@ -50,45 +67,27 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
         >
           Repositories
         </div>
-        <div className="panel-actions" style={{ display: "flex", gap: "4px" }}>
-          <button
-            className="panel-action"
-            style={{
-              width: 24,
-              height: 24,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "var(--radius-sm)",
-              color: "var(--text-2)",
-              cursor: "pointer",
-              background: "transparent",
-              border: "none",
-              fontSize: "14px",
-            }}
-            title="Add repository"
-          >
-            +
-          </button>
-          <button
-            className="panel-action"
-            style={{
-              width: 24,
-              height: 24,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "var(--radius-sm)",
-              color: "var(--text-2)",
-              cursor: "pointer",
-              background: "transparent",
-              border: "none",
-              fontSize: "12px",
-            }}
-            title="Filter"
-          >
-            &#9776;
-          </button>
+        <div className="panel-actions" style={{ display: "flex", gap: "2px" }}>
+          {(["active", "archived", "all"] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setFilterMode(mode)}
+              style={{
+                padding: "2px 6px",
+                fontSize: "9px",
+                fontWeight: filterMode === mode ? 600 : 400,
+                color: filterMode === mode ? "var(--accent)" : "var(--text-2)",
+                background: filterMode === mode ? "var(--accent-dim)" : "transparent",
+                border: "none",
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                textTransform: "uppercase",
+                letterSpacing: "0.3px",
+              }}
+            >
+              {mode}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -101,12 +100,14 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
           <p style={{ color: "var(--text-2)", fontSize: "12px", padding: "12px" }}>
             Loading...
           </p>
-        ) : repos.length === 0 ? (
+        ) : filteredRepos.length === 0 ? (
           <p style={{ color: "var(--text-2)", fontSize: "12px", padding: "12px" }}>
-            No repositories found
+            {filterMode === "all"
+              ? "No repositories found"
+              : `No ${filterMode} sessions`}
           </p>
         ) : (
-          repos.map((repo) => {
+          filteredRepos.map((repo) => {
             const isExpanded = expanded.has(repo.cwd);
             const isActiveRepo =
               selected !== null &&
@@ -115,6 +116,13 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
                   s.projectHash === selected.projectHash &&
                   s.id === selected.sessionId
               );
+
+            // Collect unique branches across sessions in this repo
+            const branches = [
+              ...new Set(
+                repo.sessions.map((s) => s.gitBranch).filter(Boolean)
+              ),
+            ];
 
             return (
               <div key={repo.cwd}>
@@ -171,8 +179,15 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
                         gap: "8px",
                       }}
                     >
-                      {repo.gitBranch && (
-                        <span style={{ color: "var(--cyan)" }}>{repo.gitBranch}</span>
+                      {branches.length === 1 && (
+                        <span style={{ color: "var(--cyan)" }}>
+                          {branches[0]}
+                        </span>
+                      )}
+                      {branches.length > 1 && (
+                        <span style={{ color: "var(--cyan)" }}>
+                          {branches.length} branches
+                        </span>
                       )}
                       <span>{repo.sessions.length} sessions</span>
                     </div>
@@ -248,6 +263,16 @@ function SessionItem({
       >
         {displayName}
       </span>
+      {session.gitBranch && (
+        <span
+          style={{
+            fontSize: "9px",
+            color: "var(--cyan)",
+          }}
+        >
+          {session.gitBranch}
+        </span>
+      )}
       <div style={{ flex: 1, minWidth: 0 }}>
         <span
           className="session-detail"

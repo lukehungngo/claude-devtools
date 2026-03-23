@@ -22,6 +22,7 @@ function Dashboard() {
   // Cross-panel shared state
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [toolFilter, setToolFilter] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const { metrics, events, subagentMeta, loading: metricsLoading } = useSessionMetrics(
     selected?.projectHash ?? null,
@@ -41,6 +42,8 @@ function Dashboard() {
 
   return (
     <Layout
+      sidebarCollapsed={sidebarCollapsed}
+      onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
       topBar={
         <TopBar
           usage={usage}

@@ -6,6 +6,8 @@ interface LayoutProps {
   center: ReactNode;
   topRight: ReactNode;
   bottomRight: ReactNode;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export function Layout({
@@ -14,13 +16,17 @@ export function Layout({
   center,
   topRight,
   bottomRight,
+  sidebarCollapsed = false,
+  onToggleSidebar,
 }: LayoutProps) {
+  const sidebarWidth = sidebarCollapsed ? "48px" : "280px";
+
   return (
     <div
       className="app"
       style={{
         display: "grid",
-        gridTemplateColumns: "280px 1fr 1fr",
+        gridTemplateColumns: `${sidebarWidth} 1fr 1fr`,
         gridTemplateRows: "auto 1fr 1fr",
         gridTemplateAreas: `
           "topbar topbar topbar"
@@ -30,6 +36,7 @@ export function Layout({
         height: "100vh",
         gap: "1px",
         background: "var(--border)",
+        transition: "grid-template-columns 0.2s ease",
       }}
     >
       <header style={{ gridArea: "topbar" }}>{topBar}</header>
@@ -43,7 +50,48 @@ export function Layout({
           flexDirection: "column",
         }}
       >
-        {sidebar}
+        {/* Collapse toggle */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: sidebarCollapsed ? "center" : "flex-end",
+            padding: "4px",
+            flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={onToggleSidebar}
+            style={{
+              width: 24,
+              height: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "var(--radius-sm)",
+              color: "var(--text-2)",
+              cursor: "pointer",
+              background: "transparent",
+              border: "none",
+              fontSize: "12px",
+              transition: "transform 0.2s",
+              transform: sidebarCollapsed ? "rotate(180deg)" : "none",
+            }}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            &#x25C0;
+          </button>
+        </div>
+        {/* Sidebar content - hidden when collapsed */}
+        <div
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            display: sidebarCollapsed ? "none" : "flex",
+            flexDirection: "column",
+          }}
+        >
+          {sidebar}
+        </div>
       </aside>
 
       <main

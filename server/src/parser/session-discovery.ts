@@ -1,5 +1,5 @@
 import { readdirSync, statSync, existsSync, readFileSync } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, dirname } from "node:path";
 import { homedir } from "node:os";
 import type { SessionInfo, SessionEvent, RepoGroup } from "../types.js";
 import { parseJsonlFile } from "./jsonl-reader.js";
@@ -129,12 +129,50 @@ export function discoverSessions(): SessionInfo[] {
   return sessions;
 }
 
+
+/**
+ * Resolve the git repo root from a working directory.
+ * Handles both normal repos (.git is a directory) and
+ * worktrees (.git is a file pointing to the main repo).
+ */
+function resolveRepoRoot(cwd: string): string {
+  let dir = cwd;
+  const root = "/";
+  while (dir !== root) {
+    const gitPath = join(dir, ".git");
+    if (existsSync(gitPath)) {
+      try {
+        const stat = statSync(gitPath);
+        if (stat.isFile()) {
+          // Worktree: .git file contains "gitdir: /path/to/repo/.git/worktrees/name"
+          const gitFileContent = readFileSync(gitPath, "utf-8").trim();
+          const match = gitFileContent.match(/^gitdir:\s+(.+)$/);
+          if (match) {
+            const gitdir = match[1];
+            const worktreesIdx = gitdir.indexOf("/.git/worktrees/");
+            if (worktreesIdx !== -1) {
+              return gitdir.substring(0, worktreesIdx);
+            }
+          }
+        }
+      } catch {
+        // Fall through to return dir as-is
+      }
+      return dir;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return cwd; // Fallback: couldn't find .git
+}
+
 export function discoverRepoGroups(): RepoGroup[] {
   const sessions = discoverSessions();
   const repoMap = new Map<string, SessionInfo[]>();
 
   for (const session of sessions) {
-    const key = session.cwd || session.projectHash;
+    const key = session.cwd ? resolveRepoRoot(session.cwd) : session.projectHash;
     if (!repoMap.has(key)) {
       repoMap.set(key, []);
     }

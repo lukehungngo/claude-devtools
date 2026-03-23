@@ -216,6 +216,7 @@ export interface TurnTokens {
 
 export interface RepoGroup {
   cwd: string;
+  repoRoot?: string;
   repoName: string;
   gitBranch?: string;
   sessions: SessionInfo[];
