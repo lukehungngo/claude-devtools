@@ -17,7 +17,7 @@ export function ResponseBlock({ text }: ResponseBlockProps) {
   return (
     <div
       style={{
-        color: "var(--text-1)",
+        color: "var(--text-0)",
         fontFamily: "var(--font)",
         fontSize: "12px",
         lineHeight: 1.6,

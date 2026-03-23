@@ -23,7 +23,7 @@ function Dashboard() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [toolFilter, setToolFilter] = useState<string | null>(null);
 
-  const { metrics, events, loading: metricsLoading } = useSessionMetrics(
+  const { metrics, events, subagentMeta, loading: metricsLoading } = useSessionMetrics(
     selected?.projectHash ?? null,
     selected?.sessionId ?? null
   );
@@ -152,6 +152,7 @@ function Dashboard() {
         <AgentLogs
           events={allEvents}
           agents={agents}
+          subagentMeta={subagentMeta}
           selectedAgent={selectedAgent}
           toolFilter={toolFilter}
           onSelectAgent={setSelectedAgent}

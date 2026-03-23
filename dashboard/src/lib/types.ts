@@ -119,9 +119,12 @@ export interface TokenUsage {
 
 // === API Response Types ===
 
+export type SubagentMeta = Record<string, { agentType: string; description: string }>;
+
 export interface SessionDetailResponse {
   metrics: SessionMetrics;
   events: SessionEvent[];
+  subagentMeta?: SubagentMeta;
 }
 
 export interface SessionInfo {

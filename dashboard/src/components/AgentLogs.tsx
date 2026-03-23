@@ -4,6 +4,7 @@ import type {
   SessionEvent,
   AssistantEvent,
   ContentItem,
+  SubagentMeta,
 } from "../lib/types";
 import { normalizeContent } from "../lib/normalizeContent";
 
@@ -140,10 +141,15 @@ function getActionBadgeStyle(toolName: string | null): {
 
 function resolveAgentType(
   agentId: string | undefined,
-  agentMap: Map<string, AgentNode>
+  agentMap: Map<string, AgentNode>,
+  subagentMeta?: SubagentMeta
 ): string {
   if (!agentId) return "main";
-  return agentMap.get(agentId)?.type || "main";
+  const fromDag = agentMap.get(agentId)?.type;
+  if (fromDag) return fromDag;
+  const fromMeta = subagentMeta?.[agentId]?.agentType;
+  if (fromMeta) return fromMeta;
+  return "main";
 }
 
 function extractToolInfo(
@@ -191,14 +197,15 @@ function extractToolInfo(
 
 export function eventsToLogEntries(
   events: SessionEvent[],
-  agents: AgentNode[]
+  agents: AgentNode[],
+  subagentMeta?: SubagentMeta
 ): LogEntry[] {
   const agentMap = new Map(agents.map((a) => [a.id, a]));
   const entries: LogEntry[] = [];
 
   for (const event of events) {
     const agentId = event.agentId || "main";
-    const agentType = resolveAgentType(event.agentId, agentMap);
+    const agentType = resolveAgentType(event.agentId, agentMap, subagentMeta);
 
     if (event.type === "assistant") {
       const assistantEvent = event as AssistantEvent;
@@ -335,6 +342,7 @@ function highlightMessage(msg: string): React.ReactNode {
 interface Props {
   events: SessionEvent[];
   agents: AgentNode[];
+  subagentMeta?: SubagentMeta;
   selectedAgent: string | null;
   toolFilter: string | null;
   onSelectAgent: (id: string) => void;
@@ -343,6 +351,7 @@ interface Props {
 export function AgentLogs({
   events,
   agents,
+  subagentMeta,
   selectedAgent,
   toolFilter,
   onSelectAgent,
@@ -353,8 +362,8 @@ export function AgentLogs({
 
   // Transform events to log entries
   const allEntries = useMemo(
-    () => eventsToLogEntries(events, agents),
-    [events, agents]
+    () => eventsToLogEntries(events, agents, subagentMeta),
+    [events, agents, subagentMeta]
   );
 
   // Apply filters

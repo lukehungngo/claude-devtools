@@ -62,11 +62,22 @@ function renderEditDiff(lines: string[]) {
   });
 }
 
-/** Tools that default to expanded output (write-like or exec-like) */
-const EXPAND_BY_DEFAULT = new Set(["Write", "Edit", "Bash"]);
+/** Build a short args summary for the collapsed tool line */
+function summarizeArgs(toolUse: ToolUseContent): string {
+  const filePath = extractFilePath(toolUse);
+  if (filePath) return filePath;
+  const command = extractCommand(toolUse);
+  if (command) return command.length > 60 ? command.slice(0, 60) + "..." : command;
+  const input = toolUse.input || {};
+  const keys = Object.keys(input);
+  if (keys.length === 0) return "";
+  const first = input[keys[0]];
+  const s = typeof first === "string" ? first : JSON.stringify(first);
+  return s.length > 60 ? s.slice(0, 60) + "..." : s;
+}
 
 export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
-  const [expanded, setExpanded] = useState(() => EXPAND_BY_DEFAULT.has(toolUse.name || ""));
+  const [expanded, setExpanded] = useState(false);
   const filePath = extractFilePath(toolUse);
   const command = extractCommand(toolUse);
   const { lines, hasError } = formatToolOutput(toolUse, toolResult);
@@ -75,11 +86,65 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
   const isEdit = toolName === "Edit";
   const isBash = toolName === "Bash";
 
+  // Collapsed summary line
+  const firstOutputLine = hasOutput ? lines.find((l) => l.trim() !== "") || "" : "";
+  const outputLineCount = lines.filter((l) => l.trim() !== "").length;
+  const argsSummary = summarizeArgs(toolUse);
+
+  if (!expanded) {
+    return (
+      <div
+        style={{
+          margin: "4px 0",
+          paddingLeft: "8px",
+          cursor: "pointer",
+          transition: "opacity 0.15s ease",
+        }}
+        onClick={() => setExpanded(true)}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: "6px",
+            fontSize: "11px",
+            color: "var(--text-1)",
+            fontFamily: "var(--font)",
+            lineHeight: 1.6,
+          }}
+        >
+          <span style={{ color: "var(--cyan)", userSelect: "none" }}>{"\u23FA"}</span>
+          <span style={{ color: "var(--orange)", fontWeight: 600 }}>{toolName}</span>
+          {argsSummary && (
+            <span style={{ color: "var(--text-2)", fontSize: "10px" }}>
+              ({argsSummary.length > 40 ? argsSummary.slice(0, 40) + "..." : argsSummary})
+            </span>
+          )}
+          {hasOutput && (
+            <>
+              <span style={{ color: "var(--text-2)", userSelect: "none" }}>{"\u23BF"}</span>
+              <span style={{ color: "var(--text-2)", fontSize: "10px" }}>
+                {firstOutputLine.trim().length > 50
+                  ? firstOutputLine.trim().slice(0, 50) + "..."
+                  : firstOutputLine.trim()}
+                {outputLineCount > 1 && ` +${outputLineCount - 1} lines`}
+              </span>
+            </>
+          )}
+          {hasError && (
+            <span style={{ color: "var(--red)", fontSize: "10px" }}>error</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       margin: "4px 0",
       borderLeft: `2px solid var(--cyan)`,
       paddingLeft: "8px",
+      transition: "opacity 0.15s ease",
     }}>
       {/* Tool header line */}
       <div
@@ -88,12 +153,12 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
           alignItems: "center",
           gap: "6px",
           fontSize: "11px",
-          color: "var(--cyan)",
+          color: "var(--text-1)",
           cursor: hasOutput ? "pointer" : "default",
         }}
         onClick={() => hasOutput && setExpanded(!expanded)}
       >
-        <span style={{ userSelect: "none" }}>{"\u26A1"}</span>
+        <span style={{ color: "var(--cyan)", userSelect: "none" }}>{"\u26A1"}</span>
         <span style={{ color: "var(--orange)", fontWeight: 600 }}>
           {toolName}
         </span>
@@ -101,7 +166,6 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
           <span
             onClick={(e) => {
               e.stopPropagation();
-              // TODO: Phase 5+ would open in editor
             }}
             style={{
               display: "inline-flex",

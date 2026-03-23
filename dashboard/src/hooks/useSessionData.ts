@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { SessionInfo, SessionMetrics, SessionEvent } from "../lib/types";
+import type { SessionInfo, SessionMetrics, SessionEvent, SubagentMeta } from "../lib/types";
 
 export function useSessions() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -24,12 +24,14 @@ export function useSessionMetrics(
 ) {
   const [metrics, setMetrics] = useState<SessionMetrics | null>(null);
   const [events, setEvents] = useState<SessionEvent[]>([]);
+  const [subagentMeta, setSubagentMeta] = useState<SubagentMeta>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!projectHash || !sessionId) {
       setMetrics(null);
       setEvents([]);
+      setSubagentMeta({});
       return;
     }
     setLoading(true);
@@ -39,14 +41,16 @@ export function useSessionMetrics(
       .then((data) => {
         setMetrics(data.metrics || null);
         setEvents(data.events || []);
+        setSubagentMeta(data.subagentMeta || {});
         setLoading(false);
       })
       .catch(() => {
         setMetrics(null);
         setEvents([]);
+        setSubagentMeta({});
         setLoading(false);
       });
   }, [projectHash, sessionId]);
 
-  return { metrics, events, loading };
+  return { metrics, events, subagentMeta, loading };
 }

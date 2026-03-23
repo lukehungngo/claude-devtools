@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 interface CommandDispatchProps {
   sessionCwd?: string;
@@ -9,16 +9,29 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
   const [running, setRunning] = useState(false);
   const [planMode, setPlanMode] = useState(false);
   const [output, setOutput] = useState<string[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [lastSentPrompt, setLastSentPrompt] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  // Auto-resize textarea to fit content
+  const adjustHeight = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, []);
+
+  useEffect(() => {
+    adjustHeight();
+  }, [prompt, adjustHeight]);
+
+  async function submitPrompt() {
     if (!prompt.trim() || running) return;
 
     const currentPrompt = prompt;
     setPrompt("");
+    setLastSentPrompt(currentPrompt);
     setOutput([]);
     setRunning(true);
 
@@ -75,7 +88,14 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
     } finally {
       abortRef.current = null;
       setRunning(false);
-      inputRef.current?.focus();
+      textareaRef.current?.focus();
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submitPrompt();
     }
   }
 
@@ -84,7 +104,77 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        flexShrink: 0,
+        margin: "8px 12px",
+        borderRadius: "8px",
+        border: "1px solid var(--border)",
+        background: "var(--bg-2)",
+        overflow: "hidden",
+      }}
+    >
+      {/* Sent prompt display */}
+      {lastSentPrompt && (
+        <div
+          style={{
+            padding: "8px 16px",
+            fontFamily: "var(--font)",
+            fontSize: "12px",
+            lineHeight: 1.5,
+            color: "var(--text-1)",
+            borderBottom:
+              output.length > 0 || running
+                ? "1px solid var(--border)"
+                : "none",
+            display: "flex",
+            gap: "8px",
+            alignItems: "flex-start",
+          }}
+        >
+          <span
+            style={{
+              color: "var(--accent)",
+              fontWeight: 700,
+              flexShrink: 0,
+              lineHeight: 1.5,
+            }}
+          >
+            {"\u276F"}
+          </span>
+          <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {lastSentPrompt}
+          </span>
+          {running && (
+            <span
+              style={{
+                flexShrink: 0,
+                marginLeft: "auto",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "10px",
+                color: "var(--accent)",
+                fontWeight: 600,
+              }}
+            >
+              <span
+                style={{
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  background: "var(--accent)",
+                  animation: "pulse 1.2s ease-in-out infinite",
+                }}
+              />
+              Running
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Output area */}
       {output.length > 0 && (
         <div
@@ -94,7 +184,6 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
             overflowY: "auto",
             padding: "8px 16px",
             background: "var(--bg-3)",
-            borderTop: "1px solid var(--border)",
             fontFamily: "var(--font)",
             fontSize: "11px",
             lineHeight: 1.6,
@@ -109,49 +198,59 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
         </div>
       )}
 
-      {/* Input form */}
-      <form
-        onSubmit={handleSubmit}
+      {/* Textarea input */}
+      <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-end",
           gap: "8px",
-          padding: "10px 16px",
-          borderTop: "1px solid var(--border)",
-          background: "var(--bg-2)",
-          flexShrink: 0,
+          padding: "10px 12px",
+          borderTop:
+            output.length > 0 || lastSentPrompt
+              ? "1px solid var(--border)"
+              : "none",
         }}
       >
-        <span
-          style={{
-            color: "var(--accent)",
-            fontFamily: "var(--font)",
-            fontSize: "13px",
-            fontWeight: 700,
-            userSelect: "none",
-          }}
-        >
-          {"\u276F"}
-        </span>
-        <input
-          ref={inputRef}
-          type="text"
+        <textarea
+          ref={textareaRef}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Send a prompt to Claude Code..."
           disabled={running}
+          rows={1}
           style={{
             flex: 1,
-            background: "transparent",
-            border: "none",
+            minHeight: "44px",
+            maxHeight: "200px",
+            resize: "none",
+            background: "var(--bg-3)",
+            border: "1px solid var(--border)",
+            borderRadius: "8px",
             outline: "none",
             color: "var(--text-0)",
             fontFamily: "var(--font)",
             fontSize: "12px",
+            lineHeight: 1.5,
+            padding: "12px 16px",
             caretColor: "var(--accent)",
+            transition: "border-color 0.15s",
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = "var(--accent)";
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = "var(--border)";
           }}
         />
-        <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "4px",
+            alignItems: "center",
+            paddingBottom: "4px",
+          }}
+        >
           <button
             type="button"
             onClick={() => setPlanMode(!planMode)}
@@ -188,21 +287,16 @@ export function CommandDispatch({ sessionCwd }: CommandDispatchProps) {
               {"\u25A0"} Stop
             </button>
           )}
-          <kbd
-            style={{
-              padding: "2px 6px",
-              borderRadius: "3px",
-              background: "var(--bg-3)",
-              border: "1px solid var(--border)",
-              color: "var(--text-2)",
-              fontSize: "10px",
-              fontFamily: "var(--font)",
-            }}
-          >
-            {"\u21B5"}
-          </kbd>
         </div>
-      </form>
+      </div>
+
+      {/* Pulse animation */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+      `}</style>
     </div>
   );
 }
