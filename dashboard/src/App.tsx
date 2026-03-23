@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Layout } from "./components/Layout";
 import { RepoList } from "./components/RepoList";
 import { TopBar } from "./components/TopBar";
@@ -8,12 +8,14 @@ import { groupEventsIntoTurns } from "./lib/turnSnapshot";
 import { useRepos } from "./hooks/useRepos";
 import { useSessionMetrics } from "./hooks/useSessionData";
 import { useEventStream } from "./hooks/useEventStream";
+import { useNewSessionListener } from "./hooks/useNewSessionListener";
 import { useUsage } from "./hooks/useUsage";
 import { useCosts } from "./hooks/useCosts";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
 function Dashboard() {
-  const { repos, loading: reposLoading } = useRepos();
+  const { repos, loading: reposLoading, refresh: refreshRepos } = useRepos();
+  useNewSessionListener(refreshRepos);
   const [selected, setSelected] = useState<{
     projectHash: string;
     sessionId: string;
@@ -25,14 +27,33 @@ function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [highlightedTurnIndex, setHighlightedTurnIndex] = useState<number | undefined>(undefined);
   const [requestedRightTab, setRequestedRightTab] = useState<"graph" | "log" | undefined>(undefined);
+  // Middle→right sync: turn clicked in ConversationView drives RightPanel snapshot
+  const [selectedTurnIndex, setSelectedTurnIndex] = useState<number | null>(null);
 
-  const { metrics, events, subagentMeta, loading: metricsLoading } = useSessionMetrics(
+  const { metrics, events, subagentMeta, loading: metricsLoading, refresh: refreshMetrics } = useSessionMetrics(
     selected?.projectHash ?? null,
     selected?.sessionId ?? null
   );
   const { liveEvents, isLive } = useEventStream(
     metrics?.session?.path ?? null
   );
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (liveEvents.length === 0) return;
+    if (debounceRef.current !== null) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      refreshMetrics();
+      debounceRef.current = null;
+    }, 500);
+    return () => {
+      if (debounceRef.current !== null) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+    };
+  }, [liveEvents.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const allEvents = useMemo(
     () => [...events, ...liveEvents],
     [events, liveEvents]
@@ -99,6 +120,7 @@ function Dashboard() {
               setSelectedAgent(agentId);
               setRequestedRightTab("log");
             }}
+            onTurnClick={setSelectedTurnIndex}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-dt-red">
@@ -127,6 +149,7 @@ function Dashboard() {
             onSelectAgent={setSelectedAgent}
             onSnapshotSelect={setHighlightedTurnIndex}
             requestedTab={requestedRightTab}
+            externalActiveIndex={selectedTurnIndex}
           />
         ) : null
       }

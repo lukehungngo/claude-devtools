@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { SessionInfo, SessionMetrics, SessionEvent, SubagentMeta } from "../lib/types";
 
 export function useSessions() {
@@ -26,6 +26,7 @@ export function useSessionMetrics(
   const [events, setEvents] = useState<SessionEvent[]>([]);
   const [subagentMeta, setSubagentMeta] = useState<SubagentMeta>({});
   const [loading, setLoading] = useState(false);
+  const [refreshCount, setRefreshCount] = useState(0);
 
   useEffect(() => {
     if (!projectHash || !sessionId) {
@@ -50,7 +51,13 @@ export function useSessionMetrics(
         setSubagentMeta({});
         setLoading(false);
       });
+  }, [projectHash, sessionId, refreshCount]);
+
+  const refresh = useCallback(() => {
+    if (projectHash && sessionId) {
+      setRefreshCount((c) => c + 1);
+    }
   }, [projectHash, sessionId]);
 
-  return { metrics, events, subagentMeta, loading };
+  return { metrics, events, subagentMeta, loading, refresh };
 }

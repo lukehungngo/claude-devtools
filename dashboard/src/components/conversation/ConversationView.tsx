@@ -13,6 +13,7 @@ interface ConversationViewProps {
   sessionId?: string;
   highlightedTurnIndex?: number;
   onAgentPillClick?: (agentId: string) => void;
+  onTurnClick?: (turnIndex: number) => void;
 }
 
 export function ConversationView({
@@ -23,6 +24,7 @@ export function ConversationView({
   sessionId,
   highlightedTurnIndex,
   onAgentPillClick,
+  onTurnClick,
 }: ConversationViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -193,14 +195,18 @@ export function ConversationView({
             No events to display
           </div>
         ) : (
-          filteredTurns.map((turn) => (
-            <TurnCard
-              key={turn.turnNumber}
-              turn={turn}
-              isHighlighted={highlightedTurnIndex === turns.indexOf(turn)}
-              onAgentPillClick={onAgentPillClick}
-            />
-          ))
+          filteredTurns.map((turn) => {
+            const unfilteredIndex = turns.indexOf(turn);
+            return (
+              <TurnCard
+                key={turn.turnNumber}
+                turn={turn}
+                isHighlighted={highlightedTurnIndex === unfilteredIndex}
+                onAgentPillClick={onAgentPillClick}
+                onTurnClick={onTurnClick ? () => onTurnClick(unfilteredIndex) : undefined}
+              />
+            );
+          })
         )}
       </div>
 

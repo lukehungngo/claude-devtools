@@ -17,6 +17,7 @@ interface TurnCardProps {
   turn: TurnSnapshot;
   isHighlighted?: boolean;
   onAgentPillClick?: (agentId: string) => void;
+  onTurnClick?: () => void;
 }
 
 // ─── Content renderers ───────────────────────────────────────────────
@@ -42,6 +43,7 @@ export function TurnCard({
   turn,
   isHighlighted = false,
   onAgentPillClick,
+  onTurnClick,
 }: TurnCardProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
@@ -54,10 +56,11 @@ export function TurnCard({
       className={`conv-turn ${collapsed ? "collapsed" : ""} ${isHighlighted ? "highlighted" : ""} rounded-dt border border-dt-border mb-2 overflow-hidden transition-colors ${
         isHighlighted ? "bg-dt-accent-dim" : "bg-dt-bg2"
       }`}
+      onClick={onTurnClick}
     >
       {/* Header */}
       <div
-        onClick={() => setCollapsed(!collapsed)}
+        onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}
         className="flex items-center gap-2.5 px-4 py-3 cursor-pointer select-none"
       >
         {/* Expand icon */}

@@ -214,7 +214,7 @@ export function setupRoutes(state?: ServerState): Router {
 
     try {
       const { query } = await import("@anthropic-ai/claude-agent-sdk");
-      
+
       const responseStream = query({
         prompt,
         options: {
@@ -222,6 +222,10 @@ export function setupRoutes(state?: ServerState): Router {
           cwd: cwd || process.cwd(),
           resume: sessionId,
           forkSession: false,
+          // Required for real-time streaming: without this flag, the SDK does not
+          // emit stream_event (SDKPartialAssistantMessage) messages, so the client
+          // receives no output until the turn completes.
+          includePartialMessages: true,
           canUseTool: async (toolName, input) => {
             const permission = addPermissionRequest({
               sessionId: sessionId || "unknown",
@@ -234,7 +238,7 @@ export function setupRoutes(state?: ServerState): Router {
               broadcast(state, { type: "permission-request", permission });
             }
 
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
               const check = setInterval(() => {
                 const status = getPermissionStatus(permission.id);
                 if (status?.status === "approved") {
@@ -245,6 +249,12 @@ export function setupRoutes(state?: ServerState): Router {
                   resolve({ behavior: "deny", message: "User denied permission" });
                 }
               }, 500);
+
+              // Clean up interval if request is aborted to avoid memory leak
+              controller.signal.addEventListener("abort", () => {
+                clearInterval(check);
+                reject(new Error("Aborted"));
+              }, { once: true });
             });
           }
         }
@@ -252,18 +262,36 @@ export function setupRoutes(state?: ServerState): Router {
 
       for await (const message of responseStream) {
         if (message.type === "stream_event") {
-          const event = message.event as any;
-          if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+          // SDKPartialAssistantMessage: real-time streaming text deltas
+          // Only emitted when includePartialMessages: true is set.
+          const event = message.event as { type: string; delta?: { type: string; text?: string } };
+          if (event.type === "content_block_delta" && event.delta?.type === "text_delta" && event.delta.text) {
             res.write(
               `data: ${JSON.stringify({ type: "stdout", text: event.delta.text })}\n\n`
             );
           }
         } else if (message.type === "assistant") {
-          // Turn completed
-        } else if (message.type === "error" as any) {
-          res.write(
-            `data: ${JSON.stringify({ type: "error", message: (message as any).error?.message || "Unknown error" })}\n\n`
-          );
+          // SDKAssistantMessage: emitted at end of each turn with full response.
+          // Extract text blocks as fallback (covers non-streaming or resumed sessions).
+          const content = message.message.content;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (block.type === "text" && block.text) {
+                res.write(
+                  `data: ${JSON.stringify({ type: "stdout", text: block.text })}\n\n`
+                );
+              }
+            }
+          }
+        } else if (message.type === "result") {
+          // SDKResultMessage: emitted at end of query with final cost/usage info.
+          // Surface any execution errors from is_error flag or error subtypes.
+          if (message.is_error) {
+            const errMsg = "subtype" in message ? String(message.subtype) : "Execution error";
+            res.write(
+              `data: ${JSON.stringify({ type: "error", message: errMsg })}\n\n`
+            );
+          }
         }
       }
 
@@ -291,6 +319,13 @@ export function setupRoutes(state?: ServerState): Router {
 
       // Security: basic path validation - must be absolute and no traversal
       if (!filePath.startsWith("/") || filePath.includes("..")) {
+        res.status(400).json({ error: "Invalid file path" });
+        return;
+      }
+
+      // Security: reject shell metacharacters to prevent injection via execSync
+      // Allow only [a-zA-Z0-9_\-.\/] — no quotes, semicolons, backticks, etc.
+      if (/[^a-zA-Z0-9_\-./]/.test(filePath)) {
         res.status(400).json({ error: "Invalid file path" });
         return;
       }

@@ -1,6 +1,11 @@
+import { useRef, useEffect } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { formatCost } from "../../lib/cost";
 import { formatTimeShort } from "../../lib/formatTime";
+
+/** Exported for overflow regression tests (TASK-005) */
+export const SNAPSHOT_TABS_ROOT_CLASS =
+  "snapshot-tabs flex-1 min-w-0 overflow-x-auto border-b border-dt-border bg-dt-bg2 [scrollbar-width:none] dt-scrollbar";
 
 interface SnapshotTabsProps {
   turns: TurnSnapshot[];
@@ -18,11 +23,20 @@ export function SnapshotTabs({
   onClose,
 }: SnapshotTabsProps) {
   const openTurns = turns.filter((_, i) => openIndices.has(i));
+  const tabRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+
+  // Scroll active tab into view when activeIndex changes
+  useEffect(() => {
+    const el = tabRefs.current.get(activeIndex);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    }
+  }, [activeIndex]);
 
   if (openTurns.length === 0) return null;
 
   return (
-    <div className="snapshot-tabs flex overflow-x-auto border-b border-dt-border bg-dt-bg2 shrink-0 [scrollbar-width:none] dt-scrollbar">
+    <div className={SNAPSHOT_TABS_ROOT_CLASS}>
       {openTurns.map((turn) => {
         const realIndex = turns.indexOf(turn);
         const isActive = realIndex === activeIndex;
@@ -32,6 +46,13 @@ export function SnapshotTabs({
         return (
           <button
             key={turn.turnNumber}
+            ref={(el) => {
+              if (el) {
+                tabRefs.current.set(realIndex, el);
+              } else {
+                tabRefs.current.delete(realIndex);
+              }
+            }}
             onClick={() => onSelect(realIndex)}
             className={`flex items-center gap-1 pl-2.5 pr-2 py-1.5 text-md font-semibold font-mono border-none cursor-pointer whitespace-nowrap transition-all shrink-0 border-b-2 ${
               isActive
