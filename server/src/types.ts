@@ -175,6 +175,13 @@ export interface ToolCallStat {
   mcpServer?: string;
 }
 
+export interface RepoConfig {
+  hooks: number;
+  rules: number;
+  agents: number;
+  claudeMdFiles: number;
+}
+
 export interface SessionMetrics {
   session: SessionInfo;
   dag: AgentDAG;
@@ -192,6 +199,7 @@ export interface SessionMetrics {
   contextWindowSize: number;
   tasks: TaskSummary;
   hasRemoteControl: boolean;
+  repoConfig?: RepoConfig;
 }
 
 export interface TaskSummary {

@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import type {
   SessionEvent,
   SessionMetrics,
@@ -5,6 +7,7 @@ import type {
   AggregatedTokens,
   TurnTokens,
   TaskSummary,
+  RepoConfig,
 } from "../types.js";
 import { buildAgentDAG } from "./dag-builder.js";
 import { buildToolStats } from "./tool-stats.js";
@@ -120,6 +123,46 @@ function detectRemoteControl(events: SessionEvent[]): boolean {
     }
   }
   return false;
+}
+
+function countDir(dirPath: string): number {
+  try {
+    return fs.readdirSync(dirPath).length;
+  } catch {
+    return 0;
+  }
+}
+
+function countSubdirs(dirPath: string): number {
+  try {
+    return fs
+      .readdirSync(dirPath, { withFileTypes: true })
+      .filter((d) => d.isDirectory()).length;
+  } catch {
+    return 0;
+  }
+}
+
+function computeRepoConfig(cwd: string | undefined): RepoConfig {
+  if (!cwd) return { hooks: 0, rules: 0, agents: 0, claudeMdFiles: 0 };
+  const claudeDir = path.join(cwd, ".claude");
+  const hooks = countDir(path.join(claudeDir, "hooks"));
+  const rules = countDir(path.join(claudeDir, "rules"));
+  const agents = countSubdirs(path.join(claudeDir, "agents"));
+  // Count CLAUDE.md files: project root + one per agent
+  let claudeMdFiles = 0;
+  if (fs.existsSync(path.join(cwd, "CLAUDE.md"))) claudeMdFiles++;
+  const agentsDir = path.join(claudeDir, "agents");
+  try {
+    for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+      if (entry.isDirectory() && fs.existsSync(path.join(agentsDir, entry.name, "CLAUDE.md"))) {
+        claudeMdFiles++;
+      }
+    }
+  } catch {
+    // agents dir may not exist
+  }
+  return { hooks, rules, agents, claudeMdFiles };
 }
 
 export function computeMetrics(
@@ -243,6 +286,9 @@ export function computeMetrics(
   // Remote control
   const hasRemoteControl = detectRemoteControl(mainEvents);
 
+  // Repo config (hooks, rules, agents, CLAUDE.md files)
+  const repoConfig = computeRepoConfig(sessionInfo.cwd);
+
   return {
     session: sessionInfo,
     dag,
@@ -260,5 +306,6 @@ export function computeMetrics(
     contextWindowSize,
     tasks,
     hasRemoteControl,
+    repoConfig,
   };
 }

@@ -22,7 +22,7 @@ After implementation, dispatch the Reviewer agent with structured context for a 
    - Test results (pass count, new tests)
    - Build status (lint, typecheck, tests)
 
-2. **Dispatch Reviewer** with the package
+2. **Dispatch Reviewer** with the package. Reviewer writes output to `docs/reports/TASK-{id}-review.md`.
 
 3. **Read the verdict:**
    - APPROVED → proceed to finish

@@ -3,6 +3,8 @@ name: ui-ux-designer
 description: Senior UI/UX designer. Produces component specs, interaction flows, wireframes, and accessibility reviews. Never writes production code. Only activated when has_ui is true.
 tools:
   - Read
+  - Write
+  - Edit
   - Glob
   - Grep
   - Bash

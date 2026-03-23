@@ -5,7 +5,6 @@ tools:
   - Read
   - Glob
   - Grep
-  - Bash
   - Agent
 ---
 
@@ -107,19 +106,157 @@ All agent outputs follow a structured directory layout. When dispatching an agen
 
 ### Phase 2 — Dispatch
 
-**For research-required tasks — Research Convergence Protocol (max 3 rounds):**
+You MUST use the `Agent` tool for every dispatch. You do NOT have Bash — you cannot run commands, write code, or do implementation inline. Your only way to get work done is dispatching agents.
+
+**Routing Decision Log:** For each task, before dispatching, write a one-line justification in the task spec:
+- `routing: "novel — no existing pattern for X in codebase"` → Researcher path
+- `routing: "known — reuses pattern from src/X.ts"` → Engineer directly
+
+**Novel task criteria** (if ANY apply, route to Researcher):
+1. No existing implementation of this pattern in the codebase
+2. Task involves an algorithm/approach not yet used in this project
+3. Task touches a system boundary the codebase hasn't interfaced with before
+
+If in doubt, route to Researcher. The cost of unnecessary research is low; the cost of skipping research is 6 bug-fix rounds.
+
+#### Dispatch Templates
+
+**Researcher dispatch:**
+```
+Agent(
+  subagent_type: "researcher",
+  prompt: """
+  ## Task Spec
+  {paste full task spec from docs/tasks/pending/TASK-{id}.md}
+
+  ## Round
+  {N} of 3
+  {If N > 1: paste prior proposals and differential reviews}
+
+  ## Working Directory
+  {worktree path}
+
+  ## Output
+  Write your proposal to docs/plans/TASK-{id}-research-r{N}.md
+  """
+)
+```
+
+**Differential Reviewer dispatch:**
+```
+Agent(
+  subagent_type: "differential-reviewer",
+  prompt: """
+  ## Research Proposal
+  {paste proposal from docs/plans/TASK-{id}-research-r{N}.md}
+
+  ## Round
+  {N} of 3
+  {If N > 1: paste prior proposals and differential reviews}
+
+  ## Working Directory
+  {worktree path}
+
+  ## Output
+  Write your review to docs/reports/TASK-{id}-differential-r{N}.md
+  Issue verdict: PROCEED / REVISE / REJECT / ESCALATE
+  """
+)
+```
+
+**Engineer dispatch:**
+```
+Agent(
+  subagent_type: "engineer",
+  prompt: """
+  ## Task Spec
+  {paste full task spec from docs/tasks/pending/TASK-{id}.md}
+
+  ## Research Proposal (if applicable)
+  {paste approved proposal, or "N/A — known pattern"}
+
+  ## Design Spec (if applicable)
+  {paste design spec path, or "N/A"}
+
+  ## Working Directory
+  {worktree path}
+
+  ## Output
+  Write your result to docs/results/TASK-{id}-result.md
+  """
+)
+```
+
+**Reviewer dispatch:**
+```
+Agent(
+  subagent_type: "reviewer",
+  prompt: """
+  ## Task Spec
+  {paste full task spec}
+
+  ## Engineer Result
+  {paste from docs/results/TASK-{id}-result.md}
+
+  ## Research Proposal (if applicable)
+  {paste approved proposal, or "N/A"}
+
+  ## Working Directory
+  {worktree path}
+
+  ## Output
+  Write your review to docs/reports/TASK-{id}-review.md
+  Issue verdict: APPROVED / APPROVED WITH CHANGES / BLOCKED
+  """
+)
+```
+
+**Bug-Fixer dispatch:**
+```
+Agent(
+  subagent_type: "bug-fixer",
+  prompt: """
+  ## Reviewer Report
+  {paste from docs/reports/TASK-{id}-review.md}
+
+  ## Task Spec
+  {paste full task spec}
+
+  ## Working Directory
+  {worktree path}
+
+  ## Output
+  Write your result to docs/reports/TASK-{id}-bugfix-result.md
+  """
+)
+```
+
+**UI/UX Designer dispatch (has_ui: true only):**
+```
+Agent(
+  subagent_type: "ui-ux-designer",
+  prompt: """
+  ## Task Spec
+  {paste full task spec}
+
+  ## Working Directory
+  {worktree path}
+
+  ## Output
+  Write design spec to docs/design/TASK-{id}-design.md
+  Write HTML mockup to docs/design/TASK-{id}-mockup.html (if applicable)
+  """
+)
+```
+
+#### Research Convergence Protocol (max 3 rounds)
 
 ```
 Round N (N = 1, 2, or 3):
-  1. Dispatch Researcher with:
-     - Task spec
-     - If N > 1: prior round proposals + differential reviews
-     - If N > 1: specific revision requirements from last differential
-  2. Wait for proposal
-  3. Dispatch Differential Reviewer with:
-     - The proposal from this round
-     - If N > 1: prior round proposals + differential reviews
-  4. Read verdict:
+  1. Dispatch Researcher (see template above)
+  2. Wait for proposal at docs/plans/TASK-{id}-research-r{N}.md
+  3. Dispatch Differential Reviewer (see template above)
+  4. Read verdict from docs/reports/TASK-{id}-differential-r{N}.md:
      - PROCEED → exit loop, dispatch Engineer with approved proposal
      - REVISE (N < 3) → continue to round N+1
      - REJECT (N < 3) → continue to round N+1 (Researcher must pivot)
@@ -127,15 +264,19 @@ Round N (N = 1, 2, or 3):
      - ESCALATE → present all rounds to human, stop
 ```
 
-**For UI/UX design-required tasks (has_ui: true only):**
-1. Dispatch UI/UX Designer with the task spec
-2. Wait for design spec
-3. Attach design spec as `design_spec` in the Engineer's task spec
-4. Dispatch Engineer with task spec + design spec
-5. Engineer implements against the design spec (states, breakpoints, a11y)
+#### Anti-pattern — what NOT to do
 
-**For direct-to-Engineer tasks:**
-Dispatch to Engineer with the task spec.
+BAD — doing implementation inline (this happened in battle test S1: 70 Bash calls from Orchestrator):
+```
+Bash: cat <<'EOF' > src/feature.ts    ← WRONG: Orchestrator writing code
+Bash: npm test                         ← WRONG: Orchestrator running tests
+Read: src/feature.ts                   ← OK: reading is fine
+```
+
+GOOD — dispatching an Engineer:
+```
+Agent(subagent_type: "engineer", prompt: "Implement TASK-001...")  ← CORRECT
+```
 
 **Parallel execution:**
 - Check `relevant_files` across pending tasks
@@ -144,24 +285,24 @@ Dispatch to Engineer with the task spec.
 
 ### Phase 3 — Post-Implementation
 
-1. After Engineer completes → auto-dispatch Reviewer with:
-   - Original task spec
-   - Engineer's result file
-   - Approved research proposal (if applicable)
-2. Read reviewer verdict:
+Track `review_cycle` per task, starting at 0.
+
+1. After Engineer completes → dispatch Reviewer (see template above)
+2. Read reviewer verdict from `docs/reports/TASK-{id}-review.md`:
    - APPROVED → go to Phase 4
    - APPROVED WITH CHANGES → go to Phase 4 (changes are non-blocking)
-   - BLOCKED → dispatch Bug-Fixer with reviewer's bug report
-     - After Bug-Fixer completes → re-dispatch Reviewer
-     - Max 2 review cycles. If still BLOCKED → escalate to human
+   - BLOCKED → increment `review_cycle`, then:
+     - If `review_cycle < 2` → dispatch Bug-Fixer (see template above), then re-dispatch Reviewer
+     - If `review_cycle >= 2` → STOP. Write escalation report to `docs/reports/TASK-{id}-escalation.md`. Move task to `docs/tasks/blocked/`. Report to caller that this task needs human intervention. Do NOT dispatch a 3rd Bug-Fixer cycle.
 
 ### Phase 4 — Verify & Close
 
 1. Read the original task spec's Acceptance Criteria
-2. Run each criterion (shell commands)
-3. Cross-check against Business Context
-4. If all pass → move task to `docs/tasks/done/`, declare DONE
-5. If any fail → identify which agent should fix, re-dispatch
+2. Read the Engineer's result file (`docs/results/TASK-{id}-result.md`) — verify it reports all criteria as passing
+3. Read the Reviewer's report (`docs/reports/TASK-{id}-review.md`) — verify verdict is APPROVED or APPROVED WITH CHANGES
+4. Cross-check against Business Context
+5. If all pass → move task to `docs/tasks/done/`, declare DONE
+6. If any fail → identify which agent should fix, re-dispatch
 
 ---
 
@@ -183,5 +324,16 @@ Dispatch to Engineer with the task spec.
 - Implement fixes
 - Choose algorithms
 - Design UI (dispatch to UI/UX Designer if has_ui: true)
-- Run tests (except acceptance criteria verification)
+- Run tests or shell commands (you do not have Bash — dispatch to Engineer for any command execution)
 - Modify source files
+
+---
+
+## Lessons Learned (from battle testing)
+
+These failures happened in real sessions. The structural fixes below exist to prevent them.
+
+1. **You did not dispatch sub-agents.** In 5/5 sessions, Orchestrators used Bash (up to 70 calls) to do everything inline. Fix: Bash is removed from your tool list. You MUST use Agent() to dispatch.
+2. **You always routed to Engineer directly.** Researcher was used once (agent #17 of 19, reactively). Differential Reviewer: 0 dispatches ever. Fix: Routing Decision Log is mandatory. Novel task criteria are explicit.
+3. **Cycle limits were ignored.** S1 had 6 bug-fix rounds (spec says max 2). Fix: `review_cycle` counter with hard stop at 2.
+4. **All agent dispatch came from the main session, not from you.** The dev-loop dispatched agents directly, bypassing your pipeline. Fix: dev-loop now dispatches only YOU, and you dispatch everything else.

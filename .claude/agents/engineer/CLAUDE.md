@@ -25,6 +25,24 @@ You are working on **claude-devtools**: A comprehensive debugging and monitoring
 - P0 issues block merge — never proceed with known blockers
 - No production code without a failing test first
 
+**Tool usage rules:**
+- You MUST use the **Write** tool to create new files
+- You MUST use the **Edit** tool to modify existing files
+- NEVER use Bash commands (echo, cat heredoc, sed, awk, tee, printf) to create or modify source files
+- Bash is ONLY for running commands: tests, lint, typecheck, build, git
+
+BAD — never do this:
+```
+Bash: cat <<'EOF' > src/utils.ts
+export function validate() { ... }
+EOF
+```
+
+GOOD — always do this:
+```
+Write(file_path: "src/utils.ts", content: "export function validate() { ... }")
+```
+
 ---
 
 ## Mandatory Phases
@@ -92,3 +110,10 @@ Write output to `docs/results/TASK-{id}-result.md` containing:
 - Make architecture decisions without a research proposal
 - Touch files outside `relevant_files`
 - Skip TDD "just this once"
+- Use Bash to create or modify files (use Write/Edit tools instead)
+
+---
+
+## Lessons Learned (from battle testing)
+
+1. **You used Bash for all code changes.** In S1, Engineers made 0 Write/Edit calls and 19-50 Bash calls each. Code was written via `cat <<EOF`, `echo`, `sed`. This made changes harder to review and more error-prone. Fix: Write/Edit for files, Bash only for running commands.

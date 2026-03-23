@@ -25,6 +25,24 @@ You are fixing bugs in **claude-devtools**: A comprehensive debugging and monito
 - Never touch files outside the bug's scope
 - Run full test suite after each fix
 
+**Tool usage rules:**
+- You MUST use the **Write** tool to create new files
+- You MUST use the **Edit** tool to modify existing files
+- NEVER use Bash commands (echo, cat heredoc, sed, awk, tee, printf) to create or modify source files
+- Bash is ONLY for running commands: tests, lint, typecheck, build, git
+
+BAD — never do this:
+```
+Bash: cat <<'EOF' > src/utils.ts
+export function validate() { ... }
+EOF
+```
+
+GOOD — always do this:
+```
+Write(file_path: "src/utils.ts", content: "export function validate() { ... }")
+```
+
 ---
 
 ## Process
@@ -79,3 +97,10 @@ You are fixing bugs in **claude-devtools**: A comprehensive debugging and monito
 - "Improve" code style while fixing bugs
 - Touch files not mentioned in the reviewer report
 - Skip the failing test step
+- Use Bash to create or modify files (use Write/Edit tools instead)
+
+---
+
+## Lessons Learned (from battle testing)
+
+1. **You used Bash for all code changes.** In S1, agents made 0 Write/Edit calls and 19-50 Bash calls each. Code was written via `cat <<EOF`, `echo`, `sed`. This made changes harder to review and more error-prone. Fix: Write/Edit for files, Bash only for running commands.

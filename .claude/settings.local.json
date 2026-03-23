@@ -78,7 +78,17 @@
       "Bash(done)",
       "Bash(git checkout:*)",
       "Bash(PLUGIN_DIR=\"/Users/quochung.ngominh/.claude/plugins/cache/luke-plugins/mas/1.1.0\")",
-      "Bash(grep -l \"{{PROJECT_NAME}}\\\\|{{description}}\\\\|{{test-command}}\\\\|{{lint-command}}\\\\|{{your tech stack}}\" .claude/agents/*/CLAUDE.md .claude/skills/*/SKILL.md .claude/skills/*/*.md)"
+      "Bash(grep -l \"{{PROJECT_NAME}}\\\\|{{description}}\\\\|{{test-command}}\\\\|{{lint-command}}\\\\|{{your tech stack}}\" .claude/agents/*/CLAUDE.md .claude/skills/*/SKILL.md .claude/skills/*/*.md)",
+      "Bash(LOCAL_DIR=\"/Users/quochung.ngominh/working/ai/claude-devtools/.claude\" grep -r '{{' \"$LOCAL_DIR\" --include='*.md' --include='*.sh' --include='*.json')",
+      "Bash(pnpm test:*)",
+      "Bash(/Users/quochung.ngominh/working/ai/claude-devtools/.worktrees/feedback-v2/docs/tasks/pending/TASK-002.md:*)",
+      "Bash(/Users/quochung.ngominh/working/ai/claude-devtools/.worktrees/feedback-v2/docs/tasks/pending/TASK-005.md:*)",
+      "Bash(/Users/quochung.ngominh/working/ai/claude-devtools/.worktrees/feedback-v2/docs/tasks/pending/TASK-006.md:*)",
+      "Bash(claude --dangerously-skip-permissions -p \":*)",
+      "Bash(pnpm add:*)",
+      "Bash(node -e \"const r = require\\(''/Users/quochung.ngominh/working/ai/claude-devtools/.worktrees/feedback-v2/dashboard/node_modules/react-dom/test-utils''\\); console.log\\(Object.keys\\(r\\).filter\\(k => k.includes\\(''Hook''\\) || k.includes\\(''hook''\\)\\)\\)\")",
+      "Bash(git stash:*)",
+      "Bash(node -e \":*)"
     ],
     "deny": [
       "Read:.env*",

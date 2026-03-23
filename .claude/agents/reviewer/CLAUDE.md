@@ -56,6 +56,10 @@ You are reviewing code for **claude-devtools**: A comprehensive debugging and mo
 
 ---
 
+## Output Directory
+
+Write all review reports to `docs/reports/TASK-{id}-review.md`.
+
 ## Output Format
 
 Use the template at `.claude/templates/review-report.md`:

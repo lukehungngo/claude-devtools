@@ -230,6 +230,34 @@ export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
               value={`${mcpCount}`}
               valueColor="var(--cyan)"
             />
+            {metrics.repoConfig && (
+              <>
+                <TbSep />
+                <TbStat
+                  label="Hooks"
+                  value={`${metrics.repoConfig.hooks}`}
+                  valueColor="var(--yellow)"
+                />
+                <TbSep />
+                <TbStat
+                  label="Rules"
+                  value={`${metrics.repoConfig.rules}`}
+                  valueColor="var(--purple)"
+                />
+                <TbSep />
+                <TbStat
+                  label="Agents"
+                  value={`${metrics.repoConfig.agents}`}
+                  valueColor="var(--accent)"
+                />
+                <TbSep />
+                <TbStat
+                  label="CLAUDE.md"
+                  value={`${metrics.repoConfig.claudeMdFiles}`}
+                  valueColor="var(--green)"
+                />
+              </>
+            )}
             {metrics.tasks.total > 0 && (
               <>
                 <TbSep />
