@@ -4,8 +4,7 @@ interface LayoutProps {
   topBar: ReactNode;
   sidebar: ReactNode;
   center: ReactNode;
-  topRight: ReactNode;
-  bottomRight: ReactNode;
+  rightPanel: ReactNode;
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
 }
@@ -14,24 +13,22 @@ export function Layout({
   topBar,
   sidebar,
   center,
-  topRight,
-  bottomRight,
+  rightPanel,
   sidebarCollapsed = false,
   onToggleSidebar,
 }: LayoutProps) {
-  const sidebarWidth = sidebarCollapsed ? "48px" : "280px";
+  const sidebarWidth = sidebarCollapsed ? "48px" : "260px";
 
   return (
     <div
       className="app"
       style={{
         display: "grid",
-        gridTemplateColumns: `${sidebarWidth} 1fr 1fr`,
-        gridTemplateRows: "auto 1fr 1fr",
+        gridTemplateColumns: `${sidebarWidth} 1fr 520px`,
+        gridTemplateRows: "auto 1fr",
         gridTemplateAreas: `
           "topbar topbar topbar"
-          "sidebar terminal graph"
-          "sidebar terminal agents-log"
+          "sidebar center right-panel"
         `,
         height: "100vh",
         gap: "1px",
@@ -96,7 +93,7 @@ export function Layout({
 
       <main
         style={{
-          gridArea: "terminal",
+          gridArea: "center",
           background: "var(--bg-1)",
           overflow: "hidden",
           display: "flex",
@@ -108,26 +105,14 @@ export function Layout({
 
       <section
         style={{
-          gridArea: "graph",
+          gridArea: "right-panel",
           background: "var(--bg-1)",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
         }}
       >
-        {topRight}
-      </section>
-
-      <section
-        style={{
-          gridArea: "agents-log",
-          background: "var(--bg-1)",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {bottomRight}
+        {rightPanel}
       </section>
     </div>
   );

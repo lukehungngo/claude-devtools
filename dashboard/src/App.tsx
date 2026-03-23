@@ -2,9 +2,9 @@ import { useState, useMemo } from "react";
 import { Layout } from "./components/Layout";
 import { RepoList } from "./components/RepoList";
 import { TopBar } from "./components/TopBar";
-import { AgentFlowDAG } from "./components/AgentFlowDAG";
-import { AgentLogs } from "./components/AgentLogs";
-import { SessionViewer } from "./components/viewer/SessionViewer";
+import { ConversationView } from "./components/conversation/ConversationView";
+import { RightPanel } from "./components/right-panel/RightPanel";
+import { groupEventsIntoTurns } from "./lib/turnSnapshot";
 import { useRepos } from "./hooks/useRepos";
 import { useSessionMetrics } from "./hooks/useSessionData";
 import { useEventStream } from "./hooks/useEventStream";
@@ -23,6 +23,8 @@ function Dashboard() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [toolFilter, setToolFilter] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [highlightedTurnIndex, setHighlightedTurnIndex] = useState<number | undefined>(undefined);
+  const [requestedRightTab, setRequestedRightTab] = useState<"graph" | "log" | undefined>(undefined);
 
   const { metrics, events, subagentMeta, loading: metricsLoading } = useSessionMetrics(
     selected?.projectHash ?? null,
@@ -39,6 +41,7 @@ function Dashboard() {
   const { costs } = useCosts();
 
   const agents = metrics?.dag.nodes || [];
+  const turns = useMemo(() => groupEventsIntoTurns(allEvents, subagentMeta), [allEvents, subagentMeta]);
 
   return (
     <Layout
@@ -50,8 +53,8 @@ function Dashboard() {
           costs={costs}
           metrics={metrics}
           onToolFilter={(tool) => {
-            // Toggle: click same tool again to clear filter
             setToolFilter((prev) => (prev === tool ? null : tool));
+            setRequestedRightTab("log");
           }}
         />
       }
@@ -64,6 +67,7 @@ function Dashboard() {
             setSelected(s);
             setSelectedAgent(null);
             setToolFilter(null);
+            setHighlightedTurnIndex(undefined);
           }}
         />
       }
@@ -102,11 +106,16 @@ function Dashboard() {
             Loading session...
           </div>
         ) : metrics ? (
-          <SessionViewer
+          <ConversationView
             events={allEvents}
             metrics={metrics}
             isLive={isLive}
             sessionCwd={metrics.session.cwd}
+            highlightedTurnIndex={highlightedTurnIndex}
+            onAgentPillClick={(agentId) => {
+              setSelectedAgent(agentId);
+              setRequestedRightTab("log");
+            }}
           />
         ) : (
           <div style={{
@@ -120,7 +129,7 @@ function Dashboard() {
           </div>
         )
       }
-      topRight={
+      rightPanel={
         !selected ? (
           <div style={{
             display: "flex",
@@ -130,7 +139,7 @@ function Dashboard() {
             color: "var(--text-2)",
             fontSize: "12px",
           }}>
-            Agent Graph
+            Agent Panel
           </div>
         ) : metricsLoading ? (
           <div style={{
@@ -144,22 +153,19 @@ function Dashboard() {
             Loading...
           </div>
         ) : metrics ? (
-          <AgentFlowDAG
+          <RightPanel
+            turns={turns}
             dag={metrics.dag}
+            events={allEvents}
+            agents={agents}
+            subagentMeta={subagentMeta}
             selectedAgent={selectedAgent}
+            toolFilter={toolFilter}
             onSelectAgent={setSelectedAgent}
+            onSnapshotSelect={setHighlightedTurnIndex}
+            requestedTab={requestedRightTab}
           />
         ) : null
-      }
-      bottomRight={
-        <AgentLogs
-          events={allEvents}
-          agents={agents}
-          subagentMeta={subagentMeta}
-          selectedAgent={selectedAgent}
-          toolFilter={toolFilter}
-          onSelectAgent={setSelectedAgent}
-        />
       }
     />
   );

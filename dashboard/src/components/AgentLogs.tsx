@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type {
   AgentNode,
   SessionEvent,
@@ -23,25 +24,50 @@ export interface LogEntry {
 interface AggregatedLogEntry extends LogEntry {
   count: number;
 }
+interface InvocationGroup {
+  agentId: string;
+  agentType: string;
+  invocationNumber: number;
+  entries: AggregatedLogEntry[];
+  startTime: string;
+  endTime: string;
+}
 
-type FilterTab =
-  | "All"
-  | "Main"
-  | "Explore"
-  | "Plan"
-  | "General"
-  | "Errors"
-  | "Tools";
 
-const FILTER_TABS: FilterTab[] = [
-  "All",
-  "Main",
-  "Explore",
-  "Plan",
-  "General",
-  "Errors",
-  "Tools",
-];
+type FlatItem =
+  | { kind: "header"; group: InvocationGroup; groupKey: string }
+  | { kind: "entry"; entry: AggregatedLogEntry; groupKey: string };
+function groupByInvocation(entries: AggregatedLogEntry[]): InvocationGroup[] {
+  if (entries.length === 0) return [];
+  const groups: InvocationGroup[] = [];
+  const agentInvocationCounts = new Map<string, number>();
+  let currentGroup: InvocationGroup | null = null;
+
+  for (const entry of entries) {
+    if (!currentGroup || currentGroup.agentId !== entry.agentId) {
+      // Start a new group
+      const count = (agentInvocationCounts.get(entry.agentId) ?? 0) + 1;
+      agentInvocationCounts.set(entry.agentId, count);
+      currentGroup = {
+        agentId: entry.agentId,
+        agentType: entry.agentType,
+        invocationNumber: count,
+        entries: [entry],
+        startTime: entry.timestamp,
+        endTime: entry.timestamp,
+      };
+      groups.push(currentGroup);
+    } else {
+      currentGroup.entries.push(entry);
+      currentGroup.endTime = entry.timestamp;
+    }
+  }
+  return groups;
+}
+
+
+// Fixed tabs that always appear
+const FIXED_TABS = ["All", "Errors"] as const;
 
 // ─── Agent type colors ───────────────────────────────────────────────
 
@@ -346,6 +372,7 @@ interface Props {
   selectedAgent: string | null;
   toolFilter: string | null;
   onSelectAgent: (id: string) => void;
+  onSwitchToGraph?: (agentId: string) => void;
 }
 
 export function AgentLogs({
@@ -355,10 +382,12 @@ export function AgentLogs({
   selectedAgent,
   toolFilter,
   onSelectAgent,
+  onSwitchToGraph,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
+  const [activeFilter, setActiveFilter] = useState<string>("All");
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Transform events to log entries
   const allEntries = useMemo(
@@ -366,30 +395,33 @@ export function AgentLogs({
     [events, agents, subagentMeta]
   );
 
+  // Build dynamic filter tabs from unique agent types
+  const filterTabs = useMemo(() => {
+    const agentTypes = new Set<string>();
+    for (const entry of allEntries) {
+      const label = normalizeAgentTypeLabel(entry.agentType);
+      agentTypes.add(label);
+    }
+    // Fixed tabs first, then dynamic agent tabs
+    const dynamicTabs = Array.from(agentTypes).sort();
+    return ["All", ...dynamicTabs, "Errors"];
+  }, [allEntries]);
+
   // Apply filters
   const filteredEntries = useMemo(() => {
     let result = allEntries;
 
-    // Tab filter
-    if (activeFilter === "Main") {
-      result = result.filter((e) => e.agentType === "main");
-    } else if (activeFilter === "Explore") {
-      result = result.filter((e) => e.agentType === "Explore");
-    } else if (activeFilter === "Plan") {
-      result = result.filter((e) => e.agentType === "Plan");
-    } else if (activeFilter === "General") {
-      result = result.filter(
-        (e) =>
-          e.agentType === "general-purpose" || e.agentType === "General"
-      );
+    if (activeFilter === "All") {
+      // No filter
     } else if (activeFilter === "Errors") {
       result = result.filter((e) => e.isError);
-    } else if (activeFilter === "Tools") {
-      result = result.filter((e) => e.toolName !== null);
+    } else {
+      // Dynamic agent type filter
+      result = result.filter((e) => {
+        const label = normalizeAgentTypeLabel(e.agentType);
+        return label === activeFilter;
+      });
     }
-
-    // Selected agent highlight (from graph click)
-    // We don't filter, we let CSS highlight
 
     // Tool filter from TopBar
     if (toolFilter) {
@@ -408,16 +440,41 @@ export function AgentLogs({
     [filteredEntries]
   );
 
-  // Auto-scroll
-  useEffect(() => {
-    if (autoScroll && scrollRef.current) {
-      requestAnimationFrame(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  // Build invocation groups
+  const invocationGroups = useMemo(
+    () => groupByInvocation(aggregatedEntries),
+    [aggregatedEntries]
+  );
+
+  // Flatten groups into a list of renderable items for virtualization
+  const flatItems: FlatItem[] = useMemo(() => {
+    const items: FlatItem[] = [];
+    for (const group of invocationGroups) {
+      const groupKey = `${group.agentId}-inv${group.invocationNumber}`;
+      items.push({ kind: "header", group, groupKey });
+      if (!collapsedGroups.has(groupKey)) {
+        for (const entry of group.entries) {
+          items.push({ kind: "entry", entry, groupKey });
         }
-      });
+      }
     }
-  }, [aggregatedEntries, autoScroll]);
+    return items;
+  }, [invocationGroups, collapsedGroups]);
+
+  // Virtualizer
+  const virtualizer = useVirtualizer({
+    count: flatItems.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) => flatItems[index]?.kind === "header" ? 28 : 32,
+    overscan: 20,
+  });
+
+  // Auto-scroll using virtualizer
+  useEffect(() => {
+    if (autoScroll && flatItems.length > 0) {
+      virtualizer.scrollToIndex(flatItems.length - 1, { align: "end" });
+    }
+  }, [flatItems.length, autoScroll, virtualizer]);
 
   // Detect scroll position to toggle auto-scroll
   const handleScroll = useCallback(() => {
@@ -509,7 +566,7 @@ export function AgentLogs({
         </div>
       </div>
 
-      {/* Filter bar */}
+      {/* Filter bar — dynamic tabs */}
       <div
         style={{
           display: "flex",
@@ -518,9 +575,11 @@ export function AgentLogs({
           borderBottom: "1px solid var(--border)",
           background: "var(--bg-2)",
           flexShrink: 0,
+          overflowX: "auto",
+          scrollbarWidth: "none",
         }}
       >
-        {FILTER_TABS.map((tab) => {
+        {filterTabs.map((tab) => {
           const isActive = activeFilter === tab;
           return (
             <button
@@ -540,6 +599,8 @@ export function AgentLogs({
                   ? "var(--accent-dim)"
                   : "transparent",
                 fontFamily: "inherit",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
               {tab}
@@ -562,7 +623,7 @@ export function AgentLogs({
         )}
       </div>
 
-      {/* Log entries */}
+      {/* Log entries - virtualized */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -571,6 +632,7 @@ export function AgentLogs({
           overflowY: "auto",
           overflowX: "hidden",
           padding: 0,
+          position: "relative",
         }}
       >
         {aggregatedEntries.length === 0 ? (
@@ -605,138 +667,204 @@ export function AgentLogs({
             </div>
           )
         ) : (
-          (() => {
-            const MAX_VISIBLE = 500;
-            const total = aggregatedEntries.length;
-            const truncated = total > MAX_VISIBLE;
-            const visibleEntries = truncated
-              ? aggregatedEntries.slice(total - MAX_VISIBLE)
-              : aggregatedEntries;
+          <div
+            style={{
+              height: virtualizer.getTotalSize(),
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const item = flatItems[virtualRow.index];
+              if (!item) return null;
 
-            return (
-              <>
-                {truncated && (
+              if (item.kind === "header") {
+                const { group, groupKey } = item;
+                const isCollapsed = collapsedGroups.has(groupKey);
+                const badgeStyle = getAgentBadgeStyle(group.agentType);
+
+                return (
                   <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={virtualizer.measureElement}
                     style={{
-                      padding: "6px 12px",
-                      textAlign: "center",
-                      fontSize: "10px",
-                      color: "var(--text-2)",
-                      borderBottom: "1px solid var(--border)",
-                      background: "var(--bg-2)",
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
                     }}
                   >
-                    Showing last {MAX_VISIBLE} of {total} entries
-                  </div>
-                )}
-                {visibleEntries.map((entry, i) => {
-            const badgeStyle = getAgentBadgeStyle(entry.agentType);
-            const actionStyle = getActionBadgeStyle(entry.toolName);
-            const isHighlighted =
-              selectedAgent && entry.agentId === selectedAgent;
-
-            return (
-              <div
-                key={`${entry.uuid}-${i}`}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "68px 80px 1fr auto",
-                  gap: "8px",
-                  padding: "6px 12px",
-                  fontSize: "11px",
-                  borderBottom: "1px solid var(--border)",
-                  alignItems: "start",
-                  transition: "background 0.1s",
-                  background: isHighlighted ? "var(--bg-2)" : undefined,
-                }}
-              >
-                {/* Time */}
-                <div
-                  style={{
-                    fontFamily: "var(--font)",
-                    color: "var(--text-2)",
-                    fontSize: "10px",
-                  }}
-                >
-                  {formatTime(entry.timestamp)}
-                </div>
-
-                {/* Agent badge */}
-                <div
-                  onClick={() => onSelectAgent(entry.agentId)}
-                  style={{
-                    fontFamily: "var(--font)",
-                    fontSize: "10px",
-                    fontWeight: 600,
-                    padding: "1px 6px",
-                    borderRadius: "3px",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    textAlign: "center",
-                    cursor: "pointer",
-                    background: badgeStyle.background,
-                    color: badgeStyle.color,
-                  }}
-                >
-                  {normalizeAgentTypeLabel(entry.agentType)}
-                </div>
-
-                {/* Message + count badge */}
-                <div
-                  style={{
-                    color: "var(--text-1)",
-                    lineHeight: 1.4,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {highlightMessage(entry.message)}
-                  </span>
-                  {entry.count > 1 && (
-                    <span
+                    <div
+                      onClick={() => {
+                        setCollapsedGroups((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(groupKey)) next.delete(groupKey);
+                          else next.add(groupKey);
+                          return next;
+                        });
+                      }}
                       style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "4px 12px",
+                        fontSize: "10px",
+                        background: "var(--bg-2)",
+                        borderBottom: "1px solid var(--border)",
+                        cursor: "pointer",
+                        userSelect: "none",
+                      }}
+                    >
+                      <span style={{
+                        fontSize: "8px",
+                        color: "var(--text-2)",
+                        transition: "transform 0.15s",
+                        transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                      }}>
+                        {"\u25BC"}
+                      </span>
+                      <span style={{
+                        padding: "1px 6px",
+                        borderRadius: "3px",
+                        fontWeight: 600,
+                        fontSize: "10px",
+                        background: badgeStyle.background,
+                        color: badgeStyle.color,
+                        cursor: "pointer",
+                      }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectAgent(group.agentId);
+                        }}
+                      >
+                        {normalizeAgentTypeLabel(group.agentType)}
+                      </span>
+                      <span style={{ color: "var(--text-2)", fontSize: "9px" }}>
+                        inv #{group.invocationNumber}
+                      </span>
+                      <span style={{ color: "var(--text-2)", fontSize: "9px" }}>
+                        {formatTime(group.startTime)} - {formatTime(group.endTime)}
+                      </span>
+                      <span style={{
                         fontSize: "9px",
                         padding: "1px 5px",
                         borderRadius: "8px",
                         fontWeight: 600,
                         background: "var(--bg-4)",
                         color: "var(--text-2)",
-                        flexShrink: 0,
-                      }}
-                    >
-                      x{entry.count}
-                    </span>
-                  )}
-                </div>
+                      }}>
+                        {group.entries.length}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
 
-                {/* Action badge */}
-                {entry.toolName && (
+              // Entry row
+              const { entry } = item;
+              const actionStyle = getActionBadgeStyle(entry.toolName);
+              const isHighlighted = selectedAgent && entry.agentId === selectedAgent;
+              const badgeStyle = getAgentBadgeStyle(entry.agentType);
+
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
                   <div
                     style={{
-                      fontSize: "9px",
-                      padding: "1px 5px",
-                      borderRadius: "3px",
-                      whiteSpace: "nowrap",
-                      fontWeight: 600,
-                      background: actionStyle.background,
-                      color: actionStyle.color,
+                      display: "grid",
+                      gridTemplateColumns: "68px 80px 1fr auto",
+                      gap: "8px",
+                      padding: "6px 12px",
+                      fontSize: "11px",
+                      borderBottom: "1px solid var(--border)",
+                      alignItems: "start",
+                      transition: "background 0.1s",
+                      background: isHighlighted ? "var(--bg-2)" : undefined,
                     }}
                   >
-                    {actionStyle.label}
+                    <div style={{
+                      fontFamily: "var(--font)",
+                      color: "var(--text-2)",
+                      fontSize: "10px",
+                    }}>
+                      {formatTime(entry.timestamp)}
+                    </div>
+                    <div
+                      onClick={() => onSwitchToGraph?.(entry.agentId)}
+                      style={{
+                        fontFamily: "var(--font)",
+                        fontSize: "10px",
+                        fontWeight: 600,
+                        padding: "1px 6px",
+                        borderRadius: "3px",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        textAlign: "center",
+                        cursor: "pointer",
+                        background: badgeStyle.background,
+                        color: badgeStyle.color,
+                      }}
+                    >
+                      {normalizeAgentTypeLabel(entry.agentType)}
+                    </div>
+                    <div style={{
+                      color: "var(--text-1)",
+                      lineHeight: 1.4,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {highlightMessage(entry.message)}
+                      </span>
+                      {entry.count > 1 && (
+                        <span style={{
+                          fontSize: "9px",
+                          padding: "1px 5px",
+                          borderRadius: "8px",
+                          fontWeight: 600,
+                          background: "var(--bg-4)",
+                          color: "var(--text-2)",
+                          flexShrink: 0,
+                        }}>
+                          x{entry.count}
+                        </span>
+                      )}
+                    </div>
+                    {entry.toolName && (
+                      <div style={{
+                        fontSize: "9px",
+                        padding: "1px 5px",
+                        borderRadius: "3px",
+                        whiteSpace: "nowrap",
+                        fontWeight: 600,
+                        background: actionStyle.background,
+                        color: actionStyle.color,
+                      }}>
+                        {actionStyle.label}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
-              </>
-            );
-          })()
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
