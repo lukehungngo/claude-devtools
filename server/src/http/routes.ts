@@ -208,7 +208,9 @@ export function setupRoutes(state?: ServerState): Router {
     res.flushHeaders();
 
     const controller = new AbortController();
-    req.on("close", () => {
+    // Use res.on("close") — fires when the client disconnects from the SSE stream.
+    // req.on("close") fires when the POST body is fully received (too early — aborts the SDK).
+    res.on("close", () => {
       controller.abort();
     });
 

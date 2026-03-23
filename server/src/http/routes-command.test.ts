@@ -46,6 +46,18 @@ describe("POST /command SDK usage", () => {
     expect(routesSource).toContain("message.message.content");
   });
 
+  it("should use res.on(close) not req.on(close) for abort detection", () => {
+    // req.on("close") fires when the POST body is fully received — too early.
+    // The SSE response is still streaming when req fires close, which immediately
+    // aborts the AbortController and kills the SDK subprocess with "Operation aborted".
+    // res.on("close") fires when the client disconnects from the SSE response stream,
+    // which is the correct signal to abort.
+    expect(routesSource).toContain('res.on("close"');
+    // Must not use req.on("close") as the abort trigger (only allowed in comments)
+    const nonCommentLines = routesSource.split('\n').filter(l => !l.trimStart().startsWith('//'));
+    expect(nonCommentLines.join('\n')).not.toMatch(/req\.on\(["']close["']/);
+  });
+
   it("should handle result message type to detect errors and completion", () => {
     // SDKResultMessage has type:'result' with subtype:'success' or 'error_*'.
     // The code must handle this to surface errors from the SDK result.
