@@ -15,17 +15,18 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
   const [filterMode, setFilterMode] = useState<FilterMode>("active");
 
   const filteredRepos = useMemo(() => {
-    const filtered = filterMode === "all"
-      ? repos
-      : repos
-          .map((repo) => {
-            const filteredSessions = repo.sessions.filter((s) =>
-              filterMode === "active" ? s.isActive : !s.isActive
-            );
-            if (filteredSessions.length === 0) return null;
-            return { ...repo, sessions: filteredSessions };
-          })
-          .filter(Boolean) as RepoGroup[];
+    const filtered =
+      filterMode === "all"
+        ? repos
+        : (repos
+            .map((repo) => {
+              const filteredSessions = repo.sessions.filter((s) =>
+                filterMode === "active" ? s.isActive : !s.isActive,
+              );
+              if (filteredSessions.length === 0) return null;
+              return { ...repo, sessions: filteredSessions };
+            })
+            .filter(Boolean) as RepoGroup[]);
 
     // Sort sessions within each repo: running first, then by lastModified
     return filtered.map((repo) => ({
@@ -33,7 +34,10 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
       sessions: [...repo.sessions].sort((a, b) => {
         if (a.isRunning && !b.isRunning) return -1;
         if (!a.isRunning && b.isRunning) return 1;
-        return new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime();
+        return (
+          new Date(b.lastModified).getTime() -
+          new Date(a.lastModified).getTime()
+        );
       }),
     }));
   }, [repos, filterMode]);
@@ -50,12 +54,8 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
   return (
     <div className="panel sidebar flex flex-col h-full overflow-hidden">
       {/* Panel header */}
-      <div
-        className="panel-header flex items-center justify-between px-3 py-2 border-b border-dt-border shrink-0 bg-dt-bg2"
-      >
-        <div
-          className="panel-title text-base font-semibold uppercase tracking-wide text-dt-text2 flex items-center gap-1.5"
-        >
+      <div className="panel-header flex items-center justify-between px-3 py-2 border-b border-dt-border shrink-0 bg-dt-bg2">
+        <div className="panel-title text-base font-semibold uppercase tracking-wide text-dt-text2 flex items-center gap-1.5">
           Repositories
         </div>
         <div className="panel-actions flex gap-0.5">
@@ -78,9 +78,7 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
       {/* Body */}
       <div className="panel-body flex-1 overflow-y-auto overflow-x-hidden p-0 dt-scrollbar">
         {loading ? (
-          <p className="text-dt-text2 text-sm p-3">
-            Loading...
-          </p>
+          <p className="text-dt-text2 text-sm p-3">Loading...</p>
         ) : filteredRepos.length === 0 ? (
           <p className="text-dt-text2 text-sm p-3">
             {filterMode === "all"
@@ -95,14 +93,12 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
               repo.sessions.some(
                 (s) =>
                   s.projectHash === selected.projectHash &&
-                  s.id === selected.sessionId
+                  s.id === selected.sessionId,
               );
 
             // Collect unique branches across sessions in this repo
             const branches = [
-              ...new Set(
-                repo.sessions.map((s) => s.gitBranch).filter(Boolean)
-              ),
+              ...new Set(repo.sessions.map((s) => s.gitBranch).filter(Boolean)),
             ];
 
             return (
@@ -122,18 +118,12 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
                     }`}
                   />
                   <div className="flex-1 min-w-0">
-                    <div
-                      className="text-md font-semibold text-dt-text0 truncate"
-                    >
+                    <div className="text-md font-semibold text-dt-text0 truncate">
                       {repo.repoName}
                     </div>
-                    <div
-                      className="text-sm text-dt-text2 mt-px flex gap-2"
-                    >
+                    <div className="text-sm text-dt-text2 mt-px flex gap-2">
                       {branches.length === 1 && (
-                        <span className="text-dt-cyan">
-                          {branches[0]}
-                        </span>
+                        <span className="text-dt-cyan">{branches[0]}</span>
                       )}
                       {branches.length > 1 && (
                         <span className="text-dt-cyan">
@@ -197,43 +187,33 @@ function SessionItem({
       onClick={onSelect}
     >
       {session.isRunning && (
-        <span
-          className="text-2xs font-bold px-1 py-px rounded-dt-xs bg-dt-green text-dt-bg1 tracking-[0.5px] shrink-0 animate-pulse-opacity"
-        >
+        <span className="text-xs font-bold px-1 py-px rounded-dt-xs bg-dt-green text-dt-bg1 tracking-[0.5px] shrink-0 animate-pulse-opacity">
           LIVE
         </span>
       )}
       <span
         className={`font-mono text-base ${
-          session.isRunning ? "text-dt-text0 font-semibold" : "text-dt-purple font-normal"
+          session.isRunning
+            ? "text-dt-text0 font-semibold"
+            : "text-dt-purple font-normal"
         }`}
       >
         {displayName}
       </span>
       {session.gitBranch && (
-        <span className="text-xs text-dt-cyan">
-          {session.gitBranch}
-        </span>
+        <span className="text-xs text-dt-cyan">{session.gitBranch}</span>
       )}
       <div className="flex-1 min-w-0">
-        <span
-          className="text-sm text-dt-text2"
-        >
+        <span className="text-sm text-dt-text2">
           {session.eventCount} events
         </span>
       </div>
       {session.subagentCount > 0 && (
-        <span
-          className="text-xs px-1.25 py-px rounded-full bg-dt-bg4 text-dt-text1"
-        >
+        <span className="text-xs px-1.25 py-px rounded-full bg-dt-bg4 text-dt-text1">
           {session.subagentCount}a
         </span>
       )}
-      <span
-        className="text-sm text-dt-text2 shrink-0"
-      >
-        {timeAgo}
-      </span>
+      <span className="text-sm text-dt-text2 shrink-0">{timeAgo}</span>
     </div>
   );
 }

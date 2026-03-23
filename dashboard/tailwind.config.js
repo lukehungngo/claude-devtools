@@ -2,6 +2,18 @@
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
+    fontSize: {
+      "3xs": ["6px",  { lineHeight: "8px" }],
+      "2xs": ["7px",  { lineHeight: "10px" }],
+      xxs:   ["8px",  { lineHeight: "12px" }],
+      xs:    ["9px",  { lineHeight: "12px" }],
+      sm:    ["10px", { lineHeight: "14px" }],
+      base:  ["11px", { lineHeight: "16px" }],
+      md:    ["12px", { lineHeight: "17px" }],
+      lg:    ["13px", { lineHeight: "18px" }],
+      xl:    ["14px", { lineHeight: "20px" }],
+      "2xl": ["15px", { lineHeight: "20px" }],
+    },
     extend: {
       colors: {
         dt: {
@@ -42,18 +54,6 @@ export default {
       fontFamily: {
         mono: "var(--font)",
         sans: "var(--font-sans)",
-      },
-      fontSize: {
-        "3xs": ["6px",  { lineHeight: "8px" }],
-        "2xs": ["7px",  { lineHeight: "10px" }],
-        xxs:   ["8px",  { lineHeight: "12px" }],
-        xs:    ["9px",  { lineHeight: "12px" }],
-        sm:    ["10px", { lineHeight: "14px" }],
-        base:  ["11px", { lineHeight: "16px" }],
-        md:    ["12px", { lineHeight: "17px" }],
-        lg:    ["13px", { lineHeight: "18px" }],
-        xl:    ["14px", { lineHeight: "20px" }],
-        "2xl": ["15px", { lineHeight: "20px" }],
       },
       spacing: {
         "0.75": "2px",

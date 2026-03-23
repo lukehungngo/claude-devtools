@@ -1,6 +1,11 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
-import type { AgentDAG, AgentNode, SessionEvent, SubagentMeta } from "../../lib/types";
+import type {
+  AgentDAG,
+  AgentNode,
+  SessionEvent,
+  SubagentMeta,
+} from "../../lib/types";
 import { PrimaryTabs, type PrimaryTab } from "./PrimaryTabs";
 import { SnapshotTabs } from "./SnapshotTabs";
 import { SnapshotHistory } from "./SnapshotHistory";
@@ -34,7 +39,7 @@ export function RightPanel({
 }: RightPanelProps) {
   const [activePrimaryTab, setActivePrimaryTab] = useState<PrimaryTab>("graph");
   const [activeSnapshotIndex, setActiveSnapshotIndex] = useState<number>(
-    Math.max(0, turns.length - 1)
+    Math.max(0, turns.length - 1),
   );
   const [openSnapshots, setOpenSnapshots] = useState<Set<number>>(() => {
     // Open last 3 turns by default
@@ -68,7 +73,7 @@ export function RightPanel({
       setActiveSnapshotIndex(index);
       onSnapshotSelect?.(index);
     },
-    [onSnapshotSelect]
+    [onSnapshotSelect],
   );
 
   const handleSnapshotClose = useCallback((index: number) => {
@@ -79,11 +84,14 @@ export function RightPanel({
     });
   }, []);
 
-  const handleSnapshotOpen = useCallback((index: number) => {
-    setOpenSnapshots((prev) => new Set([...prev, index]));
-    setActiveSnapshotIndex(index);
-    onSnapshotSelect?.(index);
-  }, [onSnapshotSelect]);
+  const handleSnapshotOpen = useCallback(
+    (index: number) => {
+      setOpenSnapshots((prev) => new Set([...prev, index]));
+      setActiveSnapshotIndex(index);
+      onSnapshotSelect?.(index);
+    },
+    [onSnapshotSelect],
+  );
 
   // Filter events/DAG by active snapshot's turn
   const activeTurn = turns[activeSnapshotIndex];
@@ -101,7 +109,7 @@ export function RightPanel({
     return {
       nodes: dag.nodes.filter((n) => turnAgentIds.has(n.id)),
       edges: dag.edges.filter(
-        (e) => turnAgentIds.has(e.source) && turnAgentIds.has(e.target)
+        (e) => turnAgentIds.has(e.source) && turnAgentIds.has(e.target),
       ),
     };
   }, [dag, activeTurn]);
@@ -114,7 +122,7 @@ export function RightPanel({
       onSelectAgent(agentId);
       setActivePrimaryTab("log");
     },
-    [onSelectAgent]
+    [onSelectAgent],
   );
 
   const handleSwitchToGraph = useCallback(
@@ -122,7 +130,7 @@ export function RightPanel({
       onSelectAgent(agentId);
       setActivePrimaryTab("graph");
     },
-    [onSelectAgent]
+    [onSelectAgent],
   );
 
   return (
@@ -153,15 +161,13 @@ export function RightPanel({
 
       {/* Freeze/live badge */}
       <div
-        className={`flex items-center gap-1.5 px-3 py-1 bg-dt-bg2 border-b border-dt-border text-2xs font-semibold ${
+        className={`flex items-center gap-1.5 px-3 py-1 bg-dt-bg2 border-b border-dt-border text-xs font-semibold ${
           isLiveTurn ? "text-dt-green" : "text-dt-text2"
         }`}
       >
         {isLiveTurn ? (
           <>
-            <span
-              className="w-1.25 h-1.25 rounded-full bg-dt-green animate-pulse-opacity"
-            />
+            <span className="w-1.25 h-1.25 rounded-full bg-dt-green animate-pulse-opacity" />
             Real-Time
           </>
         ) : (

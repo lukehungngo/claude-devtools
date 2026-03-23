@@ -319,7 +319,7 @@ function TbStat({
 function InfoIcon({ tooltip }: { tooltip: string }) {
   return (
     <span
-      className="w-3.5 h-3.5 rounded-full border border-dt-text2 inline-flex items-center justify-center text-2xs text-dt-text2 cursor-help ml-0.5"
+      className="w-3.5 h-3.5 rounded-full border border-dt-text2 inline-flex items-center justify-center text-xs text-dt-text2 cursor-help ml-0.5"
       title={tooltip}
     >
       i

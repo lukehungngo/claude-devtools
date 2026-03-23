@@ -69,7 +69,7 @@ export function SessionViewer({
           </svg>
           Claude CLI
           {isLive && (
-            <span className="text-2xs font-semibold text-dt-green bg-dt-green-dim px-1.5 py-px rounded-dt-xs uppercase tracking-[0.5px]">
+            <span className="text-xs font-semibold text-dt-green bg-dt-green-dim px-1.5 py-px rounded-dt-xs uppercase tracking-[0.5px]">
               live
             </span>
           )}
@@ -100,9 +100,7 @@ export function SessionViewer({
 
       {/* Scroll-to-bottom button */}
       {showScrollDown && (
-        <div
-          className="absolute bottom-30 left-1/2 -translate-x-1/2 z-10"
-        >
+        <div className="absolute bottom-30 left-1/2 -translate-x-1/2 z-10">
           <button
             onClick={scrollToBottom}
             className="bg-dt-bg3 border border-dt-border rounded-dt text-dt-text1 px-3 py-1 text-sm cursor-pointer flex items-center gap-1 shadow-[0_2px_8px_rgba(0,0,0,0.3)]"

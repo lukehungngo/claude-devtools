@@ -93,9 +93,10 @@ export function ConversationView({
       for (const event of turn.events) {
         if (event.type === "assistant" || event.type === "user") {
           const msg = (event as { message?: { content?: unknown } }).message;
-          const contentStr = typeof msg?.content === "string"
-            ? msg.content
-            : JSON.stringify(msg?.content || "");
+          const contentStr =
+            typeof msg?.content === "string"
+              ? msg.content
+              : JSON.stringify(msg?.content || "");
           if (contentStr.toLowerCase().includes(q)) return true;
         }
       }
@@ -127,7 +128,7 @@ export function ConversationView({
           </svg>
           Conversation
           {isLive && (
-            <span className="text-2xs font-semibold text-dt-green bg-dt-green-dim px-1.5 py-px rounded-dt-xs uppercase tracking-[0.5px]">
+            <span className="text-xs font-semibold text-dt-green bg-dt-green-dim px-1.5 py-px rounded-dt-xs uppercase tracking-[0.5px]">
               live
             </span>
           )}
@@ -147,8 +148,17 @@ export function ConversationView({
       {/* Search bar (Ctrl+F) */}
       {showSearch && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-dt-bg2 border-b border-dt-border shrink-0">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="opacity-50 shrink-0">
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="opacity-50 shrink-0"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
             ref={searchInputRef}
@@ -161,7 +171,10 @@ export function ConversationView({
             {filteredTurns.length}/{turns.length}
           </span>
           <button
-            onClick={() => { setShowSearch(false); setSearchQuery(""); }}
+            onClick={() => {
+              setShowSearch(false);
+              setSearchQuery("");
+            }}
             className="bg-none border-none text-dt-text2 cursor-pointer text-md px-0.5"
           >
             {"×"}
@@ -193,9 +206,7 @@ export function ConversationView({
 
       {/* Scroll-to-bottom button */}
       {showScrollDown && (
-        <div
-          className="absolute bottom-30 left-1/2 -translate-x-1/2 z-10"
-        >
+        <div className="absolute bottom-30 left-1/2 -translate-x-1/2 z-10">
           <button
             onClick={scrollToBottom}
             className="bg-dt-bg3 border border-dt-border rounded-dt text-dt-text1 px-3 py-1 text-sm cursor-pointer flex items-center gap-1 shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
