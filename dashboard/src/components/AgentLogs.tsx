@@ -24,24 +24,8 @@ interface AggregatedLogEntry extends LogEntry {
   count: number;
 }
 
-type FilterTab =
-  | "All"
-  | "Main"
-  | "Explore"
-  | "Plan"
-  | "General"
-  | "Errors"
-  | "Tools";
-
-const FILTER_TABS: FilterTab[] = [
-  "All",
-  "Main",
-  "Explore",
-  "Plan",
-  "General",
-  "Errors",
-  "Tools",
-];
+// Fixed tabs that always appear
+const FIXED_TABS = ["All", "Errors"] as const;
 
 // ─── Agent type colors ───────────────────────────────────────────────
 
@@ -358,7 +342,7 @@ export function AgentLogs({
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
+  const [activeFilter, setActiveFilter] = useState<string>("All");
 
   // Transform events to log entries
   const allEntries = useMemo(
@@ -366,30 +350,33 @@ export function AgentLogs({
     [events, agents, subagentMeta]
   );
 
+  // Build dynamic filter tabs from unique agent types
+  const filterTabs = useMemo(() => {
+    const agentTypes = new Set<string>();
+    for (const entry of allEntries) {
+      const label = normalizeAgentTypeLabel(entry.agentType);
+      agentTypes.add(label);
+    }
+    // Fixed tabs first, then dynamic agent tabs
+    const dynamicTabs = Array.from(agentTypes).sort();
+    return ["All", ...dynamicTabs, "Errors"];
+  }, [allEntries]);
+
   // Apply filters
   const filteredEntries = useMemo(() => {
     let result = allEntries;
 
-    // Tab filter
-    if (activeFilter === "Main") {
-      result = result.filter((e) => e.agentType === "main");
-    } else if (activeFilter === "Explore") {
-      result = result.filter((e) => e.agentType === "Explore");
-    } else if (activeFilter === "Plan") {
-      result = result.filter((e) => e.agentType === "Plan");
-    } else if (activeFilter === "General") {
-      result = result.filter(
-        (e) =>
-          e.agentType === "general-purpose" || e.agentType === "General"
-      );
+    if (activeFilter === "All") {
+      // No filter
     } else if (activeFilter === "Errors") {
       result = result.filter((e) => e.isError);
-    } else if (activeFilter === "Tools") {
-      result = result.filter((e) => e.toolName !== null);
+    } else {
+      // Dynamic agent type filter
+      result = result.filter((e) => {
+        const label = normalizeAgentTypeLabel(e.agentType);
+        return label === activeFilter;
+      });
     }
-
-    // Selected agent highlight (from graph click)
-    // We don't filter, we let CSS highlight
 
     // Tool filter from TopBar
     if (toolFilter) {
@@ -509,7 +496,7 @@ export function AgentLogs({
         </div>
       </div>
 
-      {/* Filter bar */}
+      {/* Filter bar — dynamic tabs */}
       <div
         style={{
           display: "flex",
@@ -518,9 +505,11 @@ export function AgentLogs({
           borderBottom: "1px solid var(--border)",
           background: "var(--bg-2)",
           flexShrink: 0,
+          overflowX: "auto",
+          scrollbarWidth: "none",
         }}
       >
-        {FILTER_TABS.map((tab) => {
+        {filterTabs.map((tab) => {
           const isActive = activeFilter === tab;
           return (
             <button
@@ -540,6 +529,8 @@ export function AgentLogs({
                   ? "var(--accent-dim)"
                   : "transparent",
                 fontFamily: "inherit",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
               {tab}
