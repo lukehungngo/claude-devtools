@@ -77,7 +77,8 @@
       "Bash(cp -r \"$PLUGIN_DIR/$dir\" \"$PROJECT_DIR/\")",
       "Bash(done)",
       "Bash(git checkout:*)",
-      "Bash(PLUGIN_DIR=\"/Users/quochung.ngominh/.claude/plugins/cache/luke-plugins/mas/1.1.0\")"
+      "Bash(PLUGIN_DIR=\"/Users/quochung.ngominh/.claude/plugins/cache/luke-plugins/mas/1.1.0\")",
+      "Bash(grep -l \"{{PROJECT_NAME}}\\\\|{{description}}\\\\|{{test-command}}\\\\|{{lint-command}}\\\\|{{your tech stack}}\" .claude/agents/*/CLAUDE.md .claude/skills/*/SKILL.md .claude/skills/*/*.md)"
     ],
     "deny": [
       "Read:.env*",

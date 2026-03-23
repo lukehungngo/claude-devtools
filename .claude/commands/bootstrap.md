@@ -228,7 +228,7 @@ Store these values — they will be re-applied after overwriting.
 | **Framework (overwrite)** | `agents/*/CLAUDE.md`, `skills/*/SKILL.md`, `skills/*/*.md`, `commands/*.md` (except `bootstrap.md`), `templates/*.md` | Overwrite with new plugin versions, then re-apply placeholders |
 | **User-owned (never touch)** | `CLAUDE.md`, `settings.json`, `settings.local.json` | Never overwrite — these have project-specific content (invariants, permissions, env) |
 | **Hooks (merge carefully)** | `hooks/*.sh` | Only update if the user hasn't modified them. Check: if local file differs from the *previous* plugin version in more than just placeholder values → ask user before overwriting |
-| **Rules (merge carefully)** | `rules/*.md` | Same as hooks — only update if unmodified by user |
+| **Rules (prefer skip)** | `rules/*.md` | Check if local file has `{{placeholders}}`. If **no placeholders** → file is customized, **skip by default** (don't even ask). If **has placeholders** → still generic, safe to overwrite silently. Only override customized rules if `--force-rules` flag is passed — in that case, list each rule file and ask user per file: "Override {filename}? (y/n)" |
 | **Bootstrap command** | `commands/bootstrap.md` | Always overwrite — this is the updater itself, it should stay current |
 
 ### Update Step 3 — Overwrite framework files
@@ -240,12 +240,18 @@ Store these values — they will be re-applied after overwriting.
 3. For each **user-owned** file:
    - Skip entirely
    - Log: `SKIPPED (user-owned): CLAUDE.md`
-4. For each **hooks/rules** file:
+4. For each **hooks** file:
    - Compare local content (with placeholders stripped) against the new plugin version
    - If identical (only placeholder diffs) → overwrite silently
    - If user has made custom changes → show diff and ask: "This file has custom changes. Overwrite with new MAS version? (y/n)"
    - Log result
-5. For **new files** that exist in plugin but not locally (new agents, skills, commands added in update):
+5. For each **rules** file:
+   - Check if local file contains any `{{placeholder}}` patterns
+   - If **has placeholders** (still generic) → overwrite silently, log: `UPDATED: rules/{file}`
+   - If **no placeholders** (customized by user) → **skip by default**, log: `SKIPPED (customized): rules/{file}`
+   - If `--force-rules` flag is passed → list each customized rule file and ask: "Override rules/{file}? (y/n)". Only overwrite if user confirms.
+   - Log result
+6. For **new files** that exist in plugin but not locally (new agents, skills, commands added in update):
    - Copy them in
    - Log: `ADDED: agents/new-agent/CLAUDE.md`
 
