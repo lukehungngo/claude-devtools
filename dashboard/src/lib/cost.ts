@@ -13,8 +13,7 @@ export function formatTokens(count: number): string {
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
-  if (ms < 3600_000) return `${(ms / 60_000).toFixed(1)}m`;
-  const hours = Math.floor(ms / 3600_000);
-  const mins = Math.floor((ms % 3600_000) / 60_000);
-  return `${hours}h ${mins}m`;
+  const m = Math.floor(ms / 60_000);
+  const s = Math.round((ms % 60_000) / 1000);
+  return `${m}m ${s}s`;
 }
