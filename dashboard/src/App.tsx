@@ -104,7 +104,7 @@ function Dashboard() {
               </p>
             </div>
           </div>
-        ) : metricsLoading ? (
+        ) : metricsLoading && !metrics ? (
           <div className="flex items-center justify-center h-full text-dt-text2">
             Loading session...
           </div>
@@ -133,7 +133,7 @@ function Dashboard() {
           <div className="flex items-center justify-center h-full text-sm text-dt-text2">
             Agent Panel
           </div>
-        ) : metricsLoading ? (
+        ) : metricsLoading && !metrics ? (
           <div className="flex items-center justify-center h-full text-sm text-dt-text2">
             Loading...
           </div>
