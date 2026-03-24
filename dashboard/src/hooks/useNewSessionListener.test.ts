@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { handleWsMessage, useNewSessionListener } from "./useNewSessionListener";
 
@@ -37,69 +37,18 @@ describe("handleWsMessage", () => {
   });
 });
 
-describe("useNewSessionListener — callback ref stability (P2a)", () => {
-  let MockWebSocket: ReturnType<typeof vi.fn>;
-  let wsInstances: { close: ReturnType<typeof vi.fn>; onmessage: ((e: { data: string }) => void) | null }[];
-  const originalWebSocket = globalThis.WebSocket;
-
-  beforeEach(() => {
-    wsInstances = [];
-    MockWebSocket = vi.fn(() => {
-      const instance: { close: ReturnType<typeof vi.fn>; onmessage: ((e: { data: string }) => void) | null } = { close: vi.fn(), onmessage: null };
-      wsInstances.push(instance);
-      return instance;
-    });
-    // Replace global WebSocket with mock
-    Object.defineProperty(globalThis, "WebSocket", {
-      value: MockWebSocket,
-      writable: true,
-      configurable: true,
-    });
+describe("useNewSessionListener (no-op after unified WS migration)", () => {
+  it("is callable without creating a WebSocket", () => {
+    // The hook is now a no-op — it should not throw or create any WS
+    const cb = vi.fn();
+    const { unmount } = renderHook(() => useNewSessionListener(cb));
+    unmount();
+    // No errors, no WebSocket created
   });
 
-  afterEach(() => {
-    Object.defineProperty(globalThis, "WebSocket", {
-      value: originalWebSocket,
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  it("does NOT create a new WebSocket when the callback identity changes on re-render", () => {
-    // First callback
-    const cb1 = vi.fn();
-    const { rerender } = renderHook(
-      ({ cb }: { cb: () => void }) => useNewSessionListener(cb),
-      { initialProps: { cb: cb1 } }
-    );
-
-    expect(wsInstances).toHaveLength(1);
-
-    // Re-render with a brand-new function reference (simulates unstable callback)
-    const cb2 = vi.fn();
-    rerender({ cb: cb2 });
-
-    // Must NOT have created a second WebSocket — still only 1
-    expect(wsInstances).toHaveLength(1);
-  });
-
-  it("calls the latest callback when a new-session message arrives after callback change", () => {
-    const cb1 = vi.fn();
-    const { rerender } = renderHook(
-      ({ cb }: { cb: () => void }) => useNewSessionListener(cb),
-      { initialProps: { cb: cb1 } }
-    );
-
-    // Change to a new callback
-    const cb2 = vi.fn();
-    rerender({ cb: cb2 });
-
-    // Simulate a new-session message arriving on the existing WebSocket
-    const ws = wsInstances[0];
-    ws.onmessage?.({ data: JSON.stringify({ type: "new-session", filePath: "/foo" }) });
-
-    // The latest callback (cb2) should be called, not cb1
-    expect(cb2).toHaveBeenCalledTimes(1);
-    expect(cb1).not.toHaveBeenCalled();
+  it("does not call the callback (events come via useUnifiedWebSocket now)", () => {
+    const cb = vi.fn();
+    renderHook(() => useNewSessionListener(cb));
+    expect(cb).not.toHaveBeenCalled();
   });
 });

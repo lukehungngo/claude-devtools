@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { Plus, Play } from "lucide-react";
 import type { RepoGroup, SessionInfo } from "../lib/types";
 
 type FilterMode = "active" | "archived" | "all";
@@ -8,9 +9,12 @@ interface Props {
   loading: boolean;
   selected: { projectHash: string; sessionId: string } | null;
   onSelect: (s: { projectHash: string; sessionId: string }) => void;
+  onNewSession?: () => void;
+  activeSessionId?: string | null;
+  onResumeSession?: (sessionId: string, cwd: string) => void;
 }
 
-export function RepoList({ repos, loading, selected, onSelect }: Props) {
+export function RepoList({ repos, loading, selected, onSelect, onNewSession, activeSessionId, onResumeSession }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [filterMode, setFilterMode] = useState<FilterMode>("active");
 
@@ -57,6 +61,16 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
       <div className="panel-header flex items-center justify-between px-3 py-2 border-b border-dt-border shrink-0 bg-dt-bg2">
         <div className="panel-title text-base font-semibold uppercase tracking-wide text-dt-text2 flex items-center gap-1.5">
           Repositories
+          {onNewSession && (
+            <button
+              onClick={onNewSession}
+              className="ml-1 px-1.5 py-0.5 text-xs rounded-dt-sm cursor-pointer border-none bg-dt-accent-dim text-dt-accent hover:bg-dt-accent hover:text-white transition-colors flex items-center gap-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-dt-accent"
+              aria-label="Create new session"
+            >
+              <Plus size={10} />
+              New
+            </button>
+          )}
         </div>
         <div className="panel-actions flex gap-0.5">
           {(["active", "archived", "all"] as const).map((mode) => (
@@ -157,6 +171,8 @@ export function RepoList({ repos, loading, selected, onSelect }: Props) {
                           sessionId: session.id,
                         })
                       }
+                      activeSessionId={activeSessionId}
+                      onResumeSession={onResumeSession}
                     />
                   ))}
               </div>
@@ -172,10 +188,14 @@ function SessionItem({
   session,
   isSelected,
   onSelect,
+  activeSessionId,
+  onResumeSession,
 }: {
   session: SessionInfo;
   isSelected: boolean;
   onSelect: () => void;
+  activeSessionId?: string | null;
+  onResumeSession?: (sessionId: string, cwd: string) => void;
 }) {
   const timeAgo = getTimeAgo(session.lastModified);
   const displayName = session.sessionName || session.id.slice(0, 8);
@@ -186,19 +206,53 @@ function SessionItem({
     navigator.clipboard.writeText(text);
   };
 
+  const handleResume = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onResumeSession && session.cwd) {
+      onResumeSession(session.id, session.cwd);
+    }
+  };
+
+  // Border logic: selected -> accent, live (not selected) -> green, else transparent
+  const borderClass = isSelected
+    ? "border-dt-accent bg-dt-accent-dim"
+    : session.isRunning
+      ? "border-dt-green bg-transparent"
+      : "border-transparent bg-transparent";
+
   return (
     <div
-      className={`session-item flex items-center gap-2 cursor-pointer transition-all duration-100 py-1.5 pr-3 pl-6 border-l-2 ${
-        isSelected
-          ? "border-dt-accent bg-dt-accent-dim"
-          : "border-transparent bg-transparent"
-      }`}
+      className={`group session-item flex items-center gap-2 cursor-pointer transition-all duration-100 py-1.5 pr-3 pl-6 border-l-2 ${borderClass}`}
       onClick={onSelect}
     >
+      {/* Status dot */}
+      {session.isRunning ? (
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-dt-green animate-pulse-opacity shrink-0 transition-colors"
+          aria-hidden="true"
+        />
+      ) : session.isActive ? (
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-dt-yellow shrink-0 transition-colors"
+          aria-hidden="true"
+        />
+      ) : (
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-dt-text2 opacity-40 shrink-0 transition-colors"
+          aria-hidden="true"
+        />
+      )}
       {session.isRunning && (
         <span className="text-xs font-bold px-1 py-px rounded-dt-xs bg-dt-green text-dt-bg1 tracking-[0.5px] shrink-0 animate-pulse-opacity">
           LIVE
         </span>
+      )}
+      {/* Active session indicator */}
+      {activeSessionId && session.id === activeSessionId && (
+        <span
+          className="w-2 h-2 rounded-full bg-dt-green shrink-0"
+          title="Active session"
+        />
       )}
       <span
         className={`font-mono text-base flex-1 min-w-0 truncate ${
@@ -223,6 +277,17 @@ function SessionItem({
           style={{ marginTop: "1px" }}
         />
         <span>{timeAgo}</span>
+        {/* Resume button for non-running sessions */}
+        {onResumeSession && !session.isRunning && (
+          <button
+            onClick={handleResume}
+            className="ml-1 px-1.5 py-0.5 text-xs rounded-dt-sm cursor-pointer border-none bg-dt-accent-dim text-dt-accent opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-dt-accent"
+            title={`Resume session ${displayName}`}
+            aria-label={`Resume session ${displayName}`}
+          >
+            <Play size={10} />
+          </button>
+        )}
       </div>
     </div>
   );

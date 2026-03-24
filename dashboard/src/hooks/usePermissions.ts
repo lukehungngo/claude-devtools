@@ -4,37 +4,33 @@ import type { PermissionRequest } from "../lib/types";
 export function usePermissions() {
   const [permissions, setPermissions] = useState<PermissionRequest[]>([]);
 
+  // Initial fetch of pending permissions
   useEffect(() => {
     fetch("/api/permissions/pending")
       .then((r) => r.json())
-      .then((data) => setPermissions(data.permissions || []))
+      .then((data: { permissions?: PermissionRequest[] }) =>
+        setPermissions(data.permissions || [])
+      )
       .catch(() => {});
   }, []);
 
-  // Listen for WebSocket permission events
-  useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}`);
+  // Called by unified WS handler when permission-request arrives
+  const handlePermissionRequest = useCallback(
+    (permission: PermissionRequest) => {
+      setPermissions((prev) => [...prev, permission]);
+    },
+    []
+  );
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "permission-request") {
-          setPermissions((prev) => [...prev, data.permission]);
-        } else if (data.type === "permission-resolved") {
-          setPermissions((prev) =>
-            prev.map((p) =>
-              p.id === data.id ? { ...p, status: data.decision } : p
-            )
-          );
-        }
-      } catch {
-        // ignore
-      }
-    };
-
-    return () => ws.close();
-  }, []);
+  // Called by unified WS handler when permission-resolved arrives
+  const handlePermissionResolved = useCallback(
+    (id: string, decision: "approved" | "denied") => {
+      setPermissions((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, status: decision } : p))
+      );
+    },
+    []
+  );
 
   const decide = useCallback(
     async (id: string, decision: "approved" | "denied") => {
@@ -50,5 +46,10 @@ export function usePermissions() {
     []
   );
 
-  return { permissions, decide };
+  return {
+    permissions,
+    decide,
+    handlePermissionRequest,
+    handlePermissionResolved,
+  };
 }

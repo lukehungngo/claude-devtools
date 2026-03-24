@@ -136,6 +136,49 @@ describe("PromptInput", () => {
     });
   });
 
+  describe("session-aware endpoint routing", () => {
+    it("POSTs to /api/sessions/:id/message when activeSessionId is set", async () => {
+      const { container } = render(
+        <PromptInput activeSessionId="sess-abc-123" sessionCwd="/tmp" sessionId="old-id" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "hello" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-abc-123/message");
+      const body = JSON.parse(opts.body);
+      expect(body).toEqual({ prompt: "hello" });
+      // Should NOT include cwd or sessionId
+      expect(body.cwd).toBeUndefined();
+      expect(body.sessionId).toBeUndefined();
+    });
+
+    it("POSTs to /api/command when activeSessionId is not set (backward compat)", async () => {
+      const { container } = render(
+        <PromptInput sessionCwd="/projects/foo" sessionId="sid-456" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "hello" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/command");
+      const body = JSON.parse(opts.body);
+      expect(body.prompt).toBe("hello");
+      expect(body.cwd).toBe("/projects/foo");
+      expect(body.sessionId).toBe("sid-456");
+    });
+  });
+
   describe("client-side slash command handling", () => {
     it("submitting /help does NOT call fetch and shows local output", async () => {
       const { container } = render(<PromptInput />);

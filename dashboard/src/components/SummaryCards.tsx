@@ -40,13 +40,13 @@ export function SummaryCards({ metrics }: { metrics: SessionMetrics }) {
       {cards.map((card) => (
         <div
           key={card.label}
-          className="bg-gray-900 border border-gray-800 rounded-lg p-3"
+          className="bg-dt-bg2 border border-dt-border rounded-lg p-3"
         >
-          <div className="text-xs text-gray-500 uppercase tracking-wider">
+          <div className="text-xs text-dt-text2 uppercase tracking-wider">
             {card.label}
           </div>
-          <div className="text-xl font-bold text-white mt-1">{card.value}</div>
-          <div className="text-xs text-gray-500 mt-0.5">{card.sub}</div>
+          <div className="text-xl font-bold text-dt-text0 mt-1">{card.value}</div>
+          <div className="text-xs text-dt-text2 mt-0.5">{card.sub}</div>
         </div>
       ))}
     </div>

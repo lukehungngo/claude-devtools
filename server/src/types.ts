@@ -268,6 +268,54 @@ export interface AgentLogEntry {
   uuid: string;
 }
 
+// === WebSocket Broadcast Types ===
+
+export interface WsNewEventsMessage {
+  type: "new-events";
+  filePath: string;
+  events: SessionEvent[];
+}
+
+export interface WsNewSessionMessage {
+  type: "new-session";
+  filePath: string;
+}
+
+export interface WsPermissionRequestMessage {
+  type: "permission-request";
+  permission: PermissionRequest;
+}
+
+export interface WsPermissionResolvedMessage {
+  type: "permission-resolved";
+  id: string;
+  decision: "approved" | "denied";
+}
+
+export interface WsUserQuestionMessage {
+  type: "user-question";
+  question: {
+    id: string;
+    sessionId: string;
+    questionText: string;
+    status: "pending" | "answered";
+  };
+}
+
+export interface WsQuestionAnsweredMessage {
+  type: "question-answered";
+  id: string;
+  answer: string;
+}
+
+export type WsBroadcastMessage =
+  | WsNewEventsMessage
+  | WsNewSessionMessage
+  | WsPermissionRequestMessage
+  | WsPermissionResolvedMessage
+  | WsUserQuestionMessage
+  | WsQuestionAnsweredMessage;
+
 // === API Response Types ===
 
 export interface SessionListResponse {

@@ -1,5 +1,3 @@
-import { useEffect, useRef } from "react";
-
 /**
  * Pure helper: parse a WebSocket message string and call onNewSession
  * if it represents a new-session event. Fails silently on malformed JSON.
@@ -20,25 +18,9 @@ export function handleWsMessage(data: string, onNewSession: () => void): void {
 }
 
 /**
- * Listens for new-session WebSocket events from the server and calls
- * the provided callback when one is received.
+ * No-op hook — new-session events are now handled by useUnifiedWebSocket in App.tsx.
+ * Kept for API compatibility; consumers should migrate to useUnifiedWebSocket.
  */
-export function useNewSessionListener(onNewSession: () => void): void {
-  const callbackRef = useRef(onNewSession);
-  useEffect(() => {
-    callbackRef.current = onNewSession;
-  });
-
-  useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-
-    ws.onmessage = (event) => {
-      handleWsMessage(event.data as string, () => callbackRef.current());
-    };
-
-    return () => {
-      ws.close();
-    };
-  }, []);
+export function useNewSessionListener(_onNewSession: () => void): void {
+  // No-op: new-session events are now handled by useUnifiedWebSocket in App.tsx
 }

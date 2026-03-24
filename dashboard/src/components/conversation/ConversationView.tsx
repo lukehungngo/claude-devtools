@@ -1,9 +1,18 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
-import type { SessionEvent, SessionMetrics } from "../../lib/types";
+import type { SessionEvent, SessionMetrics, PermissionRequest } from "../../lib/types";
 import { groupEventsIntoTurns } from "../../lib/turnSnapshot";
 import { CostStrip } from "../viewer/CostStrip";
+import { PermissionBlock } from "./PermissionBlock";
+import { QuestionBlock } from "./QuestionBlock";
 import { PromptInput } from "./PromptInput";
 import { TurnCard } from "./TurnCard";
+
+interface QuestionItem {
+  questionId: string;
+  questionText: string;
+  status: "pending" | "answered";
+  answer?: string;
+}
 
 interface ConversationViewProps {
   events: SessionEvent[];
@@ -11,9 +20,16 @@ interface ConversationViewProps {
   isLive?: boolean;
   sessionCwd?: string;
   sessionId?: string;
+  activeSessionId?: string;
   highlightedTurnIndex?: number;
   onAgentPillClick?: (agentId: string) => void;
   onTurnClick?: (turnIndex: number) => void;
+  /** Pending/resolved permission requests to render inline in conversation */
+  permissions?: PermissionRequest[];
+  onPermissionDecide?: (id: string, decision: "approved" | "denied") => void;
+  /** Pending/answered questions from the agent */
+  questions?: QuestionItem[];
+  onSubmitAnswer?: (questionId: string, answer: string) => void;
 }
 
 export function ConversationView({
@@ -22,9 +38,14 @@ export function ConversationView({
   isLive,
   sessionCwd,
   sessionId,
+  activeSessionId,
   highlightedTurnIndex,
   onAgentPillClick,
   onTurnClick,
+  permissions,
+  onPermissionDecide,
+  questions,
+  onSubmitAnswer,
 }: ConversationViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -208,6 +229,33 @@ export function ConversationView({
             );
           })
         )}
+
+        {/* Inline permission blocks -- rendered after turns.
+            Full integration (matching permissions to specific turns) depends on
+            the WS permission flow being active. For now, pending permissions
+            render at the bottom of the conversation. */}
+        {permissions && onPermissionDecide && permissions.map((perm) => (
+          <PermissionBlock
+            key={perm.id}
+            permission={perm}
+            onDecide={onPermissionDecide}
+          />
+        ))}
+
+        {/* Inline question blocks -- rendered after turns.
+            Full integration (matching questions to specific turns) depends on
+            server-side question detection. For now, pending questions render
+            at the bottom of the conversation. */}
+        {questions && onSubmitAnswer && questions.map((q) => (
+          <QuestionBlock
+            key={q.questionId}
+            questionId={q.questionId}
+            questionText={q.questionText}
+            status={q.status}
+            answer={q.answer}
+            onSubmitAnswer={onSubmitAnswer}
+          />
+        ))}
       </div>
 
       {/* Scroll-to-bottom button */}
@@ -226,7 +274,7 @@ export function ConversationView({
       <CostStrip metrics={metrics} />
 
       {/* Command input */}
-      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} />
+      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} activeSessionId={activeSessionId} />
     </div>
   );
 }

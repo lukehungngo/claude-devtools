@@ -4,6 +4,7 @@ import { isIgnoredStderrWarning } from "../../lib/filterStderrWarnings";
 interface PromptInputProps {
   sessionCwd?: string;
   sessionId?: string;
+  activeSessionId?: string;
 }
 
 const SLASH_COMMANDS = [
@@ -45,7 +46,7 @@ function getCommandOutput(command: string): string {
   }
 }
 
-export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
+export function PromptInput({ sessionCwd, sessionId, activeSessionId }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
   const [sseStatus, setSseStatus] = useState<"idle" | "streaming" | "error">("idle");
@@ -105,14 +106,18 @@ export function PromptInput({ sessionCwd, sessionId }: PromptInputProps) {
 
     setSseStatus("streaming");
     try {
-      const response = await fetch("/api/command", {
+      const endpoint = activeSessionId
+        ? `/api/sessions/${activeSessionId}/message`
+        : "/api/command";
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: currentPrompt,
-          cwd: sessionCwd,
-          sessionId: sessionId,
-        }),
+        body: JSON.stringify(
+          activeSessionId
+            ? { prompt: currentPrompt }
+            : { prompt: currentPrompt, cwd: sessionCwd, sessionId: sessionId }
+        ),
         signal: controller.signal,
       });
 

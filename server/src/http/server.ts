@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { setupRoutes } from "./routes.js";
 import { startWatcher } from "./watcher.js";
+import { SessionManager } from "../session/session-manager.js";
+import type { WsBroadcastMessage } from "../types.js";
 
 let __dirname: string;
 try {
@@ -17,6 +19,7 @@ try {
 
 export interface ServerState {
   clients: Set<WebSocket>;
+  sessionManager?: SessionManager;
 }
 
 export function startHttpServer(port: number = 3142): Promise<{
@@ -28,12 +31,28 @@ export function startHttpServer(port: number = 3142): Promise<{
     const server = createServer(app);
     const wss = new WebSocketServer({ server });
 
-    const state: ServerState = { clients: new Set() };
+    const state: ServerState = {
+      clients: new Set(),
+      sessionManager: new SessionManager((data) =>
+        broadcast(state, data as WsBroadcastMessage)
+      ),
+    };
 
     // WebSocket connections
     wss.on("connection", (ws) => {
       state.clients.add(ws);
-      ws.on("close", () => state.clients.delete(ws));
+
+      // Heartbeat: ping every 30s to detect dead connections
+      const heartbeat = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.ping();
+        }
+      }, 30_000);
+
+      ws.on("close", () => {
+        clearInterval(heartbeat);
+        state.clients.delete(ws);
+      });
     });
 
     // API routes (pass state for WebSocket broadcasting)
@@ -74,7 +93,7 @@ export function startHttpServer(port: number = 3142): Promise<{
   });
 }
 
-export function broadcast(state: ServerState, data: unknown): void {
+export function broadcast(state: ServerState, data: WsBroadcastMessage): void {
   const msg = JSON.stringify(data);
   for (const client of state.clients) {
     if (client.readyState === WebSocket.OPEN) {

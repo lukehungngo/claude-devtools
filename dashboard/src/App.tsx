@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Layout } from "./components/Layout";
 import { RepoList } from "./components/RepoList";
 import { TopBar } from "./components/TopBar";
@@ -9,6 +9,8 @@ import { useRepos } from "./hooks/useRepos";
 import { useSessionMetrics } from "./hooks/useSessionData";
 import { useEventStream } from "./hooks/useEventStream";
 import { useNewSessionListener } from "./hooks/useNewSessionListener";
+import { useUnifiedWebSocket } from "./hooks/useUnifiedWebSocket";
+import { usePermissions } from "./hooks/usePermissions";
 import { useUsage } from "./hooks/useUsage";
 import { useCosts } from "./hooks/useCosts";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -29,14 +31,56 @@ function Dashboard() {
   const [requestedRightTab, setRequestedRightTab] = useState<"graph" | "log" | undefined>(undefined);
   // Middle→right sync: turn clicked in ConversationView drives RightPanel snapshot
   const [selectedTurnIndex, setSelectedTurnIndex] = useState<number | null>(null);
+  // Active session started from the web UI (for multi-turn session API)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const { metrics, events, subagentMeta, loading: metricsLoading, refresh: refreshMetrics } = useSessionMetrics(
     selected?.projectHash ?? null,
     selected?.sessionId ?? null
   );
-  const { liveEvents, isLive } = useEventStream(
+  const { liveEvents, handleNewEvents } = useEventStream(
     metrics?.session?.path ?? null
   );
+  const { permissions, decide, handlePermissionRequest, handlePermissionResolved } = usePermissions();
+
+  // Question state for AskUserQuestion
+  interface QuestionItem {
+    questionId: string;
+    questionText: string;
+    status: "pending" | "answered";
+    answer?: string;
+  }
+  const [questions, setQuestions] = useState<QuestionItem[]>([]);
+
+  const handleUserQuestion = useCallback((q: { id: string; questionText: string }) => {
+    setQuestions((prev) => [...prev, { questionId: q.id, questionText: q.questionText, status: "pending" }]);
+  }, []);
+
+  const handleQuestionAnswered = useCallback((id: string, answer: string) => {
+    setQuestions((prev) =>
+      prev.map((q) => (q.questionId === id ? { ...q, status: "answered" as const, answer } : q))
+    );
+  }, []);
+
+  const submitAnswer = useCallback(async (questionId: string, answer: string) => {
+    await fetch(`/api/questions/${questionId}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answer }),
+    });
+    handleQuestionAnswered(questionId, answer);
+  }, [handleQuestionAnswered]);
+
+  // Single multiplexed WebSocket — replaces separate WS in useEventStream,
+  // useNewSessionListener, and usePermissions
+  const { isConnected: isLive } = useUnifiedWebSocket({
+    onNewEvents: handleNewEvents,
+    onNewSession: () => refreshRepos(),
+    onPermissionRequest: handlePermissionRequest,
+    onPermissionResolved: handlePermissionResolved,
+    onUserQuestion: handleUserQuestion,
+    onQuestionAnswered: handleQuestionAnswered,
+  });
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -60,6 +104,23 @@ function Dashboard() {
   );
   const { usage } = useUsage();
   const { costs } = useCosts();
+
+  // Will be wired to a "New Session" button in a future task
+  async function _startNewSession(cwd: string): Promise<void> {
+    try {
+      const res = await fetch("/api/sessions/new", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cwd }),
+      });
+      const data = await res.json();
+      if (data.sessionId) {
+        setActiveSessionId(data.sessionId);
+      }
+    } catch (err) {
+      console.error("Failed to start session:", err);
+    }
+  }
 
   const agents = metrics?.dag.nodes || [];
   const turns = useMemo(() => groupEventsIntoTurns(allEvents, subagentMeta), [allEvents, subagentMeta]);
@@ -90,6 +151,31 @@ function Dashboard() {
             setToolFilter(null);
             setHighlightedTurnIndex(undefined);
           }}
+          onNewSession={() => {
+            // Use cwd from selected session's repo, or first repo
+            const selectedRepo = repos.find((r) =>
+              r.sessions.some(
+                (s) =>
+                  s.projectHash === selected?.projectHash &&
+                  s.id === selected?.sessionId,
+              ),
+            );
+            const cwd = selectedRepo?.cwd ?? repos[0]?.cwd;
+            if (cwd) _startNewSession(cwd);
+          }}
+          activeSessionId={activeSessionId}
+          onResumeSession={async (sessionId, cwd) => {
+            try {
+              await fetch(`/api/sessions/${sessionId}/resume`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ cwd }),
+              });
+              setActiveSessionId(sessionId);
+            } catch (err) {
+              console.error("Failed to resume session:", err);
+            }
+          }}
         />
       }
       center={
@@ -115,7 +201,12 @@ function Dashboard() {
             isLive={isLive}
             sessionCwd={metrics.session.cwd}
             sessionId={metrics.session.id}
+            activeSessionId={activeSessionId ?? undefined}
             highlightedTurnIndex={highlightedTurnIndex}
+            permissions={permissions}
+            onPermissionDecide={decide}
+            questions={questions}
+            onSubmitAnswer={submitAnswer}
             onAgentPillClick={(agentId) => {
               setSelectedAgent(agentId);
               setRequestedRightTab("log");

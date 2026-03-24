@@ -170,7 +170,13 @@ export function setupRoutes(state?: ServerState): Router {
     try {
       const { decision } = req.body; // "approved" | "denied"
       const result = resolvePermissionRequest(req.params.id, decision);
-      if (!result) {
+
+      // Also resolve via SessionManager (for promise-based sessions)
+      const sessionResolved = state?.sessionManager
+        ? state.sessionManager.resolvePermission(req.params.id, decision)
+        : false;
+
+      if (!result && !sessionResolved) {
         return res.status(404).json({ error: "Permission not found" });
       }
 
@@ -192,6 +198,193 @@ export function setupRoutes(state?: ServerState): Router {
   // List pending permissions
   router.get("/permissions/pending", (_req, res) => {
     res.json({ permissions: getPendingPermissions() });
+  });
+
+  // Answer a question from the agent (AskUserQuestion)
+  router.post("/questions/:questionId/answer", (req, res) => {
+    try {
+      const { answer } = req.body;
+      if (!answer || typeof answer !== "string") {
+        return res.status(400).json({ error: "answer is required" });
+      }
+      const sessionManager = state?.sessionManager;
+      if (!sessionManager) {
+        return res.status(500).json({ error: "Session manager not available" });
+      }
+      const resolved = sessionManager.resolveQuestion(req.params.questionId, answer);
+      if (!resolved) {
+        return res.status(404).json({ error: "Question not found" });
+      }
+      // Broadcast answer to dashboard
+      if (state) {
+        broadcast(state, {
+          type: "question-answered",
+          id: req.params.questionId,
+          answer,
+        });
+      }
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to answer question" });
+    }
+  });
+
+  // === Session Lifecycle Routes ===
+
+  // Start a new session
+  router.post("/sessions/new", async (req, res) => {
+    try {
+      const { cwd } = req.body;
+      if (!cwd || typeof cwd !== "string") {
+        return res.status(400).json({ error: "cwd is required" });
+      }
+      const sessionManager = state?.sessionManager;
+      if (!sessionManager) {
+        return res.status(500).json({ error: "Session manager not available" });
+      }
+      const sessionId = await sessionManager.startSession(cwd);
+      res.json({ sessionId });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to create session" });
+    }
+  });
+
+  // Send message to session (SSE stream)
+  router.post("/sessions/:sessionId/message", async (req, res) => {
+    const { sessionId } = req.params;
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: "Missing prompt" });
+    }
+
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+
+    const session = sessionManager.getStatus(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    // SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    res.on("close", () => {
+      sessionManager.abortSession(sessionId);
+    });
+
+    try {
+      for await (const message of sessionManager.sendMessage(sessionId, prompt)) {
+        const msg = message as {
+          type: string;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          event?: any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          message?: any;
+          is_error?: boolean;
+          subtype?: string;
+        };
+
+        if (msg.type === "stream_event") {
+          const event = msg.event as {
+            type: string;
+            delta?: { type: string; text?: string };
+          };
+          if (
+            event?.type === "content_block_delta" &&
+            event.delta?.type === "text_delta" &&
+            event.delta.text
+          ) {
+            res.write(
+              `data: ${JSON.stringify({ type: "stdout", text: event.delta.text })}\n\n`
+            );
+          }
+        } else if (msg.type === "assistant") {
+          const content = msg.message?.content as
+            | Array<{ type: string; text?: string }>
+            | undefined;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (block.type === "text" && block.text) {
+                res.write(
+                  `data: ${JSON.stringify({ type: "stdout", text: block.text })}\n\n`
+                );
+              }
+            }
+          }
+        } else if (msg.type === "result") {
+          if (msg.is_error) {
+            const errMsg = msg.subtype
+              ? String(msg.subtype)
+              : "Execution error";
+            res.write(
+              `data: ${JSON.stringify({ type: "error", message: errMsg })}\n\n`
+            );
+          }
+        }
+      }
+
+      res.write(
+        `data: ${JSON.stringify({ type: "done", exitCode: 0 })}\n\n`
+      );
+      res.end();
+    } catch (err) {
+      res.write(
+        `data: ${JSON.stringify({ type: "error", message: err instanceof Error ? err.message : String(err) })}\n\n`
+      );
+      res.end();
+    }
+  });
+
+  // Abort active session streaming
+  router.post("/sessions/:sessionId/abort", (req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    const aborted = sessionManager.abortSession(req.params.sessionId);
+    if (!aborted) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    res.json({ ok: true });
+  });
+
+  // Resume a historical session (register it with SessionManager)
+  router.post("/sessions/:sessionId/resume", async (req, res) => {
+    const { cwd } = req.body;
+    if (!cwd || typeof cwd !== "string") {
+      return res.status(400).json({ error: "cwd is required" });
+    }
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    try {
+      await sessionManager.resumeSession(req.params.sessionId, cwd);
+      res.json({ ok: true, sessionId: req.params.sessionId });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to resume session" });
+    }
+  });
+
+  // List active sessions
+  router.get("/sessions/active", (_req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.json({ sessions: [] });
+    }
+    const sessions = sessionManager.getActiveSessions().map((s) => ({
+      sessionId: s.sessionId,
+      cwd: s.cwd,
+      status: s.status,
+      createdAt: s.createdAt,
+    }));
+    res.json({ sessions });
   });
 
   // Command input (v1: simple prompt)
