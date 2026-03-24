@@ -2,6 +2,7 @@ import { useMemo, useCallback, useEffect, useRef } from "react";
 import {
   ReactFlow,
   useReactFlow,
+  useNodesInitialized,
   ReactFlowProvider,
   type Node,
   type Edge,
@@ -110,29 +111,46 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
   );
   const prevFingerprint = useRef<string | null>(null);
 
-  // Auto-fitView when the set of visible nodes changes
-  // (turn switch, agents added/removed). Initial mount is handled by
-  // the fitView prop on <ReactFlow>.
+  // useNodesInitialized returns true once ReactFlow has measured all node
+  // dimensions. This is the safe point to call fitView — calling earlier
+  // (via a fixed timeout) races against node measurement and can leave
+  // unmeasured nodes off-screen.
+  const nodesReady = useNodesInitialized();
+
+  // Auto-fitView when the set of visible nodes changes AND ReactFlow has
+  // finished measuring them. Two guards:
+  //   1. nodeFingerprint changed  → a node was added or removed
+  //   2. nodesReady is true       → all nodes have dimensions
+  // We track a "pending" flag so the fitView fires once nodesReady
+  // catches up, even if the fingerprint changed on an earlier render.
+  const fitPending = useRef(false);
+
+  // Mark pending when the node set changes
   useEffect(() => {
-    if (prevFingerprint.current === nodeFingerprint) return;
-    prevFingerprint.current = nodeFingerprint;
-    // Delay to let ReactFlow process new nodes before fitting
-    const t = setTimeout(() => fitViewRef.current({ padding: 0.2, duration: 200 }), 200);
-    return () => clearTimeout(t);
-  }, [nodeFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (prevFingerprint.current !== nodeFingerprint) {
+      fitPending.current = true;
+      prevFingerprint.current = nodeFingerprint;
+    }
+  }, [nodeFingerprint]);
+
+  // Fire fitView once nodes are measured and a fit is pending
+  useEffect(() => {
+    if (nodesReady && fitPending.current) {
+      fitPending.current = false;
+      fitViewRef.current({ padding: 0.2, duration: 200 });
+    }
+  }, [nodesReady, nodeFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Focus on selected agent node when it changes (e.g., clicking a turn prompt)
   const prevSelectedAgent = useRef<string | null>(null);
   useEffect(() => {
     if (!selectedAgent || selectedAgent === prevSelectedAgent.current) return;
     prevSelectedAgent.current = selectedAgent;
+    if (!nodesReady) return;
     const node = nodes.find((n) => n.id === selectedAgent);
     if (!node) return;
-    const t = setTimeout(() => {
-      fitViewRef.current({ padding: 0.3, duration: 200, nodes: [node] });
-    }, 200);
-    return () => clearTimeout(t);
-  }, [selectedAgent, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
+    fitViewRef.current({ padding: 0.3, duration: 200, nodes: [node] });
+  }, [selectedAgent, nodes, nodesReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
