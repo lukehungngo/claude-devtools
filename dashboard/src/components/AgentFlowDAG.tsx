@@ -8,7 +8,7 @@ import {
   type DefaultEdgeOptions,
 } from "@xyflow/react";
 import dagre from "@dagrejs/dagre";
-import { getAgentColor, LEGEND_ENTRIES } from "../lib/agentColors";
+import { getAgentColor } from "../lib/agentColors";
 import "@xyflow/react/dist/style.css";
 import type { AgentDAG } from "../lib/types";
 import { formatCost, formatTokens } from "../lib/cost";
@@ -153,6 +153,19 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
     0
   );
 
+  // Build legend from actual agents in the DAG (not a static hardcoded list)
+  const legendEntries = useMemo(() => {
+    const seen = new Set<string>();
+    const entries: [string, string][] = [];
+    for (const node of dag.nodes) {
+      const label = node.type.charAt(0).toUpperCase() + node.type.slice(1);
+      if (seen.has(node.type)) continue;
+      seen.add(node.type);
+      entries.push([label, getAgentColor(node.type)]);
+    }
+    return entries;
+  }, [dag.nodes]);
+
   const defaultEdgeOptions: DefaultEdgeOptions = {
     style: { stroke: "var(--border-active)", strokeWidth: 1.5 },
   };
@@ -233,9 +246,9 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
           ))}
         </div>
 
-        {/* Legend (top, full-width scrollable strip) */}
+        {/* Legend (top, full-width scrollable strip — derived from actual DAG nodes) */}
         <div className={LEGEND_CONTAINER_CLASS}>
-          {LEGEND_ENTRIES.map(([name, color]) => (
+          {legendEntries.map(([name, color]) => (
             <div
               key={name}
               className={LEGEND_ITEM_CLASS}

@@ -89,15 +89,3 @@ export function getAgentBadgeStyle(agentType: string): {
   };
 }
 
-/** Legend entries: fixed known types only (used in graph legend) */
-export const LEGEND_ENTRIES: ReadonlyArray<[string, string]> = [
-  ["Main", KNOWN_COLORS.main],
-  ["Explore", KNOWN_COLORS.Explore],
-  ["Plan", KNOWN_COLORS.Plan],
-  ["General", KNOWN_COLORS.General],
-  ["Orchestrator", KNOWN_COLORS.orchestrator],
-  ["Engineer", KNOWN_COLORS.engineer],
-  ["Reviewer", KNOWN_COLORS.reviewer],
-  ["Bug-fixer", KNOWN_COLORS["bug-fixer"]],
-  ["Researcher", KNOWN_COLORS.researcher],
-];
