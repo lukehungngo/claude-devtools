@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import type { SessionInfo, SessionEvent, RepoGroup } from "../types.js";
 import { parseJsonlFile } from "./jsonl-reader.js";
 
-const ACTIVE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
+const ACTIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000; // 12 hours
 const RUNNING_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
 function getClaudeProjectsDir(): string {
@@ -123,13 +123,16 @@ export function discoverSessions(): SessionInfo[] {
     }
   }
 
+  // Drop sessions inactive for more than 12 hours
+  const activeSessions = sessions.filter((s) => s.isActive);
+
   // Sort by most recent first
-  sessions.sort(
+  activeSessions.sort(
     (a, b) =>
       new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
   );
 
-  return sessions;
+  return activeSessions;
 }
 
 

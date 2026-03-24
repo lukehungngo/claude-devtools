@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect, useRef } from "react";
 import {
   ReactFlow,
   useReactFlow,
@@ -96,6 +96,36 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
     [dag, selectedAgent, frozen, onViewInLog]
   );
 
+  // Track the node set fingerprint so we can re-fit when nodes change
+  const nodeFingerprint = useMemo(
+    () => dag.nodes.map((n) => n.id).sort().join(","),
+    [dag.nodes]
+  );
+  const prevFingerprint = useRef<string | null>(null);
+
+  // Auto-fitView on mount AND when the set of visible nodes changes
+  // (turn switch, agents added/removed, initial load)
+  useEffect(() => {
+    if (prevFingerprint.current === nodeFingerprint) return;
+    prevFingerprint.current = nodeFingerprint;
+    // Delay to let ReactFlow process new nodes before fitting
+    const t = setTimeout(() => fitView({ padding: 0.2, duration: 200 }), 200);
+    return () => clearTimeout(t);
+  }, [nodeFingerprint, fitView]);
+
+  // Focus on selected agent node when it changes (e.g., clicking a turn prompt)
+  const prevSelectedAgent = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedAgent || selectedAgent === prevSelectedAgent.current) return;
+    prevSelectedAgent.current = selectedAgent;
+    const node = nodes.find((n) => n.id === selectedAgent);
+    if (!node) return;
+    const t = setTimeout(() => {
+      fitView({ padding: 0.3, duration: 200, nodes: [node] });
+    }, 200);
+    return () => clearTimeout(t);
+  }, [selectedAgent, nodes, fitView]);
+
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       onSelectAgent?.(node.id);
@@ -170,7 +200,6 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
           edges={edges}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
-          fitView
           proOptions={{ hideAttribution: true }}
           onNodeClick={handleNodeClick}
           style={{ width: "100%", height: "100%" }}

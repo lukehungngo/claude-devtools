@@ -118,6 +118,8 @@ export function RightPanel({
 
   // Filter events/DAG by active snapshot's turn
   const activeTurn = turns[activeSnapshotIndex];
+  const isLiveTurn = activeSnapshotIndex === turns.length - 1;
+
   const filteredEvents = useMemo(() => {
     if (!activeTurn) return events;
     return activeTurn.events;
@@ -125,9 +127,11 @@ export function RightPanel({
 
   const filteredDag = useMemo(() => {
     if (!dag || !activeTurn) return dag;
-    // Get unique agent IDs from the active turn
+    // Live turn shows the full DAG — all agents from the session.
+    // Only snapshot (frozen) turns filter to agents active in that turn.
+    if (isLiveTurn) return dag;
     const turnAgentIds = new Set(activeTurn.agents.map((a) => a.agentId));
-    // Always include "main" agent
+    // Always include "main" agent in snapshots
     turnAgentIds.add("main");
     return {
       nodes: dag.nodes.filter((n) => turnAgentIds.has(n.id)),
@@ -135,10 +139,9 @@ export function RightPanel({
         (e) => turnAgentIds.has(e.source) && turnAgentIds.has(e.target),
       ),
     };
-  }, [dag, activeTurn]);
+  }, [dag, activeTurn, isLiveTurn]);
 
   const filteredAgents = filteredDag?.nodes || [];
-  const isLiveTurn = activeSnapshotIndex === turns.length - 1;
 
   const handleAgentSelect = useCallback(
     (agentId: string) => {

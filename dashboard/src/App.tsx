@@ -214,7 +214,10 @@ function Dashboard() {
               setSelectedAgent(agentId);
               setRequestedRightTab("log");
             }}
-            onTurnClick={setSelectedTurnIndex}
+            onTurnClick={(turnIndex) => {
+              setSelectedTurnIndex(turnIndex);
+              setRequestedRightTab("graph");
+            }}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-dt-red">
