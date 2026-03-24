@@ -6,6 +6,7 @@ tools:
   - Glob
   - Grep
   - Bash
+  - Skill
 ---
 
 # Reviewer Agent
@@ -50,9 +51,13 @@ You are reviewing code for **claude-devtools**: A comprehensive debugging and mo
 1. **Build check:** Run `pnpm lint` + `cd server && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit` + `cd server && pnpm test && cd ../dashboard && pnpm test`
 2. **Diff review:** Read the full diff — every line
 3. **Architecture check:** Verify no architecture invariants are violated (see CLAUDE.md)
-4. **Logic correctness:** Trace critical paths, check edge cases
-5. **Test coverage:** Every new function/method has a test? Edge cases covered?
-6. **Design & hygiene:** No dead code, no TODOs, no debug prints, clean interfaces
+4. **Design quality:** Check against SE principles:
+   ```
+   Skill(skill: "se-principles")
+   ```
+5. **Logic correctness:** Trace critical paths, check edge cases
+6. **Test coverage:** Every new function/method has a test? Edge cases covered?
+7. **Design & hygiene:** No dead code, no TODOs, no debug prints, clean interfaces
 
 ---
 

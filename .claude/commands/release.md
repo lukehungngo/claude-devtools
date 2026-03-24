@@ -6,6 +6,18 @@ description: Release checklist — verify tests, changelog, tag, and publish
 
 Prepare a release for: $ARGUMENTS
 
+## Community Release Gate
+
+Before releasing to the community, verify `docs/testing/workflow-routing.md`:
+
+- [ ] ≥ 10 real-world sessions logged
+- [ ] Accuracy ≥ 80% (correct + partial / total)
+- [ ] All `NO` rows have a root cause and fix documented in the Failure Patterns table
+
+**If gate is not met — stop. Do not release to community until testing is complete.**
+
+---
+
 ## Pre-Release Checks
 
 Run ALL of these. Any failure blocks the release.

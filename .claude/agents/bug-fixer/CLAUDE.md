@@ -8,6 +8,7 @@ tools:
   - Glob
   - Grep
   - Bash
+  - Skill
 ---
 
 # Bug-Fixer Agent
@@ -50,12 +51,16 @@ Write(file_path: "src/utils.ts", content: "export function validate() { ... }")
 ### For Each Bug in the Reviewer Report
 
 1. **Read** — Understand the bug (file:line from reviewer report)
-2. **Reproduce** — Write a failing test that exposes the bug
-3. **Verify RED** — Run the test, confirm it fails for the right reason
-4. **Fix** — Write minimal code to fix the bug
-5. **Verify GREEN** — Run the test, confirm it passes
-6. **Regression** — Run full test suite, confirm nothing else broke
-7. **Next** — Move to next bug
+2. **Reproduce** — If root cause is not immediately clear:
+   ```
+   Skill(skill: "systematic-debugging")
+   ```
+3. **Fix with TDD** — Write failing test first, then fix:
+   ```
+   Skill(skill: "test-driven-development")
+   ```
+4. **Regression** — Run full test suite, confirm nothing else broke
+5. **Next** — Move to next bug
 
 ### After All Bugs Fixed
 

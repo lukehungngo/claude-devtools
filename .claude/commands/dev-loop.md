@@ -10,6 +10,8 @@ Execute the full mandatory workflow for: $ARGUMENTS
 
 Check if `$ARGUMENTS` contains `--auto`. If yes → **autonomous mode** (no human checkpoints, run everything end-to-end). If no → **interactive mode** (pause for approval at key steps).
 
+**`--auto` scope:** Skips human approval gates at Steps 1, 4, 5, and 9 only. It does NOT skip the Orchestrator, Reviewer, or Bug-Fixer. The full agent pipeline runs in both modes — `--auto` only removes the pauses where a human would say "yes, continue".
+
 ## Agent Pipeline
 
 ```
@@ -350,7 +352,7 @@ Final technical checks:
 - Typecheck clean
 - No debug artifacts
 
-**GATE:** All checks pass. Do NOT proceed to step 9 with failing tests or lint errors.
+**GATE:** `docs/reports/verification-{branch}.md` must exist before proceeding to step 9. `Skill(skill: "verification")` writes this file — raw Bash test output alone does NOT satisfy this gate. Do NOT proceed without the file.
 
 ---
 

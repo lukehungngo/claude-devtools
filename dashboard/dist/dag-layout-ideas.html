@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Agent Graph — Layout Ideas</title>
+<style>
+  :root {
+    --bg-0: #0a0e17; --bg-1: #0f1420; --bg-2: #151b2b; --bg-3: #1a2236; --bg-4: #212b42;
+    --border: #1e2740; --border-active: #2d3a5c;
+    --text-0: #e2e8f0; --text-1: #94a3b8; --text-2: #64748b;
+    --accent: #6366f1; --accent-dim: #4f46e520;
+    --green: #22c55e; --green-dim: #22c55e18;
+    --yellow: #eab308; --orange: #f97316;
+    --cyan: #06b6d4; --purple: #a78bfa;
+    --teal: #14b8a6; --sky: #38bdf8; --red: #ef4444;
+    --font-mono: 'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+    --font-sans: -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg-0); font-family: var(--font-sans); font-size: 12px; color: var(--text-0); padding: 32px; display: flex; flex-direction: column; gap: 40px; }
+
+  h1  { font-size: 15px; font-weight: 700; color: var(--text-0); }
+  h2  { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); margin-bottom: 10px; }
+  p   { font-size: 11px; color: var(--text-1); line-height: 1.6; max-width: 520px; }
+
+  .row   { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; }
+  .col   { display: flex; flex-direction: column; gap: 10px; }
+  .label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+  /* panel shell */
+  .panel {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .tab { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border-radius: 3px; cursor: pointer; color: var(--text-2); }
+  .tab.active { color: var(--accent); background: var(--accent-dim); }
+
+  .tab-badge { background: var(--bg-4); color: var(--text-1); font-size: 8px; font-weight: 600; padding: 1px 4px; border-radius: 10px; margin-left: 3px; }
+
+  .canvas { position: relative; overflow: hidden; background: var(--bg-0); }
+
+  /* ── NODE CARDS ─────────────────────── */
+  .node {
+    position: absolute;
+    border: 1px solid var(--border-active);
+    border-radius: 5px;
+    background: var(--bg-2);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 5px 7px;
+    user-select: none;
+  }
+
+  .node.main-node { border-color: var(--accent); background: rgba(99,102,241,.12); }
+  .node.running   { border-color: var(--green); }
+  .node.selected  { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(99,102,241,.3); }
+
+  .node-role { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
+  .node-task { font-size: 8px; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .node-status { font-size: 7px; display: flex; align-items: center; gap: 3px; }
+  .status-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+  /* compact node */
+  .node-sm {
+    position: absolute;
+    border: 1px solid var(--border-active);
+    border-radius: 4px;
+    background: var(--bg-2);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 6px;
+  }
+  .node-sm.running { border-color: var(--green); }
+  .node-sm .role-badge {
+    font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    padding: 1px 4px; border-radius: 3px; flex-shrink: 0;
+  }
+  .node-sm .task-text { font-size: 8px; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+  .node-sm .sdot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+  /* list-row node */
+  .list-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+    transition: background 80ms;
+  }
+  .list-row:hover { background: var(--bg-2); }
+  .list-row.running { border-left-color: var(--green); }
+  .list-row.done    { border-left-color: transparent; opacity: .75; }
+  .list-row.selected { border-left-color: var(--accent); background: var(--accent-dim); }
+
+  .lr-badge  { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+  .lr-task   { font-family: var(--font-mono); font-size: 9px; color: var(--text-1); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lr-status { font-size: 8px; display: flex; align-items: center; gap: 3px; flex-shrink: 0; color: var(--text-2); }
+  .lr-sdot   { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+  /* SVG edges */
+  svg.edges { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+
+  /* annotation pills */
+  .ann { display: flex; gap: 6px; align-items: flex-start; font-size: 10px; color: var(--text-2); line-height: 1.5; }
+  .ann-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 3px; }
+  .ann .good { color: var(--green); font-weight: 600; }
+  .ann .bad  { color: var(--red);   font-weight: 600; }
+
+  /* tab switcher */
+  .switcher { display: flex; gap: 2px; }
+  .sw { font-size: 9px; font-weight: 600; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; cursor: pointer; color: var(--text-2); border: 1px solid transparent; }
+  .sw.on { color: var(--text-0); border-color: var(--border-active); background: var(--bg-3); }
+
+  .bottom-bar {
+    padding: 4px 8px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-2);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    font-size: 9px;
+    color: var(--text-2);
+  }
+
+  .bottom-stat b { color: var(--text-1); }
+
+  /* legend */
+  .legend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 9px; color: var(--text-2); padding: 0 8px; }
+  .legend-item { display: flex; align-items: center; gap: 3px; }
+  .legend-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* divider strip between columns */
+  .divider-v { width: 1px; background: var(--border); align-self: stretch; margin: 0 8px; }
+</style>
+</head>
+<body>
+
+<div class="col" style="gap:4px">
+  <h1>Agent Graph — Layout Options for Dense Graphs</h1>
+  <p>Current: <code>nodesep:40 + NODE_WIDTH:140</code> → 6 agents = <b>1040px wide</b>. 12 agents = 2120px. Always overflows the panel.</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     OPTION A — CURRENT (problem)
+═══════════════════════════════════════════════════════════════ -->
+<div class="col">
+  <h2>Current — single-rank fan-out</h2>
+  <div class="row">
+    <div class="col" style="gap:6px">
+      <div class="label">Small panel (400px) — zoomed to fit</div>
+      <!-- panel shell, narrow -->
+      <div class="panel" style="width:400px">
+        <div class="panel-header">
+          <span class="tab active">⚡ Agent Graph <span class="tab-badge">8</span></span>
+          <span class="tab">≡ Agent Log <span class="tab-badge">1314</span></span>
+        </div>
+        <!-- fake zoomed-out canvas: scale everything down -->
+        <div class="canvas" style="height:180px">
+          <div style="transform: scale(0.28) translate(-480px, -160px); transform-origin: top left; position:absolute; width:1500px; height:600px;">
+            <!-- Main node -->
+            <div class="node main-node" style="left:600px;top:40px;width:140px;height:56px">
+              <div class="node-role" style="color:var(--accent)">● main</div>
+              <div class="node-task">MAIN SESSION</div>
+              <div class="node-status"><span class="status-dot" style="background:var(--green)"></span><span style="color:var(--green);font-size:7px">running</span></div>
+            </div>
+            <!-- 6 children spread across 1040px -->
+            <div class="node running" style="left:20px;top:180px;width:140px;height:56px">
+              <div class="node-role" style="color:var(--teal)">● engineer</div>
+              <div class="node-task">TASK-004: BIDIR…</div>
+              <div class="node-status"><span class="status-dot" style="background:var(--green)"></span><span style="color:var(--green);font-size:7px">running</span></div>
+            </div>
+            <div class="node" style="left:200px;top:180px;width:140px;height:56px">
+              <div class="node-role" style="color:var(--teal)">● engineer</div>
+              <div class="node-task">TASK-008: FIX CMD…</div>
+              <div class="node-status"><span class="status-dot" style="background:var(--text-2)"></span><span style="color:var(--text-2);font-size:7px">✓ completed</span></div>
+            </div>
+            <div class="node" style="left:380px;top:180px;width:140px;height:56px">
+              <div class="node-role" style="color:var(--teal)">● engineer</div>
+              <div class="node-task">TASK-005: FIX AGENT…</div>
+              <div class="node-status"><span class="status-dot" style="background:var(--text-2)"></span><span style="color:var(--text-2);font-size:7px">✓ completed</span></div>
+            </div>
+            <div class="node" style="left:560px;top:180px;width:140px;height:56px">
+              <div class="node-role" style="color:var(--teal)">● engineer</div>
+              <div class="node-task">TASK-003: FIX RT…</div>
+              <div class="node-status"><span class="status-dot" style="background:var(--text-2)"></span><span style="color:var(--text-2);font-size:7px">✓ completed</span></div>
+            </div>
+            <div class="node" style="left:740px;top:180px;width:140px;height:56px">
+              <div class="node-role" style="color:var(--teal)">● engineer</div>
+              <div class="node-task">TASK-002: FIX RT…</div>
+              <div class="node-status"><span class="status-dot" style="background:var(--text-2)"></span><span style="color:var(--text-2);font-size:7px">✓ completed</span></div>
+            </div>
+            <div class="node" style="left:920px;top:180px;width:140px;height:56px;border-color:var(--orange)">
+              <div class="node-role" style="color:var(--orange)">● orchestrator</div>
+              <div class="node-task">ORCHESTRATE FEED…</div>
+              <div class="node-status"><span class="status-dot" style="background:var(--text-2)"></span><span style="color:var(--text-2);font-size:7px">✓ completed</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-bar">
+          <span class="bottom-stat">Agents: <b>8</b></span>
+          <span class="bottom-stat">Running: <b>2</b></span>
+          <span class="bottom-stat">Cost: <b>$12.06</b></span>
+        </div>
+      </div>
+      <div class="ann"><span class="ann-dot"></span><span><span class="bad">Nodes unreadable</span> at fit-to-view. User sees blobs, not info.</span></div>
+      <div class="ann"><span class="ann-dot"></span><span><span class="bad">Large empty canvas</span> — 80% of the panel is empty space below nodes.</span></div>
+      <div class="ann"><span class="ann-dot"></span><span><span class="bad">Width scales linearly</span> — 12 agents → 2120px minimum.</span></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     THREE OPTIONS SIDE BY SIDE
+═══════════════════════════════════════════════════════════════ -->
+<h2>Three layout strategies</h2>
+<div class="row" style="align-items:flex-start; gap:28px">
+
+  <!-- ── OPTION 1: WRAPPED GRID ─────────────────────────── -->
+  <div class="col" style="gap:8px">
+    <div class="label">Option 1 — Wrapped grid (max N cols)</div>
+    <div class="panel" style="width:400px">
+      <div class="panel-header">
+        <span class="tab active">⚡ Agent Graph <span class="tab-badge">8</span></span>
+        <span class="tab">≡ Agent Log</span>
+        <div style="margin-left:auto; display:flex; gap:4px; align-items:center; font-size:9px; color:var(--text-2)">cols <b style="color:var(--text-1)">3</b></div>
+      </div>
+      <!--
+        LAYOUT: main centered at top.
+        Children in rows of 3.
+        NODE_WIDTH=120, nodesep=16 → row width = 3×120 + 2×16 = 392px
+        Fits comfortably in 400px panel.
+      -->
+      <div class="canvas" style="height:260px; background:var(--bg-0)">
+        <svg class="edges" width="400" height="260">
+          <!-- main → row1 children -->
+          <line x1="200" y1="64" x2="70"  y2="112" stroke="var(--border-active)" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+          <line x1="200" y1="64" x2="200" y2="112" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-a)"/>
+          <line x1="200" y1="64" x2="330" y2="112" stroke="var(--border-active)" stroke-width="1" marker-end="url(#arr)"/>
+          <!-- main → row2 children -->
+          <line x1="200" y1="64" x2="70"  y2="192" stroke="var(--border-active)" stroke-width="1" marker-end="url(#arr)"/>
+          <line x1="200" y1="64" x2="200" y2="192" stroke="var(--border-active)" stroke-width="1" marker-end="url(#arr)"/>
+          <line x1="200" y1="64" x2="330" y2="192" stroke="var(--orange)" stroke-width="1" marker-end="url(#arr-o)"/>
+          <defs>
+            <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L6,3 z" fill="var(--border-active)"/>
+            </marker>
+            <marker id="arr-a" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L6,3 z" fill="var(--accent)"/>
+            </marker>
+            <marker id="arr-o" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L6,3 z" fill="var(--orange)"/>
+            </marker>
+          </defs>
+        </svg>
+
+        <!-- main -->
+        <div class="node main-node" style="left:130px;top:12px;width:140px;height:52px">
+          <div class="node-role" style="color:var(--accent)">● main</div>
+          <div class="node-task">MAIN SESSION</div>
+          <div class="node-status"><span class="status-dot" style="background:var(--green)"></span><span style="color:var(--green);font-size:7px">running</span></div>
+        </div>
+
+        <!-- row 1: 3 nodes -->
+        <div class="node running" style="left:10px;top:100px;width:120px;height:48px">
+          <div class="node-role" style="color:var(--teal)">● engineer</div>
+          <div class="node-task">TASK-004: bidir…</div>
+          <div class="node-status"><span class="status-dot" style="background:var(--green)"></span><span style="color:var(--green);font-size:7px">running</span></div>
+        </div>
+        <div class="node running selected" style="left:140px;top:100px;width:120px;height:48px">
+          <div class="node-role" style="color:var(--teal)">● engineer</div>
+          <div class="node-task">TASK-007: cmd dis…</div>
+          <div class="node-status"><span class="status-dot" style="background:var(--green)"></span><span style="color:var(--green);font-size:7px">running</span></div>
+        </div>
+        <div class="node" style="left:270px;top:100px;width:120px;height:48px">
+          <div class="node-role" style="color:var(--teal)">● engineer</div>
+          <div class="node-task">TASK-005: agents…</div>
+          <div class="node-status"><span class="status-dot" style="background:var(--text-2)"></span><span style="color:var(--text-2);font-size:7px">✓ done</span></div>
+        </div>
+
+        <!-- row 2: 3 nodes -->
+        <div class="node" style="left:10px;top:180px;width:120px;height:48px">
+          <div class="node-role" style="color:var(--teal)">● engineer</div>
+          <div class="node-task">TASK-003: rt ne…</div>
+          <div class="node-status"><span class="status-dot" style="background:var(--text-2)"></span><span style="color:var(--text-2);font-size:7px">✓ done</span></div>
+        </div>
+        <div class="node" style="left:140px;top:180px;width:120px;height:48px">
+          <div class="node-role" style="color:var(--teal)">● engineer</div>
+          <div class="node-task">TASK-002: rt ag…</div>
+          <div class="node-status"><span class="status-dot" style="background:var(--text-2)"></span><span style="color:var(--text-2);font-size:7px">✓ done</span></div>
+        </div>
+        <div class="node" style="left:270px;top:180px;width:120px;height:48px;border-color:var(--orange)">
+          <div class="node-role" style="color:var(--orange)">● orchestrator</div>
+          <div class="node-task">FEEDBACK-V2…</div>
+          <div class="node-status"><span class="status-dot" style="background:var(--text-2)"></span><span style="color:var(--text-2);font-size:7px">✓ done</span></div>
+        </div>
+      </div>
+      <div class="bottom-bar">
+        <span class="bottom-stat">Agents: <b>7</b></span>
+        <span class="bottom-stat">Running: <b>2</b></span>
+        <span class="bottom-stat">Cost: <b>$12.06</b></span>
+      </div>
+    </div>
+    <div class="ann"><span class="ann-dot"></span><span><span class="good">Width capped</span> at panel width. Rows wrap like CSS grid.</span></div>
+    <div class="ann"><span class="ann-dot"></span><span>DAG structure preserved — edges still show parent→child.</span></div>
+    <div class="ann"><span class="ann-dot"></span><span>Column count auto from: <code>floor(panelWidth / (nodeWidth + gap))</code>.</span></div>
+    <div class="ann"><span class="ann-dot"></span><span style="color:var(--text-2)">Implementation: replace dagre with custom grid layout when all nodes are depth ≤ 2.</span></div>
+  </div>
+
+  <!-- ── OPTION 2: VERTICAL LIST ────────────────────────── -->
+  <div class="col" style="gap:8px">
+    <div class="label">Option 2 — Compact vertical list (flat trees)</div>
+    <div class="panel" style="width:300px">
+      <div class="panel-header">
+        <span class="tab active">⚡ Agent Graph <span class="tab-badge">8</span></span>
+        <div style="margin-left:auto; font-size:9px; color:var(--text-2)">LIST VIEW</div>
+      </div>
+
+      <!-- main row -->
+      <div style="padding:6px 10px 4px; border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;display:inline-block"></span>
+          <span style="font-size:10px;font-weight:700;color:var(--text-0)">main</span>
+          <span style="font-size:9px;color:var(--green);margin-left:2px">running</span>
+          <span style="margin-left:auto;font-size:9px;color:var(--text-2)">$12.06 · 117k tok</span>
+        </div>
+      </div>
+
+      <!-- agent list -->
+      <div style="overflow-y:auto;flex:1;max-height:240px">
+        <div class="list-row running">
+          <span class="lr-sdot" style="background:var(--green)"></span>
+          <span class="lr-badge" style="background:rgba(20,184,166,.15);color:var(--teal)">eng</span>
+          <span class="lr-task">TASK-004: bidirectional-t…</span>
+          <span class="lr-status" style="color:var(--green)">running</span>
+        </div>
+        <div class="list-row running selected">
+          <span class="lr-sdot" style="background:var(--green)"></span>
+          <span class="lr-badge" style="background:rgba(20,184,166,.15);color:var(--teal)">eng</span>
+          <span class="lr-task">TASK-007: command-dispa…</span>
+          <span class="lr-status" style="color:var(--green)">running</span>
+        </div>
+        <div class="list-row done">
+          <span class="lr-sdot" style="background:var(--text-2)"></span>
+          <span class="lr-badge" style="background:rgba(20,184,166,.12);color:var(--teal)">eng</span>
+          <span class="lr-task">TASK-008: fix-cmd-dis…</span>
+          <span class="lr-status">✓ done</span>
+        </div>
+        <div class="list-row done">
+          <span class="lr-sdot" style="background:var(--text-2)"></span>
+          <span class="lr-badge" style="background:rgba(20,184,166,.12);color:var(--teal)">eng</span>
+          <span class="lr-task">TASK-005: fix-agent-list…</span>
+          <span class="lr-status">✓ done</span>
+        </div>
+        <div class="list-row done">
+          <span class="lr-sdot" style="background:var(--text-2)"></span>
+          <span class="lr-badge" style="background:rgba(20,184,166,.12);color:var(--teal)">eng</span>
+          <span class="lr-task">TASK-003: fix-realtime-ne…</span>
+          <span class="lr-status">✓ done</span>
+        </div>
+        <div class="list-row done">
+          <span class="lr-sdot" style="background:var(--text-2)"></span>
+          <span class="lr-badge" style="background:rgba(20,184,166,.12);color:var(--teal)">eng</span>
+          <span class="lr-task">TASK-002: fix-realtime-ag…</span>
+          <span class="lr-status">✓ done</span>
+        </div>
+        <div class="list-row done">
+          <span class="lr-sdot" style="background:var(--text-2)"></span>
+          <span class="lr-badge" style="background:rgba(247,115,22,.15);color:var(--orange)">orch</span>
+          <span class="lr-task">ORCHESTRATE-FEEDBACK-V2…</span>
+          <span class="lr-status">✓ done</span>
+        </div>
+        <div class="list-row done">
+          <span class="lr-sdot" style="background:var(--text-2)"></span>
+          <span class="lr-badge" style="background:rgba(99,102,241,.15);color:var(--accent)">rev</span>
+          <span class="lr-task">REVIEW-TASK-004…</span>
+          <span class="lr-status">✓ done</span>
+        </div>
+      </div>
+      <div class="bottom-bar">
+        <span class="bottom-stat">Agents: <b>8</b></span>
+        <span class="bottom-stat">Running: <b>2</b></span>
+        <span class="bottom-stat">Cost: <b>$12.06</b></span>
+      </div>
+    </div>
+    <div class="ann"><span class="ann-dot"></span><span><span class="good">Zero width overflow</span> — works at any panel width.</span></div>
+    <div class="ann"><span class="ann-dot"></span><span><span class="good">Scrollable</span> — 100 agents is just 100 rows.</span></div>
+    <div class="ann"><span class="ann-dot"></span><span>Full task name visible on hover/expand. No zoom needed.</span></div>
+    <div class="ann"><span class="ann-dot"></span><span style="color:var(--text-2)">Trigger: auto-switch when panel width &lt; 360px OR depth ≤ 1 (all agents are direct children of main).</span></div>
+  </div>
+
+  <!-- ── OPTION 3: COMPACT CARDS + MINIMAP ──────────────── -->
+  <div class="col" style="gap:8px">
+    <div class="label">Option 3 — Compact cards + constrained width</div>
+    <div class="panel" style="width:360px">
+      <div class="panel-header">
+        <span class="tab active">⚡ Agent Graph <span class="tab-badge">8</span></span>
+        <div style="margin-left:auto;display:flex;gap:3px">
+          <span class="sw on">compact</span>
+          <span class="sw">full</span>
+        </div>
+      </div>
+      <!--
+        Compact node: 100×34px, nodesep:12
+        4 nodes/row: 4×100 + 3×12 = 436 → too wide for 360px
+        3 nodes/row: 3×100 + 2×12 = 324 → fits in 360px
+      -->
+      <div class="canvas" style="height:240px">
+        <svg class="edges2" width="360" height="240" style="position:absolute;top:0;left:0;pointer-events:none;overflow:visible">
+          <defs>
+            <marker id="a2" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+              <path d="M0,0 L0,5 L5,2.5 z" fill="var(--border-active)"/>
+            </marker>
+            <marker id="a2g" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+              <path d="M0,0 L0,5 L5,2.5 z" fill="var(--green)"/>
+            </marker>
+            <marker id="a2o" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+              <path d="M0,0 L0,5 L5,2.5 z" fill="var(--orange)"/>
+            </marker>
+          </defs>
+          <!-- main to row 1 -->
+          <line x1="180" y1="48" x2="60"  y2="90"  stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#a2g)"/>
+          <line x1="180" y1="48" x2="180" y2="90"  stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#a2g)"/>
+          <line x1="180" y1="48" x2="300" y2="90"  stroke="var(--border-active)" stroke-width="1" marker-end="url(#a2)"/>
+          <!-- main to row 2 -->
+          <line x1="180" y1="48" x2="60"  y2="162" stroke="var(--border-active)" stroke-width="1" marker-end="url(#a2)"/>
+          <line x1="180" y1="48" x2="180" y2="162" stroke="var(--border-active)" stroke-width="1" marker-end="url(#a2)"/>
+          <line x1="180" y1="48" x2="300" y2="162" stroke="var(--orange)" stroke-width="1" marker-end="url(#a2o)"/>
+        </svg>
+
+        <!-- main — compact -->
+        <div class="node-sm main-node" style="left:118px;top:10px;width:124px;height:38px;border-radius:5px;border-color:var(--accent);background:rgba(99,102,241,.12)">
+          <span class="role-badge" style="background:rgba(99,102,241,.2);color:var(--accent)">main</span>
+          <span class="task-text" style="color:var(--text-0)">MAIN SESSION</span>
+          <span class="sdot" style="background:var(--green)"></span>
+        </div>
+
+        <!-- row 1 compact -->
+        <div class="node-sm running" style="left:10px;top:80px;width:100px;height:32px">
+          <span class="role-badge" style="background:rgba(20,184,166,.15);color:var(--teal)">eng</span>
+          <span class="task-text">TASK-004</span>
+          <span class="sdot" style="background:var(--green)"></span>
+        </div>
+        <div class="node-sm running selected" style="left:130px;top:80px;width:100px;height:32px;border-color:var(--accent)">
+          <span class="role-badge" style="background:rgba(20,184,166,.15);color:var(--teal)">eng</span>
+          <span class="task-text">TASK-007</span>
+          <span class="sdot" style="background:var(--green)"></span>
+        </div>
+        <div class="node-sm" style="left:250px;top:80px;width:100px;height:32px">
+          <span class="role-badge" style="background:rgba(20,184,166,.1);color:var(--teal)">eng</span>
+          <span class="task-text">TASK-008</span>
+          <span class="sdot" style="background:var(--text-2)"></span>
+        </div>
+
+        <!-- row 2 compact -->
+        <div class="node-sm" style="left:10px;top:152px;width:100px;height:32px">
+          <span class="role-badge" style="background:rgba(20,184,166,.1);color:var(--teal)">eng</span>
+          <span class="task-text">TASK-005</span>
+          <span class="sdot" style="background:var(--text-2)"></span>
+        </div>
+        <div class="node-sm" style="left:130px;top:152px;width:100px;height:32px">
+          <span class="role-badge" style="background:rgba(20,184,166,.1);color:var(--teal)">eng</span>
+          <span class="task-text">TASK-003</span>
+          <span class="sdot" style="background:var(--text-2)"></span>
+        </div>
+        <div class="node-sm" style="left:250px;top:152px;width:100px;height:32px;border-color:var(--orange)">
+          <span class="role-badge" style="background:rgba(247,115,22,.15);color:var(--orange)">orch</span>
+          <span class="task-text">FEEDBACK</span>
+          <span class="sdot" style="background:var(--text-2)"></span>
+        </div>
+      </div>
+
+      <!-- selected agent detail strip -->
+      <div style="border-top:1px solid var(--border);padding:5px 10px;background:var(--bg-2);font-size:9px;color:var(--text-1)">
+        <span style="color:var(--teal);font-weight:700">ENGINEER</span>
+        <span style="margin-left:6px;color:var(--text-0)">TASK-007: fix command dispatch</span>
+        <span style="margin-left:auto;float:right;color:var(--green)">● running</span>
+      </div>
+      <div class="bottom-bar">
+        <span class="bottom-stat">Agents: <b>7</b></span>
+        <span class="bottom-stat">Running: <b>2</b></span>
+        <span class="bottom-stat">Cost: <b>$12.06</b></span>
+      </div>
+    </div>
+    <div class="ann"><span class="ann-dot"></span><span><span class="good">NODE_WIDTH shrinks to 100px</span> in compact mode → 3 nodes fit in 320px.</span></div>
+    <div class="ann"><span class="ann-dot"></span><span>Selected node details shown in a pinned strip below graph (no tooltip needed).</span></div>
+    <div class="ann"><span class="ann-dot"></span><span>"Full" toggle restores big nodes for deep inspection.</span></div>
+    <div class="ann"><span class="ann-dot"></span><span style="color:var(--text-2)">Toggle stored in component state. Compact = default when <code>nodeCount &gt; 6</code>.</span></div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     RECOMMENDATION
+═══════════════════════════════════════════════════════════════ -->
+<div class="col" style="gap:12px; max-width:760px">
+  <h2>Recommendation — combine 2 + 3</h2>
+  <p>
+    <b>Tier 1 (depth ≤ 1, panel &lt; 380px)</b>: Auto-switch to the compact vertical list (Option 2).
+    Zero layout math, zero overflow, infinitely scalable. This covers the most common case: main → N parallel agents.
+  </p>
+  <p>
+    <b>Tier 2 (depth ≥ 2, panel any width)</b>: Use compact node cards (Option 3) with
+    <code>cols = floor((panelWidth - 20) / (nodeWidth + gap))</code> rows to keep the graph
+    within bounds. "Full" toggle for detail.
+  </p>
+  <p>
+    <b>Tier 3 (deep nested graphs)</b>: Keep current dagre for complex multi-level trees (rare) but apply the compact node size by default.
+  </p>
+  <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:4px">
+    <div class="ann"><span class="ann-dot"></span><span>Key code change: <code>const cols = Math.max(1, Math.floor((panelPx - 20) / (NODE_W + NODE_GAP)))</code></span></div>
+    <div class="ann"><span class="ann-dot"></span><span>Use a <code>ResizeObserver</code> on the panel container → feed width into layout function reactively.</span></div>
+    <div class="ann"><span class="ann-dot"></span><span>List view: pure flexbox/div, no XYFlow/dagre overhead. Fast even for 50+ agents.</span></div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -8,6 +8,7 @@ tools:
   - Glob
   - Grep
   - Bash
+  - Skill
 ---
 
 # Engineer Agent
@@ -65,6 +66,13 @@ Write a short plan:
 
 ### Phase 2 — Design
 
+Before defining types or interfaces, consult SE principles:
+
+```
+Skill(skill: "se-principles")
+```
+
+Then:
 - Define types/interfaces first
 - Define function signatures before bodies
 - Annotate all public functions with types
@@ -72,13 +80,10 @@ Write a short plan:
 
 ### Phase 3 — Implementation (TDD)
 
-Per logical unit, follow the RED-GREEN-REFACTOR cycle:
+Per logical unit:
 
 ```
-1. Write ONE failing test → run it → confirm it FAILS for the right reason
-2. Write MINIMAL code to pass → run it → confirm ALL tests PASS
-3. Refactor if needed → run tests → confirm still GREEN
-4. Repeat for next unit
+Skill(skill: "test-driven-development")
 ```
 
 **Iron Law:** If you wrote code before the test, delete it. Start over.

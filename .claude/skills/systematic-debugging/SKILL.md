@@ -5,6 +5,8 @@ description: Use when a bug's root cause is unclear after initial investigation
 
 # Systematic Debugging
 
+> If interrupted, re-invoke with the same arguments — this skill is idempotent.
+
 ## Overview
 
 When a bug's root cause isn't obvious, follow a systematic process instead of random poking.

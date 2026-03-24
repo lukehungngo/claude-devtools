@@ -47,6 +47,37 @@ Never declare done without running this checklist. "It works on my machine" is n
 - [ ] No unintended side effects on other modules
 - [ ] Performance hasn't degraded (if applicable)
 
+## Output
+
+After all checks pass, write a summary to `docs/reports/verification-{branch}.md`:
+
+```markdown
+# Verification: {branch-name}
+
+## Build
+- Lint: PASS / FAIL
+- Typecheck: PASS / FAIL
+- Tests: PASS ({N} total) / FAIL
+
+## Code
+- Diff reviewed: PASS / FAIL — {note}
+- No secrets: PASS / FAIL
+
+## Spec
+- Acceptance criteria: PASS / FAIL
+- Relevant files only: PASS / FAIL
+
+## Requirements
+- All PRD requirements implemented: PASS / FAIL
+
+## Regression
+- Existing tests: PASS / FAIL
+
+### Verdict: PASS / FAIL
+```
+
+This file is required by the `dev-loop` Step 8 gate before proceeding to Step 9.
+
 ## If Any Check Fails
 
 1. Fix the issue

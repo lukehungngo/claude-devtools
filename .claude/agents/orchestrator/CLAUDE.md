@@ -116,8 +116,10 @@ You MUST use the `Agent` tool for every dispatch. You do NOT have Bash — you c
 1. No existing implementation of this pattern in the codebase
 2. Task involves an algorithm/approach not yet used in this project
 3. Task touches a system boundary the codebase hasn't interfaced with before
+4. Task requires choosing between 2+ competing approaches with non-obvious trade-offs
+5. A similar task has failed or required multiple bug-fix rounds in a prior session (check `docs/reports/`)
 
-If in doubt, route to Researcher. The cost of unnecessary research is low; the cost of skipping research is 6 bug-fix rounds.
+If in doubt, route to Researcher. The cost of unnecessary research is low; the cost of skipping research is 6 bug-fix rounds (observed in S1).
 
 #### Dispatch Templates
 

@@ -3235,8 +3235,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path) {
-      let input = path;
+    function removeDotSegments(path2) {
+      let input = path2;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3435,8 +3435,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path && path !== "/" ? path : void 0;
+        const [path2, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path2 && path2 !== "/" ? path2 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -6799,12 +6799,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs, exportName) {
+    function addFormats(ajv, list, fs2, exportName) {
       var _a2;
       var _b;
       (_a2 = (_b = ajv.opts.code).formats) !== null && _a2 !== void 0 ? _a2 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs[f]);
+        ajv.addFormat(f, fs2[f]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -21960,8 +21960,8 @@ function getErrorMap() {
 
 // node_modules/.pnpm/zod@4.3.6/node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path, errorMaps, issueData } = params;
-  const fullPath = [...path, ...issueData.path || []];
+  const { data, path: path2, errorMaps, issueData } = params;
+  const fullPath = [...path2, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -22076,11 +22076,11 @@ var errorUtil;
 
 // node_modules/.pnpm/zod@4.3.6/node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path, key) {
+  constructor(parent, value, path2, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path;
+    this._path = path2;
     this._key = key;
   }
   get path() {
@@ -25726,10 +25726,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path) {
-  if (!path)
+function getElementAtPath(obj, path2) {
+  if (!path2)
     return obj;
-  return path.reduce((acc, key) => acc?.[key], obj);
+  return path2.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -26112,11 +26112,11 @@ function aborted(x2, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path, issues) {
+function prefixIssues(path2, issues) {
   return issues.map((iss) => {
     var _a2;
     (_a2 = iss).path ?? (_a2.path = []);
-    iss.path.unshift(path);
+    iss.path.unshift(path2);
     return iss;
   });
 }
@@ -35677,7 +35677,7 @@ function parseJsonlIncremental(filePath, fromOffset) {
 }
 
 // src/parser/session-discovery.ts
-var ACTIVE_THRESHOLD_MS = 24 * 60 * 60 * 1e3;
+var ACTIVE_THRESHOLD_MS = 12 * 60 * 60 * 1e3;
 var RUNNING_THRESHOLD_MS = 2 * 60 * 1e3;
 function getClaudeProjectsDir() {
   return join(homedir(), ".claude", "projects");
@@ -35781,10 +35781,11 @@ function discoverSessions() {
       });
     }
   }
-  sessions.sort(
+  const activeSessions = sessions.filter((s2) => s2.isActive);
+  activeSessions.sort(
     (a2, b2) => new Date(b2.lastModified).getTime() - new Date(a2.lastModified).getTime()
   );
-  return sessions;
+  return activeSessions;
 }
 function resolveRepoRoot(cwd) {
   let dir = cwd;
@@ -35883,6 +35884,10 @@ function loadFullSession(sessionInfo) {
   }
   return { mainEvents, subagentEvents, subagentMeta };
 }
+
+// src/analyzer/metrics.ts
+import fs from "fs";
+import path from "path";
 
 // src/analyzer/dag-builder.ts
 var ACTIVE_THRESHOLD_MS2 = 3e4;
@@ -36145,6 +36150,41 @@ function detectRemoteControl(events) {
   }
   return false;
 }
+function countDir(dirPath) {
+  try {
+    return fs.readdirSync(dirPath).length;
+  } catch {
+    return 0;
+  }
+}
+function countSubdirs(dirPath) {
+  try {
+    return fs.readdirSync(dirPath, { withFileTypes: true }).filter((d2) => d2.isDirectory()).length;
+  } catch {
+    return 0;
+  }
+}
+function computeRepoConfig(cwd) {
+  if (!cwd)
+    return { hooks: 0, rules: 0, agents: 0, claudeMdFiles: 0 };
+  const claudeDir = path.join(cwd, ".claude");
+  const hooks = countDir(path.join(claudeDir, "hooks"));
+  const rules = countDir(path.join(claudeDir, "rules"));
+  const agents = countSubdirs(path.join(claudeDir, "agents"));
+  let claudeMdFiles = 0;
+  if (fs.existsSync(path.join(cwd, "CLAUDE.md")))
+    claudeMdFiles++;
+  const agentsDir = path.join(claudeDir, "agents");
+  try {
+    for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+      if (entry.isDirectory() && fs.existsSync(path.join(agentsDir, entry.name, "CLAUDE.md"))) {
+        claudeMdFiles++;
+      }
+    }
+  } catch {
+  }
+  return { hooks, rules, agents, claudeMdFiles };
+}
 function computeMetrics(sessionInfo, mainEvents, subagentEvents, subagentMeta) {
   const allEvents = [
     ...mainEvents,
@@ -36230,6 +36270,7 @@ function computeMetrics(sessionInfo, mainEvents, subagentEvents, subagentMeta) {
   const contextPercent = contextWindowSize > 0 ? Math.min(100, Math.round(lastInputTokens / contextWindowSize * 100)) : 0;
   const tasks = extractTasks(allEvents);
   const hasRemoteControl = detectRemoteControl(mainEvents);
+  const repoConfig = computeRepoConfig(sessionInfo.cwd);
   return {
     session: sessionInfo,
     dag,
@@ -36246,7 +36287,8 @@ function computeMetrics(sessionInfo, mainEvents, subagentEvents, subagentMeta) {
     contextPercent,
     contextWindowSize,
     tasks,
-    hasRemoteControl
+    hasRemoteControl,
+    repoConfig
   };
 }
 
@@ -36699,7 +36741,8 @@ function setupRoutes(state) {
     try {
       const { decision } = req.body;
       const result = resolvePermissionRequest(req.params.id, decision);
-      if (!result) {
+      const sessionResolved = state?.sessionManager ? state.sessionManager.resolvePermission(req.params.id, decision) : false;
+      if (!result && !sessionResolved) {
         return res.status(404).json({ error: "Permission not found" });
       }
       if (state) {
@@ -36717,6 +36760,161 @@ function setupRoutes(state) {
   router.get("/permissions/pending", (_req, res) => {
     res.json({ permissions: getPendingPermissions() });
   });
+  router.post("/questions/:questionId/answer", (req, res) => {
+    try {
+      const { answer } = req.body;
+      if (!answer || typeof answer !== "string") {
+        return res.status(400).json({ error: "answer is required" });
+      }
+      const sessionManager = state?.sessionManager;
+      if (!sessionManager) {
+        return res.status(500).json({ error: "Session manager not available" });
+      }
+      const resolved = sessionManager.resolveQuestion(req.params.questionId, answer);
+      if (!resolved) {
+        return res.status(404).json({ error: "Question not found" });
+      }
+      if (state) {
+        broadcast(state, {
+          type: "question-answered",
+          id: req.params.questionId,
+          answer
+        });
+      }
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to answer question" });
+    }
+  });
+  router.post("/sessions/new", async (req, res) => {
+    try {
+      const { cwd } = req.body;
+      if (!cwd || typeof cwd !== "string") {
+        return res.status(400).json({ error: "cwd is required" });
+      }
+      const sessionManager = state?.sessionManager;
+      if (!sessionManager) {
+        return res.status(500).json({ error: "Session manager not available" });
+      }
+      const sessionId = await sessionManager.startSession(cwd);
+      res.json({ sessionId });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to create session" });
+    }
+  });
+  router.post("/sessions/:sessionId/message", async (req, res) => {
+    const { sessionId } = req.params;
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: "Missing prompt" });
+    }
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    const session = sessionManager.getStatus(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+    res.on("close", () => {
+      sessionManager.abortSession(sessionId);
+    });
+    try {
+      for await (const message of sessionManager.sendMessage(sessionId, prompt)) {
+        const msg = message;
+        if (msg.type === "stream_event") {
+          const event = msg.event;
+          if (event?.type === "content_block_delta" && event.delta?.type === "text_delta" && event.delta.text) {
+            res.write(
+              `data: ${JSON.stringify({ type: "stdout", text: event.delta.text })}
+
+`
+            );
+          }
+        } else if (msg.type === "assistant") {
+          const content = msg.message?.content;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (block.type === "text" && block.text) {
+                res.write(
+                  `data: ${JSON.stringify({ type: "stdout", text: block.text })}
+
+`
+                );
+              }
+            }
+          }
+        } else if (msg.type === "result") {
+          if (msg.is_error) {
+            const errMsg = msg.subtype ? String(msg.subtype) : "Execution error";
+            res.write(
+              `data: ${JSON.stringify({ type: "error", message: errMsg })}
+
+`
+            );
+          }
+        }
+      }
+      res.write(
+        `data: ${JSON.stringify({ type: "done", exitCode: 0 })}
+
+`
+      );
+      res.end();
+    } catch (err) {
+      res.write(
+        `data: ${JSON.stringify({ type: "error", message: err instanceof Error ? err.message : String(err) })}
+
+`
+      );
+      res.end();
+    }
+  });
+  router.post("/sessions/:sessionId/abort", (req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    const aborted2 = sessionManager.abortSession(req.params.sessionId);
+    if (!aborted2) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    res.json({ ok: true });
+  });
+  router.post("/sessions/:sessionId/resume", async (req, res) => {
+    const { cwd } = req.body;
+    if (!cwd || typeof cwd !== "string") {
+      return res.status(400).json({ error: "cwd is required" });
+    }
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    try {
+      await sessionManager.resumeSession(req.params.sessionId, cwd);
+      res.json({ ok: true, sessionId: req.params.sessionId });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to resume session" });
+    }
+  });
+  router.get("/sessions/active", (_req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.json({ sessions: [] });
+    }
+    const sessions = sessionManager.getActiveSessions().map((s2) => ({
+      sessionId: s2.sessionId,
+      cwd: s2.cwd,
+      status: s2.status,
+      createdAt: s2.createdAt
+    }));
+    res.json({ sessions });
+  });
   router.post("/command", async (req, res) => {
     const { prompt, cwd, sessionId } = req.body;
     if (!prompt) {
@@ -36728,7 +36926,7 @@ function setupRoutes(state) {
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
     const controller = new AbortController();
-    req.on("close", () => {
+    res.on("close", () => {
       controller.abort();
     });
     try {
@@ -36738,8 +36936,14 @@ function setupRoutes(state) {
         options: {
           abortController: controller,
           cwd: cwd || process.cwd(),
-          resume: sessionId,
+          // Only resume if an explicit sessionId was provided — never resume
+          // a CLI-started session accidentally from a dashboard one-shot command.
+          ...sessionId ? { resume: sessionId } : {},
           forkSession: false,
+          // Required for real-time streaming: without this flag, the SDK does not
+          // emit stream_event (SDKPartialAssistantMessage) messages, so the client
+          // receives no output until the turn completes.
+          includePartialMessages: true,
           canUseTool: async (toolName, input) => {
             const permission = addPermissionRequest({
               sessionId: sessionId || "unknown",
@@ -36750,7 +36954,7 @@ function setupRoutes(state) {
             if (state) {
               broadcast(state, { type: "permission-request", permission });
             }
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
               const check2 = setInterval(() => {
                 const status = getPermissionStatus(permission.id);
                 if (status?.status === "approved") {
@@ -36761,6 +36965,10 @@ function setupRoutes(state) {
                   resolve({ behavior: "deny", message: "User denied permission" });
                 }
               }, 500);
+              controller.signal.addEventListener("abort", () => {
+                clearInterval(check2);
+                reject(new Error("Aborted"));
+              }, { once: true });
             });
           }
         }
@@ -36768,7 +36976,7 @@ function setupRoutes(state) {
       for await (const message of responseStream) {
         if (message.type === "stream_event") {
           const event = message.event;
-          if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+          if (event.type === "content_block_delta" && event.delta?.type === "text_delta" && event.delta.text) {
             res.write(
               `data: ${JSON.stringify({ type: "stdout", text: event.delta.text })}
 
@@ -36776,12 +36984,27 @@ function setupRoutes(state) {
             );
           }
         } else if (message.type === "assistant") {
-        } else if (message.type === "error") {
-          res.write(
-            `data: ${JSON.stringify({ type: "error", message: message.error?.message || "Unknown error" })}
+          const content = message.message.content;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (block.type === "text" && block.text) {
+                res.write(
+                  `data: ${JSON.stringify({ type: "stdout", text: block.text })}
 
 `
-          );
+                );
+              }
+            }
+          }
+        } else if (message.type === "result") {
+          if (message.is_error) {
+            const errMsg = "subtype" in message ? String(message.subtype) : "Execution error";
+            res.write(
+              `data: ${JSON.stringify({ type: "error", message: errMsg })}
+
+`
+            );
+          }
         }
       }
       res.write(
@@ -36807,6 +37030,10 @@ function setupRoutes(state) {
         return;
       }
       if (!filePath.startsWith("/") || filePath.includes("..")) {
+        res.status(400).json({ error: "Invalid file path" });
+        return;
+      }
+      if (/[^a-zA-Z0-9_\-./]/.test(filePath)) {
         res.status(400).json({ error: "Invalid file path" });
         return;
       }
@@ -36868,6 +37095,158 @@ function startWatcher(state) {
   });
 }
 
+// src/session/session-manager.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+var SessionManager = class {
+  activeSessions = /* @__PURE__ */ new Map();
+  broadcast;
+  constructor(broadcast2) {
+    this.broadcast = broadcast2;
+  }
+  /** Start a brand new session, returns sessionId */
+  async startSession(cwd) {
+    const sessionId = randomUUID2();
+    const session = {
+      sessionId,
+      cwd,
+      status: "idle",
+      abortController: new AbortController(),
+      permissionResolvers: /* @__PURE__ */ new Map(),
+      questionResolvers: /* @__PURE__ */ new Map(),
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    this.activeSessions.set(sessionId, session);
+    return sessionId;
+  }
+  /** Send a message to an existing session (multi-turn). Returns async iterable of SDK messages. */
+  async *sendMessage(sessionId, prompt) {
+    const session = this.activeSessions.get(sessionId);
+    if (!session)
+      throw new Error(`Session ${sessionId} not found`);
+    if (session.status === "streaming")
+      throw new Error(`Session ${sessionId} is already streaming`);
+    session.status = "streaming";
+    session.abortController = new AbortController();
+    try {
+      const { query } = await Promise.resolve().then(() => (init_sdk(), sdk_exports));
+      const responseStream = query({
+        prompt,
+        options: {
+          abortController: session.abortController,
+          cwd: session.cwd,
+          resume: sessionId,
+          forkSession: false,
+          includePartialMessages: true,
+          canUseTool: async (toolName, input) => {
+            return this.handlePermission(session, toolName, input);
+          }
+        }
+      });
+      for await (const message of responseStream) {
+        yield message;
+      }
+      session.status = "idle";
+    } catch (err) {
+      if (err instanceof Error && err.message === "Aborted") {
+        session.status = "idle";
+      } else {
+        session.status = "error";
+      }
+      throw err;
+    }
+  }
+  /** Handle permission request -- returns Promise that resolves when user decides */
+  handlePermission(session, toolName, input) {
+    const requestId = randomUUID2();
+    session.status = "waiting-permission";
+    this.broadcast({
+      type: "permission-request",
+      permission: {
+        id: requestId,
+        sessionId: session.sessionId,
+        agentId: "main",
+        toolName,
+        input,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        status: "pending"
+      }
+    });
+    return new Promise((resolve) => {
+      session.permissionResolvers.set(requestId, (result) => {
+        session.permissionResolvers.delete(requestId);
+        if (session.status === "waiting-permission") {
+          session.status = "streaming";
+        }
+        resolve(result);
+      });
+    });
+  }
+  /** Resolve a pending permission request (called when dashboard user clicks approve/deny) */
+  resolvePermission(requestId, decision) {
+    for (const session of this.activeSessions.values()) {
+      const resolver = session.permissionResolvers.get(requestId);
+      if (resolver) {
+        const result = decision === "approved" ? { behavior: "allow" } : { behavior: "deny", message: "User denied permission" };
+        resolver(result);
+        return true;
+      }
+    }
+    return false;
+  }
+  /** Resolve a pending question (called when dashboard user submits an answer) */
+  resolveQuestion(questionId, answer) {
+    for (const session of this.activeSessions.values()) {
+      const resolver = session.questionResolvers.get(questionId);
+      if (resolver) {
+        resolver(answer);
+        session.questionResolvers.delete(questionId);
+        return true;
+      }
+    }
+    return false;
+  }
+  /** Resume a historical session (registers it with a known sessionId) */
+  async resumeSession(sessionId, cwd) {
+    if (this.activeSessions.has(sessionId))
+      return;
+    const session = {
+      sessionId,
+      cwd,
+      status: "idle",
+      abortController: new AbortController(),
+      permissionResolvers: /* @__PURE__ */ new Map(),
+      questionResolvers: /* @__PURE__ */ new Map(),
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    this.activeSessions.set(sessionId, session);
+  }
+  /** Abort an active streaming session */
+  abortSession(sessionId) {
+    const session = this.activeSessions.get(sessionId);
+    if (!session)
+      return false;
+    session.abortController.abort();
+    session.status = "idle";
+    return true;
+  }
+  /** Get status of a specific session */
+  getStatus(sessionId) {
+    return this.activeSessions.get(sessionId);
+  }
+  /** List all active sessions */
+  getActiveSessions() {
+    return Array.from(this.activeSessions.values());
+  }
+  /** Remove a session from tracking */
+  removeSession(sessionId) {
+    const session = this.activeSessions.get(sessionId);
+    if (!session)
+      return false;
+    session.abortController.abort();
+    return this.activeSessions.delete(sessionId);
+  }
+};
+
 // src/http/server.ts
 var __dirname;
 try {
@@ -36880,10 +37259,23 @@ function startHttpServer(port = 3142) {
     const app = express();
     const server2 = createServer(app);
     const wss = new WebSocketServer({ server: server2 });
-    const state = { clients: /* @__PURE__ */ new Set() };
+    const state = {
+      clients: /* @__PURE__ */ new Set(),
+      sessionManager: new SessionManager(
+        (data) => broadcast(state, data)
+      )
+    };
     wss.on("connection", (ws) => {
       state.clients.add(ws);
-      ws.on("close", () => state.clients.delete(ws));
+      const heartbeat = setInterval(() => {
+        if (ws.readyState === WebSocket2.OPEN) {
+          ws.ping();
+        }
+      }, 3e4);
+      ws.on("close", () => {
+        clearInterval(heartbeat);
+        state.clients.delete(ws);
+      });
     });
     app.use("/api", setupRoutes(state));
     const publicDir = join5(__dirname, "public");

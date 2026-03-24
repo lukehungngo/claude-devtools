@@ -88,7 +88,16 @@
       "Bash(pnpm add:*)",
       "Bash(node -e \"const r = require\\(''/Users/quochung.ngominh/working/ai/claude-devtools/.worktrees/feedback-v2/dashboard/node_modules/react-dom/test-utils''\\); console.log\\(Object.keys\\(r\\).filter\\(k => k.includes\\(''Hook''\\) || k.includes\\(''hook''\\)\\)\\)\")",
       "Bash(git stash:*)",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(git merge:*)",
+      "Bash(git reset:*)",
+      "Bash(git worktree:*)",
+      "Bash(git branch:*)",
+      "Bash(npx eslint:*)",
+      "Bash(for f:*)",
+      "Bash(while read:*)",
+      "Bash(do sed:*)",
+      "Bash(npx vitest:*)"
     ],
     "deny": [
       "Read:.env*",

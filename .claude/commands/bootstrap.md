@@ -62,7 +62,7 @@ Read `package.json`, `go.mod`, `pyproject.toml`, `Cargo.toml`, `Gemfile`, `pom.x
 
 | Setting | Maven | Gradle |
 |---------|-------|--------|
-| `{{install-command}}` | `mvn dependency:resolve` (or `./mvnw`) | `gradle dependencies` (or `./gradlew`) |
+| `make install` | `mvn dependency:resolve` (or `./mvnw`) | `gradle dependencies` (or `./gradlew`) |
 | `cd server && pnpm test && cd ../dashboard && pnpm test` | `mvn test` | `gradle test` |
 | `pnpm lint` | `mvn checkstyle:check` (if checkstyle plugin exists) or `mvn verify -DskipTests` | `gradle checkstyleMain` (if checkstyle plugin exists) or `gradle check -x test` |
 | `pnpm lint:fix` | `mvn com.coveo:fmt-maven-plugin:format` (if plugin exists) or `mvn spotless:apply` (if Spotless) | `gradle spotlessApply` (if Spotless) or `gradle googleJavaFormat` (if plugin exists) |
@@ -75,7 +75,7 @@ Read `package.json`, `go.mod`, `pyproject.toml`, `Cargo.toml`, `Gemfile`, `pom.x
 
 | Setting | Maven | Gradle |
 |---------|-------|--------|
-| `{{install-command}}` | `./mvnw dependency:resolve` | `./gradlew dependencies` |
+| `make install` | `./mvnw dependency:resolve` | `./gradlew dependencies` |
 | `cd server && pnpm test && cd ../dashboard && pnpm test` | `./mvnw test` | `./gradlew test` |
 | `pnpm lint` | `./mvnw checkstyle:check` or `./mvnw spotless:check` | `./gradlew checkstyleMain` or `./gradlew spotlessCheck` |
 | `pnpm lint:fix` | `./mvnw spotless:apply` | `./gradlew spotlessApply` |
@@ -98,8 +98,8 @@ Read `package.json`, `go.mod`, `pyproject.toml`, `Cargo.toml`, `Gemfile`, `pom.x
 
 Replace across every file in `.claude/` and `CLAUDE.md`:
 - `claude-devtools` → repo name or directory name
-- `{{description}}` / `{{one-line description}}` → infer from README, package.json description, or ask
-- `{{install-command}}` → detected install command
+- `A comprehensive debugging and monitoring dashboard for Claude Code agents` / `A comprehensive debugging and monitoring dashboard for Claude Code agents` → infer from README, package.json description, or ask
+- `make install` → detected install command
 - `cd server && pnpm test && cd ../dashboard && pnpm test` → detected test command
 - `pnpm lint` → detected lint command
 - `pnpm lint:fix` → detected format command
@@ -168,7 +168,7 @@ MAS Template bootstrapped for: {project name}
 Stack: {language} + {framework}
 has_ui: {true/false}
 Agents: 7 (6 active + ui-ux-designer conditional)
-Skills: 13 | Commands: 4 | Rules: 4 | Hooks: 2
+Skills: 13 | Commands: 5 | Rules: 4 | Hooks: 2
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 /mas:bootstrap is the ONLY command you need from the plugin.
@@ -192,6 +192,7 @@ Remaining TODOs:
 
 Ready to go? Try one of these:
   /dev-loop <describe your first task>
+  /bug-fix <describe the bug>
   /new-feature <feature name>
   /ask-questions <what you want to build>
 ```
@@ -209,12 +210,12 @@ Before overwriting anything, read the current local files to extract the placeho
 | Placeholder | How to extract |
 |-------------|----------------|
 | `claude-devtools` | Read from CLAUDE.md `# {name}` heading or first line |
-| `{{description}}` | Read from CLAUDE.md first paragraph or agent persona lines |
+| `A comprehensive debugging and monitoring dashboard for Claude Code agents` | Read from CLAUDE.md first paragraph or agent persona lines |
 | `cd server && pnpm test && cd ../dashboard && pnpm test` | Read from `.claude/agents/engineer/CLAUDE.md` — look for the line with the test command in Phase 4 |
 | `pnpm lint` | Same file, lint command line |
 | `cd server && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit` | Same file, typecheck command line |
 | `make build` | Read from CLAUDE.md Build & Test section |
-| `{{install-command}}` | Read from CLAUDE.md Build & Test section |
+| `make install` | Read from CLAUDE.md Build & Test section |
 | `pnpm lint:fix` | Read from CLAUDE.md Build & Test section |
 | `TypeScript 5.x, React 18, Vite 5, TailwindCSS 3, Express 4, Vitest` | Read from CLAUDE.md Code Style section |
 | `has_ui` | Read from CLAUDE.md Project Type section |

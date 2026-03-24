@@ -6,6 +6,7 @@
 
 set -euo pipefail
 
+# CUSTOMIZE THESE LINES:
 LINT_CMD="pnpm lint --quiet"
 TEST_CMD="cd server && pnpm test && cd ../dashboard && pnpm test"
 

@@ -5,6 +5,8 @@ description: Use when implementing any feature or bugfix, before writing impleme
 
 # Test-Driven Development (TDD)
 
+> If interrupted, re-invoke with the same arguments — this skill is idempotent.
+
 ## Overview
 
 Write the test first. Watch it fail. Write minimal code to pass.
