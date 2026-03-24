@@ -38,7 +38,7 @@ function Dashboard() {
     selected?.projectHash ?? null,
     selected?.sessionId ?? null
   );
-  const { liveEvents, handleNewEvents } = useEventStream(
+  const { liveEvents, handleNewEvents, clearLiveEvents } = useEventStream(
     metrics?.session?.path ?? null
   );
   const { permissions, decide, handlePermissionRequest, handlePermissionResolved } = usePermissions();
@@ -88,6 +88,9 @@ function Dashboard() {
     if (debounceRef.current !== null) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       refreshMetrics();
+      // Clear live events after REST refresh — REST returns the full dataset,
+      // so keeping liveEvents would cause duplicates in allEvents.
+      clearLiveEvents();
       debounceRef.current = null;
     }, 500);
     return () => {
