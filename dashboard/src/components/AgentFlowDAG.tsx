@@ -141,16 +141,26 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
     }
   }, [nodesReady, nodeFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Focus on selected agent node when it changes (e.g., clicking a turn prompt)
+  // Focus on selected agent node when it changes (e.g., clicking a turn prompt).
+  // Uses the same pending-ref pattern as auto-fitView to avoid losing the focus
+  // if nodesReady is false when the selection changes.
   const prevSelectedAgent = useRef<string | null>(null);
+  const selectPending = useRef<string | null>(null);
+
   useEffect(() => {
     if (!selectedAgent || selectedAgent === prevSelectedAgent.current) return;
     prevSelectedAgent.current = selectedAgent;
-    if (!nodesReady) return;
-    const node = nodes.find((n) => n.id === selectedAgent);
+    selectPending.current = selectedAgent;
+  }, [selectedAgent]);
+
+  useEffect(() => {
+    if (!nodesReady || !selectPending.current) return;
+    const targetId = selectPending.current;
+    selectPending.current = null;
+    const node = nodes.find((n) => n.id === targetId);
     if (!node) return;
     fitViewRef.current({ padding: 0.3, duration: 200, nodes: [node] });
-  }, [selectedAgent, nodes, nodesReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [nodesReady, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
