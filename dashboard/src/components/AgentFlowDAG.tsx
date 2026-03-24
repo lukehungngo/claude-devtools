@@ -90,12 +90,8 @@ interface GraphInnerProps {
 }
 
 function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewInLog }: GraphInnerProps) {
-  const { fitView, zoomIn, zoomOut } = useReactFlow();
+  const { fitView, zoomIn, zoomOut, getViewport, getNodes } = useReactFlow();
 
-  // Use ref for fitView so effects don't re-run when its reference changes.
-  // ReactFlow's useReactFlow() can return unstable references, which causes
-  // effect cleanup to cancel pending fitView timeouts before they fire —
-  // leaving the main node (positioned above children by dagre) off-screen.
   const fitViewRef = useRef(fitView);
   fitViewRef.current = fitView;
 
@@ -111,21 +107,11 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
   );
   const prevFingerprint = useRef<string | null>(null);
 
-  // useNodesInitialized returns true once ReactFlow has measured all node
-  // dimensions. This is the safe point to call fitView — calling earlier
-  // (via a fixed timeout) races against node measurement and can leave
-  // unmeasured nodes off-screen.
   const nodesReady = useNodesInitialized();
 
-  // Auto-fitView when the set of visible nodes changes AND ReactFlow has
-  // finished measuring them. Two guards:
-  //   1. nodeFingerprint changed  → a node was added or removed
-  //   2. nodesReady is true       → all nodes have dimensions
-  // We track a "pending" flag so the fitView fires once nodesReady
-  // catches up, even if the fingerprint changed on an earlier render.
+  // fitView on node set changes (nodes added/removed)
   const fitPending = useRef(false);
 
-  // Mark pending when the node set changes
   useEffect(() => {
     if (prevFingerprint.current !== nodeFingerprint) {
       fitPending.current = true;
@@ -133,7 +119,6 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
     }
   }, [nodeFingerprint]);
 
-  // Fire fitView once nodes are measured and a fit is pending
   useEffect(() => {
     if (nodesReady && fitPending.current) {
       fitPending.current = false;
@@ -141,9 +126,39 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
     }
   }, [nodesReady, nodeFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Focus on selected agent node when it changes (e.g., clicking a turn prompt).
-  // Uses the same pending-ref pattern as auto-fitView to avoid losing the focus
-  // if nodesReady is false when the selection changes.
+  // Viewport containment safety net.
+  // When ReactFlow re-measures nodes (nodesReady cycles true→false→true),
+  // the viewport can drift so that some nodes end up off-screen.
+  // This happens because REST refreshes create new dag object references,
+  // causing ReactFlow to re-measure even when node IDs are unchanged.
+  // After each re-measurement, check if all nodes are within the viewport;
+  // if any are off-screen, call fitView to bring them back.
+  const prevNodesReady = useRef(false);
+  useEffect(() => {
+    // Only check on nodesReady rising edge (false → true)
+    if (nodesReady && !prevNodesReady.current && !fitPending.current) {
+      const rfNodes = getNodes();
+      if (rfNodes.length > 0) {
+        const vp = getViewport();
+        const allVisible = rfNodes.every((n) => {
+          if (!n.measured?.width || !n.measured?.height) return true;
+          // Transform node position to screen coordinates
+          const screenX = n.position.x * vp.zoom + vp.x;
+          const screenY = n.position.y * vp.zoom + vp.y;
+          const screenW = n.measured.width * vp.zoom;
+          const screenH = n.measured.height * vp.zoom;
+          // Check if node is at least partially visible (generous margin)
+          return screenX + screenW > -50 && screenY + screenH > -50;
+        });
+        if (!allVisible) {
+          fitViewRef.current({ padding: 0.2, duration: 200 });
+        }
+      }
+    }
+    prevNodesReady.current = nodesReady;
+  }, [nodesReady, getNodes, getViewport]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Focus on selected agent node
   const prevSelectedAgent = useRef<string | null>(null);
   const selectPending = useRef<string | null>(null);
 

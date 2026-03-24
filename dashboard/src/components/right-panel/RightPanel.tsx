@@ -116,9 +116,14 @@ export function RightPanel({
     [onSnapshotSelect],
   );
 
-  // Filter events/DAG by active snapshot's turn
+  // Filter events/DAG by active snapshot's turn.
+  // Use >= to handle the one-frame lag where useEffect hasn't yet
+  // advanced activeSnapshotIndex to the new last turn. Without this,
+  // isLiveTurn briefly becomes false on new turns, causing filteredDag
+  // to produce a new filtered object reference → ReactFlow re-measures
+  // → viewport drifts → main node goes off-screen.
   const activeTurn = turns[activeSnapshotIndex];
-  const isLiveTurn = activeSnapshotIndex === turns.length - 1;
+  const isLiveTurn = activeSnapshotIndex >= turns.length - 1;
 
   const filteredEvents = useMemo(() => {
     if (!activeTurn) return events;
