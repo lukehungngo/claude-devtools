@@ -43,17 +43,17 @@ function Dashboard() {
   );
   const { permissions, decide, handlePermissionRequest, handlePermissionResolved } = usePermissions();
 
-  // Question state for AskUserQuestion
-  interface QuestionItem {
-    questionId: string;
-    questionText: string;
-    status: "pending" | "answered";
-    answer?: string;
-  }
+  // Question state for AskUserQuestion — uses QuestionItem from ConversationView
+  type QuestionItem = import("./components/conversation/ConversationView").QuestionItem;
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
 
   const handleUserQuestion = useCallback((q: { id: string; questionText: string }) => {
-    setQuestions((prev) => [...prev, { questionId: q.id, questionText: q.questionText, status: "pending" }]);
+    setQuestions((prev) => [...prev, {
+      questionId: q.id,
+      questionText: q.questionText,
+      status: "pending",
+      timestamp: new Date().toISOString(),
+    }]);
   }, []);
 
   const handleQuestionAnswered = useCallback((id: string, answer: string) => {

@@ -7,11 +7,12 @@ import { QuestionBlock } from "./QuestionBlock";
 import { PromptInput } from "./PromptInput";
 import { TurnCard } from "./TurnCard";
 
-interface QuestionItem {
+export interface QuestionItem {
   questionId: string;
   questionText: string;
   status: "pending" | "answered";
   answer?: string;
+  timestamp?: string;
 }
 
 interface ConversationViewProps {
@@ -218,44 +219,81 @@ export function ConversationView({
         ) : (
           filteredTurns.map((turn) => {
             const unfilteredIndex = turns.indexOf(turn);
+            const turnEnd = turn.endTime || turn.startTime;
+            const nextTurn = filteredTurns[filteredTurns.indexOf(turn) + 1];
+            const nextTurnStart = nextTurn?.startTime;
+
+            // Permissions that arrived during this turn (between turnEnd and next turn start)
+            const turnPerms = permissions && onPermissionDecide
+              ? permissions.filter((p) => {
+                  const pt = p.timestamp;
+                  if (!pt) return false;
+                  return pt >= turn.startTime && (!nextTurnStart || pt < nextTurnStart);
+                })
+              : [];
+
+            // Questions that arrived during this turn
+            const turnQuestions = questions && onSubmitAnswer
+              ? questions.filter((q) => {
+                  const qt = q.timestamp;
+                  if (!qt) return false;
+                  return qt >= turn.startTime && (!nextTurnStart || qt < nextTurnStart);
+                })
+              : [];
+
             return (
-              <TurnCard
-                key={turn.turnNumber}
-                turn={turn}
-                isHighlighted={highlightedTurnIndex === unfilteredIndex}
-                onAgentPillClick={onAgentPillClick}
-                onTurnClick={onTurnClick ? () => onTurnClick(unfilteredIndex) : undefined}
-              />
+              <div key={turn.turnNumber}>
+                <TurnCard
+                  turn={turn}
+                  isHighlighted={highlightedTurnIndex === unfilteredIndex}
+                  onAgentPillClick={onAgentPillClick}
+                  onTurnClick={onTurnClick ? () => onTurnClick(unfilteredIndex) : undefined}
+                />
+                {turnPerms.map((perm) => (
+                  <PermissionBlock
+                    key={perm.id}
+                    permission={perm}
+                    onDecide={onPermissionDecide!}
+                  />
+                ))}
+                {turnQuestions.map((q) => (
+                  <QuestionBlock
+                    key={q.questionId}
+                    questionId={q.questionId}
+                    questionText={q.questionText}
+                    status={q.status}
+                    answer={q.answer}
+                    onSubmitAnswer={onSubmitAnswer!}
+                  />
+                ))}
+              </div>
             );
           })
         )}
 
-        {/* Inline permission blocks -- rendered after turns.
-            Full integration (matching permissions to specific turns) depends on
-            the WS permission flow being active. For now, pending permissions
-            render at the bottom of the conversation. */}
-        {permissions && onPermissionDecide && permissions.map((perm) => (
-          <PermissionBlock
-            key={perm.id}
-            permission={perm}
-            onDecide={onPermissionDecide}
-          />
-        ))}
-
-        {/* Inline question blocks -- rendered after turns.
-            Full integration (matching questions to specific turns) depends on
-            server-side question detection. For now, pending questions render
-            at the bottom of the conversation. */}
-        {questions && onSubmitAnswer && questions.map((q) => (
-          <QuestionBlock
-            key={q.questionId}
-            questionId={q.questionId}
-            questionText={q.questionText}
-            status={q.status}
-            answer={q.answer}
-            onSubmitAnswer={onSubmitAnswer}
-          />
-        ))}
+        {/* Permissions/questions without timestamps or that arrived before
+            any turn — render at the end as fallback */}
+        {permissions && onPermissionDecide && permissions
+          .filter((p) => !p.timestamp || (filteredTurns.length > 0 && p.timestamp < filteredTurns[0].startTime))
+          .map((perm) => (
+            <PermissionBlock
+              key={`fallback-${perm.id}`}
+              permission={perm}
+              onDecide={onPermissionDecide}
+            />
+          ))}
+        {questions && onSubmitAnswer && questions
+          .filter((q) => !q.timestamp || (filteredTurns.length > 0 && q.timestamp < filteredTurns[0].startTime))
+          .map((q) => (
+            <QuestionBlock
+              key={`fallback-${q.questionId}`}
+              questionId={q.questionId}
+              questionText={q.questionText}
+              status={q.status}
+              answer={q.answer}
+              onSubmitAnswer={onSubmitAnswer}
+            />
+          ))}
       </div>
 
       {/* Scroll-to-bottom button */}
