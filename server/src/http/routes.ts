@@ -415,7 +415,9 @@ export function setupRoutes(state?: ServerState): Router {
         options: {
           abortController: controller,
           cwd: cwd || process.cwd(),
-          resume: sessionId,
+          // Only resume if an explicit sessionId was provided — never resume
+          // a CLI-started session accidentally from a dashboard one-shot command.
+          ...(sessionId ? { resume: sessionId } : {}),
           forkSession: false,
           // Required for real-time streaming: without this flag, the SDK does not
           // emit stream_event (SDKPartialAssistantMessage) messages, so the client

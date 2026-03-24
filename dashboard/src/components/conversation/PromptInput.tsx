@@ -106,18 +106,27 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId }: PromptIn
 
     setSseStatus("streaming");
     try {
-      const endpoint = activeSessionId
-        ? `/api/sessions/${activeSessionId}/message`
-        : "/api/command";
+      // Determine which session to send the prompt to:
+      // 1. If we have an activeSessionId (started/resumed from web UI), use the session API
+      // 2. Otherwise, fall back to /api/command but do NOT resume a viewed session —
+      //    that would inject events into a CLI-started session the user is only observing.
+      let endpoint: string;
+      let body: Record<string, unknown>;
+
+      if (activeSessionId) {
+        endpoint = `/api/sessions/${activeSessionId}/message`;
+        body = { prompt: currentPrompt };
+      } else {
+        endpoint = "/api/command";
+        // Only pass cwd, never sessionId — resuming a viewed CLI session from the
+        // dashboard would send responses into that CLI conversation unexpectedly.
+        body = { prompt: currentPrompt, cwd: sessionCwd };
+      }
 
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          activeSessionId
-            ? { prompt: currentPrompt }
-            : { prompt: currentPrompt, cwd: sessionCwd, sessionId: sessionId }
-        ),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
 

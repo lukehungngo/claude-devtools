@@ -175,7 +175,9 @@ describe("PromptInput", () => {
       const body = JSON.parse(opts.body);
       expect(body.prompt).toBe("hello");
       expect(body.cwd).toBe("/projects/foo");
-      expect(body.sessionId).toBe("sid-456");
+      // sessionId is intentionally NOT sent for /api/command to avoid
+      // resuming CLI-started sessions from the dashboard
+      expect(body.sessionId).toBeUndefined();
     });
   });
 
