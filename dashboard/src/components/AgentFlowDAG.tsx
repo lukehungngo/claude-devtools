@@ -91,6 +91,13 @@ interface GraphInnerProps {
 function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewInLog }: GraphInnerProps) {
   const { fitView, zoomIn, zoomOut } = useReactFlow();
 
+  // Use ref for fitView so effects don't re-run when its reference changes.
+  // ReactFlow's useReactFlow() can return unstable references, which causes
+  // effect cleanup to cancel pending fitView timeouts before they fire —
+  // leaving the main node (positioned above children by dagre) off-screen.
+  const fitViewRef = useRef(fitView);
+  fitViewRef.current = fitView;
+
   const { nodes, edges } = useMemo(
     () => getLayoutedElements(dag, selectedAgent, frozen, onViewInLog),
     [dag, selectedAgent, frozen, onViewInLog]
@@ -103,15 +110,16 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
   );
   const prevFingerprint = useRef<string | null>(null);
 
-  // Auto-fitView on mount AND when the set of visible nodes changes
-  // (turn switch, agents added/removed, initial load)
+  // Auto-fitView when the set of visible nodes changes
+  // (turn switch, agents added/removed). Initial mount is handled by
+  // the fitView prop on <ReactFlow>.
   useEffect(() => {
     if (prevFingerprint.current === nodeFingerprint) return;
     prevFingerprint.current = nodeFingerprint;
     // Delay to let ReactFlow process new nodes before fitting
-    const t = setTimeout(() => fitView({ padding: 0.2, duration: 200 }), 200);
+    const t = setTimeout(() => fitViewRef.current({ padding: 0.2, duration: 200 }), 200);
     return () => clearTimeout(t);
-  }, [nodeFingerprint, fitView]);
+  }, [nodeFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Focus on selected agent node when it changes (e.g., clicking a turn prompt)
   const prevSelectedAgent = useRef<string | null>(null);
@@ -121,10 +129,10 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
     const node = nodes.find((n) => n.id === selectedAgent);
     if (!node) return;
     const t = setTimeout(() => {
-      fitView({ padding: 0.3, duration: 200, nodes: [node] });
+      fitViewRef.current({ padding: 0.3, duration: 200, nodes: [node] });
     }, 200);
     return () => clearTimeout(t);
-  }, [selectedAgent, nodes, fitView]);
+  }, [selectedAgent, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -213,6 +221,8 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
           edges={edges}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
           proOptions={{ hideAttribution: true }}
           onNodeClick={handleNodeClick}
           style={{ width: "100%", height: "100%" }}
