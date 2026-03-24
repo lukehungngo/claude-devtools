@@ -18,10 +18,10 @@ const nodeTypes = { agentCard: AgentNodeCard };
 
 /** Exported for overflow regression tests (TASK-005) */
 export const LEGEND_CONTAINER_CLASS =
-  "absolute top-2 left-0 right-0 flex gap-2 px-3 overflow-x-auto [scrollbar-width:none] text-sm text-dt-text2 z-[5]";
+  "absolute top-2 left-0 right-0 flex flex-wrap gap-2 px-3 text-sm text-dt-text2 z-[5]";
 
 /** Exported for overflow regression tests (TASK-005) */
-export const LEGEND_ITEM_CLASS = "flex items-center gap-1 shrink-0 whitespace-nowrap";
+export const LEGEND_ITEM_CLASS = "flex items-center gap-1";
 
 const NODE_WIDTH = 140;
 const NODE_HEIGHT = 56;

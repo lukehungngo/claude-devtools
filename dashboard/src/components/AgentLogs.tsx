@@ -19,6 +19,8 @@ export interface LogEntry {
   agentId: string;
   agentType: string;
   message: string;
+  /** Full untruncated message for expand view */
+  rawMessage?: string;
   toolName: string | null;
   isError: boolean;
   /** Estimated cost for this log entry (from assistant events) */
@@ -183,7 +185,7 @@ function resolveAgentType(
 
 function extractToolInfo(
   content: ContentItem
-): { toolName: string; message: string } | null {
+): { toolName: string; message: string; rawMessage?: string } | null {
   if (content.type === "tool_use") {
     const name = content.name || "";
     const shortName = name.startsWith("mcp__")
@@ -194,32 +196,30 @@ function extractToolInfo(
       input.file_path ||
       input.path ||
       input.command;
-    return {
-      toolName: shortName,
-      message: filePath
-        ? `${shortName}: ${String(filePath).slice(0, 80)}`
-        : shortName,
-    };
+    const preview = filePath
+      ? `${shortName}: ${String(filePath).slice(0, 80)}`
+      : shortName;
+    const rawMessage = filePath
+      ? `${shortName}: ${String(filePath)}\n${JSON.stringify(input, null, 2)}`
+      : JSON.stringify(input, null, 2);
+    return { toolName: shortName, message: preview, rawMessage };
   }
   if (content.type === "tool_result") {
     const raw = content.content;
-    const preview = (typeof raw === "string" ? raw : JSON.stringify(raw)).slice(0, 120);
+    const rawMessage = typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
     return {
       toolName: content.is_error ? "error" : "result",
-      message: preview,
+      message: rawMessage.slice(0, 120),
+      rawMessage,
     };
   }
   if (content.type === "thinking") {
-    return {
-      toolName: "thinking",
-      message: (content.thinking || "").slice(0, 120),
-    };
+    const rawMessage = content.thinking || "";
+    return { toolName: "thinking", message: rawMessage.slice(0, 120), rawMessage };
   }
   if (content.type === "text") {
-    return {
-      toolName: "",
-      message: (content.text || "").slice(0, 120),
-    };
+    const rawMessage = content.text || "";
+    return { toolName: "", message: rawMessage.slice(0, 120), rawMessage };
   }
   return null;
 }
@@ -258,6 +258,7 @@ export function eventsToLogEntries(
             agentId,
             agentType,
             message: info.message,
+            rawMessage: info.rawMessage,
             toolName: info.toolName || null,
             isError: content.type === "tool_result" && !!content.is_error,
             cost: costPerItem,
@@ -410,6 +411,16 @@ export function AgentLogs({
   const [autoScroll, setAutoScroll] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("All");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
+
+  const toggleExpand = useCallback((uuid: string) => {
+    setExpandedEntries((prev) => {
+      const next = new Set(prev);
+      if (next.has(uuid)) next.delete(uuid);
+      else next.add(uuid);
+      return next;
+    });
+  }, []);
 
   // Transform events to log entries
   const allEntries = useMemo(
@@ -708,6 +719,9 @@ export function AgentLogs({
               const actionStyle = getActionBadgeStyle(entry.toolName);
               const isHighlighted = selectedAgent && entry.agentId === selectedAgent;
               const badgeStyle = getAgentBadgeStyle(entry.agentType);
+              const isExpanded = expandedEntries.has(entry.uuid);
+              const hasMore = entry.rawMessage && entry.rawMessage !== entry.message;
+              const displayMessage = isExpanded ? (entry.rawMessage || entry.message) : entry.message;
 
               return (
                 <div
@@ -761,18 +775,27 @@ export function AgentLogs({
                     >
                       {normalizeAgentTypeLabel(entry.agentType)}
                     </div>
-                    <div style={{
-                      color: "var(--text-1)",
-                      lineHeight: 1.4,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {highlightMessage(entry.message)}
+                    <div
+                      onClick={() => hasMore && toggleExpand(entry.uuid)}
+                      style={{
+                        color: "var(--text-1)",
+                        lineHeight: 1.4,
+                        overflow: "hidden",
+                        textOverflow: isExpanded ? "clip" : "ellipsis",
+                        whiteSpace: isExpanded ? "pre-wrap" : "nowrap",
+                        cursor: hasMore ? "pointer" : "default",
+                        wordBreak: isExpanded ? "break-all" : undefined,
+                        display: "flex",
+                        alignItems: isExpanded ? "flex-start" : "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <span style={{
+                        overflow: isExpanded ? "visible" : "hidden",
+                        textOverflow: isExpanded ? "clip" : "ellipsis",
+                        flexShrink: isExpanded ? 1 : undefined,
+                      }}>
+                        {highlightMessage(displayMessage)}
                       </span>
                       {entry.count > 1 && (
                         <span style={{
@@ -785,6 +808,26 @@ export function AgentLogs({
                           flexShrink: 0,
                         }}>
                           x{entry.count}
+                        </span>
+                      )}
+                      {hasMore && !isExpanded && (
+                        <span style={{
+                          fontSize: "9px",
+                          color: "var(--accent)",
+                          flexShrink: 0,
+                          opacity: 0.7,
+                        }}>
+                          ▶
+                        </span>
+                      )}
+                      {isExpanded && (
+                        <span style={{
+                          fontSize: "9px",
+                          color: "var(--accent)",
+                          flexShrink: 0,
+                          opacity: 0.7,
+                        }}>
+                          ▼
                         </span>
                       )}
                     </div>

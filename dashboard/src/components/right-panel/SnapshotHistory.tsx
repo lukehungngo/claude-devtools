@@ -14,15 +14,31 @@ export function SnapshotHistory({
   onOpen,
 }: SnapshotHistoryProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const closedCount = turns.length - openIndices.size;
+
+  const handleToggle = () => {
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 2,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setIsOpen(!isOpen);
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
     if (!isOpen) return;
     function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false);
       }
     }
@@ -33,12 +49,10 @@ export function SnapshotHistory({
   if (closedCount === 0) return null;
 
   return (
-    <div
-      ref={dropdownRef}
-      className="relative inline-flex"
-    >
+    <div className="relative inline-flex">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        ref={buttonRef}
+        onClick={handleToggle}
         className="flex items-center gap-1 px-2 py-1.25 text-sm font-semibold font-mono text-dt-text2 bg-transparent border-none cursor-pointer transition-colors"
       >
         <Clock size={12} />
@@ -47,9 +61,16 @@ export function SnapshotHistory({
         </span>
       </button>
 
-      {isOpen && (
+      {isOpen && dropdownPos && (
         <div
-          className="absolute top-full right-0 z-50 min-w-45 max-h-50 overflow-y-auto bg-dt-bg2 border border-dt-border rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.3)] p-1 dt-scrollbar"
+          ref={dropdownRef}
+          style={{
+            position: "fixed",
+            top: dropdownPos.top,
+            right: dropdownPos.right,
+            zIndex: 9999,
+          }}
+          className="min-w-45 max-h-64 overflow-y-auto bg-dt-bg2 border border-dt-border rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.3)] p-1 dt-scrollbar"
         >
           {turns.map((turn, i) => {
             if (openIndices.has(i)) return null;

@@ -23,8 +23,8 @@ import {
 } from "./right-panel/RightPanel";
 
 describe("AgentFlowDAG legend overflow fix", () => {
-  it("legend container has overflow-x-auto to prevent wrapping", () => {
-    expect(LEGEND_CONTAINER_CLASS).toContain("overflow-x-auto");
+  it("legend container has flex-wrap to allow items to break to new lines", () => {
+    expect(LEGEND_CONTAINER_CLASS).toContain("flex-wrap");
   });
 
   it("legend container uses left-0 right-0 to span full width", () => {
@@ -40,12 +40,10 @@ describe("AgentFlowDAG legend overflow fix", () => {
     );
   });
 
-  it("legend item has whitespace-nowrap to prevent internal line break", () => {
-    expect(LEGEND_ITEM_CLASS).toContain("whitespace-nowrap");
-  });
-
-  it("legend item has shrink-0 to prevent compression", () => {
-    expect(LEGEND_ITEM_CLASS).toContain("shrink-0");
+  it("legend item does not force single-line wrapping prevention", () => {
+    // Items are allowed to wrap — no shrink-0 or whitespace-nowrap needed
+    expect(LEGEND_ITEM_CLASS).toContain("flex");
+    expect(LEGEND_ITEM_CLASS).toContain("items-center");
   });
 });
 
