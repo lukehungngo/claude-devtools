@@ -82,15 +82,17 @@ function Dashboard() {
     onQuestionAnswered: handleQuestionAnswered,
   });
 
+  // Trigger REST refresh when live events arrive (debounced).
+  // Do NOT clear liveEvents here — clear only after REST data arrives
+  // to avoid a gap where the new turn disappears.
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRefresh = useRef(false);
   useEffect(() => {
     if (liveEvents.length === 0) return;
     if (debounceRef.current !== null) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      pendingRefresh.current = true;
       refreshMetrics();
-      // Clear live events after REST refresh — REST returns the full dataset,
-      // so keeping liveEvents would cause duplicates in allEvents.
-      clearLiveEvents();
       debounceRef.current = null;
     }, 500);
     return () => {
@@ -101,10 +103,27 @@ function Dashboard() {
     };
   }, [liveEvents.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const allEvents = useMemo(
-    () => [...events, ...liveEvents],
-    [events, liveEvents]
-  );
+  // Clear live events only AFTER the REST response has landed (events changed).
+  // This prevents the flash where liveEvents are gone but REST data hasn't arrived yet.
+  useEffect(() => {
+    if (pendingRefresh.current) {
+      pendingRefresh.current = false;
+      clearLiveEvents();
+    }
+  }, [events, clearLiveEvents]);
+
+  // Merge REST + live events, deduplicating any overlap during the transition frame
+  const allEvents = useMemo(() => {
+    if (liveEvents.length === 0) return events;
+    // Build a set of REST event keys for fast lookup
+    const restKeys = new Set(
+      events.map((e) => `${e.timestamp}|${e.type}|${e.agentId ?? ""}`)
+    );
+    const uniqueLive = liveEvents.filter(
+      (e) => !restKeys.has(`${e.timestamp}|${e.type}|${e.agentId ?? ""}`)
+    );
+    return uniqueLive.length > 0 ? [...events, ...uniqueLive] : events;
+  }, [events, liveEvents]);
   const { usage } = useUsage();
   const { costs } = useCosts();
 
