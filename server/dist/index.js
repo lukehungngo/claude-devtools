@@ -36613,6 +36613,7 @@ function resolvePermissionRequest(id, decision) {
   if (!permission)
     return null;
   permission.status = decision;
+  cleanupPermissions();
   return permission;
 }
 function getPermissionStatus(id) {
@@ -36622,6 +36623,18 @@ function getPendingPermissions() {
   return Array.from(pendingPermissions.values()).filter(
     (p2) => p2.status === "pending"
   );
+}
+function cleanupPermissions() {
+  const all = Array.from(pendingPermissions.entries());
+  const resolved = all.filter(([, p2]) => p2.status !== "pending");
+  if (resolved.length > 50) {
+    const toRemove = resolved.sort(
+      (a2, b2) => new Date(a2[1].timestamp).getTime() - new Date(b2[1].timestamp).getTime()
+    ).slice(0, resolved.length - 50);
+    for (const [id] of toRemove) {
+      pendingPermissions.delete(id);
+    }
+  }
 }
 
 // src/http/routes.ts
@@ -36759,6 +36772,13 @@ function setupRoutes(state) {
   });
   router.get("/permissions/pending", (_req, res) => {
     res.json({ permissions: getPendingPermissions() });
+  });
+  router.get("/questions/pending", (_req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.json({ questions: [] });
+    }
+    res.json({ questions: sessionManager.getPendingQuestions() });
   });
   router.post("/questions/:questionId/answer", (req, res) => {
     try {
@@ -36901,6 +36921,17 @@ function setupRoutes(state) {
     } catch (err) {
       res.status(500).json({ error: "Failed to resume session" });
     }
+  });
+  router.delete("/sessions/:sessionId", (req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    const removed = sessionManager.removeSession(req.params.sessionId);
+    if (!removed) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    res.json({ ok: true });
   });
   router.get("/sessions/active", (_req, res) => {
     const sessionManager = state?.sessionManager;
@@ -37088,6 +37119,13 @@ function startWatcher(state) {
     }
   });
   watcher.on("add", (filePath) => {
+    if (filePath.includes("/subagents/")) {
+      const { events, newOffset } = parseJsonlIncremental(filePath, 0);
+      offsets.set(filePath, newOffset);
+      if (events.length > 0) {
+        broadcast(state, { type: "new-events", filePath, events });
+      }
+    }
     broadcast(state, {
       type: "new-session",
       filePath
@@ -37097,11 +37135,36 @@ function startWatcher(state) {
 
 // src/session/session-manager.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
+var SESSION_TTL_MS = 60 * 60 * 1e3;
+var GC_INTERVAL_MS = 5 * 60 * 1e3;
+var RESOLVER_TIMEOUT_MS = 10 * 60 * 1e3;
 var SessionManager = class {
   activeSessions = /* @__PURE__ */ new Map();
   broadcast;
+  gcTimer = null;
   constructor(broadcast2) {
     this.broadcast = broadcast2;
+    this.gcTimer = setInterval(() => this.cleanupIdleSessions(), GC_INTERVAL_MS);
+  }
+  /** Remove sessions that have been idle longer than SESSION_TTL_MS */
+  cleanupIdleSessions() {
+    const now = Date.now();
+    for (const [id, session] of this.activeSessions) {
+      if (session.status === "idle") {
+        const age = now - new Date(session.createdAt).getTime();
+        if (age > SESSION_TTL_MS) {
+          session.abortController.abort();
+          this.activeSessions.delete(id);
+        }
+      }
+    }
+  }
+  /** Stop the GC timer (for clean shutdown in tests) */
+  dispose() {
+    if (this.gcTimer) {
+      clearInterval(this.gcTimer);
+      this.gcTimer = null;
+    }
   }
   /** Start a brand new session, returns sessionId */
   async startSession(cwd) {
@@ -37172,7 +37235,15 @@ var SessionManager = class {
       }
     });
     return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        session.permissionResolvers.delete(requestId);
+        if (session.status === "waiting-permission") {
+          session.status = "streaming";
+        }
+        resolve({ behavior: "deny", message: "Permission request timed out" });
+      }, RESOLVER_TIMEOUT_MS);
       session.permissionResolvers.set(requestId, (result) => {
+        clearTimeout(timeout);
         session.permissionResolvers.delete(requestId);
         if (session.status === "waiting-permission") {
           session.status = "streaming";
@@ -37237,6 +37308,16 @@ var SessionManager = class {
   getActiveSessions() {
     return Array.from(this.activeSessions.values());
   }
+  /** List all pending questions across active sessions */
+  getPendingQuestions() {
+    const pending = [];
+    for (const session of this.activeSessions.values()) {
+      for (const questionId of session.questionResolvers.keys()) {
+        pending.push({ questionId, sessionId: session.sessionId });
+      }
+    }
+    return pending;
+  }
   /** Remove a session from tracking */
   removeSession(sessionId) {
     const session = this.activeSessions.get(sessionId);
@@ -37288,7 +37369,7 @@ function startHttpServer(port = 3142) {
     startWatcher(state);
     server2.on("error", (err) => {
       if (err.code === "EADDRINUSE" && port === 3142) {
-        server2.listen(0, () => {
+        server2.listen(0, "127.0.0.1", () => {
           const addr = server2.address();
           const actualPort = typeof addr === "object" ? addr?.port : 0;
           const url2 = `http://localhost:${actualPort}`;
@@ -37298,7 +37379,7 @@ function startHttpServer(port = 3142) {
         reject(err);
       }
     });
-    server2.listen(port, () => {
+    server2.listen(port, "127.0.0.1", () => {
       const url2 = `http://localhost:${port}`;
       resolve({ url: url2, close: () => server2.close() });
     });

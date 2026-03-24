@@ -31,6 +31,8 @@ export function resolvePermissionRequest(
   if (!permission) return null;
 
   permission.status = decision;
+  // Purge old resolved permissions to prevent memory leak
+  cleanupPermissions();
   return permission;
 }
 

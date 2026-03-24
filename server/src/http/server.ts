@@ -75,7 +75,7 @@ export function startHttpServer(port: number = 3142): Promise<{
     server.on("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "EADDRINUSE" && port === 3142) {
         // Fallback to random port
-        server.listen(0, () => {
+        server.listen(0, "127.0.0.1", () => {
           const addr = server.address();
           const actualPort = typeof addr === "object" ? addr?.port : 0;
           const url = `http://localhost:${actualPort}`;
@@ -86,7 +86,7 @@ export function startHttpServer(port: number = 3142): Promise<{
       }
     });
 
-    server.listen(port, () => {
+    server.listen(port, "127.0.0.1", () => {
       const url = `http://localhost:${port}`;
       resolve({ url, close: () => server.close() });
     });

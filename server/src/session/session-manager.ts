@@ -15,12 +15,43 @@ export interface ActiveSession {
 // Broadcast function type (injected to avoid circular deps)
 type BroadcastFn = (data: unknown) => void;
 
+// Idle sessions are cleaned up after 1 hour
+const SESSION_TTL_MS = 60 * 60 * 1000;
+const GC_INTERVAL_MS = 5 * 60 * 1000; // Check every 5 minutes
+
+// Permission/question Promises time out after 10 minutes
+const RESOLVER_TIMEOUT_MS = 10 * 60 * 1000;
+
 export class SessionManager {
   private activeSessions = new Map<string, ActiveSession>();
   private broadcast: BroadcastFn;
+  private gcTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(broadcast: BroadcastFn) {
     this.broadcast = broadcast;
+    this.gcTimer = setInterval(() => this.cleanupIdleSessions(), GC_INTERVAL_MS);
+  }
+
+  /** Remove sessions that have been idle longer than SESSION_TTL_MS */
+  private cleanupIdleSessions(): void {
+    const now = Date.now();
+    for (const [id, session] of this.activeSessions) {
+      if (session.status === "idle") {
+        const age = now - new Date(session.createdAt).getTime();
+        if (age > SESSION_TTL_MS) {
+          session.abortController.abort();
+          this.activeSessions.delete(id);
+        }
+      }
+    }
+  }
+
+  /** Stop the GC timer (for clean shutdown in tests) */
+  dispose(): void {
+    if (this.gcTimer) {
+      clearInterval(this.gcTimer);
+      this.gcTimer = null;
+    }
   }
 
   /** Start a brand new session, returns sessionId */
@@ -105,7 +136,16 @@ export class SessionManager {
     });
 
     return new Promise<PermissionResult>((resolve) => {
+      const timeout = setTimeout(() => {
+        session.permissionResolvers.delete(requestId);
+        if (session.status === "waiting-permission") {
+          session.status = "streaming";
+        }
+        resolve({ behavior: "deny", message: "Permission request timed out" });
+      }, RESOLVER_TIMEOUT_MS);
+
       session.permissionResolvers.set(requestId, (result) => {
+        clearTimeout(timeout);
         session.permissionResolvers.delete(requestId);
         if (session.status === "waiting-permission") {
           session.status = "streaming";
@@ -175,6 +215,17 @@ export class SessionManager {
   /** List all active sessions */
   getActiveSessions(): ActiveSession[] {
     return Array.from(this.activeSessions.values());
+  }
+
+  /** List all pending questions across active sessions */
+  getPendingQuestions(): Array<{ questionId: string; sessionId: string }> {
+    const pending: Array<{ questionId: string; sessionId: string }> = [];
+    for (const session of this.activeSessions.values()) {
+      for (const questionId of session.questionResolvers.keys()) {
+        pending.push({ questionId, sessionId: session.sessionId });
+      }
+    }
+    return pending;
   }
 
   /** Remove a session from tracking */

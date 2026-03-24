@@ -36,6 +36,16 @@ export function startWatcher(state: ServerState): void {
   });
 
   watcher.on("add", (filePath) => {
+    // For subagent files (under /subagents/), parse initial content so
+    // the first batch of events isn't missed from the live WS feed.
+    if (filePath.includes("/subagents/")) {
+      const { events, newOffset } = parseJsonlIncremental(filePath, 0);
+      offsets.set(filePath, newOffset);
+      if (events.length > 0) {
+        broadcast(state, { type: "new-events", filePath, events });
+      }
+    }
+
     broadcast(state, {
       type: "new-session",
       filePath,

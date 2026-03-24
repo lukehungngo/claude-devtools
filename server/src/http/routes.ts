@@ -200,6 +200,15 @@ export function setupRoutes(state?: ServerState): Router {
     res.json({ permissions: getPendingPermissions() });
   });
 
+  // List pending questions (survives page refresh — prevents deadlock)
+  router.get("/questions/pending", (_req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.json({ questions: [] });
+    }
+    res.json({ questions: sessionManager.getPendingQuestions() });
+  });
+
   // Answer a question from the agent (AskUserQuestion)
   router.post("/questions/:questionId/answer", (req, res) => {
     try {
@@ -370,6 +379,19 @@ export function setupRoutes(state?: ServerState): Router {
     } catch (err) {
       res.status(500).json({ error: "Failed to resume session" });
     }
+  });
+
+  // Delete/close an active session
+  router.delete("/sessions/:sessionId", (req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    const removed = sessionManager.removeSession(req.params.sessionId);
+    if (!removed) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    res.json({ ok: true });
   });
 
   // List active sessions

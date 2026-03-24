@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SessionManager } from "../session/session-manager.js";
 
 // We test the non-SDK parts of SessionManager
@@ -14,6 +14,10 @@ describe("SessionManager", () => {
   beforeEach(() => {
     broadcast = makeBroadcast();
     manager = new SessionManager(broadcast.fn);
+  });
+
+  afterEach(() => {
+    manager.dispose();
   });
 
   describe("startSession", () => {
@@ -67,6 +71,34 @@ describe("SessionManager", () => {
 
     it("returns false for unknown session", () => {
       expect(manager.removeSession("nonexistent")).toBe(false);
+    });
+  });
+
+  describe("getPendingQuestions", () => {
+    it("returns empty array when no questions pending", () => {
+      expect(manager.getPendingQuestions()).toEqual([]);
+    });
+
+    it("returns pending questions across sessions", async () => {
+      const id1 = await manager.startSession("/tmp/a");
+      const id2 = await manager.startSession("/tmp/b");
+      const s1 = manager.getStatus(id1)!;
+      const s2 = manager.getStatus(id2)!;
+
+      s1.questionResolvers.set("q1", () => {});
+      s2.questionResolvers.set("q2", () => {});
+
+      const pending = manager.getPendingQuestions();
+      expect(pending).toHaveLength(2);
+      expect(pending).toContainEqual({ questionId: "q1", sessionId: id1 });
+      expect(pending).toContainEqual({ questionId: "q2", sessionId: id2 });
+    });
+  });
+
+  describe("dispose", () => {
+    it("stops the GC timer", () => {
+      manager.dispose();
+      // No assertions needed — just verifying it doesn't throw
     });
   });
 
