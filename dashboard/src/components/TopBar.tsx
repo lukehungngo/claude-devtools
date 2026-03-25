@@ -5,6 +5,7 @@ interface Props {
   usage: UsageInfo | null;
   costs: CostSummary | null;
   metrics: SessionMetrics | null;
+  isLive?: boolean;
   onToolFilter?: (toolName: string) => void;
 }
 
@@ -62,7 +63,7 @@ const toolColorMap: Record<string, string> = {
   WebFetch: "var(--green)",
 };
 
-export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
+export function TopBar({ usage, costs, metrics, isLive, onToolFilter }: Props) {
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
@@ -88,21 +89,14 @@ export function TopBar({ usage, costs, metrics, onToolFilter }: Props) {
         <div className="flex items-center gap-0 flex-1 flex-nowrap overflow-hidden">
           {/* Title */}
           <div className="flex items-center gap-2 font-sans font-bold text-2xl text-dt-text0 mr-4 tracking-[-0.3px] shrink-0">
-            {metrics && (
-              <div
-                style={{
-                  width: 16,
-                  height: 16,
-                  border: "2px solid var(--border-active)",
-                  borderTopColor: "var(--accent)",
-                  borderRadius: "50%",
-                  animation: metrics.session.isActive
-                    ? "spin .8s linear infinite"
-                    : undefined,
-                  opacity: metrics.session.isActive ? 1 : 0.4,
-                }}
-              />
-            )}
+            <span
+              className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${
+                isLive
+                  ? "bg-dt-green animate-pulse-opacity"
+                  : "bg-dt-red"
+              }`}
+              title={isLive ? "Connected" : "Disconnected"}
+            />
             Claude DevTools
           </div>
 

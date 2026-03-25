@@ -156,6 +156,7 @@ function Dashboard() {
           usage={usage}
           costs={costs}
           metrics={metrics}
+          isLive={isLive}
           onToolFilter={(tool) => {
             setToolFilter((prev) => (prev === tool ? null : tool));
             setRequestedRightTab("log");
