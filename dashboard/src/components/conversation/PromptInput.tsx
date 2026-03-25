@@ -118,9 +118,13 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId }: PromptIn
         body = { prompt: currentPrompt };
       } else {
         endpoint = "/api/command";
-        // Only pass cwd, never sessionId — resuming a viewed CLI session from the
-        // dashboard would send responses into that CLI conversation unexpectedly.
-        body = { prompt: currentPrompt, cwd: sessionCwd };
+        body = {
+          prompt: currentPrompt,
+          cwd: sessionCwd,
+          // Pass sessionId to resume the viewed session instead of creating
+          // a new one. Without this, every prompt creates a brand new session.
+          ...(sessionId ? { sessionId } : {}),
+        };
       }
 
       const response = await fetch(endpoint, {

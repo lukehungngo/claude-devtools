@@ -158,7 +158,7 @@ describe("PromptInput", () => {
       expect(body.sessionId).toBeUndefined();
     });
 
-    it("POSTs to /api/command when activeSessionId is not set (backward compat)", async () => {
+    it("POSTs to /api/command with sessionId to resume the viewed session", async () => {
       const { container } = render(
         <PromptInput sessionCwd="/projects/foo" sessionId="sid-456" />
       );
@@ -175,9 +175,8 @@ describe("PromptInput", () => {
       const body = JSON.parse(opts.body);
       expect(body.prompt).toBe("hello");
       expect(body.cwd).toBe("/projects/foo");
-      // sessionId is intentionally NOT sent for /api/command to avoid
-      // resuming CLI-started sessions from the dashboard
-      expect(body.sessionId).toBeUndefined();
+      // sessionId IS sent to resume the viewed session
+      expect(body.sessionId).toBe("sid-456");
     });
   });
 
