@@ -166,7 +166,9 @@ function buildTurn(
   // Build agent summaries
   const agents: AgentSummary[] = [];
   for (const [agentId, info] of agentMap) {
-    if (info.count === 0) continue; // Skip agents with no assistant events
+    // Skip non-main agents with no assistant events, but always include
+    // main so every turn has at least one agent in its .agents array.
+    if (info.count === 0 && agentId !== "main") continue;
     const lastAsst =
       info.lastEvent.type === "assistant"
         ? (info.lastEvent as AssistantEvent)

@@ -116,14 +116,22 @@ export function RightPanel({
     [onSnapshotSelect],
   );
 
-  // Filter events/DAG by active snapshot's turn.
-  // Use >= to handle the one-frame lag where useEffect hasn't yet
-  // advanced activeSnapshotIndex to the new last turn. Without this,
-  // isLiveTurn briefly becomes false on new turns, causing filteredDag
-  // to produce a new filtered object reference → ReactFlow re-measures
-  // → viewport drifts → main node goes off-screen.
-  const activeTurn = turns[activeSnapshotIndex];
-  const isLiveTurn = activeSnapshotIndex >= turns.length - 1;
+  // Compute the effective snapshot index synchronously to avoid the
+  // one-frame lag where useEffect hasn't advanced activeSnapshotIndex yet.
+  // Without this, isLiveTurn briefly becomes false when turns.length grows,
+  // causing the filter to show wrong agents for one render frame.
+  const effectiveSnapshotIndex = useMemo(() => {
+    if (externalActiveIndex != null) return externalActiveIndex;
+    // If the user hasn't manually selected a snapshot and turns grew,
+    // track the latest turn synchronously (useEffect will catch up later).
+    if (turns.length > 0 && activeSnapshotIndex < turns.length - 1) {
+      return turns.length - 1;
+    }
+    return activeSnapshotIndex;
+  }, [activeSnapshotIndex, externalActiveIndex, turns.length]);
+
+  const activeTurn = turns[effectiveSnapshotIndex];
+  const isLiveTurn = effectiveSnapshotIndex === turns.length - 1;
 
   const filteredEvents = useMemo(() => {
     if (!activeTurn) return events;
@@ -132,34 +140,21 @@ export function RightPanel({
 
   const filteredDag = useMemo(() => {
     if (!dag || !activeTurn) return dag;
-    // Live turn: show main + any currently running agents + agents from
-    // this turn. This avoids showing every historical agent while still
-    // displaying agents that are actively running.
+    // Filter DAG to agents in the active turn. Both live and snapshot
+    // views use the same logic — show main + turn's agents + any
+    // currently running agents (for live view only).
+    const agentIds = new Set(activeTurn.agents.map((a) => a.agentId));
+    agentIds.add("main");
+    // In live view, also include any actively running agents from the DAG
     if (isLiveTurn) {
-      const liveAgentIds = new Set<string>(["main"]);
-      // Include agents from the current turn
-      for (const a of activeTurn.agents) liveAgentIds.add(a.agentId);
-      // Include any currently running agents from the full DAG
       for (const n of dag.nodes) {
-        if (n.status === "active") liveAgentIds.add(n.id);
+        if (n.status === "active") agentIds.add(n.id);
       }
-      // If only main remains (no agents in this turn), show full DAG
-      // so the graph isn't empty for overview purposes
-      if (liveAgentIds.size <= 1) return dag;
-      return {
-        nodes: dag.nodes.filter((n) => liveAgentIds.has(n.id)),
-        edges: dag.edges.filter(
-          (e) => liveAgentIds.has(e.source) && liveAgentIds.has(e.target),
-        ),
-      };
     }
-    // Snapshot: show only agents from that turn
-    const turnAgentIds = new Set(activeTurn.agents.map((a) => a.agentId));
-    turnAgentIds.add("main");
     return {
-      nodes: dag.nodes.filter((n) => turnAgentIds.has(n.id)),
+      nodes: dag.nodes.filter((n) => agentIds.has(n.id)),
       edges: dag.edges.filter(
-        (e) => turnAgentIds.has(e.source) && turnAgentIds.has(e.target),
+        (e) => agentIds.has(e.source) && agentIds.has(e.target),
       ),
     };
   }, [dag, activeTurn, isLiveTurn]);
@@ -196,7 +191,7 @@ export function RightPanel({
       <div className={SNAPSHOT_ROW_WRAPPER_CLASS}>
         <SnapshotTabs
           turns={turns}
-          activeIndex={activeSnapshotIndex}
+          activeIndex={effectiveSnapshotIndex}
           openIndices={openSnapshots}
           onSelect={handleSnapshotSelect}
           onClose={handleSnapshotClose}

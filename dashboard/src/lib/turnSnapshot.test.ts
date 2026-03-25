@@ -283,6 +283,8 @@ describe("groupEventsIntoTurns with agentMeta", () => {
       }),
     ];
     const turns = groupEventsIntoTurns(events);
-    expect(turns[0].agents[0].agentType).toBe("agent-unknown-xyz");
+    const unknownAgent = turns[0].agents.find((a) => a.agentId === "agent-unknown-xyz");
+    expect(unknownAgent).toBeDefined();
+    expect(unknownAgent!.agentType).toBe("agent-unknown-xyz");
   });
 });
