@@ -156,7 +156,7 @@ export function RightPanel({
         .filter((n) => agentIds.has(n.id))
         .map((n) => {
           const turnStatus = turnStatusMap.get(n.id);
-          if (!isLiveTurn && turnStatus) {
+          if (turnStatus) {
             return { ...n, status: turnStatus === "error" ? "error" as const : turnStatus === "running" ? "active" as const : "completed" as const };
           }
           return n;
