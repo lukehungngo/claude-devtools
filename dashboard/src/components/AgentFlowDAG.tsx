@@ -8,10 +8,9 @@ import {
   type Edge,
   type DefaultEdgeOptions,
 } from "@xyflow/react";
-import dagre from "@dagrejs/dagre";
 import { getAgentColor } from "../lib/agentColors";
 import "@xyflow/react/dist/style.css";
-import type { AgentDAG } from "../lib/types";
+import type { AgentDAG, AgentEdge as DAGEdge } from "../lib/types";
 import { formatCost, formatTokens } from "../lib/cost";
 import { AgentNodeCard } from "./AgentNodeCard";
 
@@ -24,32 +23,160 @@ export const LEGEND_CONTAINER_CLASS =
 /** Exported for overflow regression tests (TASK-005) */
 export const LEGEND_ITEM_CLASS = "flex items-center gap-1";
 
-const NODE_WIDTH = 140;
-const NODE_HEIGHT = 56;
+export const NODE_WIDTH = 140;
+export const NODE_HEIGHT = 56;
+export const H_GAP = 20;
+export const V_GAP = 60;
+export const MAX_PER_ROW = 3;
+
+/**
+ * Custom tree layout that wraps children into rows of MAX_PER_ROW.
+ * Replaces dagre — our DAG is always a simple tree (main → children),
+ * so grid arithmetic is simpler and avoids the horizontal overflow
+ * dagre causes when placing all children in one row.
+ *
+ * Two-pass algorithm:
+ *   Pass 1 (bottom-up): compute subtree width for each node
+ *   Pass 2 (top-down): assign positions, centering children under parent
+ */
+export function computeTreeLayout(
+  dagNodes: AgentDAG["nodes"],
+  dagEdges: DAGEdge[]
+): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  if (dagNodes.length === 0) return positions;
+
+  // Build adjacency: parent → children
+  const childrenOf = new Map<string, string[]>();
+  const hasParent = new Set<string>();
+  for (const edge of dagEdges) {
+    const kids = childrenOf.get(edge.source) || [];
+    kids.push(edge.target);
+    childrenOf.set(edge.source, kids);
+    hasParent.add(edge.target);
+  }
+
+  // Find roots (nodes with no incoming edge)
+  const roots = dagNodes.filter((n) => !hasParent.has(n.id)).map((n) => n.id);
+  if (roots.length === 0) {
+    // Fallback: treat first node as root
+    roots.push(dagNodes[0].id);
+  }
+
+  // Pass 1: compute subtree width (bottom-up)
+  const subtreeWidth = new Map<string, number>();
+
+  function computeWidth(nodeId: string): number {
+    const children = childrenOf.get(nodeId) || [];
+    if (children.length === 0) {
+      const w = NODE_WIDTH;
+      subtreeWidth.set(nodeId, w);
+      return w;
+    }
+
+    // Compute children widths
+    const childWidths = children.map((c) => computeWidth(c));
+
+    // Chunk children into rows of MAX_PER_ROW
+    const rows: number[][] = [];
+    for (let i = 0; i < childWidths.length; i += MAX_PER_ROW) {
+      rows.push(childWidths.slice(i, i + MAX_PER_ROW));
+    }
+
+    // Width of this subtree = max row width across all rows
+    let maxRowWidth = 0;
+    for (const row of rows) {
+      const rowWidth = row.reduce((sum, w) => sum + w, 0) + (row.length - 1) * H_GAP;
+      maxRowWidth = Math.max(maxRowWidth, rowWidth);
+    }
+
+    const w = Math.max(NODE_WIDTH, maxRowWidth);
+    subtreeWidth.set(nodeId, w);
+    return w;
+  }
+
+  for (const root of roots) {
+    computeWidth(root);
+  }
+
+  // Pass 2: assign positions (top-down)
+  function placeNode(nodeId: string, cx: number, y: number): void {
+    positions.set(nodeId, { x: cx - NODE_WIDTH / 2, y });
+
+    const children = childrenOf.get(nodeId) || [];
+    if (children.length === 0) return;
+
+    const childY = y + NODE_HEIGHT + V_GAP;
+
+    // Chunk children into rows
+    const rows: string[][] = [];
+    for (let i = 0; i < children.length; i += MAX_PER_ROW) {
+      rows.push(children.slice(i, i + MAX_PER_ROW));
+    }
+
+    let currentY = childY;
+    for (const row of rows) {
+      // Compute total width of this row using subtree widths
+      const rowSubtreeWidths = row.map((c) => subtreeWidth.get(c) || NODE_WIDTH);
+      const totalRowWidth = rowSubtreeWidths.reduce((s, w) => s + w, 0) + (row.length - 1) * H_GAP;
+
+      // Center row under parent
+      let rowX = cx - totalRowWidth / 2;
+
+      for (let i = 0; i < row.length; i++) {
+        const childId = row[i];
+        const childSubW = rowSubtreeWidths[i];
+        const childCx = rowX + childSubW / 2;
+        placeNode(childId, childCx, currentY);
+        rowX += childSubW + H_GAP;
+      }
+
+      // Advance Y for next row — find max depth of this row's subtrees
+      const maxChildDepth = row.reduce((max, c) => {
+        const kids = childrenOf.get(c) || [];
+        if (kids.length === 0) return max;
+        // Count levels below this child
+        let depth = 0;
+        let frontier = [...kids];
+        while (frontier.length > 0) {
+          depth++;
+          const next: string[] = [];
+          for (const f of frontier) {
+            const fk = childrenOf.get(f) || [];
+            next.push(...fk);
+          }
+          frontier = next;
+        }
+        return Math.max(max, depth);
+      }, 0);
+
+      currentY += NODE_HEIGHT + V_GAP + maxChildDepth * (NODE_HEIGHT + V_GAP);
+    }
+  }
+
+  // Place roots side by side
+  const rootWidths = roots.map((r) => subtreeWidth.get(r) || NODE_WIDTH);
+  const totalRootWidth = rootWidths.reduce((s, w) => s + w, 0) + (roots.length - 1) * H_GAP;
+  let rootX = -totalRootWidth / 2;
+
+  for (let i = 0; i < roots.length; i++) {
+    const rootCx = rootX + rootWidths[i] / 2;
+    placeNode(roots[i], rootCx, 0);
+    rootX += rootWidths[i] + H_GAP;
+  }
+
+  return positions;
+}
 
 function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null, frozen = false, onViewInLog?: (agentId: string) => void) {
-  const g = new dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "TB", nodesep: 40, ranksep: 60 });
-
-  for (const node of dag.nodes) {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
-  }
-  for (const edge of dag.edges) {
-    g.setEdge(edge.source, edge.target);
-  }
-
-  dagre.layout(g);
+  const positions = computeTreeLayout(dag.nodes, dag.edges);
 
   const nodes: Node[] = dag.nodes.map((n) => {
-    const pos = g.node(n.id);
+    const pos = positions.get(n.id) || { x: 0, y: 0 };
     return {
       id: n.id,
       type: "agentCard",
-      position: {
-        x: pos.x - NODE_WIDTH / 2,
-        y: pos.y - NODE_HEIGHT / 2,
-      },
+      position: { x: pos.x, y: pos.y },
       data: { agent: n, selected: n.id === selectedAgent, frozen, onViewInLog, invocationCount: Math.max(1, Math.ceil(n.toolCalls / 5)) },
     };
   });
