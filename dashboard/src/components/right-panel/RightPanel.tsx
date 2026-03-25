@@ -132,10 +132,28 @@ export function RightPanel({
 
   const filteredDag = useMemo(() => {
     if (!dag || !activeTurn) return dag;
-    // Filter DAG to agents active in the selected turn — both live
-    // and snapshot views. Without this, the live view would show every
-    // agent ever dispatched in the session, even completed ones from
-    // earlier turns.
+    // Live turn: show main + any currently running agents + agents from
+    // this turn. This avoids showing every historical agent while still
+    // displaying agents that are actively running.
+    if (isLiveTurn) {
+      const liveAgentIds = new Set<string>(["main"]);
+      // Include agents from the current turn
+      for (const a of activeTurn.agents) liveAgentIds.add(a.agentId);
+      // Include any currently running agents from the full DAG
+      for (const n of dag.nodes) {
+        if (n.status === "active") liveAgentIds.add(n.id);
+      }
+      // If only main remains (no agents in this turn), show full DAG
+      // so the graph isn't empty for overview purposes
+      if (liveAgentIds.size <= 1) return dag;
+      return {
+        nodes: dag.nodes.filter((n) => liveAgentIds.has(n.id)),
+        edges: dag.edges.filter(
+          (e) => liveAgentIds.has(e.source) && liveAgentIds.has(e.target),
+        ),
+      };
+    }
+    // Snapshot: show only agents from that turn
     const turnAgentIds = new Set(activeTurn.agents.map((a) => a.agentId));
     turnAgentIds.add("main");
     return {
@@ -144,7 +162,7 @@ export function RightPanel({
         (e) => turnAgentIds.has(e.source) && turnAgentIds.has(e.target),
       ),
     };
-  }, [dag, activeTurn]);
+  }, [dag, activeTurn, isLiveTurn]);
 
   const filteredAgents = filteredDag?.nodes || [];
 
