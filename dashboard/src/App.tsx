@@ -147,6 +147,12 @@ function Dashboard() {
   const agents = metrics?.dag.nodes || [];
   const turns = useMemo(() => groupEventsIntoTurns(allEvents, subagentMeta), [allEvents, subagentMeta]);
 
+  // Auto-release turn pin when new turns arrive so the graph
+  // advances to the latest turn instead of staying stuck on an old one.
+  useEffect(() => {
+    setSelectedTurnIndex(null);
+  }, [turns.length]);
+
   return (
     <Layout
       sidebarCollapsed={sidebarCollapsed}

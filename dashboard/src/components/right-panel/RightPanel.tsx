@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import type {
   AgentDAG,
@@ -159,7 +159,27 @@ export function RightPanel({
     };
   }, [dag, activeTurn, isLiveTurn]);
 
-  const filteredAgents = filteredDag?.nodes || [];
+  // Stabilize filteredDag reference: only produce a new object when the
+  // DAG structure actually changes (node IDs, edges, or node statuses).
+  // Without this, every REST refresh creates a new dag object reference,
+  // which flows through to ReactFlow, triggering a re-measurement cascade
+  // (useNodesInitialized cycles true→false→true) that makes nodes briefly
+  // invisible — the root cause of the "main agent disappears" bug.
+  const stableDagRef = useRef(filteredDag);
+  const dagFingerprint = useMemo(() => {
+    if (!filteredDag) return "";
+    const nodesPart = filteredDag.nodes.map((n) => `${n.id}:${n.status}`).sort().join(",");
+    const edgesPart = filteredDag.edges.map((e) => `${e.source}-${e.target}`).sort().join(",");
+    return `${nodesPart}|${edgesPart}`;
+  }, [filteredDag]);
+  const prevDagFingerprint = useRef(dagFingerprint);
+  if (dagFingerprint !== prevDagFingerprint.current) {
+    stableDagRef.current = filteredDag;
+    prevDagFingerprint.current = dagFingerprint;
+  }
+  const stableDag = stableDagRef.current;
+
+  const filteredAgents = stableDag?.nodes || [];
 
   const handleAgentSelect = useCallback(
     (agentId: string) => {
@@ -224,9 +244,9 @@ export function RightPanel({
       {/* Tab content */}
       <div className={TAB_CONTENT_WRAPPER_CLASS}>
         {activePrimaryTab === "graph" ? (
-          filteredDag ? (
+          stableDag ? (
             <AgentFlowDAG
-              dag={filteredDag}
+              dag={stableDag}
               selectedAgent={selectedAgent}
               onSelectAgent={handleAgentSelect}
               frozen={!isLiveTurn}
