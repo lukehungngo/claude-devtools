@@ -173,10 +173,15 @@ function buildTurn(
       info.lastEvent.type === "assistant"
         ? (info.lastEvent as AssistantEvent)
         : null;
-    const agentStatus: "running" | "completed" | "error" =
-      lastAsst?.message?.stop_reason === "end_turn"
-        ? "completed"
-        : "running";
+    let agentStatus: "running" | "completed" | "error";
+    if (lastAsst) {
+      agentStatus = lastAsst.message?.stop_reason === "end_turn" ? "completed" : "running";
+    } else {
+      // No assistant event for this agent in this turn (e.g., main with
+      // only a user event). Default to "completed" — if the turn exists
+      // as a distinct turn, the agent's work for this turn is done.
+      agentStatus = "completed";
+    }
 
     agents.push({
       agentId,
