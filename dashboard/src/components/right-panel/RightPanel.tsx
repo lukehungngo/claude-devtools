@@ -116,22 +116,15 @@ export function RightPanel({
     [onSnapshotSelect],
   );
 
-  // Compute the effective snapshot index synchronously to avoid the
-  // one-frame lag where useEffect hasn't advanced activeSnapshotIndex yet.
-  // Without this, isLiveTurn briefly becomes false when turns.length grows,
-  // causing the filter to show wrong agents for one render frame.
-  const effectiveSnapshotIndex = useMemo(() => {
-    if (externalActiveIndex != null) return externalActiveIndex;
-    // If the user hasn't manually selected a snapshot and turns grew,
-    // track the latest turn synchronously (useEffect will catch up later).
-    if (turns.length > 0 && activeSnapshotIndex < turns.length - 1) {
-      return turns.length - 1;
-    }
-    return activeSnapshotIndex;
-  }, [activeSnapshotIndex, externalActiveIndex, turns.length]);
+  // Clamp activeSnapshotIndex to valid range (turns may have shrunk
+  // on session switch). No auto-advance — that's handled by the
+  // useEffect on turns.length which calls setActiveSnapshotIndex.
+  const effectiveSnapshotIndex = externalActiveIndex != null
+    ? Math.min(externalActiveIndex, Math.max(0, turns.length - 1))
+    : Math.min(activeSnapshotIndex, Math.max(0, turns.length - 1));
 
   const activeTurn = turns[effectiveSnapshotIndex];
-  const isLiveTurn = effectiveSnapshotIndex === turns.length - 1;
+  const isLiveTurn = effectiveSnapshotIndex >= turns.length - 1;
 
   const filteredEvents = useMemo(() => {
     if (!activeTurn) return events;
