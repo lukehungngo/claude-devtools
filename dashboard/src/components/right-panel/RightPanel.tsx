@@ -144,8 +144,23 @@ export function RightPanel({
         if (n.status === "active") agentIds.add(n.id);
       }
     }
+    // Build a map of turn-level agent statuses so snapshot nodes
+    // reflect the status from that turn, not the session-global status
+    // (which is always "active" during a live session).
+    const turnStatusMap = new Map(
+      activeTurn.agents.map((a) => [a.agentId, a.status])
+    );
+
     return {
-      nodes: dag.nodes.filter((n) => agentIds.has(n.id)),
+      nodes: dag.nodes
+        .filter((n) => agentIds.has(n.id))
+        .map((n) => {
+          const turnStatus = turnStatusMap.get(n.id);
+          if (!isLiveTurn && turnStatus) {
+            return { ...n, status: turnStatus === "error" ? "error" as const : turnStatus === "running" ? "active" as const : "completed" as const };
+          }
+          return n;
+        }),
       edges: dag.edges.filter(
         (e) => agentIds.has(e.source) && agentIds.has(e.target),
       ),
