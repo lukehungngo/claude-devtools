@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-.PHONY: dev build package clean install lint
+.PHONY: dev dev-debug build package clean install lint test typecheck
 
 # Install all dependencies
 install:
@@ -20,6 +20,23 @@ dev:
 	(cd $(ROOT_DIR)/dashboard && pnpm run dev) & \
 	wait
 
+# Dev mode with debug DB (SQLite lifecycle tracing)
+dev-debug:
+	trap 'kill 0' EXIT; \
+	(cd $(ROOT_DIR)/server && NODE_ENV=development pnpm run dev) & \
+	(cd $(ROOT_DIR)/dashboard && pnpm run dev) & \
+	wait
+
+# Run all tests
+test:
+	cd $(ROOT_DIR)/server && pnpm test
+	cd $(ROOT_DIR)/dashboard && pnpm test
+
+# TypeScript type checking
+typecheck:
+	cd $(ROOT_DIR)/server && npx tsc --noEmit
+	cd $(ROOT_DIR)/dashboard && npx tsc --noEmit
+
 # Build everything
 build:
 	cd $(ROOT_DIR)/server && pnpm run build
@@ -36,4 +53,4 @@ package: build
 		-x "claude-devtools/.git/*"
 
 clean:
-	rm -rf $(ROOT_DIR)/server/dist $(ROOT_DIR)/dashboard/dist
+	rm -rf $(ROOT_DIR)/server/dist $(ROOT_DIR)/dashboard/dist $(ROOT_DIR)/server/debug.sqlite $(ROOT_DIR)/server/debug.sqlite-wal $(ROOT_DIR)/server/debug.sqlite-shm

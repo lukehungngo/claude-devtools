@@ -113,7 +113,7 @@ export function setupRoutes(state?: ServerState): Router {
       if (state?.debugDb) {
         try {
           const sortedEvents = [...allEvents].sort((a, b) =>
-            a.timestamp.localeCompare(b.timestamp)
+            (a.timestamp ?? "").localeCompare(b.timestamp ?? "")
           );
 
           const records = buildLifecycleRecords(
