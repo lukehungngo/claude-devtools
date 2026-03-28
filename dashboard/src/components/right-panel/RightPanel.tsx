@@ -6,6 +6,7 @@ import type {
   SessionEvent,
   SubagentMeta,
 } from "../../lib/types";
+import { filterDagForTurn } from "../../lib/filterDag";
 import { PrimaryTabs, type PrimaryTab } from "./PrimaryTabs";
 import { SnapshotTabs } from "./SnapshotTabs";
 import { SnapshotHistory } from "./SnapshotHistory";
@@ -131,40 +132,24 @@ export function RightPanel({
     return activeTurn.events;
   }, [activeTurn, events]);
 
+  // Core DAG filtering: show only agents relevant to the active turn.
+  // ROOT CAUSE FIX: When activeTurn is undefined (initial load, session
+  // switch, or sessions with no turn boundaries), returning the raw
+  // unfiltered dag changes the node set → changes the fingerprint →
+  // updates stableDagRef → triggers ReactFlow re-measurement cascade
+  // (nodesReady cycles true→false→true) → layout thrash leaves nodes
+  // off-screen. Fix: return the previous filtered result instead, so
+  // the fingerprint stays stable and ReactFlow doesn't re-measure.
+  const prevFilteredDagRef = useRef<AgentDAG | null>(null);
   const filteredDag = useMemo(() => {
-    if (!dag || !activeTurn) return dag;
-    // Filter DAG to agents in the active turn. Both live and snapshot
-    // views use the same logic — show main + turn's agents + any
-    // currently running agents (for live view only).
-    const agentIds = new Set(activeTurn.agents.map((a) => a.agentId));
-    agentIds.add("main");
-    // In live view, also include any actively running agents from the DAG
-    if (isLiveTurn) {
-      for (const n of dag.nodes) {
-        if (n.status === "active") agentIds.add(n.id);
-      }
+    if (!dag) {
+      prevFilteredDagRef.current = null;
+      return null;
     }
-    // Build a map of turn-level agent statuses so snapshot nodes
-    // reflect the status from that turn, not the session-global status
-    // (which is always "active" during a live session).
-    const turnStatusMap = new Map(
-      activeTurn.agents.map((a) => [a.agentId, a.status])
-    );
-
-    return {
-      nodes: dag.nodes
-        .filter((n) => agentIds.has(n.id))
-        .map((n) => {
-          const turnStatus = turnStatusMap.get(n.id);
-          if (turnStatus) {
-            return { ...n, status: turnStatus === "error" ? "error" as const : turnStatus === "running" ? "active" as const : "completed" as const };
-          }
-          return n;
-        }),
-      edges: dag.edges.filter(
-        (e) => agentIds.has(e.source) && agentIds.has(e.target),
-      ),
-    };
+    if (!activeTurn) return prevFilteredDagRef.current ?? dag;
+    const result = filterDagForTurn(dag, activeTurn, isLiveTurn);
+    prevFilteredDagRef.current = result;
+    return result;
   }, [dag, activeTurn, isLiveTurn]);
 
   // Stabilize filteredDag reference: only produce a new object when the
@@ -172,7 +157,7 @@ export function RightPanel({
   // Without this, every REST refresh creates a new dag object reference,
   // which flows through to ReactFlow, triggering a re-measurement cascade
   // (useNodesInitialized cycles true→false→true) that makes nodes briefly
-  // invisible — the root cause of the "main agent disappears" bug.
+  // invisible.
   const stableDagRef = useRef(filteredDag);
   const dagFingerprint = useMemo(() => {
     if (!filteredDag) return "";
@@ -181,7 +166,7 @@ export function RightPanel({
     return `${nodesPart}|${edgesPart}`;
   }, [filteredDag]);
   const prevDagFingerprint = useRef(dagFingerprint);
-  if (dagFingerprint !== prevDagFingerprint.current) {
+  if (dagFingerprint !== prevDagFingerprint.current && filteredDag) {
     stableDagRef.current = filteredDag;
     prevDagFingerprint.current = dagFingerprint;
   }
