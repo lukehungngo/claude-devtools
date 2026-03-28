@@ -18,6 +18,7 @@ import {
   getPendingPermissions,
   getPermissionStatus,
 } from "../hooks/permission-handler.js";
+import { buildLifecycleRecords } from "../debug/lifecycle-builder.js";
 import type { SessionEvent } from "../types.js";
 import type { ServerState } from "./server.js";
 import { broadcast } from "./server.js";
@@ -106,6 +107,52 @@ export function setupRoutes(state?: ServerState): Router {
       > = {};
       for (const [id, meta] of subagentMeta.entries()) {
         subagentMetaObj[id] = meta;
+      }
+
+      // Store lifecycle data in debug DB (dev mode only)
+      if (state?.debugDb) {
+        try {
+          const sortedEvents = [...allEvents].sort((a, b) =>
+            a.timestamp.localeCompare(b.timestamp)
+          );
+
+          const records = buildLifecycleRecords(
+            session.id,
+            sortedEvents,
+            subagentMeta
+          );
+
+          state.debugDb.upsertSession({
+            sessionId: session.id,
+            projectHash: session.projectHash,
+            cwd: session.cwd,
+            model: session.model,
+            startTime: session.startTime,
+            lastUpdated: new Date().toISOString(),
+          });
+
+          for (const turn of records.turns) {
+            state.debugDb.upsertTurn(turn);
+          }
+
+          for (const lifecycle of records.agentLifecycles) {
+            state.debugDb.upsertAgentLifecycle({
+              ...lifecycle,
+              parentAgentId: lifecycle.parentAgentId ?? undefined,
+              completedAt: lifecycle.completedAt ?? undefined,
+              description: lifecycle.description ?? undefined,
+            });
+          }
+
+          state.debugDb.insertEventBatch(
+            records.lifecycleEvents.map((e) => ({
+              ...e,
+              toolName: e.toolName ?? undefined,
+            }))
+          );
+        } catch (err) {
+          console.warn("[debug-db] Failed to store lifecycle data:", err);
+        }
       }
 
       res.json({ metrics, events: allEvents, subagentMeta: subagentMetaObj });
@@ -500,6 +547,91 @@ export function setupRoutes(state?: ServerState): Router {
       }
     } catch (err) {
       res.status(500).json({ error: "Failed to open file" });
+    }
+  });
+
+  // === Debug Lifecycle Routes (dev-only) ===
+
+  router.get("/debug/sessions", (_req, res) => {
+    if (!state?.debugDb) {
+      return res.status(404).json({ error: "Debug DB not available (dev mode only)" });
+    }
+    try {
+      const sessions = state.debugDb.getSessions();
+      const result = sessions.map((s) => ({
+        ...s,
+        turnCount: state!.debugDb!.getTurns(s.sessionId).length,
+        agentCount: state!.debugDb!.getAgentLifecycles(s.sessionId).length,
+      }));
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to query debug sessions" });
+    }
+  });
+
+  router.get("/debug/sessions/:sessionId/turns", (req, res) => {
+    if (!state?.debugDb) {
+      return res.status(404).json({ error: "Debug DB not available (dev mode only)" });
+    }
+    try {
+      const turns = state.debugDb.getTurns(req.params.sessionId);
+      const result = turns.map((t) => ({
+        ...t,
+        agentCount: state!.debugDb!.getAgentLifecycles(req.params.sessionId, t.turnNumber).length,
+        eventCount: state!.debugDb!.getLifecycleEvents(req.params.sessionId, t.turnNumber).length,
+      }));
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to query debug turns" });
+    }
+  });
+
+  router.get("/debug/sessions/:sessionId/turns/:turnNumber/agents", (req, res) => {
+    if (!state?.debugDb) {
+      return res.status(404).json({ error: "Debug DB not available (dev mode only)" });
+    }
+    try {
+      const agents = state.debugDb.getAgentLifecycles(
+        req.params.sessionId,
+        parseInt(req.params.turnNumber)
+      );
+      res.json(agents);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to query debug agents" });
+    }
+  });
+
+  router.get("/debug/sessions/:sessionId/turns/:turnNumber/events", (req, res) => {
+    if (!state?.debugDb) {
+      return res.status(404).json({ error: "Debug DB not available (dev mode only)" });
+    }
+    try {
+      const agentId = req.query.agentId as string | undefined;
+      const events = state.debugDb.getLifecycleEvents(
+        req.params.sessionId,
+        parseInt(req.params.turnNumber),
+        agentId
+      );
+      res.json(events);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to query debug events" });
+    }
+  });
+
+  router.get("/debug/sessions/:sessionId/turns/:turnNumber/graph", (req, res) => {
+    if (!state?.debugDb) {
+      return res.status(404).json({ error: "Debug DB not available (dev mode only)" });
+    }
+    try {
+      const upToEvent = parseInt(req.query.upToEvent as string) || 999999;
+      const graph = state.debugDb.getGraphAtEvent(
+        req.params.sessionId,
+        parseInt(req.params.turnNumber),
+        upToEvent
+      );
+      res.json(graph);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to query debug graph" });
     }
   });
 

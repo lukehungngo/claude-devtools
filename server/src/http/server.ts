@@ -7,6 +7,7 @@ import { existsSync } from "node:fs";
 import { setupRoutes } from "./routes.js";
 import { startWatcher } from "./watcher.js";
 import { SessionManager } from "../session/session-manager.js";
+import { DebugDB } from "../debug/debug-db.js";
 import type { WsBroadcastMessage } from "../types.js";
 
 let __dirname: string;
@@ -20,6 +21,7 @@ try {
 export interface ServerState {
   clients: Set<WebSocket>;
   sessionManager?: SessionManager;
+  debugDb?: DebugDB;
 }
 
 export function startHttpServer(port: number = 3142): Promise<{
@@ -31,11 +33,15 @@ export function startHttpServer(port: number = 3142): Promise<{
     const server = createServer(app);
     const wss = new WebSocketServer({ server });
 
+    // Debug DB: dev-only SQLite for lifecycle snapshots
+    const debugDb = DebugDB.open(join(__dirname, "..", "..", "debug.sqlite")) ?? undefined;
+
     const state: ServerState = {
       clients: new Set(),
       sessionManager: new SessionManager((data) =>
         broadcast(state, data as WsBroadcastMessage)
       ),
+      debugDb,
     };
 
     // WebSocket connections
@@ -74,6 +80,7 @@ export function startHttpServer(port: number = 3142): Promise<{
     const cleanup = () => {
       watcher.close();
       state.sessionManager?.dispose();
+      state.debugDb?.close();
       server.close();
     };
 

@@ -7,6 +7,12 @@
     "lint": "eslint server/src/ dashboard/src/ && pnpm --dir dashboard lint:styles",
     "lint:fix": "eslint server/src/ dashboard/src/ --fix && pnpm --dir dashboard lint:styles"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "eslint": "^9.39.4",
