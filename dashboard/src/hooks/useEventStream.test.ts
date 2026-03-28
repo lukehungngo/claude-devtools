@@ -17,7 +17,7 @@ describe("useEventStream", () => {
     const { result } = renderHook(() => useEventStream("/some/path"));
 
     act(() => {
-      result.current.handleNewEvents("/some/path", [makeEvent("1"), makeEvent("2")]);
+      result.current.handleNewEvents("", "/some/path", [makeEvent("1"), makeEvent("2")]);
     });
 
     expect(result.current.liveEvents).toHaveLength(2);
@@ -28,10 +28,25 @@ describe("useEventStream", () => {
     const { result } = renderHook(() => useEventStream("/some/path"));
 
     act(() => {
-      result.current.handleNewEvents("/other/path", [makeEvent("1")]);
+      result.current.handleNewEvents("", "/other/path", [makeEvent("1")]);
     });
 
     expect(result.current.liveEvents).toHaveLength(0);
+  });
+
+  it("filters by sessionId when provided", () => {
+    const { result } = renderHook(() => useEventStream("/some/path", "sess-1"));
+
+    act(() => {
+      result.current.handleNewEvents("sess-1", "/some/path", [makeEvent("1")]);
+    });
+    expect(result.current.liveEvents).toHaveLength(1);
+
+    act(() => {
+      result.current.handleNewEvents("sess-2", "/some/path", [makeEvent("2")]);
+    });
+    // Rejected because sessionId does not match
+    expect(result.current.liveEvents).toHaveLength(1);
   });
 
   it("caps events at 2000, keeping most recent", () => {
@@ -40,14 +55,14 @@ describe("useEventStream", () => {
     // Add 1999 events
     const batch1 = Array.from({ length: 1999 }, (_, i) => makeEvent(`a${i}`));
     act(() => {
-      result.current.handleNewEvents("/path", batch1);
+      result.current.handleNewEvents("", "/path", batch1);
     });
     expect(result.current.liveEvents).toHaveLength(1999);
 
     // Add 10 more to push over 2000
     const batch2 = Array.from({ length: 10 }, (_, i) => makeEvent(`b${i}`));
     act(() => {
-      result.current.handleNewEvents("/path", batch2);
+      result.current.handleNewEvents("", "/path", batch2);
     });
 
     expect(result.current.liveEvents).toHaveLength(2000);
@@ -59,7 +74,7 @@ describe("useEventStream", () => {
     const { result } = renderHook(() => useEventStream("/path"));
 
     act(() => {
-      result.current.handleNewEvents("/path", [makeEvent("1")]);
+      result.current.handleNewEvents("", "/path", [makeEvent("1")]);
     });
     expect(result.current.liveEvents).toHaveLength(1);
 
@@ -76,7 +91,7 @@ describe("useEventStream", () => {
     );
 
     act(() => {
-      result.current.handleNewEvents("/path1", [makeEvent("1")]);
+      result.current.handleNewEvents("", "/path1", [makeEvent("1")]);
     });
     expect(result.current.liveEvents).toHaveLength(1);
 

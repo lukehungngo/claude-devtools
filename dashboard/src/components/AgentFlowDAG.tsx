@@ -168,16 +168,18 @@ export function computeTreeLayout(
   return positions;
 }
 
-function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null, frozen = false, onViewInLog?: (agentId: string) => void) {
+export function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null, frozen = false, onViewInLog?: (agentId: string) => void, activeTurnAgentIds?: Set<string>) {
   const positions = computeTreeLayout(dag.nodes, dag.edges);
 
   const nodes: Node[] = dag.nodes.map((n) => {
     const pos = positions.get(n.id) || { x: 0, y: 0 };
+    const isDimmed = activeTurnAgentIds !== undefined && !activeTurnAgentIds.has(n.id);
     return {
       id: n.id,
       type: "agentCard",
       position: { x: pos.x, y: pos.y },
       data: { agent: n, selected: n.id === selectedAgent, frozen, onViewInLog, invocationCount: Math.max(1, Math.ceil(n.toolCalls / 5)) },
+      ...(isDimmed ? { style: { opacity: 0.35 } } : {}),
     };
   });
 
@@ -214,17 +216,18 @@ interface GraphInnerProps {
   onSelectAgent?: (agentId: string) => void;
   frozen?: boolean;
   onViewInLog?: (agentId: string) => void;
+  activeTurnAgentIds?: Set<string>;
 }
 
-function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewInLog }: GraphInnerProps) {
-  const { fitView, zoomIn, zoomOut, getViewport, getNodes } = useReactFlow();
+function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewInLog, activeTurnAgentIds }: GraphInnerProps) {
+  const { fitView, zoomIn, zoomOut } = useReactFlow();
 
   const fitViewRef = useRef(fitView);
   fitViewRef.current = fitView;
 
   const { nodes, edges } = useMemo(
-    () => getLayoutedElements(dag, selectedAgent, frozen, onViewInLog),
-    [dag, selectedAgent, frozen, onViewInLog]
+    () => getLayoutedElements(dag, selectedAgent, frozen, onViewInLog, activeTurnAgentIds),
+    [dag, selectedAgent, frozen, onViewInLog, activeTurnAgentIds]
   );
 
   // Track the node set fingerprint so we can re-fit when nodes change
@@ -251,39 +254,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
       fitPending.current = false;
       fitViewRef.current({ padding: 0.2, duration: 200 });
     }
-  }, [nodesReady, nodeFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Viewport containment safety net.
-  // When ReactFlow re-measures nodes (nodesReady cycles true→false→true),
-  // the viewport can drift so that some nodes end up off-screen.
-  // This happens because REST refreshes create new dag object references,
-  // causing ReactFlow to re-measure even when node IDs are unchanged.
-  // After each re-measurement, check if all nodes are within the viewport;
-  // if any are off-screen, call fitView to bring them back.
-  const prevNodesReady = useRef(false);
-  useEffect(() => {
-    // Only check on nodesReady rising edge (false → true)
-    if (nodesReady && !prevNodesReady.current && !fitPending.current) {
-      const rfNodes = getNodes();
-      if (rfNodes.length > 0) {
-        const vp = getViewport();
-        const allVisible = rfNodes.every((n) => {
-          if (!n.measured?.width || !n.measured?.height) return true;
-          // Transform node position to screen coordinates
-          const screenX = n.position.x * vp.zoom + vp.x;
-          const screenY = n.position.y * vp.zoom + vp.y;
-          const screenW = n.measured.width * vp.zoom;
-          const screenH = n.measured.height * vp.zoom;
-          // Check if node is at least partially visible (generous margin)
-          return screenX + screenW > -50 && screenY + screenH > -50;
-        });
-        if (!allVisible) {
-          fitViewRef.current({ padding: 0.2, duration: 200 });
-        }
-      }
-    }
-    prevNodesReady.current = nodesReady;
-  }, [nodesReady, getNodes, getViewport]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [nodesReady, nodeFingerprint]);
 
   // Focus on selected agent node
   const prevSelectedAgent = useRef<string | null>(null);
@@ -302,7 +273,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
     const node = nodes.find((n) => n.id === targetId);
     if (!node) return;
     fitViewRef.current({ padding: 0.3, duration: 200, nodes: [node] });
-  }, [nodesReady, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [nodesReady, nodes]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -486,9 +457,10 @@ interface Props {
   onSelectAgent?: (agentId: string) => void;
   frozen?: boolean;
   onViewInLog?: (agentId: string) => void;
+  activeTurnAgentIds?: Set<string>;
 }
 
-export function AgentFlowDAG({ dag, selectedAgent, onSelectAgent, frozen, onViewInLog }: Props) {
+export function AgentFlowDAG({ dag, selectedAgent, onSelectAgent, frozen, onViewInLog, activeTurnAgentIds }: Props) {
   return (
     <ReactFlowProvider>
       <GraphInner
@@ -497,6 +469,7 @@ export function AgentFlowDAG({ dag, selectedAgent, onSelectAgent, frozen, onView
         onSelectAgent={onSelectAgent}
         frozen={frozen}
         onViewInLog={onViewInLog}
+        activeTurnAgentIds={activeTurnAgentIds}
       />
     </ReactFlowProvider>
   );

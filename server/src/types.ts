@@ -273,12 +273,14 @@ export interface AgentLogEntry {
 export interface WsNewEventsMessage {
   type: "new-events";
   filePath: string;
+  sessionId: string;
   events: SessionEvent[];
 }
 
 export interface WsNewSessionMessage {
   type: "new-session";
   filePath: string;
+  sessionId: string;
 }
 
 export interface WsPermissionRequestMessage {

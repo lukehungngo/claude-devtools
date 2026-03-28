@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import type {
   AgentDAG,
@@ -6,7 +6,6 @@ import type {
   SessionEvent,
   SubagentMeta,
 } from "../../lib/types";
-import { filterDagForTurn } from "../../lib/filterDag";
 import { PrimaryTabs, type PrimaryTab } from "./PrimaryTabs";
 import { SnapshotTabs } from "./SnapshotTabs";
 import { SnapshotHistory } from "./SnapshotHistory";
@@ -132,47 +131,18 @@ export function RightPanel({
     return activeTurn.events;
   }, [activeTurn, events]);
 
-  // Core DAG filtering: show only agents relevant to the active turn.
-  // ROOT CAUSE FIX: When activeTurn is undefined (initial load, session
-  // switch, or sessions with no turn boundaries), returning the raw
-  // unfiltered dag changes the node set → changes the fingerprint →
-  // updates stableDagRef → triggers ReactFlow re-measurement cascade
-  // (nodesReady cycles true→false→true) → layout thrash leaves nodes
-  // off-screen. Fix: return the previous filtered result instead, so
-  // the fingerprint stays stable and ReactFlow doesn't re-measure.
-  const prevFilteredDagRef = useRef<AgentDAG | null>(null);
-  const filteredDag = useMemo(() => {
-    if (!dag) {
-      prevFilteredDagRef.current = null;
-      return null;
-    }
-    if (!activeTurn) return prevFilteredDagRef.current ?? dag;
-    const result = filterDagForTurn(dag, activeTurn, isLiveTurn);
-    prevFilteredDagRef.current = result;
-    return result;
-  }, [dag, activeTurn, isLiveTurn]);
+  // Compute which agents are active in the current turn for opacity-based highlighting.
+  // Always pass the full (unfiltered) DAG to AgentFlowDAG; use activeTurnAgentIds for dimming.
+  const activeTurnAgentIds = useMemo(() => {
+    const ids = new Set(activeTurn?.agents.map((a) => a.agentId) ?? []);
+    ids.add("main");
+    return ids;
+  }, [activeTurn]);
 
-  // Stabilize filteredDag reference: only produce a new object when the
-  // DAG structure actually changes (node IDs, edges, or node statuses).
-  // Without this, every REST refresh creates a new dag object reference,
-  // which flows through to ReactFlow, triggering a re-measurement cascade
-  // (useNodesInitialized cycles true→false→true) that makes nodes briefly
-  // invisible.
-  const stableDagRef = useRef(filteredDag);
-  const dagFingerprint = useMemo(() => {
-    if (!filteredDag) return "";
-    const nodesPart = filteredDag.nodes.map((n) => `${n.id}:${n.status}`).sort().join(",");
-    const edgesPart = filteredDag.edges.map((e) => `${e.source}-${e.target}`).sort().join(",");
-    return `${nodesPart}|${edgesPart}`;
-  }, [filteredDag]);
-  const prevDagFingerprint = useRef(dagFingerprint);
-  if (dagFingerprint !== prevDagFingerprint.current && filteredDag) {
-    stableDagRef.current = filteredDag;
-    prevDagFingerprint.current = dagFingerprint;
-  }
-  const stableDag = stableDagRef.current;
-
-  const filteredAgents = stableDag?.nodes || [];
+  // Agents list for the log sidebar: use active turn's agents, or fall back to all dag nodes
+  const filteredAgents = activeTurn?.agents
+    ? dag?.nodes.filter((n) => activeTurnAgentIds.has(n.id)) ?? []
+    : dag?.nodes ?? [];
 
   const handleAgentSelect = useCallback(
     (agentId: string) => {
@@ -237,13 +207,14 @@ export function RightPanel({
       {/* Tab content */}
       <div className={TAB_CONTENT_WRAPPER_CLASS}>
         {activePrimaryTab === "graph" ? (
-          stableDag ? (
+          dag ? (
             <AgentFlowDAG
-              dag={stableDag}
+              dag={dag}
               selectedAgent={selectedAgent}
               onSelectAgent={handleAgentSelect}
               frozen={!isLiveTurn}
               onViewInLog={handleAgentSelect}
+              activeTurnAgentIds={activeTurnAgentIds}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-dt-text2 text-sm">

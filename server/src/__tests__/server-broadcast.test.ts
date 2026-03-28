@@ -20,6 +20,7 @@ describe("broadcast", () => {
     const msg: WsBroadcastMessage = {
       type: "new-session",
       filePath: "/tmp/test.jsonl",
+      sessionId: "test",
     };
 
     broadcast(state, msg);
@@ -41,6 +42,7 @@ describe("broadcast", () => {
     const msg: WsBroadcastMessage = {
       type: "new-session",
       filePath: "/tmp/test.jsonl",
+      sessionId: "test",
     };
 
     broadcast(state, msg);

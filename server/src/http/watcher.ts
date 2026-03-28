@@ -5,9 +5,32 @@ import { broadcast, type ServerState } from "./server.js";
 import { parseJsonlIncremental } from "../parser/jsonl-reader.js";
 import { processNewEvents } from "../debug/lifecycle-builder.js";
 import type { LifecycleBuilderState } from "../debug/lifecycle-builder.js";
-import type { SessionEvent } from "../types.js";
+import type { SessionEvent, WsNewEventsMessage, WsNewSessionMessage } from "../types.js";
 
 const offsets = new Map<string, number>();
+
+/**
+ * Build a WsNewEventsMessage with sessionId extracted from the file path.
+ */
+export function buildNewEventsMessage(filePath: string, events: SessionEvent[]): WsNewEventsMessage {
+  return {
+    type: "new-events",
+    filePath,
+    sessionId: extractSessionIdFromPath(filePath),
+    events,
+  };
+}
+
+/**
+ * Build a WsNewSessionMessage with sessionId extracted from the file path.
+ */
+export function buildNewSessionMessage(filePath: string): WsNewSessionMessage {
+  return {
+    type: "new-session",
+    filePath,
+    sessionId: extractSessionIdFromPath(filePath),
+  };
+}
 
 /**
  * Extract session ID from a JSONL file path.
@@ -94,11 +117,7 @@ export function startWatcher(state: ServerState): { close: () => Promise<void> }
     offsets.set(filePath, newOffset);
 
     if (events.length > 0) {
-      broadcast(state, {
-        type: "new-events",
-        filePath,
-        events,
-      });
+      broadcast(state, buildNewEventsMessage(filePath, events));
 
       storeLifecycleData(state, filePath, events);
     }
@@ -111,15 +130,12 @@ export function startWatcher(state: ServerState): { close: () => Promise<void> }
       const { events, newOffset } = parseJsonlIncremental(filePath, 0);
       offsets.set(filePath, newOffset);
       if (events.length > 0) {
-        broadcast(state, { type: "new-events", filePath, events });
+        broadcast(state, buildNewEventsMessage(filePath, events));
         storeLifecycleData(state, filePath, events);
       }
     }
 
-    broadcast(state, {
-      type: "new-session",
-      filePath,
-    });
+    broadcast(state, buildNewSessionMessage(filePath));
   });
 
   return {

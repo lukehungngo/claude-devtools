@@ -12,12 +12,13 @@ describe("dispatchWsMessage (pure function)", () => {
     const data = JSON.stringify({
       type: "new-events",
       filePath: "/some/path",
+      sessionId: "sess-1",
       events: [{ type: "user", uuid: "1" }],
     });
 
     dispatchWsMessage(data, handlers);
 
-    expect(handlers.onNewEvents).toHaveBeenCalledWith("/some/path", [
+    expect(handlers.onNewEvents).toHaveBeenCalledWith("sess-1", "/some/path", [
       { type: "user", uuid: "1" },
     ]);
   });

@@ -6,12 +6,14 @@ import type { SessionEvent, PermissionRequest } from "../lib/types";
 interface WsNewEventsMessage {
   type: "new-events";
   filePath: string;
+  sessionId?: string;
   events: SessionEvent[];
 }
 
 interface WsNewSessionMessage {
   type: "new-session";
   filePath: string;
+  sessionId?: string;
 }
 
 interface WsPermissionRequestMessage {
@@ -57,7 +59,7 @@ export interface UserQuestion {
 }
 
 export interface UnifiedWebSocketHandlers {
-  onNewEvents?: (filePath: string, events: SessionEvent[]) => void;
+  onNewEvents?: (sessionId: string, filePath: string, events: SessionEvent[]) => void;
   onNewSession?: (filePath: string) => void;
   onPermissionRequest?: (permission: PermissionRequest) => void;
   onPermissionResolved?: (id: string, decision: "approved" | "denied") => void;
@@ -83,7 +85,7 @@ export function dispatchWsMessage(
 
     switch (msg.type) {
       case "new-events":
-        handlers.onNewEvents?.(msg.filePath, msg.events);
+        handlers.onNewEvents?.(msg.sessionId ?? "", msg.filePath, msg.events);
         break;
       case "new-session":
         handlers.onNewSession?.(msg.filePath);
