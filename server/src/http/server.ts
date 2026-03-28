@@ -8,6 +8,7 @@ import { setupRoutes } from "./routes.js";
 import { startWatcher } from "./watcher.js";
 import { SessionManager } from "../session/session-manager.js";
 import { DebugDB } from "../debug/debug-db.js";
+import { backfillDebugDb } from "../debug/backfill.js";
 import type { WsBroadcastMessage } from "../types.js";
 
 let __dirname: string;
@@ -43,6 +44,11 @@ export function startHttpServer(port: number = 3142): Promise<{
       ),
       debugDb,
     };
+
+    // Backfill debug DB with all existing sessions on first run
+    if (debugDb) {
+      backfillDebugDb(debugDb);
+    }
 
     // WebSocket connections
     wss.on("connection", (ws) => {
