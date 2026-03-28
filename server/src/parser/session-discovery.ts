@@ -123,16 +123,13 @@ export function discoverSessions(): SessionInfo[] {
     }
   }
 
-  // Drop sessions inactive for more than 12 hours
-  const activeSessions = sessions.filter((s) => s.isActive);
-
   // Sort by most recent first
-  activeSessions.sort(
+  sessions.sort(
     (a, b) =>
       new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
   );
 
-  return activeSessions;
+  return sessions;
 }
 
 
