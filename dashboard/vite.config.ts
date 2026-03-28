@@ -5,11 +5,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      "/api/command": {
+      "/api/sessions": {
         target: "http://localhost:3142",
         configure: (proxy) => {
           proxy.on("proxyRes", (proxyRes) => {
-            // Disable buffering for SSE
+            // Disable buffering for SSE streaming on session message routes
             proxyRes.headers["cache-control"] = "no-cache";
             proxyRes.headers["x-accel-buffering"] = "no";
           });

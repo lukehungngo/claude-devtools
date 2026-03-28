@@ -5,6 +5,7 @@ interface PromptInputProps {
   sessionCwd?: string;
   sessionId?: string;
   activeSessionId?: string;
+  onSessionStarted?: (sessionId: string) => void;
 }
 
 const SLASH_COMMANDS = [
@@ -46,7 +47,7 @@ function getCommandOutput(command: string): string {
   }
 }
 
-export function PromptInput({ sessionCwd, sessionId, activeSessionId }: PromptInputProps) {
+export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionStarted }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
   const [sseStatus, setSseStatus] = useState<"idle" | "streaming" | "error">("idle");
@@ -107,25 +108,50 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId }: PromptIn
     setSseStatus("streaming");
     try {
       // Determine which session to send the prompt to:
-      // 1. If we have an activeSessionId (started/resumed from web UI), use the session API
-      // 2. Otherwise, fall back to /api/command but do NOT resume a viewed session —
-      //    that would inject events into a CLI-started session the user is only observing.
-      let endpoint: string;
-      let body: Record<string, unknown>;
+      // 1. If we have an activeSessionId (started/resumed from web UI), use it
+      // 2. If we have a viewed sessionId, resume it via the session API
+      // 3. Otherwise, start a new session first
+      let targetSessionId = activeSessionId;
 
-      if (activeSessionId) {
-        endpoint = `/api/sessions/${activeSessionId}/message`;
-        body = { prompt: currentPrompt };
-      } else {
-        endpoint = "/api/command";
-        body = {
-          prompt: currentPrompt,
-          cwd: sessionCwd,
-          // Pass sessionId to resume the viewed session instead of creating
-          // a new one. Without this, every prompt creates a brand new session.
-          ...(sessionId ? { sessionId } : {}),
-        };
+      if (!targetSessionId && sessionId) {
+        // Resume the viewed session
+        try {
+          await fetch(`/api/sessions/${sessionId}/resume`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cwd: sessionCwd }),
+          });
+          targetSessionId = sessionId;
+          onSessionStarted?.(sessionId);
+        } catch {
+          console.error("Failed to resume session");
+        }
       }
+
+      if (!targetSessionId) {
+        // Start a new session
+        try {
+          const newRes = await fetch("/api/sessions/new", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cwd: sessionCwd || "/" }),
+          });
+          const data = await newRes.json();
+          targetSessionId = data.sessionId;
+          if (targetSessionId) onSessionStarted?.(targetSessionId);
+        } catch {
+          console.error("Failed to start new session");
+        }
+      }
+
+      if (!targetSessionId) {
+        setSseStatus("error");
+        setRunning(false);
+        return;
+      }
+
+      const endpoint = `/api/sessions/${targetSessionId}/message`;
+      const body: Record<string, unknown> = { prompt: currentPrompt };
 
       const response = await fetch(endpoint, {
         method: "POST",

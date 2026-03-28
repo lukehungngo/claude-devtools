@@ -31,6 +31,8 @@ interface ConversationViewProps {
   /** Pending/answered questions from the agent */
   questions?: QuestionItem[];
   onSubmitAnswer?: (questionId: string, answer: string) => void;
+  /** Called when PromptInput auto-starts or resumes a session */
+  onSessionStarted?: (sessionId: string) => void;
 }
 
 export function ConversationView({
@@ -47,6 +49,7 @@ export function ConversationView({
   onPermissionDecide,
   questions,
   onSubmitAnswer,
+  onSessionStarted,
 }: ConversationViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -312,7 +315,7 @@ export function ConversationView({
       <CostStrip metrics={metrics} />
 
       {/* Command input */}
-      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} activeSessionId={activeSessionId} />
+      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} />
     </div>
   );
 }

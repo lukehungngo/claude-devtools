@@ -260,11 +260,11 @@ GET    /api/sessions/:id/messages → get full transcript
 |-----|----------|------|-------------|
 | ~~Worktree .git detection~~ | ~~P2~~ | `session-discovery.ts` | ✅ FIXED — `resolveRepoRoot()` handles `.git` file (worktree symlink) correctly |
 | Permission state lost on restart | P2 | `permission-handler.ts` | In-memory Map, no persistence. Cleanup now scheduled on resolve. Promise timeout (10min) prevents hangs. |
-| DAG node costs sonnet-only | P3 | `dag-builder.ts` | `aggregateTokens()` hardcodes sonnet pricing; top-level uses per-model |
-| Dashboard sonnet pricing duplication | P3 | `turnSnapshot.ts`, `AgentLogs.tsx` | Hardcoded `INPUT_COST_PER_TOKEN = 0.000003` duplicated in 2 files |
-| SummaryCards gray colors | P3 | `SummaryCards.tsx` | Uses `gray-*` not `dt-*` tokens (violates fe-guide) |
+| ~~DAG node costs sonnet-only~~ | ~~P3~~ | `dag-builder.ts` | ✅ FIXED — `aggregateTokens()` now uses per-model pricing from `event.message.model` |
+| ~~Dashboard sonnet pricing duplication~~ | ~~P3~~ | `turnSnapshot.ts`, `AgentLogs.tsx` | ✅ FIXED — constants extracted to shared `lib/cost.ts`, imported by both files |
+| ~~SummaryCards gray colors~~ | ~~P3~~ | `SummaryCards.tsx` | ✅ FIXED — uses `dt-*` tokens now |
 | Live event buffer 2000 cap | P2 | `useEventStream.ts` | Drops oldest beyond 2000; long sessions lose mid-stream events |
-| File watcher never closed | P3 | `watcher.ts` | No cleanup on shutdown; file descriptor leak |
+| ~~File watcher never closed~~ | ~~P3~~ | `watcher.ts` | ✅ FIXED — `startWatcher()` returns `{ close }` handle for cleanup |
 | Model pricing hardcoded | P2 | `metrics.ts` | March 2026 rates; must manually update |
 
 ---
@@ -628,13 +628,13 @@ POST   /api/open-file                         → open in editor
 | ~~DELETE /api/sessions/:id~~ | ✅ Done | `routes.ts` | — |
 | ~~GET /api/questions/pending~~ | ✅ Done | `routes.ts` + `session-manager.ts` | — |
 | ~~cleanupPermissions() scheduling~~ | ✅ Done | `permission-handler.ts` | — |
-| `forkSession()` method + route | Not built | `session-manager.ts`, `routes.ts` | 1.5h |
-| Inline permission/question placement in turns | Not built | `ConversationView.tsx` | 2h |
-| Legacy `/api/command` route removal | Not started | `routes.ts` | 1h |
+| ~~`forkSession()` route~~ | ✅ Done (stub) | `routes.ts` | — |
+| ~~Inline permission/question placement~~ | ✅ Done | `ConversationView.tsx` | — |
+| ~~Legacy `/api/command` route removal~~ | ✅ Done | `routes.ts`, `PromptInput.tsx` | — |
 | Subagent watcher limitation docs | Partial | `watcher.ts` | 0.5h |
-| Event dedup key hardening | Not done | `App.tsx` | 1h |
+| ~~Event dedup key hardening~~ | ✅ Done | `App.tsx` | — |
 
-**Estimated: ~7h remaining**
+**Estimated: ~0.5h remaining (subagent docs only)**
 
 ### Phase B: Session Lifecycle UI (~10h)
 
@@ -647,15 +647,15 @@ POST   /api/open-file                         → open in editor
 | "Fork Session" UI | Not built (requires forkSession) | Conversation header | 2h |
 | Active session indicator in sidebar | Not built | `RepoList.tsx` | 2h |
 | Session cleanup/close UI | Not built | Server + Dashboard | 1h |
-| Setup gate (first-launch wizard) | Not built | New component | 2h |
+| ~~Setup gate (first-launch wizard)~~ | ✅ Done | `SetupGate.tsx`, `routes.ts` (`/setup/validate`) | — |
 
-**Estimated: ~10h**
+**Estimated: ~8h remaining**
 
 ### Phase C: Polish & Gaps (~12h)
 
 | Task | Status | Effort |
 |------|--------|--------|
-| Fix SummaryCards gray colors → dt-* tokens | Not done | 0.5h |
+| ~~Fix SummaryCards gray colors → dt-* tokens~~ | ✅ Done | — |
 | Add Repo button handler | Not done | 1h |
 | Empty state CTA | Not done | 1h |
 | Graph tooltip "View in Agent Log →" | Not done | 1h |

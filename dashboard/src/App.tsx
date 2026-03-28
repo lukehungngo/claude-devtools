@@ -14,6 +14,7 @@ import { usePermissions } from "./hooks/usePermissions";
 import { useUsage } from "./hooks/useUsage";
 import { useCosts } from "./hooks/useCosts";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { SetupGate } from "./components/SetupGate";
 
 function Dashboard() {
   const { repos, loading: reposLoading, refresh: refreshRepos } = useRepos();
@@ -112,16 +113,11 @@ function Dashboard() {
     }
   }, [events, clearLiveEvents]);
 
-  // Merge REST + live events, deduplicating any overlap during the transition frame
+  // Merge REST + live events, deduplicating by event UUID
   const allEvents = useMemo(() => {
     if (liveEvents.length === 0) return events;
-    // Build a set of REST event keys for fast lookup
-    const restKeys = new Set(
-      events.map((e) => `${e.timestamp}|${e.type}|${e.agentId ?? ""}`)
-    );
-    const uniqueLive = liveEvents.filter(
-      (e) => !restKeys.has(`${e.timestamp}|${e.type}|${e.agentId ?? ""}`)
-    );
+    const restKeys = new Set(events.map((e) => e.uuid));
+    const uniqueLive = liveEvents.filter((e) => !restKeys.has(e.uuid));
     return uniqueLive.length > 0 ? [...events, ...uniqueLive] : events;
   }, [events, liveEvents]);
   const { usage } = useUsage();
@@ -231,6 +227,7 @@ function Dashboard() {
             sessionCwd={metrics.session.cwd}
             sessionId={metrics.session.id}
             activeSessionId={activeSessionId ?? undefined}
+            onSessionStarted={setActiveSessionId}
             highlightedTurnIndex={highlightedTurnIndex}
             permissions={permissions}
             onPermissionDecide={decide}
@@ -283,7 +280,9 @@ function Dashboard() {
 export default function App() {
   return (
     <ThemeProvider>
-      <Dashboard />
+      <SetupGate>
+        <Dashboard />
+      </SetupGate>
     </ThemeProvider>
   );
 }

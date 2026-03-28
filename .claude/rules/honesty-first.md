@@ -28,5 +28,5 @@ The spec audit (TASK-010) measured 69% P0 coverage with known gaps documented. T
 
 ### Project-specific integrity notes
 - **Token/cost metrics must match JSONL source data.** The dashboard displays costs computed from `MODEL_PRICING` — if pricing is stale, label it clearly rather than presenting wrong numbers as accurate.
-- **DAG node costs use sonnet-only pricing** — this is a known discrepancy vs top-level per-model pricing. Document this gap; do not hide it.
+- **DAG node costs now use per-model pricing** — `aggregateTokens()` reads `event.message.model` per event. Dashboard-side `turnSnapshot.ts` and `AgentLogs.tsx` still use sonnet-only constants from `lib/cost.ts` for client-side estimation.
 - **Live event buffer cap (2000)** — when reporting event counts for long sessions, note that mid-stream events may be missing from the live feed. Do not report live feed counts as complete session counts.

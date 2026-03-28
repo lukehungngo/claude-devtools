@@ -6,7 +6,7 @@ import { parseJsonlIncremental } from "../parser/jsonl-reader.js";
 
 const offsets = new Map<string, number>();
 
-export function startWatcher(state: ServerState): void {
+export function startWatcher(state: ServerState): { close: () => Promise<void> } {
   const projectsDir = join(homedir(), ".claude", "projects");
 
   const watcher = chokidar.watch(`${projectsDir}/**/*.jsonl`, {
@@ -51,4 +51,8 @@ export function startWatcher(state: ServerState): void {
       filePath,
     });
   });
+
+  return {
+    close: () => watcher.close(),
+  };
 }

@@ -1,4 +1,7 @@
 import { execSync } from "child_process";
+import { statSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { Router, json } from "express";
 import {
   discoverSessions,
@@ -409,123 +412,50 @@ export function setupRoutes(state?: ServerState): Router {
     res.json({ sessions });
   });
 
-  // Command input (v1: simple prompt)
-  router.post("/command", async (req, res) => {
-    const { prompt, cwd, sessionId } = req.body;
-    if (!prompt) {
-      return res.status(400).json({ error: "Missing prompt" });
-    }
+  // Setup validation — checks prerequisites for first-launch gate
+  router.get("/setup/validate", async (_req, res) => {
+    const checks: { name: string; ok: boolean; detail: string }[] = [];
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders();
-
-    const controller = new AbortController();
-    // Use res.on("close") — fires when the client disconnects from the SSE stream.
-    // req.on("close") fires when the POST body is fully received (too early — aborts the SDK).
-    res.on("close", () => {
-      controller.abort();
-    });
-
+    // 1. Check Claude Code CLI in PATH
     try {
-      const { query } = await import("@anthropic-ai/claude-agent-sdk");
-
-      const responseStream = query({
-        prompt,
-        options: {
-          abortController: controller,
-          cwd: cwd || process.cwd(),
-          // Only resume if an explicit sessionId was provided — never resume
-          // a CLI-started session accidentally from a dashboard one-shot command.
-          ...(sessionId ? { resume: sessionId } : {}),
-          forkSession: false,
-          // Required for real-time streaming: without this flag, the SDK does not
-          // emit stream_event (SDKPartialAssistantMessage) messages, so the client
-          // receives no output until the turn completes.
-          includePartialMessages: true,
-          canUseTool: async (toolName, input) => {
-            const permission = addPermissionRequest({
-              sessionId: sessionId || "unknown",
-              agentId: "main",
-              toolName,
-              input: input as Record<string, unknown>,
-            });
-
-            if (state) {
-              broadcast(state, { type: "permission-request", permission });
-            }
-
-            return new Promise((resolve, reject) => {
-              const check = setInterval(() => {
-                const status = getPermissionStatus(permission.id);
-                if (status?.status === "approved") {
-                  clearInterval(check);
-                  resolve({ behavior: "allow" });
-                } else if (status?.status === "denied") {
-                  clearInterval(check);
-                  resolve({ behavior: "deny", message: "User denied permission" });
-                }
-              }, 500);
-
-              // Clean up interval if request is aborted to avoid memory leak
-              controller.signal.addEventListener("abort", () => {
-                clearInterval(check);
-                reject(new Error("Aborted"));
-              }, { once: true });
-            });
-          }
-        }
-      });
-
-      for await (const message of responseStream) {
-        if (message.type === "stream_event") {
-          // SDKPartialAssistantMessage: real-time streaming text deltas
-          // Only emitted when includePartialMessages: true is set.
-          const event = message.event as { type: string; delta?: { type: string; text?: string } };
-          if (event.type === "content_block_delta" && event.delta?.type === "text_delta" && event.delta.text) {
-            res.write(
-              `data: ${JSON.stringify({ type: "stdout", text: event.delta.text })}\n\n`
-            );
-          }
-        } else if (message.type === "assistant") {
-          // SDKAssistantMessage: emitted at end of each turn with full response.
-          // Extract text blocks as fallback (covers non-streaming or resumed sessions).
-          const content = message.message.content;
-          if (Array.isArray(content)) {
-            for (const block of content) {
-              if (block.type === "text" && block.text) {
-                res.write(
-                  `data: ${JSON.stringify({ type: "stdout", text: block.text })}\n\n`
-                );
-              }
-            }
-          }
-        } else if (message.type === "result") {
-          // SDKResultMessage: emitted at end of query with final cost/usage info.
-          // Surface any execution errors from is_error flag or error subtypes.
-          if (message.is_error) {
-            const errMsg = "subtype" in message ? String(message.subtype) : "Execution error";
-            res.write(
-              `data: ${JSON.stringify({ type: "error", message: errMsg })}\n\n`
-            );
-          }
-        }
-      }
-
-      res.write(
-        `data: ${JSON.stringify({ type: "done", exitCode: 0 })}\n\n`
-      );
-      res.end();
-    } catch (err) {
-      res.write(
-        `data: ${JSON.stringify({ type: "error", message: err instanceof Error ? err.message : String(err) })}\n\n`
-      );
-      res.end();
+      execSync("which claude", { stdio: "pipe" });
+      checks.push({ name: "cli", ok: true, detail: "Claude Code CLI found" });
+    } catch {
+      checks.push({ name: "cli", ok: false, detail: "Claude Code CLI not found in PATH" });
     }
+
+    // 2. Check ~/.claude/projects/ directory exists
+    const projectsDir = join(homedir(), ".claude", "projects");
+    try {
+      const stat = statSync(projectsDir);
+      if (stat.isDirectory()) {
+        checks.push({ name: "projects_dir", ok: true, detail: projectsDir });
+      } else {
+        checks.push({ name: "projects_dir", ok: false, detail: `${projectsDir} exists but is not a directory` });
+      }
+    } catch {
+      checks.push({ name: "projects_dir", ok: false, detail: `${projectsDir} does not exist` });
+    }
+
+    // 3. Check if sessions are discoverable
+    try {
+      const sessions = discoverSessions();
+      checks.push({ name: "sessions", ok: sessions.length > 0, detail: `${sessions.length} sessions found` });
+    } catch {
+      checks.push({ name: "sessions", ok: false, detail: "Failed to discover sessions" });
+    }
+
+    const allOk = checks.every((c) => c.ok);
+    res.json({ valid: allOk, checks });
   });
 
+  // Fork session — stub (SDK does not yet support forkSession)
+  router.post("/sessions/:sessionId/fork", (_req, res) => {
+    res.status(501).json({
+      error: "Not implemented",
+      detail: "Session forking requires SDK support (forkSession API) which is not yet available",
+    });
+  });
 
   // Open file in editor (cross-panel interaction)
   router.post("/open-file", (req, res) => {

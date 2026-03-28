@@ -158,7 +158,7 @@ describe("PromptInput", () => {
       expect(body.sessionId).toBeUndefined();
     });
 
-    it("POSTs to /api/command with sessionId to resume the viewed session", async () => {
+    it("resumes the viewed session then sends message via session API", async () => {
       const { container } = render(
         <PromptInput sessionCwd="/projects/foo" sessionId="sid-456" />
       );
@@ -169,14 +169,14 @@ describe("PromptInput", () => {
         fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
       });
 
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      const [url, opts] = fetchMock.mock.calls[0];
-      expect(url).toBe("/api/command");
-      const body = JSON.parse(opts.body);
+      // First call: resume the session, second call: send message
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const [resumeUrl] = fetchMock.mock.calls[0];
+      expect(resumeUrl).toBe("/api/sessions/sid-456/resume");
+      const [msgUrl, msgOpts] = fetchMock.mock.calls[1];
+      expect(msgUrl).toBe("/api/sessions/sid-456/message");
+      const body = JSON.parse(msgOpts.body);
       expect(body.prompt).toBe("hello");
-      expect(body.cwd).toBe("/projects/foo");
-      // sessionId IS sent to resume the viewed session
-      expect(body.sessionId).toBe("sid-456");
     });
   });
 

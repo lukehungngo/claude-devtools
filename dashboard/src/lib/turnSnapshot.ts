@@ -5,6 +5,7 @@ import type {
   ContentItem,
   SubagentMeta,
 } from "./types";
+import { INPUT_COST_PER_TOKEN, OUTPUT_COST_PER_TOKEN } from "./cost";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -45,18 +46,6 @@ export interface TurnSnapshot {
   completedAt: string;
   endTime: string;
 }
-
-/**
- * Hardcoded Claude 3.5 Sonnet pricing for per-turn cost estimation.
- * These values must be manually updated when Anthropic changes rates.
- * They match the sonnet pricing in server/src/analyzer/dag-builder.ts.
- *
- * NOTE: This is sonnet-only pricing. The top-level SessionMetrics uses
- * per-model pricing from MODEL_PRICING in server/src/analyzer/metrics.ts,
- * which may produce different cost totals for sessions using non-sonnet models.
- */
-const INPUT_COST_PER_TOKEN = 0.000003;
-const OUTPUT_COST_PER_TOKEN = 0.000015;
 
 // ─── Turn boundary detection ─────────────────────────────────────────
 

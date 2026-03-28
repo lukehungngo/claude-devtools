@@ -50,7 +50,7 @@ Claude Code Agent (writes .jsonl events to ~/.claude/projects/)
 ## Key Gotchas
 
 - **Model pricing is hardcoded** — `server/src/analyzer/metrics.ts` has a hand-coded `MODEL_PRICING` table. No API fetch. Must be manually updated when Anthropic changes rates.
-- **DAG node costs always use sonnet pricing** — `aggregateTokens()` in `dag-builder.ts` hardcodes sonnet pricing for per-node cost. Top-level metrics use per-model pricing. This causes discrepancies in the agent breakdown view.
+- **DAG node costs use per-model pricing** — `aggregateTokens()` in `dag-builder.ts` reads the model from each event and uses `calculateTokenCost()` with the actual model. Falls back to sonnet pricing if the model field is missing.
 - **Content can be string or ContentItem[]** — Dashboard types allow both. `normalizeContent.ts` must coerce strings to arrays. Forgetting this causes runtime crashes in EventStream.
 - **Live event buffer capped at 2000** — `useEventStream.ts` drops oldest events beyond 2000. Very long sessions lose mid-stream events on the live feed (full REST fetch is not capped).
 - **MCP tools detected by name prefix only** — `countMcpToolCalls()` checks if tool name starts with `mcp__`. Custom tools with that prefix get miscounted; MCP tools without it get missed.

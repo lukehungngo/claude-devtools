@@ -9,7 +9,7 @@ import type {
 } from "../lib/types";
 import { normalizeContent } from "../lib/normalizeContent";
 import { formatTime } from "../lib/formatTime";
-import { formatCost, formatDuration } from "../lib/cost";
+import { formatCost, formatDuration, INPUT_COST_PER_TOKEN, OUTPUT_COST_PER_TOKEN } from "../lib/cost";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -31,9 +31,6 @@ interface AggregatedLogEntry extends LogEntry {
   count: number;
 }
 
-/** Sonnet pricing constants for per-entry cost estimation */
-const INPUT_COST_PER_TOKEN = 0.000003;
-const OUTPUT_COST_PER_TOKEN = 0.000015;
 interface InvocationGroup {
   agentId: string;
   agentType: string;

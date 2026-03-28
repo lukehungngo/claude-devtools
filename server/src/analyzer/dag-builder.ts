@@ -113,24 +113,32 @@ export function aggregateTokens(events: SessionEvent[]): AggregatedTokens {
   let outputTokens = 0;
   let cacheWriteTokens = 0;
   let cacheReadTokens = 0;
+  let totalCost = 0;
 
   for (const event of events) {
     if (event.type !== "assistant") continue;
     const usage = event.message.usage;
     if (!usage) continue;
 
-    inputTokens += usage.input_tokens || 0;
-    outputTokens += usage.output_tokens || 0;
-    cacheWriteTokens += usage.cache_creation_input_tokens || 0;
-    cacheReadTokens += usage.cache_read_input_tokens || 0;
-  }
+    const evtIn = usage.input_tokens || 0;
+    const evtOut = usage.output_tokens || 0;
+    const evtCacheWrite = usage.cache_creation_input_tokens || 0;
+    const evtCacheRead = usage.cache_read_input_tokens || 0;
 
-  const totalCost = calculateTokenCost("claude-sonnet-4-6", {
-    inputTokens,
-    outputTokens,
-    cacheWriteTokens,
-    cacheReadTokens,
-  });
+    inputTokens += evtIn;
+    outputTokens += evtOut;
+    cacheWriteTokens += evtCacheWrite;
+    cacheReadTokens += evtCacheRead;
+
+    // Use the actual model from the event for accurate per-model pricing
+    const model = event.message.model || "claude-sonnet-4-6";
+    totalCost += calculateTokenCost(model, {
+      inputTokens: evtIn,
+      outputTokens: evtOut,
+      cacheWriteTokens: evtCacheWrite,
+      cacheReadTokens: evtCacheRead,
+    });
+  }
 
   return {
     inputTokens,

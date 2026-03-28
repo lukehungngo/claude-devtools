@@ -69,7 +69,12 @@ export function startHttpServer(port: number = 3142): Promise<{
     }
 
     // Start file watcher
-    startWatcher(state);
+    const watcher = startWatcher(state);
+
+    const cleanup = () => {
+      watcher.close();
+      server.close();
+    };
 
     // Try preferred port, fall back to random
     server.on("error", (err: NodeJS.ErrnoException) => {
@@ -79,7 +84,7 @@ export function startHttpServer(port: number = 3142): Promise<{
           const addr = server.address();
           const actualPort = typeof addr === "object" ? addr?.port : 0;
           const url = `http://localhost:${actualPort}`;
-          resolve({ url, close: () => server.close() });
+          resolve({ url, close: cleanup });
         });
       } else {
         reject(err);
@@ -88,7 +93,7 @@ export function startHttpServer(port: number = 3142): Promise<{
 
     server.listen(port, "127.0.0.1", () => {
       const url = `http://localhost:${port}`;
-      resolve({ url, close: () => server.close() });
+      resolve({ url, close: cleanup });
     });
   });
 }

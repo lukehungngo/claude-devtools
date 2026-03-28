@@ -1,3 +1,11 @@
+/**
+ * Sonnet pricing constants for client-side per-turn cost estimation.
+ * Must be manually updated when Anthropic changes rates.
+ * Matches sonnet pricing in server/src/analyzer/metrics.ts.
+ */
+export const INPUT_COST_PER_TOKEN = 0.000003;
+export const OUTPUT_COST_PER_TOKEN = 0.000015;
+
 export function formatCost(cost: number): string {
   if (cost < 0.01) return `$${cost.toFixed(4)}`;
   if (cost < 1) return `$${cost.toFixed(3)}`;
