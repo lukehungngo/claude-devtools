@@ -195,6 +195,76 @@ describe("buildAgentDAG", () => {
     const agentNode = dag.nodes.find((n) => n.id === "agent-1");
     expect(agentNode!.type).toBe("unknown");
   });
+
+  it("does not create duplicate edges when Agent is invoked multiple times with same description", () => {
+    const mainEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        content: [
+          {
+            type: "tool_use",
+            id: "t1",
+            name: "Agent",
+            input: { description: "explore stuff" },
+          },
+        ],
+      }),
+      makeAssistantEvent({
+        content: [
+          {
+            type: "tool_use",
+            id: "t2",
+            name: "Agent",
+            input: { description: "explore stuff" },
+          },
+        ],
+      }),
+    ];
+    const subagentEvents = new Map<string, SessionEvent[]>([
+      ["agent-1", [makeAssistantEvent()]],
+    ]);
+    const subagentMeta = new Map([
+      ["agent-1", { agentType: "Explore", description: "explore stuff" }],
+    ]);
+
+    const dag = buildAgentDAG(mainEvents, subagentEvents, subagentMeta);
+
+    // Should have exactly one edge from main to agent-1, not two
+    const edgesToAgent1 = dag.edges.filter((e) => e.target === "agent-1");
+    expect(edgesToAgent1).toHaveLength(1);
+  });
+
+  it("detects error status from tool_result with is_error in user events", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        timestamp: "2020-01-01T00:00:00Z",
+        content: [
+          { type: "tool_use", id: "t1", name: "Bash", input: { command: "exit 1" } },
+        ],
+      }),
+      {
+        type: "user",
+        uuid: "u1",
+        timestamp: "2020-01-01T00:00:01Z",
+        sessionId: "test-session",
+        userType: "internal",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "t1",
+              content: "Command failed with exit code 1",
+              is_error: true,
+            },
+          ],
+        },
+      } as SessionEvent,
+    ];
+
+    const dag = buildAgentDAG(events, new Map(), new Map());
+
+    expect(dag.nodes[0].status).toBe("error");
+  });
 });
 
 describe("aggregateTokens", () => {
