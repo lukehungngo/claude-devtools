@@ -90,11 +90,10 @@ export function TopBar({ usage, costs, metrics, isLive, onToolFilter }: Props) {
           {/* Title */}
           <div className="flex items-center gap-2 font-sans font-bold text-2xl text-dt-text0 mr-4 tracking-[-0.3px] shrink-0">
             <span
-              className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${
-                isLive
-                  ? "bg-dt-green animate-pulse-opacity"
-                  : "bg-dt-red"
-              }`}
+              className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${isLive
+                ? "bg-dt-green animate-pulse-opacity"
+                : "bg-dt-red"
+                }`}
               title={isLive ? "Connected" : "Disconnected"}
             />
             Claude DevTools
@@ -159,7 +158,7 @@ export function TopBar({ usage, costs, metrics, isLive, onToolFilter }: Props) {
                 </span>
               )}
               {usage.fiveHour.utilization !== null ||
-              usage.sevenDay.utilization !== null ? (
+                usage.sevenDay.utilization !== null ? (
                 <>
                   <UsageBar
                     label="Session"
@@ -384,23 +383,24 @@ function UsageBar({
   resetsAt: string | null;
 }) {
   const pct = value ?? 0;
+  const used = pct;
   const barColor =
     pct > 80 ? "var(--red)" : pct > 50 ? "var(--yellow)" : "var(--green)";
   const resetStr = resetsAt ? formatResetTime(resetsAt) : "";
-  const resetLabel = resetStr ? `reset in ${resetStr}` : "reset unknown";
+  const resetLabel = resetStr ? `reset ${resetStr}` : "reset unknown";
 
   return (
     <div
-      className="flex items-center gap-1 text-sm text-dt-text2 whitespace-nowrap"
+      className="flex items-center gap-1.5 text-md text-dt-text2 whitespace-nowrap"
       title={resetStr ? `Resets in ${resetStr}` : undefined}
     >
-      <span>{label}</span>
+      <span className="font-semibold text-dt-text1">{label}</span>
       <div
         style={{
-          width: 40,
-          height: 4,
+          width: 56,
+          height: 6,
           background: "var(--bg-4)",
-          borderRadius: 2,
+          borderRadius: 3,
           overflow: "hidden",
           position: "relative",
         }}
@@ -411,7 +411,7 @@ function UsageBar({
               height: "100%",
               width: `${pct}%`,
               background: barColor,
-              borderRadius: 2,
+              borderRadius: 3,
               position: "absolute",
               left: 0,
               top: 0,
@@ -419,7 +419,11 @@ function UsageBar({
           />
         )}
       </div>
-      <span className="font-mono text-xs text-dt-text1">{resetLabel} |</span>
+      <span className="font-mono text-xs font-semibold" style={{ color: barColor }}>
+        {value !== null ? `${used.toFixed(0)}%` : "--"}
+      </span>
+      <span className="font-mono text-xxs text-dt-text2">{resetLabel}</span>
+      <span className="text-dt-border">|</span>
     </div>
   );
 }

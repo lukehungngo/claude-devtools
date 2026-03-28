@@ -660,13 +660,13 @@ POST   /api/open-file                         → open in editor
 | Empty state CTA | Not done | 1h |
 | Graph tooltip "View in Agent Log →" | Not done | 1h |
 | Activity rings on graph nodes | Not done | 3h |
-| DAG node cost model fix (per-model pricing) | Not done | 2h |
+| ~~DAG node cost model fix (per-model pricing)~~ | ✅ Done (server-side) | — |
 | Dual data path polish | Partial | 2h |
 | Remaining known bugs | Mixed | 2h |
 
-**Estimated: ~12h**
+**Estimated: ~10h**
 
-**Total estimated: ~29h across 3 phases** (down from 65.5h — Phases 1, 2, 4 are ~85% complete)
+**Total estimated: ~18.5h across 3 phases**
 
 ---
 
