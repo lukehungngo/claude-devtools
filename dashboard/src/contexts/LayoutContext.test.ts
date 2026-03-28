@@ -36,6 +36,8 @@ describe("LayoutContext", () => {
       setActiveSessionId: () => {},
       selected: null,
       setSelected: () => {},
+      slugMap: new Map(),
+      reverseSlugMap: new Map(),
     };
 
     const wrapper = ({ children }: { children: React.ReactNode }) =>

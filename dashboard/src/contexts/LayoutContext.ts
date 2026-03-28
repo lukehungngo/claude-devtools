@@ -2,6 +2,11 @@ import { createContext, useContext } from "react";
 import type { RepoGroup, PermissionRequest, UsageInfo, CostSummary, SessionEvent, SessionMetrics } from "../lib/types";
 import type { ReactNode } from "react";
 
+/** Maps repoSlug -> projectHash */
+export type SlugMap = Map<string, string>;
+/** Maps projectHash -> repoSlug */
+export type ReverseSlugMap = Map<string, string>;
+
 export interface SessionWsHandlers {
   onNewEvents: (sessionId: string, filePath: string, events: SessionEvent[]) => void;
 }
@@ -40,6 +45,8 @@ export interface LayoutContextValue {
   setActiveSessionId: (id: string | null) => void;
   selected: { projectHash: string; sessionId: string } | null;
   setSelected: (s: { projectHash: string; sessionId: string } | null) => void;
+  slugMap: SlugMap;
+  reverseSlugMap: ReverseSlugMap;
 }
 
 export const LayoutContext = createContext<LayoutContextValue | null>(null);

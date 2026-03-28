@@ -22,7 +22,7 @@ const indexRoute = createRoute({
 
 const sessionRoute = createRoute({
   getParentRoute: () => layoutRoute,
-  path: "/session/$projectHash/$sessionId",
+  path: "/session/$repoSlug/$sessionId",
   component: SessionPage,
 });
 

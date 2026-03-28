@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useMemo } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import { Layout } from "../components/Layout";
 import { RepoList } from "../components/RepoList";
@@ -9,6 +9,7 @@ import { usePermissions } from "../hooks/usePermissions";
 import { useUsage } from "../hooks/useUsage";
 import { useCosts } from "../hooks/useCosts";
 import { LayoutContext } from "../contexts/LayoutContext";
+import { buildSlugMap, buildProjectHashToSlugMap } from "../lib/repoSlug";
 import type { SessionWsHandlers, QuestionItem } from "../contexts/LayoutContext";
 import type { SessionMetrics } from "../lib/types";
 import type { ReactNode } from "react";
@@ -95,6 +96,10 @@ export function AppLayout() {
     }
   }
 
+  // Build slug maps from repos
+  const slugMap = useMemo(() => buildSlugMap(repos), [repos]);
+  const reverseSlugMap = useMemo(() => buildProjectHashToSlugMap(slugMap), [slugMap]);
+
   // Track current selection for sidebar highlight
   const [selected, setSelected] = useState<{
     projectHash: string;
@@ -105,8 +110,9 @@ export function AppLayout() {
     setSelected(s);
     setToolFilter(null);
     setRequestedRightTab(undefined);
-    navigate({ to: "/session/$projectHash/$sessionId", params: s });
-  }, [navigate]);
+    const repoSlug = reverseSlugMap.get(s.projectHash) ?? s.projectHash;
+    navigate({ to: "/session/$repoSlug/$sessionId", params: { repoSlug, sessionId: s.sessionId } });
+  }, [navigate, reverseSlugMap]);
 
   const contextValue = {
     repos,
@@ -132,6 +138,8 @@ export function AppLayout() {
     setActiveSessionId,
     selected,
     setSelected,
+    slugMap,
+    reverseSlugMap,
   };
 
   return (

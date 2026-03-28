@@ -3,13 +3,14 @@ import { useParams } from "@tanstack/react-router";
 import { useLayoutContext } from "../contexts/LayoutContext";
 import { useSessionMetrics } from "../hooks/useSessionData";
 import { useEventStream } from "../hooks/useEventStream";
+import { resolveSlugToProjectHash } from "../lib/repoSlug";
 import { groupEventsIntoTurns } from "../lib/turnSnapshot";
 import { ConversationView } from "../components/conversation/ConversationView";
 import { RightPanel } from "../components/right-panel/RightPanel";
 
 export function SessionPage() {
-  const { projectHash, sessionId } = useParams({ strict: false }) as {
-    projectHash: string;
+  const { repoSlug, sessionId } = useParams({ strict: false }) as {
+    repoSlug: string;
     sessionId: string;
   };
 
@@ -30,7 +31,11 @@ export function SessionPage() {
     activeSessionId,
     setActiveSessionId,
     setSelected,
+    slugMap,
   } = ctx;
+
+  // Resolve URL slug to projectHash for API calls
+  const projectHash = resolveSlugToProjectHash(repoSlug, slugMap) ?? repoSlug;
 
   // Sync sidebar selection with route params
   useEffect(() => {
@@ -111,7 +116,7 @@ export function SessionPage() {
     setSelectedAgent(null);
     setHighlightedTurnIndex(undefined);
     setSelectedTurnIndex(null);
-  }, [projectHash, sessionId]);
+  }, [repoSlug, sessionId]);
 
   const handleAgentPillClick = useCallback((agentId: string) => {
     setSelectedAgent(agentId);
@@ -158,10 +163,13 @@ export function SessionPage() {
     setRightPanelContent(rightPanel);
   }, [rightPanel, setRightPanelContent]);
 
-  // Clean up right panel on unmount
+  // Clean up right panel and metrics on unmount
   useEffect(() => {
-    return () => setRightPanelContent(null);
-  }, [setRightPanelContent]);
+    return () => {
+      setRightPanelContent(null);
+      setCurrentMetrics(null);
+    };
+  }, [setRightPanelContent, setCurrentMetrics]);
 
   if (metricsLoading && !metrics) {
     return (
