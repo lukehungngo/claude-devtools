@@ -153,6 +153,59 @@ describe("buildLifecycleRecords", () => {
     expect(subAgent!.description).toBe("explore things");
   });
 
+  it("agent with stop_reason tool_use is marked completed in full build", () => {
+    const u1 = makeUserEvent({ timestamp: "2026-03-28T10:00:00Z" });
+    const a1 = makeAssistantEvent({
+      timestamp: "2026-03-28T10:01:00Z",
+      stop_reason: "tool_use",
+      content: [
+        { type: "tool_use", id: "t1", name: "Read", input: {} },
+      ],
+    });
+    // Tool result follows but no end_turn assistant message after
+    const toolResult = makeUserEvent({
+      uuid: "tr1",
+      timestamp: "2026-03-28T10:02:00Z",
+      userType: "internal",
+      message: {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "t1",
+            content: "file contents here",
+          },
+        ],
+      },
+    });
+
+    const result = buildLifecycleRecords("s1", [u1, a1, toolResult], emptyMeta);
+
+    const mainAgent = result.agentLifecycles.find((a) => a.agentId === "main");
+    // Full build processes a complete event stream, so agents should be "completed"
+    expect(mainAgent!.status).toBe("completed");
+  });
+
+  it("subagent with only tool_use stop_reason is marked completed in full build", () => {
+    const u1 = makeUserEvent({ timestamp: "2026-03-28T10:00:00Z" });
+    const a1 = makeAssistantEvent({
+      timestamp: "2026-03-28T10:01:00Z",
+      agentId: "sub-1",
+      stop_reason: "tool_use",
+      content: [
+        { type: "tool_use", id: "t1", name: "Bash", input: {} },
+      ],
+    } as Partial<AssistantEvent> & { agentId: string; stop_reason: "tool_use"; content: AssistantEvent["message"]["content"] });
+    const meta = new Map([
+      ["sub-1", { agentType: "Engineer", description: "build stuff" }],
+    ]);
+
+    const result = buildLifecycleRecords("s1", [u1, a1], meta);
+
+    const subAgent = result.agentLifecycles.find((a) => a.agentId === "sub-1");
+    expect(subAgent!.status).toBe("completed");
+  });
+
   it("stop_reason end_turn marks agent as completed", () => {
     const u1 = makeUserEvent({ timestamp: "2026-03-28T10:00:00Z" });
     const a1 = makeAssistantEvent({
@@ -324,6 +377,23 @@ describe("processNewEvents", () => {
     expect(records.turns).toHaveLength(0);
     expect(state2.currentTurnNumber).toBe(1);
     expect(records.lifecycleEvents).toHaveLength(1);
+  });
+
+  it("agent with stop_reason tool_use stays running in incremental mode", () => {
+    const u1 = makeUserEvent({ timestamp: "2026-03-28T10:00:00Z" });
+    const a1 = makeAssistantEvent({
+      timestamp: "2026-03-28T10:01:00Z",
+      stop_reason: "tool_use",
+      content: [
+        { type: "tool_use", id: "t1", name: "Read", input: {} },
+      ],
+    });
+
+    const { records } = processNewEvents("s1", [u1, a1], emptyMeta, null);
+
+    const mainAgent = records.agentLifecycles.find((a) => a.agentId === "main");
+    // Incremental mode: more events may arrive, so agent stays "running"
+    expect(mainAgent!.status).toBe("running");
   });
 
   it("new boundary finalizes previous turn", () => {

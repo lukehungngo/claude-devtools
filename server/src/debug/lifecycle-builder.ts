@@ -279,6 +279,14 @@ export function buildLifecycleRecords(
     });
   }
 
+  // Full build processes a complete event stream — no more events are coming.
+  // Any agent still "running" should be finalized as "completed".
+  for (const lifecycle of ctx.agentLifecycleMap.values()) {
+    if (lifecycle.status === "running") {
+      lifecycle.status = "completed";
+    }
+  }
+
   return {
     turns: ctx.turns,
     agentLifecycles: Array.from(ctx.agentLifecycleMap.values()),
