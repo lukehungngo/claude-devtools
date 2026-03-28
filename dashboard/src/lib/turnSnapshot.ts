@@ -152,6 +152,16 @@ function buildTurn(
     }
   }
 
+  // Determine turn status from last event (needed before agent status below)
+  const lastEvent = events[events.length - 1];
+  let status: "running" | "completed" = "running";
+  if (lastEvent?.type === "assistant") {
+    const lastAsst = lastEvent as AssistantEvent;
+    if (lastAsst.message?.stop_reason === "end_turn") {
+      status = "completed";
+    }
+  }
+
   // Build agent summaries
   const agents: AgentSummary[] = [];
   for (const [agentId, info] of agentMap) {
@@ -166,9 +176,13 @@ function buildTurn(
     if (lastAsst) {
       agentStatus = lastAsst.message?.stop_reason === "end_turn" ? "completed" : "running";
     } else {
-      // No assistant event for this agent in this turn (e.g., main with
-      // only a user event). Default to "completed" — if the turn exists
-      // as a distinct turn, the agent's work for this turn is done.
+      agentStatus = "completed";
+    }
+    // If the turn is completed, all agents in it are done regardless of
+    // their last stop_reason. Main agent often ends turns with
+    // stop_reason="tool_use" (dispatching subagents), which would
+    // incorrectly show "running" on historical turns without this.
+    if (status === "completed" && agentStatus === "running") {
       agentStatus = "completed";
     }
 
@@ -183,16 +197,6 @@ function buildTurn(
       tokensOut: info.tokensOut,
       tools: Array.from(info.tools),
     });
-  }
-
-  // Determine turn status from last event
-  const lastEvent = events[events.length - 1];
-  let status: "running" | "completed" = "running";
-  if (lastEvent?.type === "assistant") {
-    const lastAsst = lastEvent as AssistantEvent;
-    if (lastAsst.message?.stop_reason === "end_turn") {
-      status = "completed";
-    }
   }
 
   const endTime = events[events.length - 1]?.timestamp ?? "";
