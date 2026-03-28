@@ -1,22 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { SessionInfo, SessionMetrics, SessionEvent, SubagentMeta } from "../lib/types";
-
-export function useSessions() {
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/sessions")
-      .then((r) => r.json())
-      .then((data) => {
-        setSessions(data.sessions || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  return { sessions, loading };
-}
+import type { SessionMetrics, SessionEvent, SubagentMeta } from "../lib/types";
 
 export function useSessionMetrics(
   projectHash: string | null,

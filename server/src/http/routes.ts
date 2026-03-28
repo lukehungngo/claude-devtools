@@ -486,6 +486,11 @@ export function setupRoutes(state?: ServerState): Router {
         res.json({ success: true, editor: "vscode" });
       } catch {
         const editor = process.env.EDITOR || "vim";
+        // Validate EDITOR against shell metacharacters to prevent injection
+        if (/[;&|`$(){}!#]/.test(editor)) {
+          res.status(500).json({ error: "EDITOR env var contains invalid shell metacharacters" });
+          return;
+        }
         try {
           execSync(`${editor} "${filePath}"`, { timeout: 5000 });
           res.json({ success: true, editor });

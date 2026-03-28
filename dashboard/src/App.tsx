@@ -8,7 +8,6 @@ import { groupEventsIntoTurns } from "./lib/turnSnapshot";
 import { useRepos } from "./hooks/useRepos";
 import { useSessionMetrics } from "./hooks/useSessionData";
 import { useEventStream } from "./hooks/useEventStream";
-import { useNewSessionListener } from "./hooks/useNewSessionListener";
 import { useUnifiedWebSocket } from "./hooks/useUnifiedWebSocket";
 import { usePermissions } from "./hooks/usePermissions";
 import { useUsage } from "./hooks/useUsage";
@@ -18,7 +17,6 @@ import { SetupGate } from "./components/SetupGate";
 
 function Dashboard() {
   const { repos, loading: reposLoading, refresh: refreshRepos } = useRepos();
-  useNewSessionListener(refreshRepos);
   const [selected, setSelected] = useState<{
     projectHash: string;
     sessionId: string;
@@ -73,7 +71,7 @@ function Dashboard() {
   }, [handleQuestionAnswered]);
 
   // Single multiplexed WebSocket — replaces separate WS in useEventStream,
-  // useNewSessionListener, and usePermissions
+  // and usePermissions
   const { isConnected: isLive } = useUnifiedWebSocket({
     onNewEvents: handleNewEvents,
     onNewSession: () => refreshRepos(),
@@ -124,7 +122,7 @@ function Dashboard() {
   const { costs } = useCosts();
 
   // Will be wired to a "New Session" button in a future task
-  async function _startNewSession(cwd: string): Promise<void> {
+  async function startNewSession(cwd: string): Promise<void> {
     try {
       const res = await fetch("/api/sessions/new", {
         method: "POST",
@@ -186,7 +184,7 @@ function Dashboard() {
               ),
             );
             const cwd = selectedRepo?.cwd ?? repos[0]?.cwd;
-            if (cwd) _startNewSession(cwd);
+            if (cwd) startNewSession(cwd);
           }}
           activeSessionId={activeSessionId}
           onResumeSession={async (sessionId, cwd) => {

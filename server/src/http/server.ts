@@ -73,6 +73,7 @@ export function startHttpServer(port: number = 3142): Promise<{
 
     const cleanup = () => {
       watcher.close();
+      state.sessionManager?.dispose();
       server.close();
     };
 

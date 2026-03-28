@@ -19,6 +19,18 @@ describe("POST /open-file — shell metacharacter sanitization (P2b)", () => {
     "utf-8"
   );
 
+  it("should validate EDITOR env var against shell metacharacters before use in execSync", () => {
+    // The EDITOR env var is user-controlled. If it contains shell metacharacters,
+    // it could enable command injection when passed to execSync.
+    // We look for a `.test(editor)` call — the editor variable must be validated
+    // separately from filePath.
+    const hasEditorTest = /\.test\(\s*editor\s*\)/.test(routesSource);
+    expect(
+      hasEditorTest,
+      "routes.ts must validate the editor variable with a regex .test(editor) call before passing to execSync"
+    ).toBe(true);
+  });
+
   it("should use execFileSync instead of execSync for open-file, OR sanitize filePath before shell interpolation", () => {
     const usesExecFileSync = routesSource.includes("execFileSync");
     // If execFileSync is used the path is passed as an arg array — no injection risk.

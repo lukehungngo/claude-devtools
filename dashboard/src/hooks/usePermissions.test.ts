@@ -109,6 +109,38 @@ describe("usePermissions", () => {
     expect(result.current.permissions[0].status).toBe("denied");
   });
 
+  it("caps resolved permissions at 50, keeping all pending", () => {
+    const { result } = renderHook(() => usePermissions());
+
+    // Add 55 permissions and resolve them all
+    act(() => {
+      for (let i = 0; i < 55; i++) {
+        result.current.handlePermissionRequest(makePermission(`p${i}`));
+      }
+    });
+
+    // Resolve all 55
+    act(() => {
+      for (let i = 0; i < 55; i++) {
+        result.current.handlePermissionResolved(`p${i}`, "approved");
+      }
+    });
+
+    // Should have kept all pending (0) + last 50 resolved = 50
+    const resolved = result.current.permissions.filter(
+      (p) => p.status !== "pending"
+    );
+    expect(resolved.length).toBeLessThanOrEqual(50);
+    // The oldest resolved should have been trimmed
+    expect(
+      result.current.permissions.find((p) => p.id === "p0")
+    ).toBeUndefined();
+    // The newest resolved should still exist
+    expect(
+      result.current.permissions.find((p) => p.id === "p54")
+    ).toBeDefined();
+  });
+
   it("does NOT create its own WebSocket connection", () => {
     // The hook should not reference WebSocket at all now
     const { result } = renderHook(() => usePermissions());

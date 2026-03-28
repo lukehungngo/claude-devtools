@@ -25,9 +25,20 @@ export function usePermissions() {
   // Called by unified WS handler when permission-resolved arrives
   const handlePermissionResolved = useCallback(
     (id: string, decision: "approved" | "denied") => {
-      setPermissions((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: decision } : p))
-      );
+      setPermissions((prev) => {
+        const updated = prev.map((p) =>
+          p.id === id ? { ...p, status: decision } : p
+        );
+        // Cap resolved permissions to last 50 to prevent unbounded growth.
+        // Keep original array order — just drop the earliest resolved entries.
+        const resolved = updated.filter((p) => p.status !== "pending");
+        const MAX_RESOLVED = 50;
+        if (resolved.length <= MAX_RESOLVED) return updated;
+        const dropSet = new Set(
+          resolved.slice(0, resolved.length - MAX_RESOLVED).map((p) => p.id)
+        );
+        return updated.filter((p) => !dropSet.has(p.id));
+      });
     },
     []
   );
