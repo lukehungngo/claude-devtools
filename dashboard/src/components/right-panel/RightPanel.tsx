@@ -131,18 +131,20 @@ export function RightPanel({
     return activeTurn.events;
   }, [activeTurn, events]);
 
-  // Compute which agents are active in the current turn for opacity-based highlighting.
-  // Always pass the full (unfiltered) DAG to AgentFlowDAG; use activeTurnAgentIds for dimming.
-  const activeTurnAgentIds = useMemo(() => {
-    const ids = new Set(activeTurn?.agents.map((a) => a.agentId) ?? []);
-    ids.add("main");
-    return ids;
-  }, [activeTurn]);
+  // Filter DAG to only agents used in the active turn (+ main always).
+  // With route-based session isolation, filtering is safe — no cross-session
+  // contamination, no transient undefined states, no stableDagRef chain.
+  const turnDag = useMemo(() => {
+    if (!dag || !activeTurn) return dag;
+    const turnAgentIds = new Set(activeTurn.agents.map((a) => a.agentId));
+    turnAgentIds.add("main");
+    return {
+      nodes: dag.nodes.filter((n) => turnAgentIds.has(n.id)),
+      edges: dag.edges.filter((e) => turnAgentIds.has(e.source) && turnAgentIds.has(e.target)),
+    };
+  }, [dag, activeTurn]);
 
-  // Agents list for the log sidebar: use active turn's agents, or fall back to all dag nodes
-  const filteredAgents = activeTurn?.agents
-    ? dag?.nodes.filter((n) => activeTurnAgentIds.has(n.id)) ?? []
-    : dag?.nodes ?? [];
+  const filteredAgents = turnDag?.nodes ?? [];
 
   const handleAgentSelect = useCallback(
     (agentId: string) => {
@@ -207,14 +209,13 @@ export function RightPanel({
       {/* Tab content */}
       <div className={TAB_CONTENT_WRAPPER_CLASS}>
         {activePrimaryTab === "graph" ? (
-          dag ? (
+          turnDag ? (
             <AgentFlowDAG
-              dag={dag}
+              dag={turnDag}
               selectedAgent={selectedAgent}
               onSelectAgent={handleAgentSelect}
               frozen={!isLiveTurn}
               onViewInLog={handleAgentSelect}
-              activeTurnAgentIds={activeTurnAgentIds}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-dt-text2 text-sm">
