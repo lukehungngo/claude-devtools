@@ -24,7 +24,7 @@ export function backfillDebugDb(db: DebugDB): void {
       const allEvents = [
         ...mainEvents,
         ...Array.from(subagentEvents.values()).flat(),
-      ].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      ].sort((a, b) => (a.timestamp ?? "").localeCompare(b.timestamp ?? ""));
 
       if (allEvents.length === 0) continue;
 
