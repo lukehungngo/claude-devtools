@@ -84,6 +84,52 @@ describe("AgentFlowDAG highlight-based rendering", () => {
   });
 });
 
+describe("AgentFlowDAG edge dimming", () => {
+  it("dims edges where both source and target are NOT in activeTurnAgentIds", () => {
+    const activeSet = new Set(["main", "agent-a"]);
+    const { edges } = getLayoutedElements(testDag, null, false, undefined, activeSet);
+
+    // main -> agent-a: both active, should NOT be dimmed
+    const edgeToA = edges.find((e) => e.target === "agent-a")!;
+    expect(edgeToA.style?.opacity).toBeUndefined();
+
+    // main -> agent-b: source active but target not — at least one is active, NOT dimmed
+    const edgeToB = edges.find((e) => e.target === "agent-b")!;
+    expect(edgeToB.style?.opacity).toBeUndefined();
+  });
+
+  it("dims edges where neither endpoint is in activeTurnAgentIds", () => {
+    // Only agent-b is active; main and agent-a are not
+    const activeSet = new Set(["agent-b"]);
+    const { edges } = getLayoutedElements(testDag, null, false, undefined, activeSet);
+
+    // main -> agent-a: neither active, should be dimmed
+    const edgeToA = edges.find((e) => e.target === "agent-a")!;
+    expect(edgeToA.style?.opacity).toBe(0.2);
+
+    // main -> agent-b: target is active, should NOT be dimmed
+    const edgeToB = edges.find((e) => e.target === "agent-b")!;
+    expect(edgeToB.style?.opacity).toBeUndefined();
+  });
+
+  it("no edges are dimmed when activeTurnAgentIds is undefined", () => {
+    const { edges } = getLayoutedElements(testDag, null, false, undefined, undefined);
+
+    for (const edge of edges) {
+      expect(edge.style?.opacity).toBeUndefined();
+    }
+  });
+
+  it("all edges are dimmed when activeTurnAgentIds is empty", () => {
+    const emptySet = new Set<string>();
+    const { edges } = getLayoutedElements(testDag, null, false, undefined, emptySet);
+
+    for (const edge of edges) {
+      expect(edge.style?.opacity).toBe(0.2);
+    }
+  });
+});
+
 describe("AgentFlowDAG viewport safety net removal", () => {
   it("getLayoutedElements is exported and does not reference safety net internals", () => {
     // Verify getLayoutedElements is a function (exported correctly)

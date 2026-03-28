@@ -1,8 +1,7 @@
-import { useMemo, useCallback, useEffect, useRef } from "react";
+import { useMemo, useCallback, useEffect } from "react";
 import {
   ReactFlow,
   useReactFlow,
-  useNodesInitialized,
   ReactFlowProvider,
   type Node,
   type Edge,
@@ -31,7 +30,7 @@ export const MAX_PER_ROW = 3;
 
 /**
  * Custom tree layout that wraps children into rows of MAX_PER_ROW.
- * Replaces dagre — our DAG is always a simple tree (main → children),
+ * Replaces dagre — our DAG is always a simple tree (main -> children),
  * so grid arithmetic is simpler and avoids the horizontal overflow
  * dagre causes when placing all children in one row.
  *
@@ -46,7 +45,7 @@ export function computeTreeLayout(
   const positions = new Map<string, { x: number; y: number }>();
   if (dagNodes.length === 0) return positions;
 
-  // Build adjacency: parent → children
+  // Build adjacency: parent -> children
   const childrenOf = new Map<string, string[]>();
   const hasParent = new Set<string>();
   for (const edge of dagEdges) {
@@ -131,7 +130,7 @@ export function computeTreeLayout(
         rowX += childSubW + H_GAP;
       }
 
-      // Advance Y for next row — find max depth of this row's subtrees
+      // Advance Y for next row -- find max depth of this row's subtrees
       const maxChildDepth = row.reduce((max, c) => {
         const kids = childrenOf.get(c) || [];
         if (kids.length === 0) return max;
@@ -168,7 +167,13 @@ export function computeTreeLayout(
   return positions;
 }
 
-export function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null, frozen = false, onViewInLog?: (agentId: string) => void, activeTurnAgentIds?: Set<string>) {
+export function getLayoutedElements(
+  dag: AgentDAG,
+  selectedAgent: string | null,
+  frozen = false,
+  onViewInLog?: (agentId: string) => void,
+  activeTurnAgentIds?: Set<string>
+): { nodes: Node[]; edges: Edge[] } {
   const positions = computeTreeLayout(dag.nodes, dag.edges);
 
   const nodes: Node[] = dag.nodes.map((n) => {
@@ -186,6 +191,9 @@ export function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null,
   const edges: Edge[] = dag.edges.map((e, i) => {
     const targetNode = dag.nodes.find((n) => n.id === e.target);
     const isActive = targetNode?.status === "active";
+    const isEdgeDimmed = activeTurnAgentIds !== undefined &&
+      !activeTurnAgentIds.has(e.source) && !activeTurnAgentIds.has(e.target);
+
     return {
       id: `e-${i}`,
       source: e.source,
@@ -197,6 +205,7 @@ export function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null,
           : "var(--border-active)",
         strokeWidth: 1.5,
         strokeDasharray: frozen ? undefined : (isActive ? "5 3" : undefined),
+        ...(isEdgeDimmed ? { opacity: 0.2 } : {}),
       },
       markerEnd: {
         type: "arrowclosed" as const,
@@ -210,7 +219,7 @@ export function getLayoutedElements(dag: AgentDAG, selectedAgent: string | null,
   return { nodes, edges };
 }
 
-interface GraphInnerProps {
+interface Props {
   dag: AgentDAG;
   selectedAgent: string | null;
   onSelectAgent?: (agentId: string) => void;
@@ -219,66 +228,33 @@ interface GraphInnerProps {
   activeTurnAgentIds?: Set<string>;
 }
 
-function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewInLog, activeTurnAgentIds }: GraphInnerProps) {
+function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewInLog, activeTurnAgentIds }: Props) {
   const { fitView, zoomIn, zoomOut } = useReactFlow();
 
-  const fitViewRef = useRef(fitView);
-  fitViewRef.current = fitView;
-
+  // Compute layout + build ReactFlow elements
   const { nodes, edges } = useMemo(
     () => getLayoutedElements(dag, selectedAgent, frozen, onViewInLog, activeTurnAgentIds),
     [dag, selectedAgent, frozen, onViewInLog, activeTurnAgentIds]
   );
 
-  // Track the node set fingerprint so we can re-fit when nodes change
-  const nodeFingerprint = useMemo(
-    () => dag.nodes.map((n) => n.id).sort().join(","),
-    [dag.nodes]
-  );
-  const prevFingerprint = useRef<string | null>(null);
-
-  const nodesReady = useNodesInitialized();
-
-  // fitView on node set changes (nodes added/removed)
-  const fitPending = useRef(false);
-
+  // Re-fit when node set changes (agents added/removed during session)
+  const nodeIds = useMemo(() => dag.nodes.map((n) => n.id).sort().join(","), [dag.nodes]);
   useEffect(() => {
-    if (prevFingerprint.current !== nodeFingerprint) {
-      fitPending.current = true;
-      prevFingerprint.current = nodeFingerprint;
-    }
-  }, [nodeFingerprint]);
+    const timer = setTimeout(() => fitView({ padding: 0.2, duration: 200 }), 50);
+    return () => clearTimeout(timer);
+  }, [nodeIds, fitView]);
 
+  // Focus on selected agent
   useEffect(() => {
-    if (nodesReady && fitPending.current) {
-      fitPending.current = false;
-      fitViewRef.current({ padding: 0.2, duration: 200 });
-    }
-  }, [nodesReady, nodeFingerprint]);
-
-  // Focus on selected agent node
-  const prevSelectedAgent = useRef<string | null>(null);
-  const selectPending = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!selectedAgent || selectedAgent === prevSelectedAgent.current) return;
-    prevSelectedAgent.current = selectedAgent;
-    selectPending.current = selectedAgent;
-  }, [selectedAgent]);
-
-  useEffect(() => {
-    if (!nodesReady || !selectPending.current) return;
-    const targetId = selectPending.current;
-    selectPending.current = null;
-    const node = nodes.find((n) => n.id === targetId);
-    if (!node) return;
-    fitViewRef.current({ padding: 0.3, duration: 200, nodes: [node] });
-  }, [nodesReady, nodes]);
+    if (!selectedAgent) return;
+    const timer = setTimeout(() => {
+      fitView({ padding: 0.3, duration: 200, nodes: [{ id: selectedAgent }] });
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [selectedAgent, fitView]);
 
   const handleNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      onSelectAgent?.(node.id);
-    },
+    (_: React.MouseEvent, node: Node) => onSelectAgent?.(node.id),
     [onSelectAgent]
   );
 
@@ -289,20 +265,14 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
   // Compute stats
   const totalAgents = dag.nodes.length;
   const runningCount = dag.nodes.filter((n) => n.status === "active").length;
-  const completedCount = dag.nodes.filter(
-    (n) => n.status === "completed"
-  ).length;
-  const totalCost = dag.nodes.reduce(
-    (sum, n) => sum + n.tokenUsage.totalCost,
-    0
-  );
+  const completedCount = dag.nodes.filter((n) => n.status === "completed").length;
+  const totalCost = dag.nodes.reduce((sum, n) => sum + n.tokenUsage.totalCost, 0);
   const totalTokens = dag.nodes.reduce(
-    (sum, n) =>
-      sum + n.tokenUsage.inputTokens + n.tokenUsage.outputTokens,
+    (sum, n) => sum + n.tokenUsage.inputTokens + n.tokenUsage.outputTokens,
     0
   );
 
-  // Build legend from actual agents in the DAG (not a static hardcoded list)
+  // Build legend from actual agents in the DAG
   const legendEntries = useMemo(() => {
     const seen = new Set<string>();
     const entries: [string, string][] = [];
@@ -397,7 +367,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
           ))}
         </div>
 
-        {/* Legend (top, full-width scrollable strip — derived from actual DAG nodes) */}
+        {/* Legend (top, full-width scrollable strip -- derived from actual DAG nodes) */}
         <div className={LEGEND_CONTAINER_CLASS}>
           {legendEntries.map(([name, color]) => (
             <div
@@ -449,15 +419,6 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
       </div>
     </div>
   );
-}
-
-interface Props {
-  dag: AgentDAG;
-  selectedAgent: string | null;
-  onSelectAgent?: (agentId: string) => void;
-  frozen?: boolean;
-  onViewInLog?: (agentId: string) => void;
-  activeTurnAgentIds?: Set<string>;
 }
 
 export function AgentFlowDAG({ dag, selectedAgent, onSelectAgent, frozen, onViewInLog, activeTurnAgentIds }: Props) {
