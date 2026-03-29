@@ -1,39 +1,42 @@
 # V3 Bug Tracker & OKR Metrics
 
-**Last updated:** 2026-03-29 (4th merge)
+**Last updated:** 2026-03-29 (post Tier 1)
 **Status:** Active
 
 ---
 
 ## OKR: Production-Ready Claude Web Client
 
-### KR1: Core Functionality — 95% complete
+### KR1: Core Functionality — ~55% CLI parity
 - Multi-turn sessions via SDK
-- Permission handling (Promise-based)
+- Permission handling (Promise-based + mode cycling + session allowances)
 - Question handling (AskUserQuestion)
 - Unified WebSocket with reconnect
 - Session lifecycle (new/resume/abort/delete)
-- SystemEvent type for turn_duration signals
+- Tool result display inline
+- /clear, /compact, /model commands functional
+- @ file path mentions with autocomplete
 - Fork session: STUB (blocked on SDK)
 
-### KR2: UI/UX Parity with Claude Desktop — 88% complete
+### KR2: UI/UX Parity with Claude Desktop — 92%
 - Conversation view with turn grouping
 - Agent graph + snapshot tabs
-- Permission inline blocks with tool previews + agent ID badge
-- Markdown rendering in responses (react-markdown + remark-gfm)
-- Turn completion via state machine (system/turn_duration, not heuristic)
+- Markdown rendering + syntax highlighting
+- Permission inline blocks with tool previews + agent ID badge + session allowance
+- Turn completion via state machine (system/turn_duration)
 - Per-model pricing in turn costs
-- Missing: session lifecycle UI polish (Phase B)
+- Context warning banner (90%/95%)
+- Permission mode cycling (Shift+Tab + badge)
+- Missing: Tier 2 observability features
 
-### KR3: Stability & Reliability — 93% complete
-- 424 tests passing (176 server + 248 dashboard)
+### KR3: Stability & Reliability — 93%
+- 509 tests passing (220 server + 289 dashboard), 0 failures
 - TypeScript clean on both packages
 - All P1 bugs resolved
-- Turn status uses definitive signal (no heuristics)
 - 7/7 architecture invariants passing
+- Structured logging (pino)
 
 ### KR4: Architecture Invariants — 7/7 passing
-- All invariants passing
 
 ---
 
@@ -46,67 +49,79 @@
 | Model pricing hardcoded (March 2026 rates) | Maintenance |
 | Live event buffer 2000 cap | Scalability |
 | Permission state in-memory only (lost on restart) | Persistence |
+| Dual PermissionMode type definition (server/dashboard) | Code quality |
+| Synchronous readdirSync on @ autocomplete | Performance |
 
 ### P3
 
 | Issue | Category |
 |-------|----------|
-| CostBreakdown field names misleading (tokensIn/Out stores dollars) | Naming |
+| CostBreakdown field names misleading | Naming |
+| Dead code in getCommandOutput | Cleanup |
 
 ---
 
-## Resolved Bugs (2026-03-29)
+## Completed Work (2026-03-29)
 
-### Merge 4: 3fb2388 (turn state machine)
+### Tier 1 Features (PR #7) — 9/9 COMPLETE
+| Task | Feature |
+|------|---------|
+| T1-01 | Tool result display (ToolResultBlock) |
+| T1-02 | Code syntax highlighting (rehype-highlight) |
+| T1-03 | /clear creates new session |
+| T1-04 | /compact via message flow |
+| T1-05 | /model switching (opus/sonnet/haiku) |
+| T1-06 | Permission mode cycling (Shift+Tab + badge) |
+| T1-07 | Allow for session end-to-end |
+| T1-08 | Context warning banner (90%/95%) |
+| T1-09 | @ file path mentions with autocomplete |
 
-| Bug | Fix |
-|-----|-----|
-| Turn completion heuristic (stop_reason + isLastTurn) | State machine via system/turn_duration — single signal, all turns |
-| SystemEvent not in type system (silently dropped) | Added SystemEvent type to server + dashboard |
-| isLastTurn position-based detection | Removed — turn.status drives UI directly |
+### Bug Fixes — 11 total
+| Fix | Commit/PR |
+|-----|-----------|
+| DAG duplicate edges | PR #6 |
+| DAG error detection dead code | PR #6 |
+| Permission UI too minimal | PR #6 |
+| Markdown not rendered | fb5e952 |
+| Duplicate permission blocks | fb5e952 |
+| Graph nodes disappear | fb5e952 |
+| No completion indicator | fb5e952 |
+| JSONL parser full-file read | a0afec8 |
+| EDITOR injection | a0afec8 |
+| useCosts staleness | a0afec8 |
+| Turn cost sonnet-only | a0afec8 |
 
-### Merge 3: a0afec8 (audit P1/P2 fixes)
-
-| Bug | Fix |
-|-----|-----|
-| JSONL parser reads entire file (P1) | Byte-range openSync/readSync |
-| EDITOR env var injection (P1) | spawnSync replaces execSync |
-| useCosts never refreshes (P2) | 5-minute polling interval |
-| Turn cost sonnet-only pricing (P2) | Per-model pricing table |
-
-### Merge 2: fb5e952 (OKR bug fixes)
-
-| Bug | Fix |
-|-----|-----|
-| C-2: Markdown not rendered | react-markdown + remark-gfm |
-| A-1: Duplicate permission blocks | ID-based dedup |
-| B-1: Graph nodes disappear | filterDagForTurn fallback |
-| C-1: No completion indicator | Generating.../timestamp footer |
-| A-2: No agent context | Agent ID badge |
-
-### Merge 1: PR #6 (DAG + permission fixes)
-
-| Bug | Fix |
-|-----|-----|
-| DAG duplicate edges | Set-based deduplication |
-| DAG error detection dead code | Check user events |
-| Permission UI too minimal | ToolInputDetail component |
+### Infrastructure
+| Item | Commit |
+|------|--------|
+| Turn status state machine | 3fb2388 |
+| SystemEvent type | 3fb2388 |
+| Structured logging (pino) | 021c3bf |
+| Per-model pricing (dashboard) | a0afec8 |
+| JSONL byte-range reads | a0afec8 |
+| Path traversal fix | PR #7 |
 
 ---
 
-## Phase B — Remaining (~6h)
+## Next: Tier 2 — "Better Than CLI" (~47h)
 
-| Task | Status |
-|------|--------|
-| "New Session" button + modal | PARTIAL |
-| "Resume Session" button | PARTIAL |
-| Active session indicator | NOT BUILT |
-| Session cleanup/close UI | NOT BUILT |
-
-## Phase C — Remaining (~4h)
-
-| Task | Status |
-|------|--------|
-| Add Repo button handler | NOT DONE |
-| Empty state CTA | NOT DONE |
-| Activity rings on graph nodes | NOT DONE |
+| Task | Feature | Priority |
+|------|---------|----------|
+| T2-01 | Diff viewer (per-turn file changes) | P2 |
+| T2-02 | /cost detailed breakdown | P2 |
+| T2-03 | /context visualization | P2 |
+| T2-04 | /permissions rules viewer | P2 |
+| T2-05 | /diff git changes | P2 |
+| T2-06 | /copy clipboard | P2 |
+| T2-07 | Command history (Up/Down) | P2 |
+| T2-08 | /plan mode entry | P2 |
+| T2-09 | /fast toggle | P2 |
+| T2-10 | /effort control | P2 |
+| T2-11 | Ctrl+C cancel binding | P2 |
+| T2-12 | /rewind checkpoint | P2 |
+| T2-13 | /mcp server status | P2 |
+| T2-14 | /usage detailed | P2 |
+| T2-15 | Image paste/upload | P2 |
+| T2-16 | Task list panel | P2 |
+| T2-17 | ! bash mode | P2 |
+| T2-18 | Session analytics dashboard | P2 |
