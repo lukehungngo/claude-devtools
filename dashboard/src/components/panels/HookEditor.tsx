@@ -64,35 +64,35 @@ export function HookEditor() {
   }
 
   return (
-    <div className="flex flex-col overflow-y-auto h-full py-2">
+    <div className="flex flex-col overflow-y-auto h-full py-3 px-1">
       {hookEntries.map(([eventType, items]) => {
         const isExpanded = expandedGroups.has(eventType);
         return (
-          <div key={eventType} className="mb-2">
+          <div key={eventType} className="mb-3">
             <button
               onClick={() => toggleGroup(eventType)}
-              className="flex items-center gap-1.5 w-full px-3 py-2 text-left bg-transparent border-none cursor-pointer text-dt-text0 text-sm font-bold uppercase tracking-wider"
+              className="flex items-center gap-2 w-full px-3 py-2.5 text-left bg-transparent border-none cursor-pointer text-dt-text0 text-sm font-bold uppercase tracking-wider hover:bg-dt-bg3/30 rounded-dt-sm transition-colors duration-100"
               aria-expanded={isExpanded}
             >
-              <span className="text-dt-text2 text-xs">
-                {isExpanded ? "\u25BC" : "\u25B6"}
+              <span className="text-dt-text2 text-xs transition-transform duration-150" style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}>
+                {"\u25BC"}
               </span>
               <span>{eventType}</span>
-              <span className="text-dt-text2 text-xs font-normal ml-1">
-                ({items.length})
+              <span className="text-dt-text2 text-xs font-normal ml-1 bg-dt-bg4 px-1.5 py-px rounded-full">
+                {items.length}
               </span>
             </button>
             {isExpanded && (
-              <div className="flex flex-col gap-1.5 px-3">
+              <div className="flex flex-col gap-2 px-3 mt-1">
                 {items.map((hook, i) => (
                   <div
                     key={`${eventType}-${i}`}
-                    className="bg-dt-bg3 rounded-md p-2.5 border border-dt-border"
+                    className="bg-dt-bg2 rounded-dt p-3 border border-dt-border shadow-dt-sm transition-all duration-200 hover:shadow-dt-md hover:border-dt-border-active"
                   >
                     {hook.matcher && (
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1.5">
                         <span className="text-dt-text2 text-xs">matcher:</span>
-                        <span className="text-dt-text0 font-mono text-xs">
+                        <span className="text-dt-text0 font-mono text-xs bg-dt-bg3 px-1.5 py-0.5 rounded-dt-xs">
                           {hook.matcher}
                         </span>
                       </div>
@@ -104,7 +104,7 @@ export function HookEditor() {
                       </code>
                     </div>
                     {hook.description && (
-                      <div className="text-dt-text2 text-xs mt-1 italic">
+                      <div className="text-dt-text2 text-xs mt-1.5 italic opacity-80">
                         {hook.description}
                       </div>
                     )}

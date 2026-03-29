@@ -39,7 +39,7 @@ function ToolInputDetail({ toolName, input }: { toolName: string; input: Record<
       return (
         <div className="flex flex-col gap-1">
           {command && (
-            <pre className="text-xs font-mono px-2 py-1 rounded bg-dt-bg3 text-dt-text1 overflow-x-auto whitespace-pre-wrap break-all">
+            <pre className="text-xs font-mono px-2.5 py-1.5 rounded-dt-sm bg-dt-bg3 text-dt-text1 overflow-x-auto whitespace-pre-wrap break-all">
               {truncate(command, 500)}
             </pre>
           )}
@@ -155,7 +155,7 @@ export function PermissionBlock({ permission, onDecide, onDecideSession, onSugge
 
   return (
     <div
-      className={`rounded-xl border ${borderColor} ${bgColor} p-3 my-2 transition-all`}
+      className={`rounded-dt-lg border ${borderColor} ${bgColor} p-4 my-3 shadow-dt-sm transition-all duration-dt-normal ease-dt-expo`}
       role={isPending ? "alert" : undefined}
     >
       {/* Header */}
@@ -233,7 +233,7 @@ export function PermissionBlock({ permission, onDecide, onDecideSession, onSugge
             <button
               onClick={() => handleDecide("approved")}
               aria-label={`Approve permission for ${permission.toolName}`}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-dt bg-dt-green/20 text-dt-green text-sm font-semibold hover:bg-dt-green/30 transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-dt-md bg-dt-green/20 text-dt-green text-sm font-semibold hover:bg-dt-green/30 shadow-dt-sm hover:shadow-dt-md transition-all duration-dt-fast cursor-pointer"
             >
               <Check size={14} /> {allowLabel}
             </button>
@@ -241,7 +241,7 @@ export function PermissionBlock({ permission, onDecide, onDecideSession, onSugge
               <button
                 onClick={handleDecideSession}
                 aria-label={`Allow ${permission.toolName} for this session`}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-dt bg-dt-accent/20 text-dt-accent text-sm font-semibold hover:bg-dt-accent/30 transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-dt-md bg-dt-accent/20 text-dt-accent text-sm font-semibold hover:bg-dt-accent/30 shadow-dt-sm hover:shadow-dt-md transition-all duration-dt-fast cursor-pointer"
               >
                 <ShieldCheck size={14} /> Allow for session
               </button>
@@ -249,7 +249,7 @@ export function PermissionBlock({ permission, onDecide, onDecideSession, onSugge
             <button
               onClick={() => handleDecide("denied")}
               aria-label={`Deny permission for ${permission.toolName}`}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-dt bg-dt-red/20 text-dt-red text-sm font-semibold hover:bg-dt-red/30 transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-dt-md bg-dt-red/20 text-dt-red text-sm font-semibold hover:bg-dt-red/30 shadow-dt-sm hover:shadow-dt-md transition-all duration-dt-fast cursor-pointer"
             >
               <X size={14} /> {denyLabel}
             </button>

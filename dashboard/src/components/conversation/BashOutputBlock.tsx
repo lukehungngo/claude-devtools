@@ -48,7 +48,7 @@ export function BashOutputBlock({ command, stdout, stderr, exitCode }: BashOutpu
   return (
     <div
       role="log"
-      className={`rounded-xl border border-dt-border ${borderClass} p-3 my-2 bg-dt-bg2`}
+      className={`rounded-dt-lg border border-dt-border ${borderClass} p-4 my-3 bg-dt-bg2 shadow-dt-sm transition-all duration-dt-normal ease-dt-expo`}
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -58,7 +58,7 @@ export function BashOutputBlock({ command, stdout, stderr, exitCode }: BashOutpu
         </div>
         <span
           aria-label={`Exit code ${exitCode}, ${isError ? "failure" : "success"}`}
-          className={`text-xs font-mono px-1.5 py-0.5 rounded ${
+          className={`text-xs font-mono px-2 py-0.5 rounded-dt-sm shadow-dt-sm ${
             isError
               ? "bg-dt-red-dim text-dt-red"
               : "bg-dt-green-dim text-dt-green"
@@ -82,7 +82,7 @@ export function BashOutputBlock({ command, stdout, stderr, exitCode }: BashOutpu
       <div
         tabIndex={0}
         aria-label="Command output"
-        className="font-mono text-xs bg-dt-bg3 rounded-md p-2 overflow-x-auto text-dt-text1 whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto"
+        className="font-mono text-xs bg-dt-bg3 rounded-dt-sm p-2.5 overflow-x-auto text-dt-text1 whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto"
       >
         {!hasOutput ? (
           <span className="italic text-dt-text2">No output</span>

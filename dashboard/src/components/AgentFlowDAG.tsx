@@ -17,7 +17,7 @@ const nodeTypes = { agentCard: AgentNodeCard };
 
 /** Exported for overflow regression tests (TASK-005) */
 export const LEGEND_CONTAINER_CLASS =
-  "absolute top-2 left-0 right-0 flex flex-wrap gap-2 px-3 text-sm text-dt-text2 z-[5]";
+  "absolute top-2.5 left-0 right-0 flex flex-wrap gap-2.5 px-4 text-xs text-dt-text2 z-[5]";
 
 /** Exported for overflow regression tests (TASK-005) */
 export const LEGEND_ITEM_CLASS = "flex items-center gap-1";
@@ -292,26 +292,26 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
   return (
     <div className="flex flex-col h-full">
       {/* Panel header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-dt-border shrink-0 bg-dt-bg2">
-        <div className="text-base font-semibold uppercase tracking-[0.5px] text-dt-text2 flex items-center gap-1.5">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-dt-border shrink-0 bg-dt-bg2/80">
+        <div className="text-sm font-semibold uppercase tracking-[0.5px] text-dt-text2 flex items-center gap-2">
           <svg
             width="14"
             height="14"
             viewBox="0 0 16 16"
             fill="currentColor"
-            className="opacity-60"
+            className="opacity-50"
           >
             <path d="M1.5 1.75V13.5h13.75a.75.75 0 010 1.5H.75a.75.75 0 01-.75-.75V1.75a.75.75 0 011.5 0zm14.28 2.53l-5.25 5.25a.75.75 0 01-1.06 0L7 7.06 4.28 9.78a.75.75 0 01-1.06-1.06l3.25-3.25a.75.75 0 011.06 0L10 8.94l4.72-4.72a.75.75 0 111.06 1.06z" />
           </svg>
           Agent Graph
-          <span className={`text-xs px-1.25 py-px rounded-full font-semibold ${frozen ? "bg-dt-bg4 text-dt-text2" : "bg-dt-accent-dim text-dt-accent"}`}>
+          <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${frozen ? "bg-dt-bg4 text-dt-text2" : "bg-dt-accent-dim text-dt-accent shadow-[0_0_8px_var(--accent-dim)]"}`}>
             {frozen ? "snapshot" : "real-time"}
           </span>
         </div>
         <div className="flex gap-1">
           <button
             onClick={handleFitView}
-            className="w-6 h-6 flex items-center justify-center rounded-dt-sm text-dt-text2 cursor-pointer border-none bg-transparent transition-all"
+            className="w-7 h-7 flex items-center justify-center rounded-dt-sm text-dt-text2 hover:text-dt-text0 hover:bg-dt-bg3 cursor-pointer border-none bg-transparent transition-all duration-150"
             title="Fit to view"
           >
             &#x22A1;
@@ -341,7 +341,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
 
         {/* Graph toolbar (bottom-left) */}
         <div
-          className="absolute bottom-12 left-3 flex flex-col gap-0.5 z-[5]"
+          className="absolute bottom-12 left-3 flex flex-col gap-1 z-[5]"
         >
           {[
             { label: "+", title: "Zoom in", action: () => zoomIn() },
@@ -360,7 +360,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
               key={btn.title}
               onClick={btn.action}
               title={btn.title}
-              className="w-7 h-7 flex items-center justify-center bg-dt-bg3 border border-dt-border rounded-dt-sm text-dt-text2 cursor-pointer text-md transition-all"
+              className="w-7 h-7 flex items-center justify-center bg-dt-bg3/80 backdrop-blur-[8px] border border-dt-border rounded-dt-sm text-dt-text2 hover:text-dt-text0 hover:bg-dt-bg4 cursor-pointer text-md transition-all duration-150 shadow-dt-sm"
             >
               {btn.label}
             </button>
@@ -389,7 +389,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
 
         {/* Stats bar (bottom overlay) */}
         <div
-          className="absolute bottom-0 left-0 right-0 h-9 flex items-center gap-4 px-3.5 bg-dt-bg1 opacity-90 border-t border-dt-border font-mono text-base text-dt-text2 z-[5]"
+          className="absolute bottom-0 left-0 right-0 h-9 flex items-center gap-4 px-4 bg-dt-bg1/90 backdrop-blur-[8px] border-t border-dt-border/50 font-mono text-sm text-dt-text2 z-[5]"
         >
           <span>
             Agents:{" "}

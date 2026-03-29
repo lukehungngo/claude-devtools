@@ -24,13 +24,13 @@ const markdownComponents: Components = {
     const isBlock = className?.includes("language-") || className?.includes("hljs") || false;
     if (isBlock) {
       return (
-        <code className={`block bg-dt-bg3 p-3 rounded-md font-mono text-sm overflow-x-auto ${className ?? ""}`}>
+        <code className={`block bg-dt-bg3 p-3.5 rounded-dt border border-dt-border/50 font-mono text-sm overflow-x-auto shadow-dt-sm ${className ?? ""}`}>
           {children}
         </code>
       );
     }
     return (
-      <code className="bg-dt-bg3 px-1 py-0.5 rounded text-dt-accent font-mono text-sm">
+      <code className="bg-dt-bg3 px-1.5 py-0.5 rounded-dt-xs text-dt-accent font-mono text-sm">
         {children}
       </code>
     );
@@ -118,7 +118,7 @@ export function MemoryEditor({ projectHash, sessionId }: MemoryEditorProps) {
 
   return (
     <div
-      className="flex-1 overflow-y-auto px-4 py-3"
+      className="flex-1 overflow-y-auto px-5 py-4"
       role="region"
       aria-label="CLAUDE.md content"
     >

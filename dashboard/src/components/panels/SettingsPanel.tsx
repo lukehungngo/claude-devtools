@@ -12,7 +12,7 @@ interface SettingRowProps {
 
 function SettingRow({ label, value }: SettingRowProps) {
   return (
-    <div className="flex justify-between items-center py-1.5 px-3">
+    <div className="flex justify-between items-center py-2 px-4 hover:bg-dt-bg3/30 transition-colors duration-100 rounded-dt-xs mx-1">
       <span className="text-dt-text2 text-sm">{label}</span>
       <span className="text-dt-text0 font-mono text-sm">
         {value ?? "--"}
@@ -27,7 +27,7 @@ interface SectionHeaderProps {
 
 function SectionHeader({ title }: SectionHeaderProps) {
   return (
-    <h3 className="text-xs font-bold text-dt-text2 uppercase tracking-wider px-3 pt-3 pb-1">
+    <h3 className="text-xs font-bold text-dt-text2 uppercase tracking-wider px-4 pt-4 pb-1.5 border-b border-dt-border/30 mx-1 mb-1">
       {title}
     </h3>
   );
@@ -50,18 +50,18 @@ export function SettingsPanel({ metrics, usage }: SettingsPanelProps) {
   const repoConfig = metrics.repoConfig;
 
   return (
-    <div className="flex flex-col overflow-y-auto h-full">
+    <div className="flex flex-col overflow-y-auto h-full py-2">
       <SectionHeader title="Session" />
       <SettingRow label="Model" value={model} />
       <SettingRow label="Permission Mode" value={permissionMode} />
       <SettingRow label="Working Directory" value={cwd} />
       <SettingRow label="Git Branch" value={gitBranch} />
-      <div className="flex justify-between items-center py-1.5 px-3">
+      <div className="flex justify-between items-center py-2 px-4 mx-1">
         <span className="text-dt-text2 text-sm">Context Window</span>
-        <div className="flex items-center gap-2">
-          <div className="w-20 h-2 bg-dt-bg3 rounded-full overflow-hidden">
+        <div className="flex items-center gap-2.5">
+          <div className="w-24 h-1.5 bg-dt-bg3 rounded-full overflow-hidden">
             <div
-              className="h-full bg-dt-accent rounded-full"
+              className="h-full bg-dt-accent rounded-full transition-all duration-300"
               style={{ width: `${Math.min(contextPercent, 100)}%` }}
             />
           </div>
@@ -80,12 +80,12 @@ export function SettingsPanel({ metrics, usage }: SettingsPanelProps) {
           <SectionHeader title="API Key" />
           <SettingRow label="Plan" value={usage.planName} />
           {usage.fiveHour.utilization != null && (
-            <div className="flex justify-between items-center py-1.5 px-3">
+            <div className="flex justify-between items-center py-2 px-4 mx-1">
               <span className="text-dt-text2 text-sm">Session Utilization</span>
-              <div className="flex items-center gap-2">
-                <div className="w-20 h-2 bg-dt-bg3 rounded-full overflow-hidden">
+              <div className="flex items-center gap-2.5">
+                <div className="w-24 h-1.5 bg-dt-bg3 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-dt-accent rounded-full"
+                    className="h-full bg-dt-accent rounded-full transition-all duration-300"
                     style={{ width: `${Math.min(usage.fiveHour.utilization * 100, 100)}%` }}
                   />
                 </div>
@@ -96,12 +96,12 @@ export function SettingsPanel({ metrics, usage }: SettingsPanelProps) {
             </div>
           )}
           {usage.sevenDay.utilization != null && (
-            <div className="flex justify-between items-center py-1.5 px-3">
+            <div className="flex justify-between items-center py-2 px-4 mx-1">
               <span className="text-dt-text2 text-sm">Weekly Utilization</span>
-              <div className="flex items-center gap-2">
-                <div className="w-20 h-2 bg-dt-bg3 rounded-full overflow-hidden">
+              <div className="flex items-center gap-2.5">
+                <div className="w-24 h-1.5 bg-dt-bg3 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-dt-accent rounded-full"
+                    className="h-full bg-dt-accent rounded-full transition-all duration-300"
                     style={{ width: `${Math.min(usage.sevenDay.utilization * 100, 100)}%` }}
                   />
                 </div>

@@ -33,12 +33,12 @@ export function AgentNodeCard({ data }: NodeProps) {
 
   return (
     <div
-      className="bg-dt-bg3 rounded-md px-2.5 py-1.5 min-w-30 max-w-40 cursor-pointer transition-all relative"
+      className="bg-dt-bg2 rounded-dt px-3 py-2 min-w-30 max-w-40 cursor-pointer transition-all duration-200 relative shadow-dt-sm hover:shadow-dt-md"
       style={{
         border: `1.5px solid ${borderColor}`,
-        filter: isMain ? `drop-shadow(0 0 6px ${borderColor})` : undefined,
+        filter: isMain ? `drop-shadow(0 0 8px ${borderColor})` : undefined,
         outline: isSelected ? `2px solid ${borderColor}` : undefined,
-        outlineOffset: isSelected ? "2px" : undefined,
+        outlineOffset: isSelected ? "3px" : undefined,
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -46,7 +46,7 @@ export function AgentNodeCard({ data }: NodeProps) {
       {/* Hover tooltip */}
       {hovered && (
         <div
-          className="absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 bg-dt-bg1 border border-dt-border-active rounded-md px-2.5 py-2 text-xxs font-mono text-dt-text1 whitespace-nowrap z-50 pointer-events-auto shadow-[0_4px_12px_rgba(0,0,0,0.4)] leading-[1.6]"
+          className="absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 bg-dt-bg1/95 backdrop-blur-[12px] border border-dt-border-active rounded-dt-md px-3 py-2.5 text-xxs font-mono text-dt-text1 whitespace-nowrap z-50 pointer-events-auto shadow-dt-lg leading-[1.6]"
           style={{
             pointerEvents: "auto",
           }}
