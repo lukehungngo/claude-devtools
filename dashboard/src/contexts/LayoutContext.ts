@@ -25,6 +25,7 @@ export interface LayoutContextValue {
   refreshRepos: () => void;
   permissions: PermissionRequest[];
   decidePermission: (id: string, decision: "approved" | "denied") => Promise<void>;
+  decidePermissionSession: (id: string) => Promise<void>;
   usage: UsageInfo | null;
   costs: CostSummary | null;
   isLive: boolean;

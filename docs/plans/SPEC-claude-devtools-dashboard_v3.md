@@ -1,9 +1,9 @@
 # Claude DevTools — Product Spec v3
 
 **Author:** Luke
-**Date:** 2026-03-24
-**Status:** Draft
-**Version:** 3.0
+**Date:** 2026-03-24 (updated 2026-03-29)
+**Status:** Active
+**Version:** 3.1
 **Supersedes:** v1.0 (observability-only), v2.0 (observability + conversation view)
 
 ---
@@ -606,67 +606,107 @@ POST   /api/open-file                         → open in editor
 
 ---
 
-## Implementation Phases (Updated 2026-03-25)
+## Implementation Roadmap (Updated 2026-03-29)
 
-> **Note:** Phases 1, 2, and 4 from the original spec are now ~85-100% complete. They have been collapsed into a "Remaining Gaps" phase. Phases 3 and 5 retain their original structure with updated status.
+> **Phase A (infrastructure) is 100% complete.** The old Phase B/C have been superseded by a tier-based roadmap driven by the CLI parity gap analysis (`docs/plans/cli-parity-gap-analysis.md`).
+>
+> Current effective CLI parity: **36%** (47% including partial). Full detail in `docs/plans/v3-okr-tiers.md`.
 
-### Phase A: Complete Remaining Gaps (~7h)
+### Completed — Infrastructure Foundation
 
-**Goal:** Close the gaps from completed Phases 1, 2, and 4.
+All core infrastructure is done:
 
-| Task | Status | File(s) | Effort |
-|------|--------|---------|--------|
-| ~~SessionManager class~~ | ✅ Done | `session-manager.ts` | — |
-| ~~Multi-turn routes (new/message/abort/resume)~~ | ✅ Done | `routes.ts` | — |
-| ~~PromptInput session routing~~ | ✅ Done | `PromptInput.tsx` | — |
-| ~~Promise-based permissions~~ | ✅ Done | `session-manager.ts` | — |
-| ~~Unified WebSocket~~ | ✅ Done | `useUnifiedWebSocket.ts` | — |
-| ~~PermissionBlock + QuestionBlock~~ | ✅ Done | `PermissionBlock.tsx`, `QuestionBlock.tsx` | — |
-| ~~WS reconnect + heartbeat~~ | ✅ Done | `useUnifiedWebSocket.ts`, `server.ts` | — |
-| ~~Agent log event-driven refetch~~ | ✅ Done | `useAgentLogs.ts` | — |
-| ~~Session GC + Promise timeout~~ | ✅ Done | `session-manager.ts` (1h TTL, 10min timeout) | — |
-| ~~DELETE /api/sessions/:id~~ | ✅ Done | `routes.ts` | — |
-| ~~GET /api/questions/pending~~ | ✅ Done | `routes.ts` + `session-manager.ts` | — |
-| ~~cleanupPermissions() scheduling~~ | ✅ Done | `permission-handler.ts` | — |
-| ~~`forkSession()` route~~ | ✅ Done (stub) | `routes.ts` | — |
-| ~~Inline permission/question placement~~ | ✅ Done | `ConversationView.tsx` | — |
-| ~~Legacy `/api/command` route removal~~ | ✅ Done | `routes.ts`, `PromptInput.tsx` | — |
-| Subagent watcher limitation docs | Partial | `watcher.ts` | 0.5h |
-| ~~Event dedup key hardening~~ | ✅ Done | `App.tsx` | — |
+- ✅ SessionManager (multi-turn, resume, abort, GC)
+- ✅ Multi-turn routes (new/message/abort/resume/delete)
+- ✅ PromptInput session routing
+- ✅ Promise-based permissions (10min timeout)
+- ✅ Unified WebSocket (reconnect, heartbeat)
+- ✅ PermissionBlock + QuestionBlock (inline, tool-specific previews, agent ID badge)
+- ✅ JSONL byte-range incremental parsing
+- ✅ SystemEvent type (turn_duration for state machine)
+- ✅ Turn status state machine (system/turn_duration signal, no heuristics)
+- ✅ Markdown rendering (react-markdown + remark-gfm)
+- ✅ Per-model pricing (opus/sonnet/haiku on both server and dashboard)
+- ✅ Structured logging (pino, file + stdout)
+- ✅ DAG deduplication + error detection
+- ✅ Graph stability (filterDagForTurn fallback)
+- ✅ Setup gate (first-launch wizard)
+- ✅ 7/7 architecture invariants passing
+- ✅ 424 tests, 0 P1 bugs
 
-**Estimated: ~0.5h remaining (subagent docs only)**
+### Tier 1: "Can Replace CLI" (~24h)
 
-### Phase B: Session Lifecycle UI (~10h)
+**Goal:** A developer can use the web client for a full coding session without opening a terminal.
 
-**Goal:** New Session, Resume, Fork from the dashboard.
+| # | Task | Priority | Effort |
+|---|------|----------|--------|
+| T1-01 | Tool result display (data parsed, not rendered) | P1 | 3h |
+| T1-02 | Code syntax highlighting (rehype-highlight/shiki) | P1 | 2h |
+| T1-03 | `/clear` clears context (new session or SDK clear) | P1 | 2h |
+| T1-04 | `/compact` with focus instructions | P1 | 3h |
+| T1-05 | `/model` switching mid-session | P1 | 3h |
+| T1-06 | Permission mode cycling (Shift+Tab + UI) | P1 | 3h |
+| T1-07 | Wire "Allow for session" end-to-end | P1 | 2h |
+| T1-08 | Auto-compact on context > 90% | P1 | 2h |
+| T1-09 | `@` file path mentions with autocomplete | P1 | 4h |
 
-| Task | Status | File(s) | Effort |
-|------|--------|---------|--------|
-| "New Session" button + modal | Partially wired | `RepoList.tsx` | 2h |
-| "Resume Session" button | Partially wired | `RepoList.tsx` | 1h |
-| "Fork Session" UI | Not built (requires forkSession) | Conversation header | 2h |
-| Active session indicator in sidebar | Not built | `RepoList.tsx` | 2h |
-| Session cleanup/close UI | Not built | Server + Dashboard | 1h |
-| ~~Setup gate (first-launch wizard)~~ | ✅ Done | `SetupGate.tsx`, `routes.ts` (`/setup/validate`) | — |
+**Success metric:** User completes "build feature → test → commit" without terminal.
 
-**Estimated: ~8h remaining**
+### Tier 2: "Better Than CLI" (~47h)
 
-### Phase C: Polish & Gaps (~12h)
+**Goal:** Observability and control features the CLI fundamentally cannot provide.
 
-| Task | Status | Effort |
-|------|--------|--------|
-| ~~Fix SummaryCards gray colors → dt-* tokens~~ | ✅ Done | — |
-| Add Repo button handler | Not done | 1h |
-| Empty state CTA | Not done | 1h |
-| Graph tooltip "View in Agent Log →" | Not done | 1h |
-| Activity rings on graph nodes | Not done | 3h |
-| ~~DAG node cost model fix (per-model pricing)~~ | ✅ Done (server-side) | — |
-| Dual data path polish | Partial | 2h |
-| Remaining known bugs | Mixed | 2h |
+| # | Task | Priority | Effort |
+|---|------|----------|--------|
+| T2-01 | Diff viewer (per-turn file changes) | P2 | 4h |
+| T2-02 | `/cost` detailed breakdown modal | P2 | 2h |
+| T2-03 | `/context` visualization grid | P2 | 4h |
+| T2-04 | `/permissions` rules viewer/editor | P2 | 3h |
+| T2-05 | `/diff` git changes command | P2 | 3h |
+| T2-06 | `/copy` clipboard command | P2 | 1h |
+| T2-07 | Command history (Up/Down arrows) | P2 | 2h |
+| T2-08 | `/plan` mode entry | P2 | 2h |
+| T2-09 | `/fast` toggle | P2 | 1h |
+| T2-10 | `/effort` level control | P2 | 1h |
+| T2-11 | Ctrl+C cancel binding | P2 | 1h |
+| T2-12 | `/rewind` (checkpoint) | P2 | 4h |
+| T2-13 | `/mcp` server status panel | P2 | 3h |
+| T2-14 | `/usage` detailed rate limits | P2 | 2h |
+| T2-15 | Image paste/upload | P2 | 3h |
+| T2-16 | Task list panel (Ctrl+T) | P2 | 3h |
+| T2-17 | `!` bash mode | P2 | 2h |
+| T2-18 | Session analytics dashboard | P2 | 6h |
 
-**Estimated: ~10h**
+**Success metric:** 10+ features that provide information/control the CLI cannot.
 
-**Total estimated: ~18.5h across 3 phases**
+### Tier 3: "Power User Features" (~51h)
+
+**Goal:** Feature coverage >= 90% of applicable CLI features.
+
+| # | Task | Priority | Effort |
+|---|------|----------|--------|
+| T3-01 | Settings UI | P3 | 4h |
+| T3-02 | Theme support (light/dark/colorblind) | P3 | 4h |
+| T3-03 | MCP server management | P3 | 4h |
+| T3-04 | Hook configuration editor | P3 | 3h |
+| T3-05 | Session naming/rename | P3 | 2h |
+| T3-06 | Continue last session shortcut | P3 | 1h |
+| T3-07 | Fork session UI | P3 | 2h |
+| T3-08 | `/export` conversation | P3 | 2h |
+| T3-09 | `/init` CLAUDE.md wizard | P3 | 3h |
+| T3-10 | `/memory` editor | P3 | 3h |
+| T3-11 | Keyboard shortcut parity | P3 | 3h |
+| T3-12 | Prompt suggestions | P3 | 4h |
+| T3-13 | `/doctor` diagnostics | P3 | 3h |
+| T3-14 | `/stats` usage statistics | P3 | 3h |
+| T3-15 | Collaborative session viewing | P3 | 6h |
+| T3-16 | Active session indicator in sidebar | P3 | 2h |
+| T3-17 | Add Repo button handler | P3 | 1h |
+| T3-18 | Empty state CTA | P3 | 1h |
+
+**Success metric:** Feature coverage >= 90%, no reason to switch back to terminal.
+
+**Total: 45 tasks, ~122h across all tiers**
 
 ---
 
@@ -750,16 +790,40 @@ This is a **local development tool**. There is no authentication or authorizatio
 
 ---
 
-## Success Metrics (Updated)
+## Success Metrics (Updated 2026-03-29)
 
-| Metric | Target | How to Measure |
-|--------|--------|---------------|
-| Can complete full multi-turn session without terminal | Yes/No | Manual test: start session, 5+ turns, permission approvals, session complete |
-| Permission approval latency | <200ms (end-to-end) | Timestamp delta: canUseTool called → PermissionResult received |
-| Streaming first-token latency | <500ms from prompt submit | Performance.now() in PromptInput → first text delta rendered |
-| Session resume works | Yes/No | Resume a 50-turn session, send new message, get contextual response |
-| Historical session replay unchanged | Yes/No | Load a historical session — graph, log, conversation view all render correctly |
-| Zero regressions on existing 130 tests | Yes/No | `pnpm test` in both server and dashboard |
+### Infrastructure (Done)
+
+| Metric | Target | Status |
+|--------|--------|--------|
+| Architecture invariants passing | 7/7 | ✅ 7/7 |
+| Test suite | No regressions | ✅ 424 tests, 0 failures |
+| P1 bugs | 0 open | ✅ 0 open |
+| Structured logging | All critical ops logged | ✅ pino with 5 subsystems |
+
+### Tier 1 — CLI Replacement
+
+| Metric | Target | Status |
+|--------|--------|--------|
+| P1 features implemented | 9/9 | ❌ 0/9 |
+| End-to-end workflow test | "Build → test → commit" without terminal | ❌ Not yet |
+| CLI parity | >= 60% | ❌ 36% |
+
+### Tier 2 — Observability Advantage
+
+| Metric | Target | Status |
+|--------|--------|--------|
+| Unique observability features | 10+ | ✅ 16 (DAG, snapshots, costs, etc.) |
+| P2 slash commands working | 8+ | ❌ 0/18 |
+| CLI parity | >= 80% | ❌ 36% |
+
+### Tier 3 — Full Parity
+
+| Metric | Target | Status |
+|--------|--------|--------|
+| Feature coverage | >= 90% of applicable CLI features | ❌ 36% |
+| Configuration areas manageable from web | 4/4 (settings, themes, MCP, hooks) | ❌ 0/4 |
+| Keyboard shortcut parity | >= 80% | ❌ ~10% |
 
 ---
 

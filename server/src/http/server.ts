@@ -10,6 +10,7 @@ import { SessionManager } from "../session/session-manager.js";
 import { DebugDB } from "../debug/debug-db.js";
 import { backfillDebugDb } from "../debug/backfill.js";
 import type { WsBroadcastMessage } from "../types.js";
+import { logger, wsLog, LOG_FILE_PATH } from "../logger.js";
 
 let __dirname: string;
 try {
@@ -53,6 +54,7 @@ export function startHttpServer(port: number = 3142): Promise<{
     // WebSocket connections
     wss.on("connection", (ws) => {
       state.clients.add(ws);
+      wsLog.info({ clientCount: state.clients.size }, "ws client connected");
 
       // Heartbeat: ping every 30s to detect dead connections
       const heartbeat = setInterval(() => {
@@ -64,6 +66,7 @@ export function startHttpServer(port: number = 3142): Promise<{
       ws.on("close", () => {
         clearInterval(heartbeat);
         state.clients.delete(ws);
+        wsLog.info({ clientCount: state.clients.size }, "ws client disconnected");
       });
     });
 
@@ -107,6 +110,7 @@ export function startHttpServer(port: number = 3142): Promise<{
 
     server.listen(port, "127.0.0.1", () => {
       const url = `http://localhost:${port}`;
+      logger.info({ url, logFile: LOG_FILE_PATH }, "server started");
       resolve({ url, close: cleanup });
     });
   });

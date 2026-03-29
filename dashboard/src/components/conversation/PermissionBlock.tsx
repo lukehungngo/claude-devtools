@@ -142,6 +142,14 @@ export function PermissionBlock({ permission, onDecide, onDecideSession }: Permi
         <span className="text-sm font-semibold text-dt-text0">
           Permission Required
         </span>
+        <span
+          data-testid="agent-id-badge"
+          className="text-xxs font-mono px-1.5 py-0.5 rounded bg-dt-bg3 text-dt-text2"
+        >
+          {permission.agentId === "main"
+            ? "main"
+            : permission.agentId.slice(0, 8)}
+        </span>
       </div>
 
       {/* Tool name */}

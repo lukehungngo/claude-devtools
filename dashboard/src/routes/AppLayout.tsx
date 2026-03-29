@@ -17,7 +17,7 @@ import type { ReactNode } from "react";
 export function AppLayout() {
   const navigate = useNavigate();
   const { repos, loading: reposLoading, refresh: refreshRepos } = useRepos();
-  const { permissions, decide, handlePermissionRequest, handlePermissionResolved } = usePermissions();
+  const { permissions, decide, decideSession, handlePermissionRequest, handlePermissionResolved } = usePermissions();
   const { usage } = useUsage();
   const { costs } = useCosts();
 
@@ -120,6 +120,7 @@ export function AppLayout() {
     refreshRepos,
     permissions,
     decidePermission: decide,
+    decidePermissionSession: decideSession,
     usage,
     costs,
     isLive,

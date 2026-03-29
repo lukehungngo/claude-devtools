@@ -1,11 +1,27 @@
 import { randomUUID } from "node:crypto";
 import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk";
+import { sessionLog } from "../logger.js";
+
+export type PermissionMode = "default" | "acceptEdits" | "plan";
+
+const VALID_PERMISSION_MODES: ReadonlySet<string> = new Set(["default", "acceptEdits", "plan"]);
+
+// Tools auto-approved in acceptEdits mode
+const ACCEPT_EDITS_ALLOW: ReadonlySet<string> = new Set(["Edit", "Write", "Read"]);
+
+// Tools auto-allowed in plan mode (read-only)
+const PLAN_ALLOW: ReadonlySet<string> = new Set(["Read", "Glob", "Grep"]);
+
+// Tools auto-denied in plan mode (write/execute)
+const PLAN_DENY: ReadonlySet<string> = new Set(["Edit", "Write", "Bash"]);
 
 // Active session tracking
 export interface ActiveSession {
   sessionId: string;
   cwd: string;
   status: "idle" | "streaming" | "waiting-permission" | "error";
+  permissionMode: PermissionMode;
+  model?: string;
   abortController: AbortController;
   permissionResolvers: Map<string, (result: PermissionResult) => void>;
   questionResolvers: Map<string, (answer: string) => void>;
@@ -39,6 +55,7 @@ export class SessionManager {
       if (session.status === "idle") {
         const age = now - new Date(session.createdAt).getTime();
         if (age > SESSION_TTL_MS) {
+          sessionLog.info({ sessionId: id, ageMs: age }, "gc: removing idle session");
           session.abortController.abort();
           this.activeSessions.delete(id);
         }
@@ -61,12 +78,14 @@ export class SessionManager {
       sessionId,
       cwd,
       status: "idle",
+      permissionMode: "default",
       abortController: new AbortController(),
       permissionResolvers: new Map(),
       questionResolvers: new Map(),
       createdAt: new Date().toISOString(),
     };
     this.activeSessions.set(sessionId, session);
+    sessionLog.info({ sessionId, cwd }, "session created");
     return sessionId;
   }
 
@@ -76,6 +95,7 @@ export class SessionManager {
     if (!session) throw new Error(`Session ${sessionId} not found`);
     if (session.status === "streaming") throw new Error(`Session ${sessionId} is already streaming`);
 
+    sessionLog.info({ sessionId, promptLength: prompt.length }, "sendMessage: streaming started");
     session.status = "streaming";
     session.abortController = new AbortController();
 
@@ -90,6 +110,7 @@ export class SessionManager {
           resume: sessionId,
           forkSession: false,
           includePartialMessages: true,
+          ...(session.model ? { model: session.model } : {}),
           canUseTool: async (toolName, input) => {
             return this.handlePermission(session, toolName, input);
           },
@@ -100,11 +121,14 @@ export class SessionManager {
         yield message;
       }
 
+      sessionLog.info({ sessionId }, "sendMessage: streaming completed");
       session.status = "idle";
     } catch (err) {
       if (err instanceof Error && err.message === "Aborted") {
+        sessionLog.warn({ sessionId }, "sendMessage: aborted by user");
         session.status = "idle";
       } else {
+        sessionLog.error({ sessionId, error: String(err) }, "sendMessage: error");
         session.status = "error";
       }
       throw err;
@@ -117,8 +141,19 @@ export class SessionManager {
     toolName: string,
     input: Record<string, unknown>
   ): Promise<PermissionResult> {
+    // Check permission mode for auto-resolution
+    const autoResult = this.shouldAutoResolve(session.sessionId, toolName);
+    if (autoResult) {
+      sessionLog.info(
+        { sessionId: session.sessionId, toolName, mode: session.permissionMode, behavior: autoResult.behavior },
+        "permission auto-resolved by mode"
+      );
+      return Promise.resolve(autoResult);
+    }
+
     const requestId = randomUUID();
 
+    sessionLog.info({ sessionId: session.sessionId, requestId, toolName }, "permission requested");
     session.status = "waiting-permission";
 
     // Broadcast permission request to dashboard
@@ -141,6 +176,7 @@ export class SessionManager {
         if (session.status === "waiting-permission") {
           session.status = "streaming";
         }
+        sessionLog.warn({ sessionId: session.sessionId, requestId, toolName }, "permission timed out");
         resolve({ behavior: "deny", message: "Permission request timed out" });
       }, RESOLVER_TIMEOUT_MS);
 
@@ -155,11 +191,53 @@ export class SessionManager {
     });
   }
 
+  /** Set the permission mode for a session */
+  setPermissionMode(sessionId: string, mode: PermissionMode): boolean {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) return false;
+    session.permissionMode = mode;
+    sessionLog.info({ sessionId, permissionMode: mode }, "permission mode changed");
+    return true;
+  }
+
+  /** Check if a permission mode is valid */
+  static isValidPermissionMode(mode: string): mode is PermissionMode {
+    return VALID_PERMISSION_MODES.has(mode);
+  }
+
+  /** Determine if a tool should be auto-resolved based on permission mode.
+   *  Returns PermissionResult if auto-resolved, null if user should be prompted. */
+  shouldAutoResolve(sessionId: string, toolName: string): PermissionResult | null {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) return null;
+
+    switch (session.permissionMode) {
+      case "acceptEdits":
+        if (ACCEPT_EDITS_ALLOW.has(toolName)) {
+          return { behavior: "allow" };
+        }
+        return null; // prompt user for Bash, Agent, etc.
+
+      case "plan":
+        if (PLAN_ALLOW.has(toolName)) {
+          return { behavior: "allow" };
+        }
+        if (PLAN_DENY.has(toolName)) {
+          return { behavior: "deny", message: "Blocked by plan mode" };
+        }
+        return null; // prompt for anything else
+
+      default:
+        return null; // "default" mode: always prompt user
+    }
+  }
+
   /** Resolve a pending permission request (called when dashboard user clicks approve/deny) */
   resolvePermission(requestId: string, decision: "approved" | "denied"): boolean {
     for (const session of this.activeSessions.values()) {
       const resolver = session.permissionResolvers.get(requestId);
       if (resolver) {
+        sessionLog.info({ sessionId: session.sessionId, requestId, decision }, "permission resolved");
         const result: PermissionResult = decision === "approved"
           ? { behavior: "allow" }
           : { behavior: "deny", message: "User denied permission" };
@@ -185,23 +263,29 @@ export class SessionManager {
 
   /** Resume a historical session (registers it with a known sessionId) */
   async resumeSession(sessionId: string, cwd: string): Promise<void> {
-    if (this.activeSessions.has(sessionId)) return; // Already tracked
+    if (this.activeSessions.has(sessionId)) {
+      sessionLog.debug({ sessionId }, "resumeSession: already tracked");
+      return;
+    }
     const session: ActiveSession = {
       sessionId,
       cwd,
       status: "idle",
+      permissionMode: "default",
       abortController: new AbortController(),
       permissionResolvers: new Map(),
       questionResolvers: new Map(),
       createdAt: new Date().toISOString(),
     };
     this.activeSessions.set(sessionId, session);
+    sessionLog.info({ sessionId, cwd }, "session resumed");
   }
 
   /** Abort an active streaming session */
   abortSession(sessionId: string): boolean {
     const session = this.activeSessions.get(sessionId);
     if (!session) return false;
+    sessionLog.warn({ sessionId }, "session aborted");
     session.abortController.abort();
     session.status = "idle";
     return true;
@@ -210,6 +294,15 @@ export class SessionManager {
   /** Get status of a specific session */
   getStatus(sessionId: string): ActiveSession | undefined {
     return this.activeSessions.get(sessionId);
+  }
+
+  /** Set the model for a session (used by /model command) */
+  setModel(sessionId: string, model: string | undefined): boolean {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) return false;
+    session.model = model;
+    sessionLog.info({ sessionId, model: model ?? "default" }, "model changed");
+    return true;
   }
 
   /** List all active sessions */
@@ -232,6 +325,7 @@ export class SessionManager {
   removeSession(sessionId: string): boolean {
     const session = this.activeSessions.get(sessionId);
     if (!session) return false;
+    sessionLog.info({ sessionId }, "session removed");
     session.abortController.abort();
     return this.activeSessions.delete(sessionId);
   }

@@ -108,6 +108,30 @@ describe("parseJsonlFile", () => {
 
     expect(result).toEqual([]);
   });
+
+  it("parses system events", () => {
+    const filePath = join(TEST_DIR, "system-event.jsonl");
+    const systemEvent = {
+      type: "system",
+      uuid: "sys1",
+      timestamp: "2026-03-29T10:00:00Z",
+      sessionId: "s1",
+      subtype: "turn_duration",
+      durationMs: 1234,
+      messageCount: 5,
+    };
+    writeFileSync(filePath, JSON.stringify(systemEvent) + "\n");
+
+    const result = parseJsonlFile(filePath);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("system");
+    // Verify SystemEvent-specific fields are preserved
+    const parsed = result[0] as import("../types.js").SystemEvent;
+    expect(parsed.subtype).toBe("turn_duration");
+    expect(parsed.durationMs).toBe(1234);
+    expect(parsed.messageCount).toBe(5);
+  });
 });
 
 describe("parseJsonlIncremental", () => {
@@ -173,6 +197,83 @@ describe("parseJsonlIncremental", () => {
 
     expect(result.events).toEqual([]);
     expect(result.newOffset).toBe(100);
+  });
+
+  it("reads only bytes after fromOffset, not the entire file", () => {
+    const filePath = join(TEST_DIR, "incremental-targeted.jsonl");
+    const event1 = {
+      type: "user",
+      uuid: "u1",
+      timestamp: "2026-03-23T10:00:00Z",
+      sessionId: "s1",
+      userType: "external",
+      message: { role: "user", content: [] },
+    };
+    const event2 = {
+      type: "user",
+      uuid: "u2",
+      timestamp: "2026-03-23T10:00:01Z",
+      sessionId: "s1",
+      userType: "external",
+      message: { role: "user", content: [] },
+    };
+    const event3 = {
+      type: "user",
+      uuid: "u3",
+      timestamp: "2026-03-23T10:00:02Z",
+      sessionId: "s1",
+      userType: "external",
+      message: { role: "user", content: [] },
+    };
+
+    // Write initial two events
+    const line1 = JSON.stringify(event1) + "\n";
+    const line2 = JSON.stringify(event2) + "\n";
+    writeFileSync(filePath, line1 + line2);
+
+    // Parse from start to get initial offset
+    const first = parseJsonlIncremental(filePath, 0);
+    expect(first.events).toHaveLength(2);
+    const offsetAfterFirst = first.newOffset;
+
+    // Append a third event
+    const { appendFileSync } = require("node:fs");
+    const line3 = JSON.stringify(event3) + "\n";
+    appendFileSync(filePath, line3);
+
+    // Parse incrementally from the previous offset
+    const second = parseJsonlIncremental(filePath, offsetAfterFirst);
+
+    // Should only contain the new event
+    expect(second.events).toHaveLength(1);
+    expect(second.events[0].uuid).toBe("u3");
+
+    // New offset should be the full file size in bytes
+    const { statSync } = require("node:fs");
+    const fileSize = statSync(filePath).size;
+    expect(second.newOffset).toBe(fileSize);
+  });
+
+  it("returns byte-based offset, not character-based", () => {
+    const filePath = join(TEST_DIR, "multibyte.jsonl");
+    // Use multi-byte UTF-8 characters to verify byte vs char offset
+    const event = {
+      type: "user",
+      uuid: "u1",
+      timestamp: "2026-03-23T10:00:00Z",
+      sessionId: "s1",
+      userType: "external",
+      message: { role: "user", content: [{ type: "text", text: "hello \u00e9\u00e8\u00ea" }] },
+    };
+    const line = JSON.stringify(event) + "\n";
+    writeFileSync(filePath, line);
+
+    const result = parseJsonlIncremental(filePath, 0);
+
+    // Byte length differs from character length for multi-byte chars
+    const byteLength = Buffer.byteLength(line, "utf-8");
+    expect(result.newOffset).toBe(byteLength);
+    expect(result.events).toHaveLength(1);
   });
 
   it("returns all events when offset is 0", () => {

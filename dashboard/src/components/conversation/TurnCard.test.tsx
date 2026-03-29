@@ -62,3 +62,54 @@ describe("TurnCard — header click does NOT bubble to onTurnClick", () => {
     expect(onTurnClick).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("TurnCard — completion indicator", () => {
+  it("shows 'Generating...' for a running turn (status === 'running')", () => {
+    const turn = makeTurn({
+      status: "running",
+      durationMs: null,
+      endTime: "",
+      completedAt: "",
+    });
+    const { container } = render(<TurnCard turn={turn} />);
+
+    const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.textContent).toContain("Generating...");
+    expect(container.querySelector('[data-testid="turn-completion-timestamp"]')).toBeNull();
+  });
+
+  it("shows 'Completed in Xs' for a completed turn with durationMs", () => {
+    const turn = makeTurn({
+      status: "completed",
+      durationMs: 45000,
+      startTime: "2026-03-29T14:30:00Z",
+      endTime: "2026-03-29T14:30:45Z",
+      completedAt: "2026-03-29T14:30:45Z",
+    });
+    const { container } = render(<TurnCard turn={turn} />);
+
+    const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.textContent).toContain("Completed in");
+    expect(indicator!.textContent).toContain("45.0s");
+    expect(indicator!.textContent).not.toContain("Generating...");
+  });
+
+  it("shows 'Completed' without duration when durationMs is null but turn is not running", () => {
+    const turn = makeTurn({
+      status: "completed",
+      durationMs: null,
+      startTime: "2026-03-29T09:15:00Z",
+      endTime: "2026-03-29T09:15:22Z",
+      completedAt: "2026-03-29T09:15:22Z",
+    });
+    const { container } = render(<TurnCard turn={turn} />);
+
+    const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.textContent).toContain("Completed");
+    expect(indicator!.textContent).not.toContain("Completed in");
+    expect(indicator!.textContent).not.toContain("Generating...");
+  });
+});

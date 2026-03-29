@@ -17,7 +17,10 @@ export function usePermissions() {
   // Called by unified WS handler when permission-request arrives
   const handlePermissionRequest = useCallback(
     (permission: PermissionRequest) => {
-      setPermissions((prev) => [...prev, permission]);
+      setPermissions((prev) => {
+        if (prev.some((p) => p.id === permission.id)) return prev;
+        return [...prev, permission];
+      });
     },
     []
   );
@@ -57,9 +60,25 @@ export function usePermissions() {
     []
   );
 
+  /** Approve a permission and allow all future uses of this tool in the session */
+  const decideSession = useCallback(
+    async (id: string) => {
+      await fetch(`/api/permissions/${id}/decide`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "approved", scope: "session" }),
+      });
+      setPermissions((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, status: "approved" as const } : p))
+      );
+    },
+    []
+  );
+
   return {
     permissions,
     decide,
+    decideSession,
     handlePermissionRequest,
     handlePermissionResolved,
   };

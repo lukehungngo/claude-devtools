@@ -126,6 +126,57 @@ describe("Session lifecycle routes", () => {
     });
   });
 
+  describe("POST /api/sessions/:sessionId/model", () => {
+    it("sets model on existing session and returns success", async () => {
+      const createRes = await request(app)
+        .post("/api/sessions/new")
+        .send({ cwd: "/tmp/test" });
+
+      const sessionId = createRes.body.sessionId;
+
+      const res = await request(app)
+        .post(`/api/sessions/${sessionId}/model`)
+        .send({ model: "claude-opus-4-6" })
+        .expect(200);
+
+      expect(res.body).toEqual({ success: true, model: "claude-opus-4-6" });
+    });
+
+    it("returns 404 for non-existent session", async () => {
+      const res = await request(app)
+        .post("/api/sessions/nonexistent-id/model")
+        .send({ model: "claude-opus-4-6" })
+        .expect(404);
+
+      expect(res.body).toHaveProperty("error");
+    });
+
+    it("returns 400 when model is missing", async () => {
+      const createRes = await request(app)
+        .post("/api/sessions/new")
+        .send({ cwd: "/tmp/test" });
+
+      const res = await request(app)
+        .post(`/api/sessions/${createRes.body.sessionId}/model`)
+        .send({})
+        .expect(400);
+
+      expect(res.body).toHaveProperty("error");
+      expect(res.body.error).toContain("model");
+    });
+
+    it("returns 500 when sessionManager is missing", async () => {
+      const appNoManager = createApp({ clients: new Set() } as ServerState);
+
+      const res = await request(appNoManager)
+        .post("/api/sessions/some-id/model")
+        .send({ model: "claude-opus-4-6" })
+        .expect(500);
+
+      expect(res.body.error).toContain("Session manager");
+    });
+  });
+
   describe("routes without sessionManager", () => {
     it("POST /sessions/new returns 500 when sessionManager is missing", async () => {
       const appNoManager = createApp({ clients: new Set() } as ServerState);

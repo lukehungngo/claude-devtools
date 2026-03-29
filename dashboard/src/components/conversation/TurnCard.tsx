@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import type {
   SessionEvent,
@@ -6,7 +6,7 @@ import type {
   ContentItem,
 } from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
-import { formatCost } from "../../lib/cost";
+import { formatCost, formatDuration } from "../../lib/cost";
 import { formatTime } from "../../lib/formatTime";
 import { AgentPills } from "./AgentPills";
 import { ThinkingBlock } from "../viewer/ThinkingBlock";
@@ -35,6 +35,46 @@ function extractResponseContent(events: SessionEvent[]): ContentItem[] {
     }
   }
   return items;
+}
+
+// ─── TurnFooter (elapsed / completed duration) ─────────────────────
+
+function TurnFooter({ turn }: { turn: TurnSnapshot }) {
+  const isStreaming = turn.status === "running";
+  const [elapsed, setElapsed] = useState<number>(0);
+
+  useEffect(() => {
+    if (!isStreaming) return;
+    const startMs = new Date(turn.startTime).getTime();
+    const tick = () => setElapsed(Date.now() - startMs);
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [isStreaming, turn.startTime]);
+
+  return (
+    <div
+      data-testid="turn-completion-indicator"
+      className="mt-2 pt-1.5 border-t border-dt-border flex items-center gap-1.5 text-dt-text2 text-xs font-mono"
+    >
+      {isStreaming ? (
+        <>
+          <span className="w-1.5 h-1.5 rounded-full bg-dt-accent animate-pulse-opacity" />
+          <span>Generating...</span>
+          <span className="text-dt-text2">{formatDuration(elapsed)}</span>
+        </>
+      ) : (
+        <>
+          <span className="text-dt-green">&#10003;</span>
+          <span data-testid="turn-completion-timestamp">
+            {turn.durationMs != null
+              ? `Completed in ${formatDuration(turn.durationMs)}`
+              : "Completed"}
+          </span>
+        </>
+      )}
+    </div>
+  );
 }
 
 // ─── TurnCard ────────────────────────────────────────────────────────
@@ -144,6 +184,9 @@ export function TurnCard({
               <ResponseBlock key={`text-${i}`} text={item.text} />
             ) : null,
           )}
+
+          {/* Completion indicator */}
+          <TurnFooter turn={turn} />
         </div>
       )}
     </div>

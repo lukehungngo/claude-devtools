@@ -3,8 +3,11 @@ import type { SessionEvent, SessionMetrics, PermissionRequest } from "../../lib/
 import { groupEventsIntoTurns } from "../../lib/turnSnapshot";
 import { CostStrip } from "../viewer/CostStrip";
 import { PermissionBlock } from "./PermissionBlock";
+import { PermissionModeBadge, cyclePermissionMode } from "./PermissionModeBadge";
+import type { PermissionMode } from "./permissionModeTypes";
 import { QuestionBlock } from "./QuestionBlock";
 import { PromptInput } from "./PromptInput";
+import { ContextWarningBanner } from "./ContextWarningBanner";
 import { TurnCard } from "./TurnCard";
 
 export interface QuestionItem {
@@ -21,6 +24,7 @@ interface ConversationViewProps {
   isLive?: boolean;
   sessionCwd?: string;
   sessionId?: string;
+  projectHash?: string;
   activeSessionId?: string;
   highlightedTurnIndex?: number;
   onAgentPillClick?: (agentId: string) => void;
@@ -28,6 +32,8 @@ interface ConversationViewProps {
   /** Pending/resolved permission requests to render inline in conversation */
   permissions?: PermissionRequest[];
   onPermissionDecide?: (id: string, decision: "approved" | "denied") => void;
+  /** Called when user clicks "Allow for session" on a permission block */
+  onDecideSession?: (id: string) => void;
   /** Pending/answered questions from the agent */
   questions?: QuestionItem[];
   onSubmitAnswer?: (questionId: string, answer: string) => void;
@@ -41,12 +47,14 @@ export function ConversationView({
   isLive,
   sessionCwd,
   sessionId,
+  projectHash,
   activeSessionId,
   highlightedTurnIndex,
   onAgentPillClick,
   onTurnClick,
   permissions,
   onPermissionDecide,
+  onDecideSession,
   questions,
   onSubmitAnswer,
   onSessionStarted,
@@ -57,6 +65,9 @@ export function ConversationView({
   const [showSearch, setShowSearch] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>(
+    (metrics?.permissionMode as PermissionMode) || "default"
+  );
 
   const turns = useMemo(() => groupEventsIntoTurns(events), [events]);
 
@@ -91,7 +102,29 @@ export function ConversationView({
     setShowScrollDown(!atBottom);
   }, []);
 
-  // Handle Ctrl+F to open search
+  // Handle permission mode change -- POST to server, update local state
+  const handlePermissionModeChange = useCallback(
+    async (newMode: PermissionMode) => {
+      const targetId = activeSessionId;
+      if (!targetId) return;
+
+      try {
+        const res = await fetch(`/api/sessions/${targetId}/permission-mode`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: newMode }),
+        });
+        if (res.ok) {
+          setPermissionMode(newMode);
+        }
+      } catch {
+        // Silently fail -- badge stays at current mode
+      }
+    },
+    [activeSessionId]
+  );
+
+  // Handle Ctrl+F to open search and Shift+Tab to cycle permission mode
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "f") {
@@ -104,10 +137,16 @@ export function ConversationView({
         setShowSearch(false);
         setSearchQuery("");
       }
+      // Shift+Tab to cycle permission mode
+      if (e.shiftKey && e.key === "Tab") {
+        e.preventDefault();
+        const next = cyclePermissionMode(permissionMode);
+        handlePermissionModeChange(next);
+      }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [showSearch]);
+  }, [showSearch, permissionMode, handlePermissionModeChange]);
 
   // Filter turns by search query
   const filteredTurns = useMemo(() => {
@@ -130,6 +169,20 @@ export function ConversationView({
       return false;
     });
   }, [turns, searchQuery]);
+
+  const handleCompactNow = useCallback(async () => {
+    const targetId = activeSessionId || sessionId;
+    if (!targetId) return;
+    try {
+      await fetch(`/api/sessions/${targetId}/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: "/compact" }),
+      });
+    } catch {
+      // Silently fail -- user can retry manually
+    }
+  }, [activeSessionId, sessionId]);
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
@@ -161,10 +214,11 @@ export function ConversationView({
           )}
         </div>
         <div className="flex gap-1 items-center">
-          {metrics?.permissionMode && (
-            <span className="text-sm text-dt-text2 px-2 py-0.75 rounded-dt-xs bg-dt-bg3">
-              {metrics.permissionMode}
-            </span>
+          {activeSessionId && (
+            <PermissionModeBadge
+              mode={permissionMode}
+              onModeChange={handlePermissionModeChange}
+            />
           )}
           <span className="text-sm text-dt-text2">
             {turns.length} turn{turns.length !== 1 ? "s" : ""}
@@ -209,6 +263,12 @@ export function ConversationView({
         </div>
       )}
 
+      {/* Context warning banner */}
+      <ContextWarningBanner
+        contextPercent={metrics?.contextPercent}
+        onCompactNow={handleCompactNow}
+      />
+
       {/* Turn list (scrollable) */}
       <div
         ref={scrollRef}
@@ -220,10 +280,10 @@ export function ConversationView({
             No events to display
           </div>
         ) : (
-          filteredTurns.map((turn) => {
+          filteredTurns.map((turn, filteredIndex) => {
             const unfilteredIndex = turns.indexOf(turn);
             const turnEnd = turn.endTime || turn.startTime;
-            const nextTurn = filteredTurns[filteredTurns.indexOf(turn) + 1];
+            const nextTurn = filteredTurns[filteredIndex + 1];
             const nextTurnStart = nextTurn?.startTime;
 
             // Permissions that arrived during this turn (between turnEnd and next turn start)
@@ -257,6 +317,7 @@ export function ConversationView({
                     key={perm.id}
                     permission={perm}
                     onDecide={onPermissionDecide!}
+                    onDecideSession={onDecideSession}
                   />
                 ))}
                 {turnQuestions.map((q) => (
@@ -283,6 +344,7 @@ export function ConversationView({
               key={`fallback-${perm.id}`}
               permission={perm}
               onDecide={onPermissionDecide}
+              onDecideSession={onDecideSession}
             />
           ))}
         {questions && onSubmitAnswer && questions
@@ -315,7 +377,7 @@ export function ConversationView({
       <CostStrip metrics={metrics} />
 
       {/* Command input */}
-      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} />
+      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} projectHash={projectHash} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} />
     </div>
   );
 }

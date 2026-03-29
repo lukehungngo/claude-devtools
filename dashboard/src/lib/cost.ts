@@ -1,10 +1,45 @@
 /**
- * Sonnet pricing constants for client-side per-turn cost estimation.
- * Must be manually updated when Anthropic changes rates.
- * Matches sonnet pricing in server/src/analyzer/metrics.ts.
+ * @deprecated Use calculateTurnCost() for per-model pricing instead.
+ * Kept for backward compatibility — these are sonnet-only constants.
  */
 export const INPUT_COST_PER_TOKEN = 0.000003;
+/** @deprecated Use calculateTurnCost() for per-model pricing instead. */
 export const OUTPUT_COST_PER_TOKEN = 0.000015;
+
+/**
+ * Per-model pricing table (per million tokens). March 2026.
+ * Must be manually updated when Anthropic changes rates.
+ * Mirrors server/src/analyzer/metrics.ts MODEL_PRICING (input/output only).
+ */
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "claude-opus-4-6": { input: 15, output: 75 },
+  "claude-sonnet-4-6": { input: 3, output: 15 },
+  "claude-haiku-4-5-20251001": { input: 0.8, output: 4 },
+};
+
+const DEFAULT_PRICING = MODEL_PRICING["claude-sonnet-4-6"];
+
+/**
+ * Calculate turn cost using per-model pricing.
+ * Falls back to sonnet pricing for unknown models.
+ */
+export function calculateTurnCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number
+): number {
+  const pricing =
+    Object.entries(MODEL_PRICING).find(
+      ([key]) =>
+        model.includes(key) ||
+        model.includes(key.split("-").slice(0, -1).join("-"))
+    )?.[1] ?? DEFAULT_PRICING;
+
+  return (
+    (inputTokens * pricing.input) / 1_000_000 +
+    (outputTokens * pricing.output) / 1_000_000
+  );
+}
 
 export function formatCost(cost: number): string {
   if (cost < 0.01) return `$${cost.toFixed(4)}`;

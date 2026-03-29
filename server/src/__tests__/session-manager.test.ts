@@ -95,6 +95,39 @@ describe("SessionManager", () => {
     });
   });
 
+  describe("model selection", () => {
+    it("model is undefined by default", async () => {
+      const id = await manager.startSession("/tmp/test");
+      const session = manager.getStatus(id)!;
+      expect(session.model).toBeUndefined();
+    });
+
+    it("setModel stores model on the session", async () => {
+      const id = await manager.startSession("/tmp/test");
+      const result = manager.setModel(id, "claude-opus-4-6");
+      expect(result).toBe(true);
+      expect(manager.getStatus(id)!.model).toBe("claude-opus-4-6");
+    });
+
+    it("setModel returns false for unknown session", () => {
+      expect(manager.setModel("nonexistent", "claude-opus-4-6")).toBe(false);
+    });
+
+    it("setModel can change model to a different value", async () => {
+      const id = await manager.startSession("/tmp/test");
+      manager.setModel(id, "claude-opus-4-6");
+      manager.setModel(id, "claude-sonnet-4-6");
+      expect(manager.getStatus(id)!.model).toBe("claude-sonnet-4-6");
+    });
+
+    it("setModel can clear model by setting undefined", async () => {
+      const id = await manager.startSession("/tmp/test");
+      manager.setModel(id, "claude-opus-4-6");
+      manager.setModel(id, undefined);
+      expect(manager.getStatus(id)!.model).toBeUndefined();
+    });
+  });
+
   describe("dispose", () => {
     it("stops the GC timer", () => {
       manager.dispose();

@@ -46,9 +46,20 @@ Define enforceable frontend standards for the dashboard so UI changes stay type-
    - Keep files focused: one primary component/hook responsibility per file.
 
 8. **UI Lib**
-   - Approved frontend stack: React 18, TypeScript, Tailwind utilities, Recharts, `@xyflow/react`, `@dagrejs/dagre`, `lucide-react`, and existing project dependencies.
+   - Approved frontend stack: React 18, TypeScript, Tailwind utilities, Recharts, `@xyflow/react` (custom tree layout, no dagre), `lucide-react`, `react-markdown` + `remark-gfm`, `@tanstack/react-router`, `@tanstack/react-virtual`, and existing project dependencies.
    - Do not introduce new UI frameworks/component systems (e.g., MUI, Chakra, AntD) without explicit architecture approval.
    - Prefer existing primitives and tokens before adding new UI dependencies.
+
+9. **Markdown Rendering**
+   - Response text is rendered via `react-markdown` with `remark-gfm` in `ResponseBlock.tsx`.
+   - Markdown elements are styled via the `components` prop using Tailwind `dt-*` tokens — not global CSS or `<style>` blocks.
+   - Code blocks: `bg-dt-bg3`, monospace. Inline code: `bg-dt-bg3 text-dt-accent`.
+   - Do not add a second markdown renderer or switch to `marked`/`remark` without explicit architecture approval.
+
+10. **Cost & Pricing**
+    - Per-turn costs use `calculateTurnCost()` from `lib/cost.ts` with per-model pricing (opus/sonnet/haiku).
+    - Do NOT use the deprecated `INPUT_COST_PER_TOKEN` / `OUTPUT_COST_PER_TOKEN` constants in new code.
+    - When Anthropic changes model prices, update `MODEL_PRICING` in BOTH `server/src/analyzer/metrics.ts` AND `dashboard/src/lib/cost.ts`.
 
 ## Examples
 - **Good (Type):** `interface TopBarProps { metrics: SessionMetrics | null }` plus `import type { SessionMetrics }`.
@@ -66,5 +77,10 @@ Define enforceable frontend standards for the dashboard so UI changes stay type-
 - Run `pnpm --dir dashboard lint:styles` to detect newly introduced inline `style={{` blocks outside the approved dynamic allowlist.
 - `pnpm lint` at repo root runs ESLint + inline-style guard together; CI should call this command.
 
-## P0 Lessons (if applicable)
-- Add dated entries here when a frontend incident reveals a missing or weak rule.
+## P0 Lessons
+
+### 2026-03-29: Hardcoded sonnet pricing in turn costs
+Dashboard used `INPUT_COST_PER_TOKEN = 0.000003` (sonnet) for all per-turn costs. Opus sessions showed 5x lower costs than reality. Fixed by adding `calculateTurnCost()` with per-model `MODEL_PRICING` table. Rule 10 added to prevent recurrence.
+
+### 2026-03-29: Duplicate permission blocks
+`usePermissions.handlePermissionRequest` appended WS-received permissions without checking if they already existed from the REST fetch. Same permission rendered twice. Fixed by adding `prev.some(p => p.id === permission.id)` guard.

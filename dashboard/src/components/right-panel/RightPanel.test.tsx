@@ -39,6 +39,7 @@ function makeTurn(n: number): TurnSnapshot {
     agents: [],
     cost: 0,
     costBreakdown: { total: 0, tokensIn: 0, tokensOut: 0 },
+    durationMs: null,
   };
 }
 

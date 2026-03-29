@@ -147,4 +147,59 @@ describe("usePermissions", () => {
     expect(result.current.handlePermissionRequest).toBeDefined();
     expect(result.current.handlePermissionResolved).toBeDefined();
   });
+
+  it("does not add duplicate permission when same ID arrives via WS after REST", async () => {
+    const existing = makePermission("perm-dup");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ permissions: [existing] }),
+      })
+    );
+
+    const { result } = renderHook(() => usePermissions());
+
+    // Wait for useEffect fetch to resolve
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    expect(result.current.permissions).toHaveLength(1);
+
+    // Simulate the same permission arriving via WS
+    act(() => {
+      result.current.handlePermissionRequest(makePermission("perm-dup"));
+    });
+
+    // Should still be 1, not 2
+    expect(result.current.permissions).toHaveLength(1);
+  });
+
+  it("handlePermissionResolved updates existing entry without creating duplicate", async () => {
+    const existing = makePermission("perm-resolve");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ permissions: [existing] }),
+      })
+    );
+
+    const { result } = renderHook(() => usePermissions());
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    expect(result.current.permissions).toHaveLength(1);
+    expect(result.current.permissions[0].status).toBe("pending");
+
+    // Resolve it
+    act(() => {
+      result.current.handlePermissionResolved("perm-resolve", "approved");
+    });
+
+    // Still 1 entry, status updated — no duplicate created
+    expect(result.current.permissions).toHaveLength(1);
+    expect(result.current.permissions[0].status).toBe("approved");
+  });
 });

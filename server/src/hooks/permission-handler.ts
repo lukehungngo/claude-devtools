@@ -1,7 +1,31 @@
 import { randomUUID } from "node:crypto";
 import type { PermissionRequest } from "../types.js";
+import { permissionLog } from "../logger.js";
 
 const pendingPermissions = new Map<string, PermissionRequest>();
+
+// Session-scoped tool allowances: Map<sessionId, Set<toolName>>
+// When a user clicks "Allow for session", the tool is added here.
+// Future permission requests for the same tool+session are auto-approved.
+const sessionAllowances = new Map<string, Set<string>>();
+
+export function addSessionAllowance(sessionId: string, toolName: string): void {
+  let tools = sessionAllowances.get(sessionId);
+  if (!tools) {
+    tools = new Set();
+    sessionAllowances.set(sessionId, tools);
+  }
+  tools.add(toolName);
+  permissionLog.info({ sessionId, toolName }, "session allowance added");
+}
+
+export function isToolAllowedForSession(sessionId: string, toolName: string): boolean {
+  return sessionAllowances.get(sessionId)?.has(toolName) ?? false;
+}
+
+export function clearSessionAllowances(): void {
+  sessionAllowances.clear();
+}
 
 export function addPermissionRequest(data: {
   sessionId: string;
@@ -9,6 +33,9 @@ export function addPermissionRequest(data: {
   toolName: string;
   input: Record<string, unknown>;
 }): PermissionRequest {
+  // Check if tool is already allowed for this session
+  const autoApproved = isToolAllowedForSession(data.sessionId, data.toolName);
+
   const permission: PermissionRequest = {
     id: randomUUID(),
     sessionId: data.sessionId,
@@ -16,10 +43,14 @@ export function addPermissionRequest(data: {
     toolName: data.toolName,
     input: data.input,
     timestamp: new Date().toISOString(),
-    status: "pending",
+    status: autoApproved ? "approved" : "pending",
   };
 
   pendingPermissions.set(permission.id, permission);
+  permissionLog.info(
+    { id: permission.id, toolName: data.toolName, sessionId: data.sessionId, autoApproved },
+    autoApproved ? "permission auto-approved (session allowance)" : "permission requested",
+  );
   return permission;
 }
 
@@ -31,6 +62,7 @@ export function resolvePermissionRequest(
   if (!permission) return null;
 
   permission.status = decision;
+  permissionLog.info({ id, decision, toolName: permission.toolName }, "permission resolved");
   // Purge old resolved permissions to prevent memory leak
   cleanupPermissions();
   return permission;
