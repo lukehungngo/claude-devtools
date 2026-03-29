@@ -1,8 +1,27 @@
-import React, { useState, useMemo } from "react";
-import { Plus, Play } from "lucide-react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { Plus, Play, Pencil, FolderOpen } from "lucide-react";
 import type { RepoGroup, SessionInfo } from "../lib/types";
 
 type FilterMode = "active" | "archived" | "all";
+
+const SESSION_NAMES_KEY = "session-names";
+
+function loadSessionNames(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(SESSION_NAMES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSessionName(sessionId: string, name: string): void {
+  const names = loadSessionNames();
+  names[sessionId] = name;
+  localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names));
+}
 
 interface Props {
   repos: RepoGroup[];
@@ -12,11 +31,32 @@ interface Props {
   onNewSession?: () => void;
   activeSessionId?: string | null;
   onResumeSession?: (sessionId: string, cwd: string) => void;
+  onAddRepo?: (path: string) => void;
 }
 
-export function RepoList({ repos, loading, selected, onSelect, onNewSession, activeSessionId, onResumeSession }: Props) {
+export function RepoList({ repos, loading, selected, onSelect, onNewSession, activeSessionId, onResumeSession, onAddRepo }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [filterMode, setFilterMode] = useState<FilterMode>("active");
+  const [showAddRepoInput, setShowAddRepoInput] = useState(false);
+  const [addRepoPath, setAddRepoPath] = useState("");
+  const addRepoInputRef = useRef<HTMLInputElement>(null);
+  const [sessionNames, setSessionNames] = useState<Record<string, string>>(() => loadSessionNames());
+
+  const handleRename = useCallback((sessionId: string, newName: string) => {
+    saveSessionName(sessionId, newName);
+    setSessionNames(loadSessionNames());
+  }, []);
+
+  const openAddRepoInput = useCallback(() => {
+    setShowAddRepoInput(true);
+    setAddRepoPath("");
+  }, []);
+
+  useEffect(() => {
+    if (showAddRepoInput && addRepoInputRef.current) {
+      addRepoInputRef.current.focus();
+    }
+  }, [showAddRepoInput]);
 
   const filteredRepos = useMemo(() => {
     const filtered =
@@ -55,12 +95,35 @@ export function RepoList({ repos, loading, selected, onSelect, onNewSession, act
     });
   };
 
+  const handleAddRepoKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && addRepoPath.trim()) {
+      onAddRepo?.(addRepoPath.trim());
+      setShowAddRepoInput(false);
+      setAddRepoPath("");
+    } else if (e.key === "Escape") {
+      setShowAddRepoInput(false);
+      setAddRepoPath("");
+    }
+  };
+
+  // Check if we should show the global empty state (no repos at all, not loading)
+  const showEmptyState = repos.length === 0 && !loading;
+
   return (
     <div className="panel sidebar flex flex-col h-full overflow-hidden">
       {/* Panel header */}
       <div className="panel-header flex items-center justify-between px-3 py-2 border-b border-dt-border shrink-0 bg-dt-bg2">
         <div className="panel-title text-base font-semibold uppercase tracking-wide text-dt-text2 flex items-center gap-1.5">
           Repositories
+          {onAddRepo && (
+            <button
+              onClick={openAddRepoInput}
+              className="ml-1 px-1.5 py-0.5 text-xs rounded-dt-sm cursor-pointer border-none bg-dt-accent-dim text-dt-accent hover:bg-dt-accent hover:text-white transition-colors flex items-center gap-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-dt-accent"
+              aria-label="Add repository"
+            >
+              <Plus size={10} />
+            </button>
+          )}
           {onNewSession && (
             <button
               onClick={onNewSession}
@@ -89,10 +152,48 @@ export function RepoList({ repos, loading, selected, onSelect, onNewSession, act
         </div>
       </div>
 
+      {/* Add repo input */}
+      {showAddRepoInput && (
+        <div className="px-3 py-2 border-b border-dt-border bg-dt-bg2">
+          <input
+            ref={addRepoInputRef}
+            type="text"
+            value={addRepoPath}
+            onChange={(e) => setAddRepoPath(e.target.value)}
+            onKeyDown={handleAddRepoKeyDown}
+            onBlur={() => {
+              setShowAddRepoInput(false);
+              setAddRepoPath("");
+            }}
+            placeholder="Enter repo path..."
+            aria-label="Repository path"
+            className="w-full px-2 py-1 text-sm bg-dt-bg1 border border-dt-border rounded-dt-sm text-dt-text0 font-mono outline-none focus:border-dt-accent"
+          />
+        </div>
+      )}
+
       {/* Body */}
       <div className="panel-body flex-1 overflow-y-auto overflow-x-hidden p-0 dt-scrollbar">
         {loading ? (
           <p className="text-dt-text2 text-sm p-3">Loading...</p>
+        ) : showEmptyState ? (
+          <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <FolderOpen size={32} className="text-dt-text2" />
+            <div className="text-dt-text1 text-base font-semibold">No sessions found</div>
+            <div className="text-dt-text2 text-sm">
+              Start a Claude Code session from the CLI, or click + to begin
+            </div>
+            {onAddRepo && (
+              <button
+                onClick={openAddRepoInput}
+                className="mt-2 px-3 py-1.5 text-sm rounded-dt-sm cursor-pointer border-none bg-dt-accent text-white hover:opacity-90 transition-opacity flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-dt-accent"
+                aria-label="Add repository"
+              >
+                <Plus size={12} />
+                Add Repository
+              </button>
+            )}
+          </div>
         ) : filteredRepos.length === 0 ? (
           <p className="text-dt-text2 text-sm p-3">
             {filterMode === "all"
@@ -157,7 +258,7 @@ export function RepoList({ repos, loading, selected, onSelect, onNewSession, act
 
                 {/* Sessions */}
                 {isExpanded &&
-                  repo.sessions.map((session) => (
+                  repo.sessions.map((session, index) => (
                     <SessionItem
                       key={`${session.projectHash}/${session.id}`}
                       session={session}
@@ -173,6 +274,9 @@ export function RepoList({ repos, loading, selected, onSelect, onNewSession, act
                       }
                       activeSessionId={activeSessionId}
                       onResumeSession={onResumeSession}
+                      isMostRecent={index === 0}
+                      customName={sessionNames[session.id]}
+                      onRename={handleRename}
                     />
                   ))}
               </div>
@@ -184,25 +288,44 @@ export function RepoList({ repos, loading, selected, onSelect, onNewSession, act
   );
 }
 
+interface SessionItemProps {
+  session: SessionInfo;
+  isSelected: boolean;
+  onSelect: () => void;
+  activeSessionId?: string | null;
+  onResumeSession?: (sessionId: string, cwd: string) => void;
+  isMostRecent?: boolean;
+  customName?: string;
+  onRename?: (sessionId: string, newName: string) => void;
+}
+
 function SessionItem({
   session,
   isSelected,
   onSelect,
   activeSessionId,
   onResumeSession,
-}: {
-  session: SessionInfo;
-  isSelected: boolean;
-  onSelect: () => void;
-  activeSessionId?: string | null;
-  onResumeSession?: (sessionId: string, cwd: string) => void;
-}) {
+  isMostRecent,
+  customName,
+  onRename,
+}: SessionItemProps) {
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const timeAgo = getTimeAgo(session.lastModified);
-  const displayName = session.sessionName || session.id.slice(0, 8);
+  const displayName = customName || session.sessionName || session.id.slice(0, 8);
+  const isActiveSession = activeSessionId != null && session.id === activeSessionId;
+
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [isRenaming]);
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLSpanElement>) => {
     e.stopPropagation();
-    const text = session.sessionName || session.id;
+    const text = customName || session.sessionName || session.id;
     navigator.clipboard.writeText(text);
   };
 
@@ -210,6 +333,33 @@ function SessionItem({
     e.stopPropagation();
     if (onResumeSession && session.cwd) {
       onResumeSession(session.id, session.cwd);
+    }
+  };
+
+  const handleContinue = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onResumeSession && session.cwd) {
+      onResumeSession(session.id, session.cwd);
+    }
+  };
+
+  const handlePencilClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenameValue(displayName);
+    setIsRenaming(true);
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.stopPropagation();
+      const trimmed = renameValue.trim();
+      if (trimmed && onRename) {
+        onRename(session.id, trimmed);
+      }
+      setIsRenaming(false);
+    } else if (e.key === "Escape") {
+      e.stopPropagation();
+      setIsRenaming(false);
     }
   };
 
@@ -247,24 +397,54 @@ function SessionItem({
           LIVE
         </span>
       )}
-      {/* Active session indicator */}
-      {activeSessionId && session.id === activeSessionId && (
-        <span
-          className="w-2 h-2 rounded-full bg-dt-green shrink-0"
-          title="Active session"
-        />
+      {/* Active session indicator (enhanced T3-16) */}
+      {isActiveSession && (
+        <>
+          <span
+            className="w-2 h-2 rounded-full bg-dt-green shrink-0 animate-pulse"
+            title="Active session"
+          />
+          <span className="text-xs font-bold px-1 py-px rounded-dt-xs bg-dt-accent text-white tracking-[0.5px] shrink-0">
+            ACTIVE
+          </span>
+        </>
       )}
-      <span
-        className={`font-mono text-base flex-1 min-w-0 truncate ${
-          session.isRunning
-            ? "text-dt-text0 font-semibold"
-            : "text-dt-purple font-normal"
-        }`}
-        onDoubleClick={handleDoubleClick}
-        title={session.sessionName ? session.id : undefined}
-      >
-        {displayName}
-      </span>
+      {/* Session name or rename input */}
+      {isRenaming ? (
+        <input
+          ref={renameInputRef}
+          type="text"
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onKeyDown={handleRenameKeyDown}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={() => setIsRenaming(false)}
+          aria-label="New session name"
+          className="flex-1 min-w-0 px-1 py-0.5 text-base font-mono bg-dt-bg1 border border-dt-accent rounded-dt-sm text-dt-text0 outline-none"
+        />
+      ) : (
+        <>
+          <span
+            className={`font-mono text-base flex-1 min-w-0 truncate ${
+              session.isRunning
+                ? "text-dt-text0 font-semibold"
+                : "text-dt-purple font-normal"
+            }`}
+            onDoubleClick={handleDoubleClick}
+            title={session.sessionName ? session.id : undefined}
+          >
+            {displayName}
+          </span>
+          {/* Pencil icon for rename (T3-05) */}
+          <button
+            onClick={handlePencilClick}
+            className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity px-0.5 py-0.5 rounded-dt-sm cursor-pointer border-none bg-transparent text-dt-text2 hover:text-dt-accent shrink-0 focus-visible:ring-2 focus-visible:ring-dt-accent"
+            aria-label={`Rename session ${displayName}`}
+          >
+            <Pencil size={12} />
+          </button>
+        </>
+      )}
       <div className="flex items-center gap-1 shrink-0 text-sm text-dt-text2">
         {session.subagentCount > 0 && (
           <span className="text-xs px-1 py-px rounded-full bg-dt-bg4 text-dt-text1">
@@ -274,11 +454,23 @@ function SessionItem({
         <span>{session.eventCount}</span>
         <span
           className="inline-block w-0.5 h-0.5 rounded-full bg-dt-text2 opacity-60"
-          style={{ marginTop: "1px" }}
+          aria-hidden="true"
         />
         <span>{timeAgo}</span>
-        {/* Resume button for non-running sessions */}
-        {onResumeSession && !session.isRunning && (
+        {/* Continue button for most recent non-running session (T3-06) */}
+        {onResumeSession && isMostRecent && !session.isRunning && (
+          <button
+            onClick={handleContinue}
+            className="ml-1 px-1.5 py-0.5 text-xs rounded-dt-sm cursor-pointer border-none bg-dt-accent text-white transition-opacity flex items-center gap-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-dt-accent"
+            title={`Continue session ${displayName}`}
+            aria-label={`Continue session ${displayName}`}
+          >
+            <Play size={10} />
+            Continue
+          </button>
+        )}
+        {/* Resume button for non-running sessions (existing) */}
+        {onResumeSession && !isMostRecent && !session.isRunning && (
           <button
             onClick={handleResume}
             className="ml-1 px-1.5 py-0.5 text-xs rounded-dt-sm cursor-pointer border-none bg-dt-accent-dim text-dt-accent opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-dt-accent"

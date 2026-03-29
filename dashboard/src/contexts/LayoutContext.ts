@@ -36,8 +36,8 @@ export interface LayoutContextValue {
   setCurrentMetrics: (m: SessionMetrics | null) => void;
   toolFilter: string | null;
   setToolFilter: (f: string | null | ((prev: string | null) => string | null)) => void;
-  requestedRightTab: "graph" | "log" | undefined;
-  setRequestedRightTab: (tab: "graph" | "log" | undefined) => void;
+  requestedRightTab: "graph" | "log" | "doctor" | "stats" | "mcp" | undefined;
+  setRequestedRightTab: (tab: "graph" | "log" | "doctor" | "stats" | "mcp" | undefined) => void;
   rightPanelContent: ReactNode;
   setRightPanelContent: (content: ReactNode) => void;
   questions: QuestionItem[];

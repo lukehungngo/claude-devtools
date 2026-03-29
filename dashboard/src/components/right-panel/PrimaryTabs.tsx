@@ -1,4 +1,4 @@
-export type PrimaryTab = "graph" | "log";
+export type PrimaryTab = "graph" | "log" | "settings" | "hooks" | "memory" | "doctor" | "stats" | "mcp";
 
 interface PrimaryTabsProps {
   activeTab: PrimaryTab;
@@ -16,6 +16,12 @@ export function PrimaryTabs({
   const tabs: { id: PrimaryTab; icon: string; label: string; badge: number }[] = [
     { id: "graph", icon: "\u26A1", label: "Agent Graph", badge: agentCount },
     { id: "log", icon: "\u2630", label: "Agent Log", badge: logEntryCount },
+    { id: "settings", icon: "\u2699", label: "Settings", badge: 0 },
+    { id: "hooks", icon: "\u2693", label: "Hooks", badge: 0 },
+    { id: "memory", icon: "\u2261", label: "Memory", badge: 0 },
+    { id: "doctor", icon: "\u2695", label: "Doctor", badge: 0 },
+    { id: "stats", icon: "\u2637", label: "Stats", badge: 0 },
+    { id: "mcp", icon: "\u2B55", label: "MCP", badge: 0 },
   ];
 
   return (
