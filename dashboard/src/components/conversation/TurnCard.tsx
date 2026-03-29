@@ -15,6 +15,7 @@ import { ToolEntries } from "./ToolEntries";
 
 interface TurnCardProps {
   turn: TurnSnapshot;
+  isLastTurn?: boolean;
   isHighlighted?: boolean;
   onAgentPillClick?: (agentId: string) => void;
   onTurnClick?: () => void;
@@ -41,6 +42,7 @@ function extractResponseContent(events: SessionEvent[]): ContentItem[] {
 
 export function TurnCard({
   turn,
+  isLastTurn = false,
   isHighlighted = false,
   onAgentPillClick,
   onTurnClick,
@@ -48,6 +50,7 @@ export function TurnCard({
   const [collapsed, setCollapsed] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const isRunning = turn.status === "running";
+  const isStreaming = isLastTurn && !turn.endTime;
   const responseContent = extractResponseContent(turn.events);
   const canExpandPrompt = turn.promptText.length > 100;
 
@@ -144,6 +147,26 @@ export function TurnCard({
               <ResponseBlock key={`text-${i}`} text={item.text} />
             ) : null,
           )}
+
+          {/* Completion indicator */}
+          <div
+            data-testid="turn-completion-indicator"
+            className="mt-2 pt-1.5 border-t border-dt-border flex items-center gap-1.5 text-dt-text2 text-xs"
+          >
+            {isStreaming ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-dt-accent animate-pulse-opacity" />
+                <span>Generating...</span>
+              </>
+            ) : (
+              <>
+                <span className="text-dt-green">&#10003;</span>
+                <span data-testid="turn-completion-timestamp">
+                  {turn.endTime ? formatTime(turn.endTime) : "Completed"}
+                </span>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

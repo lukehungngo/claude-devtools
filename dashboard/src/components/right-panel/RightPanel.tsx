@@ -11,6 +11,7 @@ import { SnapshotTabs } from "./SnapshotTabs";
 import { SnapshotHistory } from "./SnapshotHistory";
 import { AgentFlowDAG } from "../AgentFlowDAG";
 import { AgentLogs } from "../AgentLogs";
+import { filterDagForTurn } from "../../lib/filterDagForTurn";
 
 /** Exported for overflow regression tests (TASK-005) */
 export const SNAPSHOT_ROW_WRAPPER_CLASS =
@@ -134,15 +135,12 @@ export function RightPanel({
   // Filter DAG to only agents used in the active turn (+ main always).
   // With route-based session isolation, filtering is safe — no cross-session
   // contamination, no transient undefined states, no stableDagRef chain.
-  const turnDag = useMemo(() => {
-    if (!dag || !activeTurn) return dag;
-    const turnAgentIds = new Set(activeTurn.agents.map((a) => a.agentId));
-    turnAgentIds.add("main");
-    return {
-      nodes: dag.nodes.filter((n) => turnAgentIds.has(n.id)),
-      edges: dag.edges.filter((e) => turnAgentIds.has(e.source) && turnAgentIds.has(e.target)),
-    };
-  }, [dag, activeTurn]);
+  // When a brand-new turn has no agents yet, show the full DAG to prevent
+  // graph nodes from disappearing on new prompt (TASK-003).
+  const turnDag = useMemo(
+    () => filterDagForTurn(dag, activeTurn),
+    [dag, activeTurn],
+  );
 
   const filteredAgents = turnDag?.nodes ?? [];
 

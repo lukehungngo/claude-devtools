@@ -7,8 +7,9 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, screen } from "@testing-library/react";
 import { TurnCard } from "./TurnCard";
+import { formatTime } from "../../lib/formatTime";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 
 function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
@@ -60,5 +61,58 @@ describe("TurnCard — header click does NOT bubble to onTurnClick", () => {
     fireEvent.click(card);
 
     expect(onTurnClick).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("TurnCard — completion indicator", () => {
+  it("shows completion timestamp with checkmark for a completed turn", () => {
+    const endTime = "2026-03-29T14:30:45Z";
+    const turn = makeTurn({
+      status: "completed",
+      endTime,
+      completedAt: endTime,
+      costBreakdown: { total: 0.01, tokensIn: 100, tokensOut: 50 },
+    });
+    const { container } = render(<TurnCard turn={turn} isLastTurn={false} />);
+
+    const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
+    expect(indicator).not.toBeNull();
+    // Use formatTime for timezone-safe assertion
+    const expectedTime = formatTime(endTime);
+    expect(indicator!.textContent).toContain(expectedTime);
+    // Should NOT show "Generating..."
+    expect(indicator!.textContent).not.toContain("Generating...");
+  });
+
+  it("shows pulsing 'Generating...' for the last turn with no endTime", () => {
+    const turn = makeTurn({
+      status: "running" as TurnSnapshot["status"],
+      endTime: "",
+      completedAt: "",
+      costBreakdown: { total: 0, tokensIn: 0, tokensOut: 0 },
+    });
+    const { container } = render(<TurnCard turn={turn} isLastTurn={true} />);
+
+    const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.textContent).toContain("Generating...");
+    expect(container.querySelector('[data-testid="turn-completion-timestamp"]')).toBeNull();
+  });
+
+  it("shows checkmark for a completed last turn (not streaming)", () => {
+    const endTime = "2026-03-29T09:15:22Z";
+    const turn = makeTurn({
+      status: "completed",
+      endTime,
+      completedAt: endTime,
+      costBreakdown: { total: 0.01, tokensIn: 100, tokensOut: 50 },
+    });
+    const { container } = render(<TurnCard turn={turn} isLastTurn={true} />);
+
+    const expectedTime = formatTime(endTime);
+    const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.textContent).toContain(expectedTime);
+    expect(indicator!.textContent).not.toContain("Generating...");
   });
 });

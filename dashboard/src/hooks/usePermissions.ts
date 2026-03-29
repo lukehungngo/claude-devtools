@@ -17,7 +17,10 @@ export function usePermissions() {
   // Called by unified WS handler when permission-request arrives
   const handlePermissionRequest = useCallback(
     (permission: PermissionRequest) => {
-      setPermissions((prev) => [...prev, permission]);
+      setPermissions((prev) => {
+        if (prev.some((p) => p.id === permission.id)) return prev;
+        return [...prev, permission];
+      });
     },
     []
   );

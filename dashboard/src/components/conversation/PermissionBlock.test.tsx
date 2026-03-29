@@ -163,4 +163,30 @@ describe("PermissionBlock", () => {
 
     expect(container.textContent).not.toContain("Allow for session");
   });
+
+  it("shows agent ID badge in header", () => {
+    const { getByTestId } = render(
+      <PermissionBlock
+        permission={makePermission({ agentId: "main" })}
+        onDecide={vi.fn()}
+      />
+    );
+
+    const badge = getByTestId("agent-id-badge");
+    expect(badge.textContent).toBe("main");
+  });
+
+  it("truncates long agent IDs to 8 chars", () => {
+    const { getByTestId } = render(
+      <PermissionBlock
+        permission={makePermission({
+          agentId: "abcdefghijklmnopqrstuvwxyz",
+        })}
+        onDecide={vi.fn()}
+      />
+    );
+
+    const badge = getByTestId("agent-id-badge");
+    expect(badge.textContent).toBe("abcdefgh");
+  });
 });

@@ -220,10 +220,10 @@ export function ConversationView({
             No events to display
           </div>
         ) : (
-          filteredTurns.map((turn) => {
+          filteredTurns.map((turn, filteredIndex) => {
             const unfilteredIndex = turns.indexOf(turn);
             const turnEnd = turn.endTime || turn.startTime;
-            const nextTurn = filteredTurns[filteredTurns.indexOf(turn) + 1];
+            const nextTurn = filteredTurns[filteredIndex + 1];
             const nextTurnStart = nextTurn?.startTime;
 
             // Permissions that arrived during this turn (between turnEnd and next turn start)
@@ -248,6 +248,7 @@ export function ConversationView({
               <div key={turn.turnNumber}>
                 <TurnCard
                   turn={turn}
+                  isLastTurn={filteredIndex === filteredTurns.length - 1}
                   isHighlighted={highlightedTurnIndex === unfilteredIndex}
                   onAgentPillClick={onAgentPillClick}
                   onTurnClick={onTurnClick ? () => onTurnClick(unfilteredIndex) : undefined}
