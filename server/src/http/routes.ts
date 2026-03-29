@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { join, resolve } from "node:path";
 import { Router, json } from "express";
+import { logger } from "../logger.js";
 import {
   discoverSessions,
   discoverRepoGroups,
@@ -186,7 +187,7 @@ export function setupRoutes(state?: ServerState): Router {
             }))
           );
         } catch (err) {
-          console.warn("[debug-db] Failed to store lifecycle data:", err);
+          logger.warn({ error: String(err) }, "debug-db: failed to store lifecycle data");
         }
       }
 
