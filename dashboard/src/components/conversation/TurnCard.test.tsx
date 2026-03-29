@@ -65,9 +65,11 @@ describe("TurnCard — header click does NOT bubble to onTurnClick", () => {
 });
 
 describe("TurnCard — completion indicator", () => {
-  it("shows completion timestamp with checkmark for a completed turn", () => {
+  it("shows 'Completed in' with duration for a completed turn", () => {
+    const startTime = "2026-03-29T14:30:00Z";
     const endTime = "2026-03-29T14:30:45Z";
     const turn = makeTurn({
+      startTime,
       status: "completed",
       endTime,
       completedAt: endTime,
@@ -77,10 +79,8 @@ describe("TurnCard — completion indicator", () => {
 
     const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
     expect(indicator).not.toBeNull();
-    // Use formatTime for timezone-safe assertion
-    const expectedTime = formatTime(endTime);
-    expect(indicator!.textContent).toContain(expectedTime);
-    // Should NOT show "Generating..."
+    expect(indicator!.textContent).toContain("Completed in");
+    expect(indicator!.textContent).toContain("45.0s");
     expect(indicator!.textContent).not.toContain("Generating...");
   });
 
@@ -99,9 +99,11 @@ describe("TurnCard — completion indicator", () => {
     expect(container.querySelector('[data-testid="turn-completion-timestamp"]')).toBeNull();
   });
 
-  it("shows checkmark for a completed last turn (not streaming)", () => {
+  it("shows 'Completed in' for a completed last turn (not streaming)", () => {
+    const startTime = "2026-03-29T09:15:00Z";
     const endTime = "2026-03-29T09:15:22Z";
     const turn = makeTurn({
+      startTime,
       status: "completed",
       endTime,
       completedAt: endTime,
@@ -109,10 +111,10 @@ describe("TurnCard — completion indicator", () => {
     });
     const { container } = render(<TurnCard turn={turn} isLastTurn={true} />);
 
-    const expectedTime = formatTime(endTime);
     const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
     expect(indicator).not.toBeNull();
-    expect(indicator!.textContent).toContain(expectedTime);
+    expect(indicator!.textContent).toContain("Completed in");
+    expect(indicator!.textContent).toContain("22.0s");
     expect(indicator!.textContent).not.toContain("Generating...");
   });
 });
