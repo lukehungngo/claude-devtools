@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { PermissionRequest } from "../types.js";
+import { permissionLog } from "../logger.js";
 
 const pendingPermissions = new Map<string, PermissionRequest>();
 
@@ -20,6 +21,7 @@ export function addPermissionRequest(data: {
   };
 
   pendingPermissions.set(permission.id, permission);
+  permissionLog.info({ id: permission.id, toolName: data.toolName, sessionId: data.sessionId }, "permission requested");
   return permission;
 }
 
@@ -31,6 +33,7 @@ export function resolvePermissionRequest(
   if (!permission) return null;
 
   permission.status = decision;
+  permissionLog.info({ id, decision, toolName: permission.toolName }, "permission resolved");
   // Purge old resolved permissions to prevent memory leak
   cleanupPermissions();
   return permission;

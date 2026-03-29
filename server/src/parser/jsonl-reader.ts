@@ -1,5 +1,6 @@
 import { readFileSync, existsSync, openSync, fstatSync, readSync, closeSync } from "node:fs";
 import type { SessionEvent } from "../types.js";
+import { parserLog } from "../logger.js";
 
 export function parseJsonlFile(filePath: string): SessionEvent[] {
   if (!existsSync(filePath)) return [];
@@ -13,8 +14,9 @@ export function parseJsonlFile(filePath: string): SessionEvent[] {
     try {
       const event = JSON.parse(trimmed) as SessionEvent;
       events.push(event);
-    } catch {
+    } catch (err) {
       // Skip malformed lines — fail safe per architecture invariant
+      parserLog.warn({ filePath, error: String(err) }, "parseJsonlFile: skipped malformed line");
       continue;
     }
   }
@@ -52,8 +54,9 @@ export function parseJsonlIncremental(
       if (!trimmed) continue;
       try {
         events.push(JSON.parse(trimmed) as SessionEvent);
-      } catch {
+      } catch (err) {
         // Skip malformed lines — fail safe per architecture invariant
+        parserLog.warn({ filePath, fromOffset, error: String(err) }, "parseJsonlIncremental: skipped malformed line");
         continue;
       }
     }

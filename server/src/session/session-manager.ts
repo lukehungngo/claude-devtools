@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk";
+import { sessionLog } from "../logger.js";
 
 // Active session tracking
 export interface ActiveSession {
@@ -39,6 +40,7 @@ export class SessionManager {
       if (session.status === "idle") {
         const age = now - new Date(session.createdAt).getTime();
         if (age > SESSION_TTL_MS) {
+          sessionLog.info({ sessionId: id, ageMs: age }, "gc: removing idle session");
           session.abortController.abort();
           this.activeSessions.delete(id);
         }
@@ -67,6 +69,7 @@ export class SessionManager {
       createdAt: new Date().toISOString(),
     };
     this.activeSessions.set(sessionId, session);
+    sessionLog.info({ sessionId, cwd }, "session created");
     return sessionId;
   }
 
@@ -76,6 +79,7 @@ export class SessionManager {
     if (!session) throw new Error(`Session ${sessionId} not found`);
     if (session.status === "streaming") throw new Error(`Session ${sessionId} is already streaming`);
 
+    sessionLog.info({ sessionId, promptLength: prompt.length }, "sendMessage: streaming started");
     session.status = "streaming";
     session.abortController = new AbortController();
 
@@ -100,11 +104,14 @@ export class SessionManager {
         yield message;
       }
 
+      sessionLog.info({ sessionId }, "sendMessage: streaming completed");
       session.status = "idle";
     } catch (err) {
       if (err instanceof Error && err.message === "Aborted") {
+        sessionLog.warn({ sessionId }, "sendMessage: aborted by user");
         session.status = "idle";
       } else {
+        sessionLog.error({ sessionId, error: String(err) }, "sendMessage: error");
         session.status = "error";
       }
       throw err;
@@ -119,6 +126,7 @@ export class SessionManager {
   ): Promise<PermissionResult> {
     const requestId = randomUUID();
 
+    sessionLog.info({ sessionId: session.sessionId, requestId, toolName }, "permission requested");
     session.status = "waiting-permission";
 
     // Broadcast permission request to dashboard
@@ -141,6 +149,7 @@ export class SessionManager {
         if (session.status === "waiting-permission") {
           session.status = "streaming";
         }
+        sessionLog.warn({ sessionId: session.sessionId, requestId, toolName }, "permission timed out");
         resolve({ behavior: "deny", message: "Permission request timed out" });
       }, RESOLVER_TIMEOUT_MS);
 
@@ -160,6 +169,7 @@ export class SessionManager {
     for (const session of this.activeSessions.values()) {
       const resolver = session.permissionResolvers.get(requestId);
       if (resolver) {
+        sessionLog.info({ sessionId: session.sessionId, requestId, decision }, "permission resolved");
         const result: PermissionResult = decision === "approved"
           ? { behavior: "allow" }
           : { behavior: "deny", message: "User denied permission" };
@@ -185,7 +195,10 @@ export class SessionManager {
 
   /** Resume a historical session (registers it with a known sessionId) */
   async resumeSession(sessionId: string, cwd: string): Promise<void> {
-    if (this.activeSessions.has(sessionId)) return; // Already tracked
+    if (this.activeSessions.has(sessionId)) {
+      sessionLog.debug({ sessionId }, "resumeSession: already tracked");
+      return;
+    }
     const session: ActiveSession = {
       sessionId,
       cwd,
@@ -196,12 +209,14 @@ export class SessionManager {
       createdAt: new Date().toISOString(),
     };
     this.activeSessions.set(sessionId, session);
+    sessionLog.info({ sessionId, cwd }, "session resumed");
   }
 
   /** Abort an active streaming session */
   abortSession(sessionId: string): boolean {
     const session = this.activeSessions.get(sessionId);
     if (!session) return false;
+    sessionLog.warn({ sessionId }, "session aborted");
     session.abortController.abort();
     session.status = "idle";
     return true;
@@ -232,6 +247,7 @@ export class SessionManager {
   removeSession(sessionId: string): boolean {
     const session = this.activeSessions.get(sessionId);
     if (!session) return false;
+    sessionLog.info({ sessionId }, "session removed");
     session.abortController.abort();
     return this.activeSessions.delete(sessionId);
   }

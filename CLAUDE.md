@@ -61,6 +61,27 @@ These are non-negotiable — violating any of these is a P0:
 6. **Active sessions stream SDK events directly** — For sessions started from the web UI, events flow from the SDK `query()` iterator directly to the client via SSE. JSONL is the persistence layer; SSE is the real-time transport.
 7. **Permission resolution is Promise-based** — The `canUseTool` callback returns a Promise that resolves when the dashboard user clicks approve/deny. No polling. Promises time out after 10 minutes.
 
+## Logging
+
+Structured logging via **pino** with subsystem child loggers. Logs to both stdout and file (`~/.claude-devtools/logs/server.log`).
+
+| Subsystem | Logger | What it logs |
+|-----------|--------|-------------|
+| `session` | `sessionLog` | Session create/resume/abort/remove, sendMessage start/complete/error, GC cleanup |
+| `permission` | `permissionLog` | Permission requested/resolved (tool name, decision) |
+| `parser` | `parserLog` | Malformed JSONL lines (file path, error) |
+| `websocket` | `wsLog` | Client connect/disconnect (client count) |
+| `http` | `httpLog` | Server startup, critical route errors |
+
+**Rules:**
+- Log all session lifecycle events at `info` level
+- Log permission decisions at `info` level (audit trail)
+- Log malformed JSONL and timeouts at `warn` level
+- Log errors at `error` level with error string
+- Use child loggers (`logger.child({ subsystem })`) — never raw `console.log`
+- Include relevant IDs in every log (sessionId, requestId, toolName)
+- Log file location: `~/.claude-devtools/logs/server.log`
+
 ## Core Flow
 
 ### Active Session (web UI)
