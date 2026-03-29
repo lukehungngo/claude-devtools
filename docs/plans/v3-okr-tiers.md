@@ -11,7 +11,7 @@
 
 **Make claude-devtools a full Claude Code web client that replaces the terminal CLI and adds observability the CLI cannot provide.**
 
-Current effective CLI parity: **~55%** (Tier 1 complete, 9 P1 features implemented).
+Current effective CLI parity: **~75%** (Tier 1 + Tier 2 complete, 28 features implemented).
 
 ---
 
@@ -99,15 +99,15 @@ Current effective CLI parity: **~55%** (Tier 1 complete, 9 P1 features implement
 
 ### Success Metrics
 
-- [ ] File diffs visible per turn for Edit/Write operations
-- [ ] `/cost` shows detailed per-model breakdown with cache stats
-- [ ] Context visualization shows what's consuming the context window
-- [ ] Permission rules viewable and editable
-- [ ] Git diffs viewable from web UI
-- [ ] Prompt history navigable with Up/Down arrows
-- [ ] 8+ P2 slash commands functional
-- [ ] Session analytics dashboard with cost/time trends
-- [ ] SSE errors surfaced to user (not silently discarded)
+- [x] File diffs visible per turn for Edit/Write operations (T2-01, PR #8)
+- [x] `/cost` shows detailed per-model breakdown with cache stats (T2-02, PR #8)
+- [x] Context visualization shows what's consuming the context window (T2-03, PR #8)
+- [x] Permission rules viewable and editable (T2-04, PR #8)
+- [x] Git diffs viewable from web UI (T2-05, PR #8)
+- [x] Prompt history navigable with Up/Down arrows (T2-07, PR #8)
+- [x] 8+ P2 slash commands functional (13 new commands, PR #8)
+- [x] Session analytics dashboard with cost/time trends (T2-18, PR #8)
+- [x] SSE errors surfaced to user (not silently discarded) (T2-19, PR #8)
 
 ---
 

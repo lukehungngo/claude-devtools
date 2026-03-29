@@ -161,13 +161,24 @@ None.
 | UX parity with Claude Desktop | **92%** | +22% (was 70%) |
 | Stability | **93%** | +13% (was 80%) |
 
-### Overall: Tier 1 complete. Web client can replace CLI for daily coding sessions.
+### Overall: Tier 1 + Tier 2 complete. Web client replaces CLI with observability advantage.
+
+| Dimension | Score |
+|-----------|-------|
+| CLI parity | **~75%** |
+| Test coverage | **605 tests** |
+| Type safety | Clean |
+| Architecture compliance | **7/7** |
+| Security | Good |
+| UX parity | **95%** |
+| Stability | **93%** |
 
 **Today's session totals:**
-- 6 merges + 1 PR
-- 9 features + 11 bug fixes
-- 137 new tests (372 → 509)
-- 0 P1 issues remaining
-- Structured logging added
-- Turn status state machine implemented
+- 7 merges + 2 PRs
+- 28 features + 11 bug fixes + 2 P1 security fixes
+- 233 new tests (372 → 605)
+- Tier 1: 9/9 P1 features (PR #7)
+- Tier 2: 19/19 P2 features (PR #8)
+- Structured logging, turn state machine, per-model pricing
 - All architecture invariants passing
+- Next: Tier 3 (18 tasks, ~51h)

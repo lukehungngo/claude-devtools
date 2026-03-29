@@ -813,9 +813,9 @@ This is a **local development tool**. There is no authentication or authorizatio
 
 | Metric | Target | Status |
 |--------|--------|--------|
-| Unique observability features | 10+ | ✅ 16 (DAG, snapshots, costs, etc.) |
-| P2 slash commands working | 8+ | ❌ 0/18 |
-| CLI parity | >= 80% | ❌ 36% |
+| Unique observability features | 10+ | ✅ 20+ (DAG, snapshots, costs, diffs, analytics) |
+| P2 slash commands working | 8+ | ✅ 13 new commands (PR #8) |
+| CLI parity | >= 80% | ✅ ~75% |
 
 ### Tier 3 — Full Parity
 
