@@ -5,7 +5,7 @@ import type {
   ContentItem,
   SubagentMeta,
 } from "./types";
-import { INPUT_COST_PER_TOKEN, OUTPUT_COST_PER_TOKEN } from "./cost";
+import { calculateTurnCost } from "./cost";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -80,8 +80,7 @@ function extractPromptText(event: UserEvent): string {
 
 /**
  * Build a TurnSnapshot from accumulated events.
- * @note Per-turn cost uses hardcoded sonnet pricing (INPUT_COST_PER_TOKEN / OUTPUT_COST_PER_TOKEN).
- * This may differ from the per-model pricing in SessionMetrics.tokens.totalCost.
+ * Uses per-model pricing via calculateTurnCost() — matches server-side pricing.
  */
 function buildTurn(
   turnNumber: number,
@@ -89,10 +88,12 @@ function buildTurn(
   events: SessionEvent[],
   agentMeta?: SubagentMeta
 ): TurnSnapshot {
-  // Compute cost from assistant events
+  // Compute cost from assistant events (per-model pricing)
   let cost = 0;
   let totalTokensIn = 0;
   let totalTokensOut = 0;
+  let totalInputCost = 0;
+  let totalOutputCost = 0;
   const agentMap = new Map<
     string,
     { count: number; agentType: string; lastEvent: SessionEvent; cost: number; tokensIn: number; tokensOut: number; tools: Set<string> }
@@ -112,10 +113,13 @@ function buildTurn(
       if (usage) {
         eventTokensIn = usage.input_tokens ?? 0;
         eventTokensOut = usage.output_tokens ?? 0;
-        eventCost = eventTokensIn * INPUT_COST_PER_TOKEN + eventTokensOut * OUTPUT_COST_PER_TOKEN;
+        const model = asst.message?.model || "";
+        eventCost = calculateTurnCost(model, eventTokensIn, eventTokensOut);
         cost += eventCost;
         totalTokensIn += eventTokensIn;
         totalTokensOut += eventTokensOut;
+        totalInputCost += calculateTurnCost(model, eventTokensIn, 0);
+        totalOutputCost += calculateTurnCost(model, 0, eventTokensOut);
       }
       // Collect tool names from content
       const contentArr = asst.message?.content;
@@ -197,8 +201,8 @@ function buildTurn(
     cost,
     costBreakdown: {
       total: cost,
-      tokensIn: totalTokensIn * INPUT_COST_PER_TOKEN,
-      tokensOut: totalTokensOut * OUTPUT_COST_PER_TOKEN,
+      tokensIn: totalInputCost,
+      tokensOut: totalOutputCost,
     },
     startTime: events[0]?.timestamp ?? "",
     completedAt: "",  // Set by groupEventsIntoTurns when turn is finalized

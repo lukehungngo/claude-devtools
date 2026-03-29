@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCost, formatTokens, formatDuration } from "./cost";
+import { formatCost, formatTokens, formatDuration, calculateTurnCost } from "./cost";
 
 describe("formatTokens", () => {
   it("formats 0 as '0'", () => {
@@ -86,5 +86,42 @@ describe("formatDuration", () => {
 
   it("formats large durations in minutes", () => {
     expect(formatDuration(3600000)).toBe("60m 0s");
+  });
+});
+
+describe("calculateTurnCost", () => {
+  it("returns correct cost for opus model", () => {
+    // opus: input=$15/M, output=$75/M
+    const cost = calculateTurnCost("claude-opus-4-6", 1_000_000, 1_000_000);
+    expect(cost).toBeCloseTo(15 + 75, 5);
+  });
+
+  it("returns correct cost for sonnet model", () => {
+    // sonnet: input=$3/M, output=$15/M
+    const cost = calculateTurnCost("claude-sonnet-4-6", 1_000_000, 1_000_000);
+    expect(cost).toBeCloseTo(3 + 15, 5);
+  });
+
+  it("returns correct cost for haiku model", () => {
+    // haiku: input=$0.8/M, output=$4/M
+    const cost = calculateTurnCost("claude-haiku-4-5-20251001", 1_000_000, 1_000_000);
+    expect(cost).toBeCloseTo(0.8 + 4, 5);
+  });
+
+  it("falls back to sonnet pricing for unknown model", () => {
+    const cost = calculateTurnCost("unknown-model-v1", 1_000_000, 1_000_000);
+    expect(cost).toBeCloseTo(3 + 15, 5);
+  });
+
+  it("matches partial model names with context suffix", () => {
+    // Model strings from JSONL can include suffixes like [1m]
+    const cost = calculateTurnCost("claude-opus-4-6[1m]", 1_000, 1_000);
+    // opus: (1000 * 15 + 1000 * 75) / 1_000_000 = 0.09
+    expect(cost).toBeCloseTo(0.09, 6);
+  });
+
+  it("returns 0 for zero tokens", () => {
+    const cost = calculateTurnCost("claude-sonnet-4-6", 0, 0);
+    expect(cost).toBe(0);
   });
 });

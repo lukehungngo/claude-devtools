@@ -9,7 +9,7 @@ import type {
 } from "../lib/types";
 import { normalizeContent } from "../lib/normalizeContent";
 import { formatTime } from "../lib/formatTime";
-import { formatCost, formatDuration, INPUT_COST_PER_TOKEN, OUTPUT_COST_PER_TOKEN } from "../lib/cost";
+import { formatCost, formatDuration, calculateTurnCost } from "../lib/cost";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -237,9 +237,13 @@ export function eventsToLogEntries(
       const assistantEvent = event as AssistantEvent;
       // Compute event cost from token usage
       const usage = assistantEvent.message?.usage;
+      const model = assistantEvent.message?.model || "";
       const eventCost = usage
-        ? (usage.input_tokens ?? 0) * INPUT_COST_PER_TOKEN +
-          (usage.output_tokens ?? 0) * OUTPUT_COST_PER_TOKEN
+        ? calculateTurnCost(
+            model,
+            usage.input_tokens ?? 0,
+            usage.output_tokens ?? 0
+          )
         : 0;
       const contentItems = normalizeContent(assistantEvent.message?.content);
       const costPerItem = contentItems.length > 0 ? eventCost / contentItems.length : 0;

@@ -55,7 +55,7 @@ Claude Code Agent (writes .jsonl events to ~/.claude/projects/)
 - **Live event buffer capped at 2000** — `useEventStream.ts` drops oldest events beyond 2000. Very long sessions lose mid-stream events on the live feed (full REST fetch is not capped).
 - **MCP tools detected by name prefix only** — `countMcpToolCalls()` checks if tool name starts with `mcp__`. Custom tools with that prefix get miscounted; MCP tools without it get missed.
 - **Permission state is in-memory only** — `permission-handler.ts` stores requests in a Map. Lost on server restart. No cross-instance persistence.
-- **Dashboard per-turn costs are sonnet-only** — `turnSnapshot.ts` and `AgentLogs.tsx` use flat sonnet pricing constants from `lib/cost.ts`. Server-side metrics use correct per-model pricing. This means per-turn costs in ConversationView and AgentLogs will be inaccurate for opus/haiku sessions.
+- **Dashboard per-turn costs use per-model pricing** — `turnSnapshot.ts` and `AgentLogs.tsx` use `calculateTurnCost()` from `lib/cost.ts` with a `MODEL_PRICING` table mirroring the server. The deprecated flat constants `INPUT_COST_PER_TOKEN` / `OUTPUT_COST_PER_TOKEN` are kept for backward compatibility but should not be used in new code.
 
 ## Mandatory Workflow
 

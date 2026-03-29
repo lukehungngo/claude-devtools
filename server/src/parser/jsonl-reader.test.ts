@@ -175,6 +175,83 @@ describe("parseJsonlIncremental", () => {
     expect(result.newOffset).toBe(100);
   });
 
+  it("reads only bytes after fromOffset, not the entire file", () => {
+    const filePath = join(TEST_DIR, "incremental-targeted.jsonl");
+    const event1 = {
+      type: "user",
+      uuid: "u1",
+      timestamp: "2026-03-23T10:00:00Z",
+      sessionId: "s1",
+      userType: "external",
+      message: { role: "user", content: [] },
+    };
+    const event2 = {
+      type: "user",
+      uuid: "u2",
+      timestamp: "2026-03-23T10:00:01Z",
+      sessionId: "s1",
+      userType: "external",
+      message: { role: "user", content: [] },
+    };
+    const event3 = {
+      type: "user",
+      uuid: "u3",
+      timestamp: "2026-03-23T10:00:02Z",
+      sessionId: "s1",
+      userType: "external",
+      message: { role: "user", content: [] },
+    };
+
+    // Write initial two events
+    const line1 = JSON.stringify(event1) + "\n";
+    const line2 = JSON.stringify(event2) + "\n";
+    writeFileSync(filePath, line1 + line2);
+
+    // Parse from start to get initial offset
+    const first = parseJsonlIncremental(filePath, 0);
+    expect(first.events).toHaveLength(2);
+    const offsetAfterFirst = first.newOffset;
+
+    // Append a third event
+    const { appendFileSync } = require("node:fs");
+    const line3 = JSON.stringify(event3) + "\n";
+    appendFileSync(filePath, line3);
+
+    // Parse incrementally from the previous offset
+    const second = parseJsonlIncremental(filePath, offsetAfterFirst);
+
+    // Should only contain the new event
+    expect(second.events).toHaveLength(1);
+    expect(second.events[0].uuid).toBe("u3");
+
+    // New offset should be the full file size in bytes
+    const { statSync } = require("node:fs");
+    const fileSize = statSync(filePath).size;
+    expect(second.newOffset).toBe(fileSize);
+  });
+
+  it("returns byte-based offset, not character-based", () => {
+    const filePath = join(TEST_DIR, "multibyte.jsonl");
+    // Use multi-byte UTF-8 characters to verify byte vs char offset
+    const event = {
+      type: "user",
+      uuid: "u1",
+      timestamp: "2026-03-23T10:00:00Z",
+      sessionId: "s1",
+      userType: "external",
+      message: { role: "user", content: [{ type: "text", text: "hello \u00e9\u00e8\u00ea" }] },
+    };
+    const line = JSON.stringify(event) + "\n";
+    writeFileSync(filePath, line);
+
+    const result = parseJsonlIncremental(filePath, 0);
+
+    // Byte length differs from character length for multi-byte chars
+    const byteLength = Buffer.byteLength(line, "utf-8");
+    expect(result.newOffset).toBe(byteLength);
+    expect(result.events).toHaveLength(1);
+  });
+
   it("returns all events when offset is 0", () => {
     const filePath = join(TEST_DIR, "all.jsonl");
     const event1 = {

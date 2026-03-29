@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execSync, spawnSync } from "child_process";
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -519,7 +519,7 @@ export function setupRoutes(state?: ServerState): Router {
         return;
       }
 
-      // Security: reject shell metacharacters to prevent injection via execSync
+      // Security: reject shell metacharacters in file path (defense-in-depth)
       // Allow only [a-zA-Z0-9_\-.\/] — no quotes, semicolons, backticks, etc.
       if (/[^a-zA-Z0-9_\-./]/.test(filePath)) {
         res.status(400).json({ error: "Invalid file path" });
@@ -527,23 +527,27 @@ export function setupRoutes(state?: ServerState): Router {
       }
 
       // Try VS Code first, then fall back to $EDITOR
-      const lineArg = line ? `:${line}` : "";
-      try {
-        execSync(`code --goto "${filePath}${lineArg}"`, { timeout: 5000 });
+      // Uses spawnSync to avoid shell interpretation (no command injection)
+      const gotoArg = line ? `${filePath}:${line}` : filePath;
+      const vscodeResult = spawnSync("code", ["--goto", gotoArg], { timeout: 5000 });
+      if (!vscodeResult.error && vscodeResult.status === 0) {
         res.json({ success: true, editor: "vscode" });
-      } catch {
-        const editor = process.env.EDITOR || "vim";
-        // Validate EDITOR against shell metacharacters to prevent injection
-        if (/[;&|`$(){}!#]/.test(editor)) {
-          res.status(500).json({ error: "EDITOR env var contains invalid shell metacharacters" });
-          return;
-        }
-        try {
-          execSync(`${editor} "${filePath}"`, { timeout: 5000 });
-          res.json({ success: true, editor });
-        } catch {
-          res.status(500).json({ error: "No editor available" });
-        }
+        return;
+      }
+
+      const editor = process.env.EDITOR || "vim";
+      // Defense-in-depth: reject EDITOR with shell metacharacters
+      // (spawnSync makes this redundant, but kept as a safety layer)
+      if (/[;&|`$(){}!#]/.test(editor)) {
+        res.status(500).json({ error: "EDITOR env var contains invalid shell metacharacters" });
+        return;
+      }
+
+      const editorResult = spawnSync(editor, [filePath], { timeout: 5000 });
+      if (!editorResult.error && editorResult.status === 0) {
+        res.json({ success: true, editor });
+      } else {
+        res.status(500).json({ error: "No editor available" });
       }
     } catch (err) {
       res.status(500).json({ error: "Failed to open file" });
