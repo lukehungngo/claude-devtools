@@ -36,6 +36,10 @@ export interface TurnSnapshot {
   turnNumber: number;
   promptText: string;
   events: SessionEvent[];
+  /** Start index (inclusive) into the shared allEvents array */
+  startIndex: number;
+  /** End index (exclusive) into the shared allEvents array */
+  endIndex: number;
   agents: AgentSummary[];
   status: "running" | "completed";
   /** Duration in ms from the system/turn_duration event. Null if turn is still running. */
@@ -48,6 +52,14 @@ export interface TurnSnapshot {
   /** When the turn completed (same as endTime for completed turns, empty for running) */
   completedAt: string;
   endTime: string;
+}
+
+/**
+ * Retrieve events for a turn from the shared allEvents array using index ranges.
+ * Avoids copying event arrays per-turn for memory efficiency.
+ */
+export function getEventsForTurn(turn: TurnSnapshot, allEvents: SessionEvent[]): SessionEvent[] {
+  return allEvents.slice(turn.startIndex, turn.endIndex);
 }
 
 // ─── Turn boundary detection ─────────────────────────────────────────
@@ -89,6 +101,7 @@ function buildTurn(
   turnNumber: number,
   promptText: string,
   events: SessionEvent[],
+  startIndex: number,
   agentMeta?: SubagentMeta
 ): TurnSnapshot {
   // Compute cost from assistant events (per-model pricing)
@@ -206,6 +219,8 @@ function buildTurn(
     turnNumber,
     promptText,
     events,
+    startIndex,
+    endIndex: startIndex + events.length,
     agents,
     status,
     durationMs,
@@ -243,13 +258,16 @@ export function groupEventsIntoTurns(
   let currentEvents: SessionEvent[] = [];
   let currentPrompt = "";
   let turnNumber = 1;
+  let currentStartIndex = 0;
 
-  for (const event of events) {
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i];
     if (isTurnBoundary(event)) {
       // Flush previous turn if it has events
       if (currentEvents.length > 0) {
-        turns.push(buildTurn(turnNumber, currentPrompt, currentEvents, agentMeta));
+        turns.push(buildTurn(turnNumber, currentPrompt, currentEvents, currentStartIndex, agentMeta));
         turnNumber++;
+        currentStartIndex = i;
         currentEvents = [];
       }
       currentPrompt = extractPromptText(event);
@@ -261,7 +279,7 @@ export function groupEventsIntoTurns(
 
   // Flush remaining events (this is the last/current turn)
   if (currentEvents.length > 0) {
-    turns.push(buildTurn(turnNumber, currentPrompt, currentEvents, agentMeta));
+    turns.push(buildTurn(turnNumber, currentPrompt, currentEvents, currentStartIndex, agentMeta));
   }
 
   // Finalize completed turns: set completedAt and agent statuses.

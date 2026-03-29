@@ -1,8 +1,10 @@
 import { useRef, useState, useEffect, useCallback, useMemo, useContext } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { SessionEvent, SessionMetrics, PermissionRequest, AssistantEvent } from "../../lib/types";
+import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { LayoutContext } from "../../contexts/LayoutContext";
-import { groupEventsIntoTurns } from "../../lib/turnSnapshot";
 import { normalizeContent } from "../../lib/normalizeContent";
+import { buildSearchIndex, updateSearchIndex, filterTurnsByQuery } from "../../lib/searchIndex";
 import { CostStrip } from "../viewer/CostStrip";
 import { PermissionBlock } from "./PermissionBlock";
 import { PermissionModeBadge, cyclePermissionMode } from "./PermissionModeBadge";
@@ -10,7 +12,7 @@ import type { PermissionMode } from "./permissionModeTypes";
 import { QuestionBlock } from "./QuestionBlock";
 import { PromptInput } from "./PromptInput";
 import { ContextWarningBanner } from "./ContextWarningBanner";
-import { TurnCard } from "./TurnCard";
+import { MemoTurnCard } from "./TurnCard";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useStreamingState } from "../../hooks/useStreamingState";
 import { StreamingTurnArea } from "./StreamingTurnArea";
@@ -26,6 +28,7 @@ export interface QuestionItem {
 
 interface ConversationViewProps {
   events: SessionEvent[];
+  turns: TurnSnapshot[];
   metrics: SessionMetrics | null;
   isLive?: boolean;
   sessionCwd?: string;
@@ -49,8 +52,243 @@ interface ConversationViewProps {
   onOpenPanel?: (panel: "doctor" | "stats" | "mcp") => void;
 }
 
+// ─── Virtualized turn list ──────────────────────────────────────────
+
+interface VirtualizedTurnListProps {
+  scrollRef: React.RefObject<HTMLDivElement>;
+  handleScroll: () => void;
+  filteredTurns: TurnSnapshot[];
+  turns: TurnSnapshot[];
+  autoScroll: boolean;
+  highlightedTurnIndex?: number;
+  onAgentPillClick?: (agentId: string) => void;
+  onTurnClick?: (turnIndex: number) => void;
+  permissions?: PermissionRequest[];
+  onPermissionDecide?: (id: string, decision: "approved" | "denied") => void;
+  onDecideSession?: (id: string) => void;
+  questions?: QuestionItem[];
+  onSubmitAnswer?: (questionId: string, answer: string) => void;
+  streamingState: import("../../lib/streaming-types").StreamingState;
+}
+
+/** Render a single turn with its permissions and questions */
+function TurnRow({
+  turn,
+  filteredIndex,
+  filteredTurns,
+  turns,
+  highlightedTurnIndex,
+  onAgentPillClick,
+  onTurnClick,
+  permissions,
+  onPermissionDecide,
+  onDecideSession,
+  questions,
+  onSubmitAnswer,
+}: {
+  turn: TurnSnapshot;
+  filteredIndex: number;
+  filteredTurns: TurnSnapshot[];
+  turns: TurnSnapshot[];
+  highlightedTurnIndex?: number;
+  onAgentPillClick?: (agentId: string) => void;
+  onTurnClick?: (turnIndex: number) => void;
+  permissions?: PermissionRequest[];
+  onPermissionDecide?: (id: string, decision: "approved" | "denied") => void;
+  onDecideSession?: (id: string) => void;
+  questions?: QuestionItem[];
+  onSubmitAnswer?: (questionId: string, answer: string) => void;
+}) {
+  const unfilteredIndex = turns.indexOf(turn);
+  const nextTurn = filteredTurns[filteredIndex + 1];
+  const nextTurnStart = nextTurn?.startTime;
+
+  const turnPerms = permissions && onPermissionDecide
+    ? permissions.filter((p) => {
+        const pt = p.timestamp;
+        if (!pt) return false;
+        return pt >= turn.startTime && (!nextTurnStart || pt < nextTurnStart);
+      })
+    : [];
+
+  const turnQuestions = questions && onSubmitAnswer
+    ? questions.filter((q) => {
+        const qt = q.timestamp;
+        if (!qt) return false;
+        return qt >= turn.startTime && (!nextTurnStart || qt < nextTurnStart);
+      })
+    : [];
+
+  return (
+    <>
+      <MemoTurnCard
+        turn={turn}
+        isHighlighted={highlightedTurnIndex === unfilteredIndex}
+        onAgentPillClick={onAgentPillClick}
+        onTurnClick={onTurnClick ? () => onTurnClick(unfilteredIndex) : undefined}
+      />
+      {turnPerms.map((perm) => (
+        <PermissionBlock
+          key={perm.id}
+          permission={perm}
+          onDecide={onPermissionDecide!}
+          onDecideSession={onDecideSession}
+        />
+      ))}
+      {turnQuestions.map((q) => (
+        <QuestionBlock
+          key={q.questionId}
+          questionId={q.questionId}
+          questionText={q.questionText}
+          status={q.status}
+          answer={q.answer}
+          onSubmitAnswer={onSubmitAnswer!}
+        />
+      ))}
+    </>
+  );
+}
+
+function VirtualizedTurnList({
+  scrollRef,
+  handleScroll,
+  filteredTurns,
+  turns,
+  autoScroll,
+  highlightedTurnIndex,
+  onAgentPillClick,
+  onTurnClick,
+  permissions,
+  onPermissionDecide,
+  onDecideSession,
+  questions,
+  onSubmitAnswer,
+  streamingState,
+}: VirtualizedTurnListProps) {
+  const virtualizer = useVirtualizer({
+    count: filteredTurns.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 200,
+    overscan: 5,
+  });
+
+  // Auto-scroll to bottom when new turns arrive
+  useEffect(() => {
+    if (autoScroll && filteredTurns.length > 0) {
+      requestAnimationFrame(() => {
+        virtualizer.scrollToIndex(filteredTurns.length - 1, { align: "end" });
+      });
+    }
+  }, [filteredTurns.length, autoScroll]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const virtualItems = virtualizer.getVirtualItems();
+  // Fallback: when virtualizer returns no items but we have turns (e.g., jsdom with 0-height container),
+  // render all turns directly without virtualization positioning.
+  const useVirtualLayout = virtualItems.length > 0 || filteredTurns.length === 0;
+
+  return (
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="flex-1 overflow-y-auto px-4 py-3 relative dt-scrollbar"
+    >
+      {filteredTurns.length === 0 ? (
+        <div className="flex items-center justify-center h-full text-dt-text2 text-base">
+          No events to display
+        </div>
+      ) : useVirtualLayout ? (
+        <div
+          style={{ height: `${virtualizer.getTotalSize()}px`, width: "100%", position: "relative" }}
+        >
+          {virtualItems.map((virtualItem) => {
+            const turn = filteredTurns[virtualItem.index];
+            return (
+              <div
+                key={turn.turnNumber}
+                data-index={virtualItem.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+              >
+                <TurnRow
+                  turn={turn}
+                  filteredIndex={virtualItem.index}
+                  filteredTurns={filteredTurns}
+                  turns={turns}
+                  highlightedTurnIndex={highlightedTurnIndex}
+                  onAgentPillClick={onAgentPillClick}
+                  onTurnClick={onTurnClick}
+                  permissions={permissions}
+                  onPermissionDecide={onPermissionDecide}
+                  onDecideSession={onDecideSession}
+                  questions={questions}
+                  onSubmitAnswer={onSubmitAnswer}
+                />
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Non-virtualized fallback (jsdom / SSR / 0-height container) */
+        filteredTurns.map((turn, filteredIndex) => (
+          <div key={turn.turnNumber}>
+            <TurnRow
+              turn={turn}
+              filteredIndex={filteredIndex}
+              filteredTurns={filteredTurns}
+              turns={turns}
+              highlightedTurnIndex={highlightedTurnIndex}
+              onAgentPillClick={onAgentPillClick}
+              onTurnClick={onTurnClick}
+              permissions={permissions}
+              onPermissionDecide={onPermissionDecide}
+              onDecideSession={onDecideSession}
+              questions={questions}
+              onSubmitAnswer={onSubmitAnswer}
+            />
+          </div>
+        ))
+      )}
+
+      {/* Permissions/questions without timestamps or before any turn -- fallback */}
+      {permissions && onPermissionDecide && permissions
+        .filter((p) => !p.timestamp || (filteredTurns.length > 0 && p.timestamp < filteredTurns[0].startTime))
+        .map((perm) => (
+          <PermissionBlock
+            key={`fallback-${perm.id}`}
+            permission={perm}
+            onDecide={onPermissionDecide}
+            onDecideSession={onDecideSession}
+          />
+        ))}
+      {questions && onSubmitAnswer && questions
+        .filter((q) => !q.timestamp || (filteredTurns.length > 0 && q.timestamp < filteredTurns[0].startTime))
+        .map((q) => (
+          <QuestionBlock
+            key={`fallback-${q.questionId}`}
+            questionId={q.questionId}
+            questionText={q.questionText}
+            status={q.status}
+            answer={q.answer}
+            onSubmitAnswer={onSubmitAnswer}
+          />
+        ))}
+      {/* Streaming turn area (visible during active SSE) */}
+      <StreamingTurnArea state={streamingState} />
+    </div>
+  );
+}
+
+// ─── ConversationView ───────────────────────────────────────────────
+
 export function ConversationView({
   events,
+  turns,
   metrics,
   isLive,
   sessionCwd,
@@ -83,7 +321,26 @@ export function ConversationView({
 
   const { state: streamingState, actions: streamingActions } = useStreamingState();
 
-  const turns = useMemo(() => groupEventsIntoTurns(events), [events]);
+  // Build search index incrementally
+  const searchIndexRef = useRef<Map<number, string>>(new Map());
+  const prevTurnsLengthRef = useRef(0);
+  const searchIndex = useMemo(() => {
+    if (turns.length === 0) {
+      searchIndexRef.current = new Map();
+      prevTurnsLengthRef.current = 0;
+      return searchIndexRef.current;
+    }
+    if (prevTurnsLengthRef.current === 0) {
+      // Full rebuild on first load
+      searchIndexRef.current = buildSearchIndex(turns);
+    } else {
+      // Incremental: update only new + last turn (last may have grown)
+      const changedTurns = turns.slice(Math.max(0, prevTurnsLengthRef.current - 1));
+      searchIndexRef.current = updateSearchIndex(searchIndexRef.current, changedTurns);
+    }
+    prevTurnsLengthRef.current = turns.length;
+    return searchIndexRef.current;
+  }, [turns]);
 
   // Check if the last turn had a tool_result with is_error
   const lastTurnHadError = useMemo(() => {
@@ -105,18 +362,7 @@ export function ConversationView({
     });
   }, [turns]);
 
-  // Auto-scroll when new turns arrive
-  useEffect(() => {
-    if (autoScroll && scrollRef.current) {
-      requestAnimationFrame(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-      });
-    }
-  }, [turns.length, autoScroll]);
-
-  // Scroll to highlighted turn
+  // Scroll to highlighted turn (works with virtualization via DOM query)
   useEffect(() => {
     if (highlightedTurnIndex != null && scrollRef.current) {
       const turnElements = scrollRef.current.querySelectorAll(".conv-turn");
@@ -182,27 +428,11 @@ export function ConversationView({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [showSearch, permissionMode, handlePermissionModeChange]);
 
-  // Filter turns by search query
-  const filteredTurns = useMemo(() => {
-    if (!searchQuery.trim()) return turns;
-    const q = searchQuery.toLowerCase();
-    return turns.filter((turn) => {
-      // Search in prompt text
-      if (turn.promptText.toLowerCase().includes(q)) return true;
-      // Search in event content
-      for (const event of turn.events) {
-        if (event.type === "assistant" || event.type === "user") {
-          const msg = (event as { message?: { content?: unknown } }).message;
-          const contentStr =
-            typeof msg?.content === "string"
-              ? msg.content
-              : JSON.stringify(msg?.content || "");
-          if (contentStr.toLowerCase().includes(q)) return true;
-        }
-      }
-      return false;
-    });
-  }, [turns, searchQuery]);
+  // Filter turns by search query using pre-built search index
+  const filteredTurns = useMemo(
+    () => filterTurnsByQuery(turns, searchIndex, searchQuery),
+    [turns, searchIndex, searchQuery],
+  );
 
   const handleCompactNow = useCallback(async () => {
     const targetId = activeSessionId || sessionId;
@@ -350,99 +580,23 @@ export function ConversationView({
         onCompactNow={handleCompactNow}
       />
 
-      {/* Turn list (scrollable) */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-3 relative dt-scrollbar"
-      >
-        {filteredTurns.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-dt-text2 text-base">
-            No events to display
-          </div>
-        ) : (
-          filteredTurns.map((turn, filteredIndex) => {
-            const unfilteredIndex = turns.indexOf(turn);
-            const turnEnd = turn.endTime || turn.startTime;
-            const nextTurn = filteredTurns[filteredIndex + 1];
-            const nextTurnStart = nextTurn?.startTime;
-
-            // Permissions that arrived during this turn (between turnEnd and next turn start)
-            const turnPerms = permissions && onPermissionDecide
-              ? permissions.filter((p) => {
-                  const pt = p.timestamp;
-                  if (!pt) return false;
-                  return pt >= turn.startTime && (!nextTurnStart || pt < nextTurnStart);
-                })
-              : [];
-
-            // Questions that arrived during this turn
-            const turnQuestions = questions && onSubmitAnswer
-              ? questions.filter((q) => {
-                  const qt = q.timestamp;
-                  if (!qt) return false;
-                  return qt >= turn.startTime && (!nextTurnStart || qt < nextTurnStart);
-                })
-              : [];
-
-            return (
-              <div key={turn.turnNumber}>
-                <TurnCard
-                  turn={turn}
-                  isHighlighted={highlightedTurnIndex === unfilteredIndex}
-                  onAgentPillClick={onAgentPillClick}
-                  onTurnClick={onTurnClick ? () => onTurnClick(unfilteredIndex) : undefined}
-                />
-                {turnPerms.map((perm) => (
-                  <PermissionBlock
-                    key={perm.id}
-                    permission={perm}
-                    onDecide={onPermissionDecide!}
-                    onDecideSession={onDecideSession}
-                  />
-                ))}
-                {turnQuestions.map((q) => (
-                  <QuestionBlock
-                    key={q.questionId}
-                    questionId={q.questionId}
-                    questionText={q.questionText}
-                    status={q.status}
-                    answer={q.answer}
-                    onSubmitAnswer={onSubmitAnswer!}
-                  />
-                ))}
-              </div>
-            );
-          })
-        )}
-
-        {/* Permissions/questions without timestamps or that arrived before
-            any turn — render at the end as fallback */}
-        {permissions && onPermissionDecide && permissions
-          .filter((p) => !p.timestamp || (filteredTurns.length > 0 && p.timestamp < filteredTurns[0].startTime))
-          .map((perm) => (
-            <PermissionBlock
-              key={`fallback-${perm.id}`}
-              permission={perm}
-              onDecide={onPermissionDecide}
-              onDecideSession={onDecideSession}
-            />
-          ))}
-        {questions && onSubmitAnswer && questions
-          .filter((q) => !q.timestamp || (filteredTurns.length > 0 && q.timestamp < filteredTurns[0].startTime))
-          .map((q) => (
-            <QuestionBlock
-              key={`fallback-${q.questionId}`}
-              questionId={q.questionId}
-              questionText={q.questionText}
-              status={q.status}
-              answer={q.answer}
-              onSubmitAnswer={onSubmitAnswer}
-            />
-          ))}
-        {/* Streaming turn area (visible during active SSE) */}
-        <StreamingTurnArea state={streamingState} />
-      </div>
+      {/* Turn list (virtualized, scrollable) */}
+      <VirtualizedTurnList
+        scrollRef={scrollRef}
+        handleScroll={handleScroll}
+        filteredTurns={filteredTurns}
+        turns={turns}
+        autoScroll={autoScroll}
+        highlightedTurnIndex={highlightedTurnIndex}
+        onAgentPillClick={onAgentPillClick}
+        onTurnClick={onTurnClick}
+        permissions={permissions}
+        onPermissionDecide={onPermissionDecide}
+        onDecideSession={onDecideSession}
+        questions={questions}
+        onSubmitAnswer={onSubmitAnswer}
+        streamingState={streamingState}
+      />
 
       {/* Scroll-to-bottom button */}
       {showScrollDown && (

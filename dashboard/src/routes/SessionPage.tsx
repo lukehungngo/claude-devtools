@@ -70,32 +70,22 @@ export function SessionPage() {
   const [highlightedTurnIndex, setHighlightedTurnIndex] = useState<number | undefined>(undefined);
   const [selectedTurnIndex, setSelectedTurnIndex] = useState<number | null>(null);
 
-  // Trigger REST refresh when live events arrive (debounced)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRefresh = useRef(false);
+  // Background REST sync every 30 seconds (replaces per-event debounced refetch)
+  const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
-    if (liveEvents.length === 0) return;
-    if (debounceRef.current !== null) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      pendingRefresh.current = true;
+    // Start background sync only when we have a valid session
+    if (!projectHash || !sessionId) return;
+    syncIntervalRef.current = setInterval(() => {
       refreshMetrics();
-      debounceRef.current = null;
-    }, 500);
+      clearLiveEvents();
+    }, 30_000);
     return () => {
-      if (debounceRef.current !== null) {
-        clearTimeout(debounceRef.current);
-        debounceRef.current = null;
+      if (syncIntervalRef.current !== null) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
       }
     };
-  }, [liveEvents.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Clear live events only AFTER the REST response has landed
-  useEffect(() => {
-    if (pendingRefresh.current) {
-      pendingRefresh.current = false;
-      clearLiveEvents();
-    }
-  }, [events, clearLiveEvents]);
+  }, [projectHash, sessionId, refreshMetrics, clearLiveEvents]);
 
   // Merge REST + live events, deduplicating by event UUID
   const allEvents = useMemo(() => {
@@ -200,6 +190,7 @@ export function SessionPage() {
   return (
     <ConversationView
       events={allEvents}
+      turns={turns}
       metrics={metrics}
       isLive={isLive}
       sessionCwd={metrics.session.cwd}

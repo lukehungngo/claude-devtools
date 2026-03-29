@@ -24,10 +24,14 @@ import {
 } from "../hooks/permission-handler.js";
 import { buildLifecycleRecords } from "../debug/lifecycle-builder.js";
 import { SessionManager } from "../session/session-manager.js";
+import { MetricsCache } from "../cache/metrics-cache.js";
 import type { SessionEvent } from "../types.js";
 import type { ServerState } from "./server.js";
 import { broadcast } from "./server.js";
 import { mapSdkMessageToSSEEvents } from "./sse-event-handler.js";
+
+/** Shared metrics cache — avoids re-parsing + re-computing metrics for unchanged files. */
+const metricsCache = new MetricsCache({ maxEntries: 50, ttlMs: 60_000 });
 
 export function setupRoutes(state?: ServerState): Router {
   const router = Router();
@@ -217,24 +221,59 @@ export function setupRoutes(state?: ServerState): Router {
         return res.status(404).json({ error: "Session not found" });
       }
 
-      const { mainEvents, subagentEvents, subagentMeta } =
-        loadFullSession(session);
-      const metrics = computeMetrics(
-        session,
-        mainEvents,
-        subagentEvents,
-        subagentMeta
-      );
+      // Try metrics cache (keyed by filePath + size + mtime)
+      let metrics!: ReturnType<typeof computeMetrics>;
+      let allEvents!: SessionEvent[];
+      let subagentMeta!: Map<string, { agentType: string; description: string }>;
+      let cacheHit = false;
 
-      // Merge main + subagent events, sorted by timestamp
-      const allSubEvents: SessionEvent[] = [];
-      for (const evts of subagentEvents.values()) {
-        allSubEvents.push(...evts);
+      try {
+        const stat = statSync(session.path);
+        const cacheKey = { filePath: session.path, size: stat.size, mtimeMs: stat.mtimeMs };
+        const cached = metricsCache.get(cacheKey);
+
+        if (cached) {
+          metrics = cached.metrics;
+          allEvents = cached.events;
+          subagentMeta = cached.subagentMeta;
+          cacheHit = true;
+        }
+      } catch {
+        // stat failed — proceed without cache
       }
-      const allEvents = [...mainEvents, ...allSubEvents].sort(
-        (a, b) =>
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
+
+      if (!cacheHit) {
+        const { mainEvents, subagentEvents, subagentMeta: loadedMeta } =
+          loadFullSession(session);
+        subagentMeta = loadedMeta;
+        metrics = computeMetrics(
+          session,
+          mainEvents,
+          subagentEvents,
+          subagentMeta
+        );
+
+        // Merge main + subagent events, sorted by timestamp
+        const allSubEvents: SessionEvent[] = [];
+        for (const evts of subagentEvents.values()) {
+          allSubEvents.push(...evts);
+        }
+        allEvents = [...mainEvents, ...allSubEvents].sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+
+        // Store in cache if stat is available
+        try {
+          const stat = statSync(session.path);
+          metricsCache.set(
+            { filePath: session.path, size: stat.size, mtimeMs: stat.mtimeMs },
+            { metrics, events: allEvents, subagentMeta }
+          );
+        } catch {
+          // File not statable — skip caching
+        }
+      }
 
       // Convert subagentMeta Map to plain object for JSON serialization
       const subagentMetaObj: Record<

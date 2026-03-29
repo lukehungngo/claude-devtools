@@ -8,7 +8,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
 import { ConversationView } from "./ConversationView";
-import type { UserEvent, AssistantEvent, PermissionRequest } from "../../lib/types";
+import { groupEventsIntoTurns } from "../../lib/turnSnapshot";
+import type { UserEvent, AssistantEvent, PermissionRequest, SessionEvent } from "../../lib/types";
 
 function makeUserEvent(text: string, index: number): UserEvent {
   return {
@@ -52,9 +53,11 @@ describe("ConversationView onTurnClick", () => {
       makeAssistantEvent(3),
     ];
 
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
     const { container } = render(
       <ConversationView
         events={events}
+        turns={turns}
         metrics={null}
         onTurnClick={onTurnClick}
       />
@@ -77,9 +80,11 @@ describe("ConversationView onTurnClick", () => {
       makeAssistantEvent(3),
     ];
 
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
     const { container } = render(
       <ConversationView
         events={events}
+        turns={turns}
         metrics={null}
         onTurnClick={onTurnClick}
       />
@@ -116,9 +121,11 @@ describe("ConversationView onDecideSession", () => {
       makeAssistantEvent(1),
     ];
 
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
     render(
       <ConversationView
         events={events}
+        turns={turns}
         metrics={null}
         permissions={[permission]}
         onPermissionDecide={onPermissionDecide}
@@ -141,9 +148,11 @@ describe("ConversationView onDecideSession", () => {
       makeAssistantEvent(1),
     ];
 
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
     render(
       <ConversationView
         events={events}
+        turns={turns}
         metrics={null}
         permissions={[permission]}
         onPermissionDecide={onPermissionDecide}

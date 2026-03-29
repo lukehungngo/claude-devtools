@@ -3,9 +3,10 @@ import { join, basename, dirname } from "node:path";
 import { homedir } from "node:os";
 import type { SessionInfo, SessionEvent, RepoGroup } from "../types.js";
 import { parseJsonlFile } from "./jsonl-reader.js";
+import { SessionCache } from "../cache/session-cache.js";
 
-const ACTIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000; // 12 hours
-const RUNNING_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+/** Shared session cache instance — used by discoverSessions(). */
+export const sessionCache = new SessionCache();
 
 function getClaudeProjectsDir(): string {
   return join(homedir(), ".claude", "projects");
@@ -24,102 +25,11 @@ export function discoverSessions(): SessionInfo[] {
     for (const file of readdirSync(projectDir)) {
       if (!file.endsWith(".jsonl")) continue;
 
-      const sessionId = file.replace(".jsonl", "");
       const filePath = join(projectDir, file);
-      const stat = statSync(filePath);
-
-      // Count subagents
-      const subagentDir = join(projectDir, sessionId, "subagents");
-      let subagentCount = 0;
-      if (existsSync(subagentDir)) {
-        subagentCount = readdirSync(subagentDir).filter((f) =>
-          f.endsWith(".jsonl")
-        ).length;
+      const info = sessionCache.getSessionInfo(filePath, projectHash);
+      if (info) {
+        sessions.push(info);
       }
-
-      // Read file content for event count and metadata extraction
-      const content = readFileSync(filePath, "utf-8");
-      const lines = content.split("\n").filter((l) => l.trim());
-      const eventCount = lines.length;
-
-      // Extract metadata from first few events
-      let startTime = stat.birthtime.toISOString();
-      let cwd: string | undefined;
-      let gitBranch: string | undefined;
-      let permissionMode: string | undefined;
-      let model: string | undefined;
-      let sessionName: string | undefined;
-      let slug: string | undefined;
-
-      for (let i = 0; i < Math.min(lines.length, 10); i++) {
-        try {
-          const evt = JSON.parse(lines[i]);
-          if (i === 0 && evt.timestamp) startTime = evt.timestamp;
-          if (evt.cwd && !cwd) cwd = evt.cwd;
-          if (evt.gitBranch && !gitBranch) gitBranch = evt.gitBranch;
-          if (evt.permissionMode && !permissionMode) permissionMode = evt.permissionMode;
-          if (evt.message?.model && !model) model = evt.message.model;
-          // Session name: custom-title event or slug field
-          if (evt.type === "custom-title" && evt.customTitle) sessionName = evt.customTitle;
-          if (evt.slug && !slug) slug = evt.slug;
-        } catch {
-          // skip malformed lines
-        }
-      }
-
-      // Also scan for custom-title deeper in the file (user may /rename later)
-      if (!sessionName) {
-        for (let i = lines.length - 1; i >= Math.max(0, lines.length - 20); i--) {
-          try {
-            const evt = JSON.parse(lines[i]);
-            if (evt.type === "custom-title" && evt.customTitle) {
-              sessionName = evt.customTitle;
-              break;
-            }
-          } catch {
-            // skip
-          }
-        }
-      }
-
-      // Fallback: use slug as session name
-      if (!sessionName && slug) sessionName = slug;
-
-      // Also check last few events for model (assistant events come later)
-      if (!model) {
-        for (let i = lines.length - 1; i >= Math.max(0, lines.length - 5); i--) {
-          try {
-            const evt = JSON.parse(lines[i]);
-            if (evt.message?.model) {
-              model = evt.message.model;
-              break;
-            }
-          } catch {
-            // skip
-          }
-        }
-      }
-
-      const ageMs = Date.now() - new Date(stat.mtime).getTime();
-      const isActive = ageMs < ACTIVE_THRESHOLD_MS;
-      const isRunning = ageMs < RUNNING_THRESHOLD_MS;
-
-      sessions.push({
-        id: sessionId,
-        projectHash,
-        path: filePath,
-        startTime,
-        lastModified: stat.mtime.toISOString(),
-        eventCount,
-        subagentCount,
-        cwd,
-        gitBranch,
-        permissionMode,
-        model,
-        isActive,
-        isRunning,
-        sessionName,
-      });
     }
   }
 

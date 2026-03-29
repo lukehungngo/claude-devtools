@@ -1,9 +1,13 @@
+import { statSync } from "node:fs";
 import type { SessionInfo, CostSummary } from "../types.js";
-import { parseJsonlFile } from "../parser/jsonl-reader.js";
+import { parseJsonlIncremental } from "../parser/jsonl-reader.js";
 import { calculateTokenCost } from "./metrics.js";
 
 interface SessionCostData {
-  lastModified: string;
+  /** File size at last computation — used for cache key (grows monotonically). */
+  fileSize: number;
+  /** Byte offset up to which we have already computed costs. */
+  offset: number;
   cost: number;
   tokenIn: number;
   tokenOut: number;
@@ -12,17 +16,28 @@ interface SessionCostData {
 const sessionCostCache = new Map<string, SessionCostData>();
 
 function computeSessionCost(session: SessionInfo): SessionCostData {
+  let stat: ReturnType<typeof statSync>;
+  try {
+    stat = statSync(session.path);
+  } catch {
+    return { fileSize: 0, offset: 0, cost: 0, tokenIn: 0, tokenOut: 0 };
+  }
+
   const cached = sessionCostCache.get(session.id);
-  if (cached && cached.lastModified === session.lastModified) {
+
+  // Full cache hit — file has not changed
+  if (cached && cached.fileSize === stat.size) {
     return cached;
   }
 
-  let totalCost = 0;
-  let tokenIn = 0;
-  let tokenOut = 0;
+  // Incremental update — read only new bytes from where we left off
+  const fromOffset = cached ? cached.offset : 0;
+  let totalCost = cached ? cached.cost : 0;
+  let tokenIn = cached ? cached.tokenIn : 0;
+  let tokenOut = cached ? cached.tokenOut : 0;
 
   try {
-    const events = parseJsonlFile(session.path);
+    const { events, newOffset } = parseJsonlIncremental(session.path, fromOffset);
     for (const event of events) {
       if (event.type !== "assistant") continue;
       const usage = event.message.usage;
@@ -41,18 +56,20 @@ function computeSessionCost(session: SessionInfo): SessionCostData {
         cacheReadTokens: usage.cache_read_input_tokens || 0,
       });
     }
+
+    const data: SessionCostData = {
+      fileSize: stat.size,
+      offset: newOffset,
+      cost: totalCost,
+      tokenIn,
+      tokenOut,
+    };
+    sessionCostCache.set(session.id, data);
+    return data;
   } catch {
     // skip unreadable sessions
+    return { fileSize: 0, offset: 0, cost: totalCost, tokenIn, tokenOut };
   }
-
-  const data: SessionCostData = {
-    lastModified: session.lastModified,
-    cost: totalCost,
-    tokenIn,
-    tokenOut,
-  };
-  sessionCostCache.set(session.id, data);
-  return data;
 }
 
 export function aggregateCosts(sessions: SessionInfo[]): CostSummary {
