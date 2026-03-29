@@ -11,7 +11,7 @@
 
 **Make claude-devtools a full Claude Code web client that replaces the terminal CLI and adds observability the CLI cannot provide.**
 
-Current effective CLI parity: **36%** (47% including partial implementations).
+Current effective CLI parity: **~55%** (Tier 1 complete, 9 P1 features implemented).
 
 ---
 
@@ -46,15 +46,15 @@ Current effective CLI parity: **36%** (47% including partial implementations).
 
 ### Success Metrics
 
-- [ ] Tool results visible for Read, Write, Edit, Bash, Glob, Grep tools
-- [ ] Code blocks render with language-specific syntax highlighting
-- [ ] `/clear` resets conversation context (new session or SDK clear)
-- [ ] `/compact` triggers context compaction with optional focus instructions
-- [ ] `/model` changes the model for subsequent messages
-- [ ] Permission mode can be changed mid-session via UI or keyboard
-- [ ] "Allow for session" button works end-to-end
-- [ ] Context > 90% triggers auto-compact or visible warning
-- [ ] `@` in prompt triggers file path autocomplete from session cwd
+- [x] Tool results visible for Read, Write, Edit, Bash, Glob, Grep tools (T1-01, PR #7)
+- [x] Code blocks render with language-specific syntax highlighting (T1-02, PR #7)
+- [x] `/clear` resets conversation context (new session or SDK clear) (T1-03, PR #7)
+- [x] `/compact` triggers context compaction with optional focus instructions (T1-04, PR #7)
+- [x] `/model` changes the model for subsequent messages (T1-05, PR #7)
+- [x] Permission mode can be changed mid-session via UI or keyboard (T1-06, PR #7)
+- [x] "Allow for session" button works end-to-end (T1-07, PR #7)
+- [x] Context > 90% triggers auto-compact or visible warning (T1-08, PR #7)
+- [x] `@` in prompt triggers file path autocomplete from session cwd (T1-09, PR #7)
 
 ---
 

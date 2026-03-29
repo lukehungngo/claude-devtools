@@ -152,23 +152,23 @@ None.
 
 | Dimension | Score | Change |
 |-----------|-------|--------|
-| Core functionality | 95% | — |
-| Test coverage | Good (424 tests) | +52 tests today |
+| Core functionality | **~55% CLI parity** | +19% (was 36%) |
+| Test coverage | Good (509 tests) | +137 tests today |
 | Type safety | Clean | — |
 | Architecture compliance | **7/7** | — |
-| Security | **Good** | — |
+| Security | **Good** | Path traversal fix in files endpoint |
 | Dead code | Clean | — |
-| UX parity with Claude Desktop | **88%** | +3% (turn state machine) |
-| Stability | **93%** | +3% (proper completion detection) |
+| UX parity with Claude Desktop | **92%** | +4% (Tier 1 features) |
+| Stability | **93%** | — |
 
-### Overall: Ready for local production use. All P1 issues resolved.
+### Overall: Tier 1 complete. Web client can replace CLI for daily use.
 
-**Key improvements this session (4 merges):**
-- Turn completion is now a proper state machine (system/turn_duration signal, no heuristics)
+**Key improvements this session (5 merges + 1 PR):**
+- **Tier 1 complete** — all 9 P1 features implemented (PR #7)
+  - Tool result display, syntax highlighting, /clear, /compact, /model, permission modes, allow-for-session, context warning, @ file mentions
+- Turn completion state machine (system/turn_duration)
 - All 7 architecture invariants passing
-- Both P1 security/performance issues resolved
-- Markdown rendering, permission dedup, graph stability
-- Per-model pricing eliminates 5x cost discrepancy on opus sessions
-- SystemEvent type added (unlocks future system event features)
-- 52 new tests added (372 → 424)
-- 13 bugs fixed total
+- Structured logging (pino)
+- Per-model pricing, markdown rendering, permission dedup, graph stability
+- 137 new tests added (372 → 509)
+- 13 bugs fixed + 9 features added

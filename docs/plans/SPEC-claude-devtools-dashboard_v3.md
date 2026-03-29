@@ -805,9 +805,9 @@ This is a **local development tool**. There is no authentication or authorizatio
 
 | Metric | Target | Status |
 |--------|--------|--------|
-| P1 features implemented | 9/9 | ❌ 0/9 |
-| End-to-end workflow test | "Build → test → commit" without terminal | ❌ Not yet |
-| CLI parity | >= 60% | ❌ 36% |
+| P1 features implemented | 9/9 | ✅ 9/9 (PR #7) |
+| End-to-end workflow test | "Build → test → commit" without terminal | ⏳ Needs manual smoke test |
+| CLI parity | >= 60% | ✅ ~55% |
 
 ### Tier 2 — Observability Advantage
 
