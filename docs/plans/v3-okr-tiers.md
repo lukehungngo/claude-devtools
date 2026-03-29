@@ -93,8 +93,9 @@ Current effective CLI parity: **~55%** (Tier 1 complete, 9 P1 features implement
 | T2-16 | **Task list panel** — Interactive task list (Ctrl+T) showing TaskCreate/TaskUpdate tasks | New: `TaskPanel.tsx` | 3h | — |
 | T2-17 | **`!` bash mode** — Run bash commands directly from prompt with `!` prefix | `PromptInput.tsx`, `routes.ts` | 2h | — |
 | T2-18 | **Session analytics** — Cost/time/tool patterns across sessions, usage trends | New: `AnalyticsDashboard.tsx` | 6h | — |
+| T2-19 | **Surface SSE errors to user** — SSE error results (`data.type === "result"` with `is_error`) are silently discarded in PromptInput. Show error message in conversation. | `PromptInput.tsx`, `ConversationView.tsx` | 1h | — |
 
-**Total estimated: ~47h**
+**Total estimated: ~48h**
 
 ### Success Metrics
 
@@ -106,6 +107,7 @@ Current effective CLI parity: **~55%** (Tier 1 complete, 9 P1 features implement
 - [ ] Prompt history navigable with Up/Down arrows
 - [ ] 8+ P2 slash commands functional
 - [ ] Session analytics dashboard with cost/time trends
+- [ ] SSE errors surfaced to user (not silently discarded)
 
 ---
 
