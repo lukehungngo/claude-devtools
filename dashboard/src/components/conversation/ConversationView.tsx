@@ -11,6 +11,8 @@ import { QuestionBlock } from "./QuestionBlock";
 import { PromptInput } from "./PromptInput";
 import { ContextWarningBanner } from "./ContextWarningBanner";
 import { TurnCard } from "./TurnCard";
+import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
+import { ThemePicker } from "../ThemePicker";
 
 export interface QuestionItem {
   questionId: string;
@@ -41,6 +43,8 @@ interface ConversationViewProps {
   onSubmitAnswer?: (questionId: string, answer: string) => void;
   /** Called when PromptInput auto-starts or resumes a session */
   onSessionStarted?: (sessionId: string) => void;
+  /** Called when slash commands (/doctor, /stats, /mcp) request a panel */
+  onOpenPanel?: (panel: "doctor" | "stats" | "mcp") => void;
 }
 
 export function ConversationView({
@@ -60,6 +64,7 @@ export function ConversationView({
   questions,
   onSubmitAnswer,
   onSessionStarted,
+  onOpenPanel,
 }: ConversationViewProps) {
   const layoutCtx = useContext(LayoutContext);
   const usage = layoutCtx?.usage ?? null;
@@ -75,6 +80,26 @@ export function ConversationView({
   );
 
   const turns = useMemo(() => groupEventsIntoTurns(events), [events]);
+
+  // Check if the last turn had a tool_result with is_error
+  const lastTurnHadError = useMemo(() => {
+    if (turns.length === 0) return false;
+    const lastTurn = turns[turns.length - 1];
+    return lastTurn.events.some((evt) => {
+      if (evt.type !== "user") return false;
+      const msg = (evt as { message?: { content?: unknown[] } }).message;
+      if (!Array.isArray(msg?.content)) return false;
+      return msg.content.some(
+        (item: unknown) =>
+          typeof item === "object" &&
+          item !== null &&
+          "type" in item &&
+          (item as { type: string }).type === "tool_result" &&
+          "is_error" in item &&
+          (item as { is_error: boolean }).is_error === true,
+      );
+    });
+  }, [turns]);
 
   // Auto-scroll when new turns arrive
   useEffect(() => {
@@ -212,6 +237,37 @@ export function ConversationView({
     }
   }, []);
 
+  // Wire keyboard shortcuts (T3-11)
+  const handleClear = useCallback(async () => {
+    if (!sessionCwd) return;
+    try {
+      const res = await fetch("/api/sessions/new", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cwd: sessionCwd }),
+      });
+      const data = await res.json();
+      if (data.sessionId) {
+        onSessionStarted?.(data.sessionId);
+      }
+    } catch {
+      // Silently fail
+    }
+  }, [sessionCwd, onSessionStarted]);
+
+  const handleDismiss = useCallback(() => {
+    if (showSearch) {
+      setShowSearch(false);
+      setSearchQuery("");
+    }
+  }, [showSearch]);
+
+  useKeyboardShortcuts({
+    onClear: handleClear,
+    onCompact: handleCompactNow,
+    onDismiss: handleDismiss,
+  });
+
   return (
     <div className="flex flex-col h-full bg-dt-bg1 overflow-hidden">
       {/* Panel header */}
@@ -234,6 +290,7 @@ export function ConversationView({
           )}
         </div>
         <div className="flex gap-1 items-center">
+          <ThemePicker />
           {activeSessionId && (
             <PermissionModeBadge
               mode={permissionMode}
@@ -397,7 +454,7 @@ export function ConversationView({
       <CostStrip metrics={metrics} />
 
       {/* Command input */}
-      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} projectHash={projectHash} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} getAssistantResponses={getAssistantResponses} metrics={metrics} usage={usage} costs={costs} />
+      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} projectHash={projectHash} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} getAssistantResponses={getAssistantResponses} metrics={metrics} usage={usage} costs={costs} events={events} onOpenPanel={onOpenPanel} hasMessages={turns.length > 0} lastTurnHadError={lastTurnHadError} />
     </div>
   );
 }

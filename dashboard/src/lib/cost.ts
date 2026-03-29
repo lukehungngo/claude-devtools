@@ -1,12 +1,4 @@
 /**
- * @deprecated Use calculateTurnCost() for per-model pricing instead.
- * Kept for backward compatibility — these are sonnet-only constants.
- */
-export const INPUT_COST_PER_TOKEN = 0.000003;
-/** @deprecated Use calculateTurnCost() for per-model pricing instead. */
-export const OUTPUT_COST_PER_TOKEN = 0.000015;
-
-/**
  * Per-model pricing table (per million tokens). March 2026.
  * Must be manually updated when Anthropic changes rates.
  * Mirrors server/src/analyzer/metrics.ts MODEL_PRICING (input/output only).

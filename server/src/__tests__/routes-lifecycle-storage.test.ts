@@ -206,19 +206,11 @@ describe("Session fetch stores lifecycle data in debug DB", () => {
     };
     const appClosedDb = createApp(stateClosedDb);
 
-    // Suppress console.warn for this test
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
     const res = await request(appClosedDb)
       .get("/api/sessions/abc123/test-session")
       .expect(200);
 
     expect(res.body).toHaveProperty("metrics");
-    expect(warnSpy).toHaveBeenCalledWith(
-      "[debug-db] Failed to store lifecycle data:",
-      expect.anything()
-    );
-    warnSpy.mockRestore();
   });
 
   it("deduplicates events on repeated fetches", async () => {

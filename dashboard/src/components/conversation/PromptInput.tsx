@@ -1,7 +1,9 @@
-import { useState, useRef, useCallback, useEffect, type ClipboardEvent as ReactClipboardEvent } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, type ClipboardEvent as ReactClipboardEvent } from "react";
 import { isIgnoredStderrWarning } from "../../lib/filterStderrWarnings";
 import { formatCostCommand, formatUsageCommand, formatDiffCommand, formatMcpCommand, formatTasksCommand, formatAnalyticsCommand, formatContextCommand, formatPermissionsCommand } from "../../lib/commandFormatters";
-import type { SessionMetrics, UsageInfo, CostSummary } from "../../lib/types";
+import { computeSuggestion } from "./promptSuggestions";
+import { generateMarkdownExport, generateJsonExport, triggerDownload } from "../../lib/exportSession";
+import type { SessionMetrics, UsageInfo, CostSummary, SessionEvent } from "../../lib/types";
 
 interface ImageAttachment {
   type: "image";
@@ -41,6 +43,14 @@ interface PromptInputProps {
   usage?: UsageInfo | null;
   /** Cross-session cost summary for /analytics command */
   costs?: CostSummary | null;
+  /** Session events for /export command */
+  events?: SessionEvent[];
+  /** Whether the conversation has any messages (for ghost text) */
+  hasMessages?: boolean;
+  /** Whether the last turn had an error (for ghost text) */
+  lastTurnHadError?: boolean;
+  /** Callback for slash commands that open panels (doctor, stats, mcp) */
+  onOpenPanel?: (panel: "doctor" | "stats" | "mcp") => void;
 }
 
 const SLASH_COMMANDS = [
@@ -53,14 +63,23 @@ const SLASH_COMMANDS = [
   { name: "/diff",    description: "Show git diff (uncommitted changes)" },
   { name: "/effort",  description: "Set effort level (low | medium | high)" },
   { name: "/fast",    description: "Toggle fast mode (on | off)" },
+  { name: "/hooks",   description: "View configured hooks" },
+  { name: "/init",    description: "Initialize CLAUDE.md in project" },
   { name: "/mcp",     description: "Show connected MCP servers and tools" },
+  { name: "/memory",  description: "View CLAUDE.md content" },
   { name: "/model",   description: "Show current model info" },
   { name: "/permissions", description: "Show permission mode and allowances" },
   { name: "/plan",    description: "Switch to plan mode (read-only)" },
+  { name: "/rename",  description: "Rename the current session" },
   { name: "/rewind",  description: "Rewind conversation (optional: N turns)" },
+  { name: "/settings", description: "View session settings" },
   { name: "/tasks",     description: "Show task summary" },
   { name: "/analytics", description: "Show cross-session analytics" },
   { name: "/usage",   description: "Show rate limit utilization" },
+  { name: "/export",  description: "Export conversation (md | json)" },
+  { name: "/shortcuts", description: "Show keyboard shortcuts" },
+  { name: "/doctor",  description: "Run system diagnostics" },
+  { name: "/stats",   description: "Show usage statistics" },
   { name: "/exit",    description: "Exit the current session" },
 ] as const;
 
@@ -88,7 +107,7 @@ function getFilteredCommands(prompt: string): SlashCommand[] {
 function getCommandOutput(command: string): string {
   switch (command) {
     case "/help":
-      return "Available commands: /help, /clear, /compact, /context, /copy, /cost, /diff, /effort, /fast, /mcp, /model, /permissions, /plan, /rewind, /tasks, /analytics, /usage, /exit";
+      return "Available commands: /help, /clear, /compact, /context, /copy, /cost, /diff, /doctor, /effort, /export, /fast, /hooks, /init, /mcp, /memory, /model, /permissions, /plan, /rename, /rewind, /settings, /shortcuts, /stats, /tasks, /analytics, /usage, /exit";
     case "/clear":
       return "";
     case "/cost":
@@ -118,7 +137,7 @@ function getAtMentionPrefix(text: string): string | null {
   return after;
 }
 
-export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionId, onSessionStarted, getAssistantResponses, metrics, usage, costs }: PromptInputProps) {
+export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionId, onSessionStarted, getAssistantResponses, metrics, usage, costs, events, hasMessages = false, lastTurnHadError = false, onOpenPanel }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
 
@@ -176,6 +195,12 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
 
   const filteredCommands = getFilteredCommands(prompt);
   const dropdownVisible = filteredCommands.length > 0 && !dropdownDismissed && !fileDropdownVisible;
+
+  // Ghost text suggestion (T3-12)
+  const ghostSuggestion = useMemo(
+    () => computeSuggestion(prompt, { hasMessages, lastTurnHadError }),
+    [prompt, hasMessages, lastTurnHadError],
+  );
 
   const adjustFocus = useCallback(() => {
     inputRef.current?.focus();
@@ -291,6 +316,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         showOutput(result);
         return;
       } else if (command === "/mcp") {
+        onOpenPanel?.("mcp");
         showOutput(formatMcpCommand(metrics ?? null));
         return;
       } else if (command === "/context") {
@@ -408,11 +434,118 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
           showOutput("Failed to switch permission mode.");
         }
         return;
+      } else if (command === "/rename") {
+        const parts = trimmed.split(/\s+/);
+        const newName = parts.slice(1).join(" ").trim();
+
+        if (!newName) {
+          showOutput("Usage: /rename <new name> (renames the current session)");
+          return;
+        }
+
+        const targetId = activeSessionId || sessionId;
+        if (!targetId) {
+          showOutput("No active session to rename.");
+          return;
+        }
+
+        try {
+          const SESSION_NAMES_KEY = "session-names";
+          const raw = localStorage.getItem(SESSION_NAMES_KEY);
+          const names: Record<string, string> = raw ? JSON.parse(raw) : {};
+          names[targetId] = newName;
+          localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names));
+          showOutput(`Session renamed to "${newName}"`);
+        } catch {
+          showOutput("Failed to rename session.");
+        }
+        return;
       } else if (command === "/tasks") {
         showOutput(formatTasksCommand(metrics ?? null));
         return;
       } else if (command === "/analytics") {
         showOutput(formatAnalyticsCommand(costs ?? null));
+        return;
+      } else if (command === "/export") {
+        const parts = trimmed.split(/\s+/);
+        const format = parts[1]?.toLowerCase() || "md";
+
+        if (format !== "md" && format !== "json") {
+          showOutput("Usage: /export md | json");
+          return;
+        }
+
+        const exportEvents = events ?? [];
+        const sid = sessionId || "unknown";
+
+        if (exportEvents.length === 0) {
+          showOutput("No conversation to export.");
+          return;
+        }
+
+        if (format === "md") {
+          const content = generateMarkdownExport(exportEvents, sid);
+          triggerDownload(content, `session-${sid}.md`, "text/markdown");
+          showOutput("Exported conversation as Markdown");
+        } else {
+          const content = generateJsonExport(exportEvents, sid);
+          triggerDownload(content, `session-${sid}.json`, "application/json");
+          showOutput("Exported conversation as JSON");
+        }
+        return;
+      } else if (command === "/shortcuts") {
+        const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
+        const mod = isMac ? "Cmd" : "Ctrl";
+        showOutput(
+          `Keyboard Shortcuts:\n` +
+          `  ${mod}+L          Clear conversation\n` +
+          `  ${mod}+Shift+K    Compact context\n` +
+          `  ${mod}+F          Search turns\n` +
+          `  Escape            Close modal / dismiss\n` +
+          `  Shift+Tab         Cycle permission mode\n` +
+          `  Enter             Send message\n` +
+          `  Shift+Enter       New line in input\n` +
+          `  Up Arrow          Previous prompt history`
+        );
+        return;
+      } else if (command === "/doctor") {
+        onOpenPanel?.("doctor");
+        showOutput("Opening diagnostics panel...");
+        return;
+      } else if (command === "/stats") {
+        onOpenPanel?.("stats");
+        showOutput("Opening statistics panel...");
+        return;
+      } else if (command === "/settings") {
+        showOutput("Settings panel is available in the right panel tabs.");
+        return;
+      } else if (command === "/hooks") {
+        showOutput("Hooks panel is available in the right panel tabs.");
+        return;
+      } else if (command === "/memory") {
+        showOutput("Memory panel is available in the right panel tabs.");
+        return;
+      } else if (command === "/init") {
+        const targetId = activeSessionId || sessionId;
+        if (!targetId) {
+          showOutput("No active session. Start or resume a session first.");
+          return;
+        }
+        try {
+          const res = await fetch(`/api/sessions/${targetId}/init`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          const data = await res.json();
+          if (data.created) {
+            showOutput("CLAUDE.md created successfully.");
+          } else {
+            showOutput(data.message || "CLAUDE.md already exists.");
+          }
+        } catch {
+          showOutput("Failed to initialize CLAUDE.md.");
+        }
         return;
       } else if (command === "/model") {
         const parts = trimmed.split(/\s+/);
@@ -691,6 +824,13 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
       return;
     }
 
+    // Ghost text: Tab accepts suggestion when input is empty (T3-12)
+    if (e.key === "Tab" && ghostSuggestion && prompt.length === 0) {
+      e.preventDefault();
+      setPrompt(ghostSuggestion);
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       submitPrompt();
@@ -779,24 +919,36 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
             ))}
           </div>
         )}
-        <textarea
-          ref={inputRef}
-          value={prompt}
-          rows={1}
-          onChange={(e) => {
-            setPrompt(e.target.value);
-            setSelectedCmdIndex(-1);
-            setDropdownDismissed(false);
-            setFileDismissed(false);
-            if (commandOutput) setCommandOutput(null);
-          }}
-          onKeyDown={handleKeyDown}
-          onInput={handleInput}
-          onPaste={handlePaste}
-          placeholder="Send a prompt to Claude Code..."
-          disabled={running}
-          className="flex-1 bg-transparent border-none outline-none text-dt-text0 font-mono text-lg caret-dt-accent resize-none overflow-hidden"
-        />
+        <div className="relative flex-1 min-w-0">
+          {/* Ghost text suggestion (T3-12) */}
+          {ghostSuggestion && prompt.length === 0 && !running && (
+            <span
+              aria-hidden="true"
+              className="absolute left-0 top-0 text-dt-text2 opacity-40 font-mono text-lg pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis w-full"
+              data-testid="ghost-suggestion"
+            >
+              {ghostSuggestion}
+            </span>
+          )}
+          <textarea
+            ref={inputRef}
+            value={prompt}
+            rows={1}
+            onChange={(e) => {
+              setPrompt(e.target.value);
+              setSelectedCmdIndex(-1);
+              setDropdownDismissed(false);
+              setFileDismissed(false);
+              if (commandOutput) setCommandOutput(null);
+            }}
+            onKeyDown={handleKeyDown}
+            onInput={handleInput}
+            onPaste={handlePaste}
+            placeholder=""
+            disabled={running}
+            className="w-full bg-transparent border-none outline-none text-dt-text0 font-mono text-lg caret-dt-accent resize-none overflow-hidden"
+          />
+        </div>
         {/* SSE status indicator */}
         {running && sseStatus === "streaming" && (
           <span

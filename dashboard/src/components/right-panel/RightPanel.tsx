@@ -4,13 +4,21 @@ import type {
   AgentDAG,
   AgentNode,
   SessionEvent,
+  SessionMetrics,
   SubagentMeta,
+  UsageInfo,
 } from "../../lib/types";
 import { PrimaryTabs, type PrimaryTab } from "./PrimaryTabs";
 import { SnapshotTabs } from "./SnapshotTabs";
 import { SnapshotHistory } from "./SnapshotHistory";
 import { AgentFlowDAG } from "../AgentFlowDAG";
 import { AgentLogs } from "../AgentLogs";
+import { SettingsPanel } from "../panels/SettingsPanel";
+import { HookEditor } from "../panels/HookEditor";
+import { MemoryEditor } from "../panels/MemoryEditor";
+import { DoctorPanel } from "../panels/DoctorPanel";
+import { StatsPanel } from "../panels/StatsPanel";
+import { McpManager } from "../panels/McpManager";
 import { filterDagForTurn } from "../../lib/filterDagForTurn";
 
 /** Exported for overflow regression tests (TASK-005) */
@@ -30,9 +38,17 @@ interface RightPanelProps {
   toolFilter: string | null;
   onSelectAgent: (id: string) => void;
   onSnapshotSelect?: (turnIndex: number) => void;
-  requestedTab?: "graph" | "log";
+  requestedTab?: PrimaryTab;
   /** Driven externally (e.g., middle-panel turn click) to sync active snapshot */
   externalActiveIndex?: number | null;
+  /** Session metrics for Settings panel */
+  metrics?: SessionMetrics | null;
+  /** Usage info for Settings panel */
+  usage?: UsageInfo | null;
+  /** Project hash for Memory panel API */
+  projectHash?: string;
+  /** Session ID for Memory panel API */
+  sessionId?: string;
 }
 
 export function RightPanel({
@@ -47,6 +63,10 @@ export function RightPanel({
   onSnapshotSelect,
   requestedTab,
   externalActiveIndex,
+  metrics,
+  usage,
+  projectHash,
+  sessionId,
 }: RightPanelProps) {
   const [activePrimaryTab, setActivePrimaryTab] = useState<PrimaryTab>("graph");
   const [activeSnapshotIndex, setActiveSnapshotIndex] = useState<number>(
@@ -220,7 +240,7 @@ export function RightPanel({
               No agent data
             </div>
           )
-        ) : (
+        ) : activePrimaryTab === "log" ? (
           <AgentLogs
             events={filteredEvents}
             agents={filteredAgents}
@@ -230,7 +250,19 @@ export function RightPanel({
             onSelectAgent={onSelectAgent}
             onSwitchToGraph={handleSwitchToGraph}
           />
-        )}
+        ) : activePrimaryTab === "settings" ? (
+          <SettingsPanel metrics={metrics ?? null} usage={usage ?? null} />
+        ) : activePrimaryTab === "hooks" ? (
+          <HookEditor />
+        ) : activePrimaryTab === "memory" ? (
+          <MemoryEditor projectHash={projectHash} sessionId={sessionId} />
+        ) : activePrimaryTab === "doctor" ? (
+          <DoctorPanel />
+        ) : activePrimaryTab === "stats" ? (
+          <StatsPanel />
+        ) : activePrimaryTab === "mcp" ? (
+          <McpManager servers={[]} />
+        ) : null}
       </div>
     </div>
   );

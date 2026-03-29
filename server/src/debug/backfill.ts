@@ -1,6 +1,7 @@
 import { discoverSessions, loadFullSession } from "../parser/session-discovery.js";
 import { buildLifecycleRecords } from "./lifecycle-builder.js";
 import type { DebugDB } from "./debug-db.js";
+import { logger } from "../logger.js";
 
 /**
  * Backfill the debug DB with all existing sessions.
@@ -14,7 +15,7 @@ export function backfillDebugDb(db: DebugDB): void {
 
   if (toBackfill.length === 0) return;
 
-  console.log(`[debug-db] Backfilling ${toBackfill.length} sessions...`);
+  logger.info({ count: toBackfill.length }, "debug-db: backfilling sessions");
 
   let count = 0;
   for (const session of toBackfill) {
@@ -61,9 +62,9 @@ export function backfillDebugDb(db: DebugDB): void {
 
       count++;
     } catch (err) {
-      console.warn(`[debug-db] Skipping session ${session.id}:`, err);
+      logger.warn({ sessionId: session.id, error: String(err) }, "debug-db: skipping session");
     }
   }
 
-  console.log(`[debug-db] Backfilled ${count} sessions.`);
+  logger.info({ count }, "debug-db: backfill complete");
 }

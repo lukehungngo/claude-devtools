@@ -28,7 +28,7 @@ export function AppLayout() {
   const [currentMetrics, setCurrentMetrics] = useState<SessionMetrics | null>(null);
   // Tool filter state (set by TopBar badge clicks, consumed by SessionPage)
   const [toolFilter, setToolFilter] = useState<string | null>(null);
-  const [requestedRightTab, setRequestedRightTab] = useState<"graph" | "log" | undefined>(undefined);
+  const [requestedRightTab, setRequestedRightTab] = useState<"graph" | "log" | "doctor" | "stats" | "mcp" | undefined>(undefined);
 
   // Right panel content -- set by session page, rendered in layout slot
   const [rightPanelContent, setRightPanelContent] = useState<ReactNode>(null);

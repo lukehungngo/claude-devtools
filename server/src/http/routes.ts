@@ -1,9 +1,10 @@
 import { execSync, spawnSync } from "child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { join, resolve } from "node:path";
 import { Router, json } from "express";
+import { logger } from "../logger.js";
 import {
   discoverSessions,
   discoverRepoGroups,
@@ -186,7 +187,7 @@ export function setupRoutes(state?: ServerState): Router {
             }))
           );
         } catch (err) {
-          console.warn("[debug-db] Failed to store lifecycle data:", err);
+          logger.warn({ error: String(err) }, "debug-db: failed to store lifecycle data");
         }
       }
 
@@ -864,6 +865,246 @@ export function setupRoutes(state?: ServerState): Router {
       res.json(graph);
     } catch (err) {
       res.status(500).json({ error: "Failed to query debug graph" });
+    }
+  });
+
+  // === Settings & Config Routes (GROUP-4) ===
+
+  // Get hooks from ~/.claude/settings.json (read-only)
+  router.get("/settings/hooks", (_req, res) => {
+    try {
+      const settingsPath = join(homedir(), ".claude", "settings.json");
+      if (!existsSync(settingsPath)) {
+        return res.json({ hooks: {} });
+      }
+      const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      res.json({ hooks: settings.hooks ?? {} });
+    } catch {
+      res.json({ hooks: {} });
+    }
+  });
+
+  // Get CLAUDE.md content from session cwd (read-only)
+  router.get("/sessions/:projectHash/:sessionId/memory", (req, res) => {
+    try {
+      const { projectHash, sessionId } = req.params;
+      const sessions = discoverSessions();
+      const session = sessions.find(
+        (s) => s.projectHash === projectHash && s.id === sessionId
+      );
+
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      const cwd = session.cwd;
+      if (!cwd) {
+        return res.json({ content: null });
+      }
+
+      const claudeMdPath = join(cwd, "CLAUDE.md");
+      if (!existsSync(claudeMdPath)) {
+        return res.json({ content: null });
+      }
+
+      const content = readFileSync(claudeMdPath, "utf-8");
+      res.json({ content });
+    } catch (err) {
+      logger.error({ error: String(err) }, "Failed to read CLAUDE.md");
+      res.json({ content: null });
+    }
+  });
+
+  // Initialize CLAUDE.md in session cwd
+  router.post("/sessions/:sessionId/init", (req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+
+    const session = sessionManager.getStatus(req.params.sessionId);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    const claudeMdPath = join(session.cwd, "CLAUDE.md");
+    if (existsSync(claudeMdPath)) {
+      return res.json({ created: false, message: "CLAUDE.md already exists" });
+    }
+
+    const scaffoldTemplate = `# Project Name
+
+## Build & Test
+<!-- Add your build/test commands here -->
+
+## Code Style
+<!-- Describe your code style preferences -->
+
+## Key Architecture
+<!-- Describe key architectural decisions -->
+`;
+
+    try {
+      writeFileSync(claudeMdPath, scaffoldTemplate, "utf-8");
+      res.json({ created: true, message: "CLAUDE.md created" });
+    } catch (err) {
+      logger.error({ error: String(err) }, "Failed to create CLAUDE.md");
+      res.status(500).json({ error: "Failed to create CLAUDE.md" });
+    }
+  });
+
+  // === Diagnostics & Stats Routes (GROUP-5) ===
+
+  // Health check diagnostics
+  router.get("/doctor", (_req, res) => {
+    const httpLog = logger.child({ subsystem: "http" });
+    try {
+      const checks: { name: string; status: "pass" | "warn" | "fail"; detail: string }[] = [];
+
+      // 1. JSONL directory readable
+      const projectsDir = join(homedir(), ".claude", "projects");
+      try {
+        if (existsSync(projectsDir) && statSync(projectsDir).isDirectory()) {
+          checks.push({ name: "jsonl_directory", status: "pass", detail: projectsDir });
+        } else {
+          checks.push({ name: "jsonl_directory", status: "fail", detail: `${projectsDir} not found or not a directory` });
+        }
+      } catch {
+        checks.push({ name: "jsonl_directory", status: "fail", detail: `Cannot access ${projectsDir}` });
+      }
+
+      // 2. Node version
+      const nodeVersion = process.version;
+      const major = parseInt(nodeVersion.slice(1), 10);
+      checks.push({
+        name: "node_version",
+        status: major >= 18 ? "pass" : "warn",
+        detail: nodeVersion,
+      });
+
+      // 3. Server uptime
+      const uptimeSeconds = Math.floor(process.uptime());
+      const hours = Math.floor(uptimeSeconds / 3600);
+      const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+      const secs = uptimeSeconds % 60;
+      checks.push({
+        name: "server_uptime",
+        status: "pass",
+        detail: `${hours}h ${minutes}m ${secs}s`,
+      });
+
+      // 4. Session count
+      try {
+        const sessions = discoverSessions();
+        checks.push({
+          name: "session_count",
+          status: sessions.length > 0 ? "pass" : "warn",
+          detail: `${sessions.length} sessions discovered`,
+        });
+      } catch {
+        checks.push({ name: "session_count", status: "fail", detail: "Failed to discover sessions" });
+      }
+
+      // 5. Active sessions
+      const sessionManager = state?.sessionManager;
+      const activeSessions = sessionManager ? sessionManager.getActiveSessions() : [];
+      checks.push({
+        name: "active_sessions",
+        status: "pass",
+        detail: `${activeSessions.length} active sessions`,
+      });
+
+      res.json({ checks });
+    } catch (err) {
+      httpLog.error({ error: String(err) }, "Doctor check failed");
+      res.status(500).json({ error: "Failed to run diagnostics" });
+    }
+  });
+
+  // Usage statistics aggregation
+  router.get("/stats", (_req, res) => {
+    const httpLog = logger.child({ subsystem: "http" });
+    try {
+      const sessions = discoverSessions();
+
+      const totalSessions = sessions.length;
+      const totalEvents = sessions.reduce((sum, s) => sum + s.eventCount, 0);
+
+      // Sessions per day (last 7 days)
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const dayMap = new Map<string, number>();
+
+      // Initialize last 7 days
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const key = d.toISOString().slice(0, 10);
+        dayMap.set(key, 0);
+      }
+
+      for (const session of sessions) {
+        const sessionDate = new Date(session.startTime);
+        if (sessionDate >= sevenDaysAgo) {
+          const key = sessionDate.toISOString().slice(0, 10);
+          dayMap.set(key, (dayMap.get(key) ?? 0) + 1);
+        }
+      }
+
+      const sessionsPerDay = Array.from(dayMap.entries())
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      // Top repos by session count (top 5)
+      const repoMap = new Map<string, number>();
+      for (const session of sessions) {
+        if (session.cwd) {
+          const repoName = session.cwd.split("/").pop() || session.cwd;
+          repoMap.set(repoName, (repoMap.get(repoName) ?? 0) + 1);
+        }
+      }
+
+      const topRepos = Array.from(repoMap.entries())
+        .map(([name, sessionCount]) => ({ name, sessions: sessionCount }))
+        .sort((a, b) => b.sessions - a.sessions)
+        .slice(0, 5);
+
+      res.json({
+        totalSessions,
+        totalEvents,
+        sessionsPerDay,
+        topRepos,
+      });
+    } catch (err) {
+      httpLog.error({ error: String(err) }, "Stats aggregation failed");
+      res.status(500).json({ error: "Failed to compute stats" });
+    }
+  });
+
+  // MCP server list from settings
+  router.get("/mcp/servers", (_req, res) => {
+    try {
+      const settingsPath = join(homedir(), ".claude", "settings.json");
+      if (!existsSync(settingsPath)) {
+        return res.json({ servers: [] });
+      }
+
+      const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      const mcpServers = settings.mcpServers ?? {};
+
+      const servers = Object.entries(mcpServers).map(([name, config]) => {
+        const cfg = config as Record<string, unknown>;
+        return {
+          name,
+          command: cfg.command ?? null,
+          args: Array.isArray(cfg.args) ? cfg.args : [],
+          status: "configured" as const,
+          toolCount: 0, // Cannot determine without connecting
+        };
+      });
+
+      res.json({ servers });
+    } catch {
+      res.json({ servers: [] });
     }
   });
 

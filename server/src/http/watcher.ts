@@ -2,6 +2,7 @@ import chokidar from "chokidar";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { broadcast, type ServerState } from "./server.js";
+import { logger } from "../logger.js";
 import { parseJsonlIncremental } from "../parser/jsonl-reader.js";
 import { processNewEvents } from "../debug/lifecycle-builder.js";
 import type { LifecycleBuilderState } from "../debug/lifecycle-builder.js";
@@ -92,7 +93,7 @@ function storeLifecycleData(state: ServerState, filePath: string, events: Sessio
       }))
     );
   } catch (err) {
-    console.warn("[debug-db] Watcher lifecycle insert failed:", err);
+    logger.warn({ error: String(err) }, "debug-db: watcher lifecycle insert failed");
   }
 }
 

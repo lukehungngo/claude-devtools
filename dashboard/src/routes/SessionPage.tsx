@@ -33,6 +33,7 @@ export function SessionPage() {
     setActiveSessionId,
     setSelected,
     slugMap,
+    usage,
   } = ctx;
 
   // Resolve URL slug to projectHash for API calls
@@ -129,6 +130,10 @@ export function SessionPage() {
     setRequestedRightTab("graph");
   }, [setRequestedRightTab]);
 
+  const handleOpenPanel = useCallback((panel: "doctor" | "stats" | "mcp") => {
+    setRequestedRightTab(panel);
+  }, [setRequestedRightTab]);
+
   // Render right panel content into layout context
   const rightPanel = useMemo(() => {
     if (metricsLoading && !metrics) {
@@ -152,12 +157,16 @@ export function SessionPage() {
         onSnapshotSelect={setHighlightedTurnIndex}
         requestedTab={requestedRightTab}
         externalActiveIndex={selectedTurnIndex}
+        metrics={metrics}
+        usage={usage}
+        projectHash={projectHash}
+        sessionId={sessionId}
       />
     );
   }, [
     metricsLoading, metrics, turns, allEvents, agents, subagentMeta,
     selectedAgent, toolFilter, requestedRightTab, selectedTurnIndex,
-    setHighlightedTurnIndex,
+    setHighlightedTurnIndex, usage, projectHash, sessionId,
   ]);
 
   useEffect(() => {
@@ -206,6 +215,7 @@ export function SessionPage() {
       onSubmitAnswer={submitAnswer}
       onAgentPillClick={handleAgentPillClick}
       onTurnClick={handleTurnClick}
+      onOpenPanel={handleOpenPanel}
     />
   );
 }
