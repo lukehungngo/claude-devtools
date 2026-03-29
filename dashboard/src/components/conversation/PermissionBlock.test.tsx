@@ -80,4 +80,87 @@ describe("PermissionBlock", () => {
     expect(container.querySelector("button")).toBeNull();
     expect(container.textContent).toContain("Denied");
   });
+
+  it("shows command for Bash tool", () => {
+    const perm = makePermission({
+      toolName: "Bash",
+      input: { command: "ls -la /tmp" },
+    });
+    const { container } = render(
+      <PermissionBlock permission={perm} onDecide={vi.fn()} />
+    );
+
+    expect(container.textContent).toContain("ls -la /tmp");
+  });
+
+  it("shows file path and content preview for Write tool", () => {
+    const perm = makePermission({
+      toolName: "Write",
+      input: {
+        file_path: "/src/foo.ts",
+        content: "export function hello() { return 'world'; }",
+      },
+    });
+    const { container } = render(
+      <PermissionBlock permission={perm} onDecide={vi.fn()} />
+    );
+
+    expect(container.textContent).toContain("/src/foo.ts");
+    expect(container.textContent).toContain("export function hello()");
+  });
+
+  it("shows file path and old/new string preview for Edit tool", () => {
+    const perm = makePermission({
+      toolName: "Edit",
+      input: {
+        file_path: "/src/bar.ts",
+        old_string: "const x = 1;",
+        new_string: "const x = 2;",
+      },
+    });
+    const { container } = render(
+      <PermissionBlock permission={perm} onDecide={vi.fn()} />
+    );
+
+    expect(container.textContent).toContain("/src/bar.ts");
+    expect(container.textContent).toContain("const x = 1;");
+    expect(container.textContent).toContain("const x = 2;");
+  });
+
+  it("shows all input parameters for generic tools", () => {
+    const perm = makePermission({
+      toolName: "mcp__server__tool",
+      input: { query: "test query", limit: 10 },
+    });
+    const { container } = render(
+      <PermissionBlock permission={perm} onDecide={vi.fn()} />
+    );
+
+    expect(container.textContent).toContain("query");
+    expect(container.textContent).toContain("test query");
+    expect(container.textContent).toContain("limit");
+  });
+
+  it("shows 'Allow for session' button when onDecideSession is provided", () => {
+    const onDecideSession = vi.fn();
+    const { getByText } = render(
+      <PermissionBlock
+        permission={makePermission()}
+        onDecide={vi.fn()}
+        onDecideSession={onDecideSession}
+      />
+    );
+
+    const btn = getByText("Allow for session");
+    fireEvent.click(btn);
+    expect(onDecideSession).toHaveBeenCalledWith("perm-1");
+  });
+
+  it("does not show 'Allow for session' button when onDecideSession is not provided", () => {
+    const { container } = render(
+      <PermissionBlock permission={makePermission()} onDecide={vi.fn()} />
+    );
+
+    expect(container.textContent).not.toContain("Allow for session");
+  });
 });

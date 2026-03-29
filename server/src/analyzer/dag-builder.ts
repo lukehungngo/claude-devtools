@@ -37,6 +37,7 @@ export function buildAgentDAG(
   });
 
   // Find Agent tool_use calls in main session to link parent→child
+  const edgeTargets = new Set<string>();
   for (const event of mainEvents) {
     if (event.type !== "assistant") continue;
     for (const content of event.message.content) {
@@ -45,7 +46,8 @@ export function buildAgentDAG(
           (content.input as Record<string, unknown>).description as string;
         // Try to match to a subagent by description
         for (const [agentId, meta] of subagentMeta) {
-          if (meta.description === agentDesc) {
+          if (meta.description === agentDesc && !edgeTargets.has(agentId)) {
+            edgeTargets.add(agentId);
             edges.push({ source: "main", target: agentId });
           }
         }
@@ -92,10 +94,10 @@ function determineAgentStatus(
   const lastTimestamp = new Date(lastEvent.timestamp).getTime();
   const isRecent = Date.now() - lastTimestamp < ACTIVE_THRESHOLD_MS;
 
-  // Check if last tool_result has error
+  // Check if last tool_result has error (tool_result items are in user events)
   for (let i = events.length - 1; i >= Math.max(0, events.length - 3); i--) {
     const evt = events[i];
-    if (evt.type === "assistant") {
+    if (evt.type === "user") {
       for (const content of evt.message.content) {
         if (content.type === "tool_result" && content.is_error) {
           return "error";
