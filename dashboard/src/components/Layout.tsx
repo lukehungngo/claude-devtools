@@ -21,24 +21,24 @@ export function Layout({
 
   return (
     <div
-      className="app bg-dt-border"
+      className="app bg-dt-bg0"
       style={{
         display: "grid",
-        gridTemplateColumns: `${sidebarWidth} 1fr 520px`,
+        gridTemplateColumns: `${sidebarWidth} 1fr var(--right-panel-width, 520px)`,
         gridTemplateRows: "auto 1fr",
         gridTemplateAreas: `
           "topbar topbar topbar"
           "sidebar center right-panel"
         `,
         height: "100vh",
-        gap: "1px",
-        transition: "grid-template-columns 0.2s ease",
+        gap: "2px",
+        transition: "grid-template-columns 0.2s var(--ease-out-expo)",
       }}
     >
       <header className="overflow-hidden" style={{ gridArea: "topbar" }}>{topBar}</header>
 
       <aside
-        className="overflow-hidden bg-dt-bg1 flex flex-col"
+        className="overflow-hidden bg-dt-bg1 flex flex-col shadow-[4px_0_12px_rgba(0,0,0,0.15)]"
         style={{ gridArea: "sidebar" }}
       >
         {/* Collapse toggle */}
@@ -47,7 +47,7 @@ export function Layout({
         >
           <button
             onClick={onToggleSidebar}
-            className={`w-6 h-6 flex items-center justify-center rounded-dt-sm text-dt-text2 cursor-pointer bg-transparent border-none text-sm transition-transform ${
+            className={`w-8 h-8 flex items-center justify-center rounded-full text-dt-text2 cursor-pointer bg-transparent border-none text-sm hover:bg-dt-bg3 transition-all duration-dt-fast ease-dt-expo ${
               sidebarCollapsed ? "rotate-180" : ""
             }`}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -71,7 +71,7 @@ export function Layout({
       </main>
 
       <section
-        className="bg-dt-bg1 overflow-hidden flex flex-col min-w-0"
+        className="bg-dt-bg1 overflow-hidden flex flex-col min-w-0 shadow-[-4px_0_12px_rgba(0,0,0,0.15)]"
         style={{ gridArea: "right-panel" }}
       >
         {rightPanel}

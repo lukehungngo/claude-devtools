@@ -54,17 +54,17 @@ export function SnapshotTabs({
               }
             }}
             onClick={() => onSelect(realIndex)}
-            className={`flex items-center gap-1 pl-2.5 pr-2 py-1.5 text-md font-semibold font-mono border-none cursor-pointer whitespace-nowrap transition-all shrink-0 border-b-2 ${
+            className={`flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-md font-semibold font-mono border-none cursor-pointer whitespace-nowrap transition-all duration-150 ease-dt-expo shrink-0 rounded-dt-sm mx-0.5 first:ml-1 ${
               isActive
-                ? `${isLive ? "text-dt-accent border-dt-accent" : "text-dt-text0 border-dt-text1"} bg-dt-bg1`
-                : "text-dt-text2 border-transparent bg-transparent"
+                ? `${isLive ? "text-dt-accent" : "text-dt-text0"} bg-dt-bg3 shadow-dt-sm`
+                : "text-dt-text2 bg-transparent hover:bg-dt-bg3/50"
             }`}
           >
             {/* Status dot */}
             <span
-              className={`w-1.25 h-1.25 rounded-full shrink-0 ${
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                 isRunning && isLive
-                  ? "bg-dt-accent animate-pulse-opacity"
+                  ? "bg-dt-accent animate-pulse-opacity shadow-[0_0_6px_var(--accent)]"
                   : turn.status === "completed"
                     ? "bg-dt-green"
                     : "bg-dt-text2"
@@ -89,7 +89,7 @@ export function SnapshotTabs({
                   e.stopPropagation();
                   onClose(realIndex);
                 }}
-                className="ml-0.5 text-sm text-dt-text2 cursor-pointer opacity-60 leading-none"
+                className="ml-0.5 text-sm text-dt-text2 cursor-pointer opacity-50 hover:opacity-100 leading-none transition-opacity duration-100"
               >
                 {"\u00D7"}
               </span>

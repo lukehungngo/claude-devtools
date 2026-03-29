@@ -29,6 +29,9 @@ export default {
           text2: "var(--text-2)",
           accent: "var(--accent)",
           "accent-dim": "var(--accent-dim)",
+          "accent-hover": "var(--accent-hover)",
+          "accent-glow": "var(--accent-glow)",
+          "border-subtle": "var(--border-subtle)",
           green: "var(--green)",
           "green-dim": "var(--green-dim)",
           yellow: "var(--yellow)",
@@ -68,11 +71,33 @@ export default {
         "50":   "192px",
         "75":   "288px",
       },
+      boxShadow: {
+        'dt-sm': 'var(--shadow-sm)',
+        'dt-md': 'var(--shadow-md)',
+        'dt-lg': 'var(--shadow-lg)',
+        'dt-glow': 'var(--shadow-glow)',
+        'dt-focus': 'var(--focus-ring)',
+      },
+      transitionTimingFunction: {
+        'dt-expo': 'var(--ease-out-expo)',
+      },
+      transitionDuration: {
+        'dt-fast': 'var(--duration-fast)',
+        'dt-normal': 'var(--duration-normal)',
+        'dt-slow': 'var(--duration-slow)',
+      },
+      backdropBlur: {
+        'dt-sm': '8px',
+        'dt-md': '16px',
+        'dt-lg': '24px',
+      },
       borderRadius: {
-        "dt-xs": "0.125rem",
-        "dt-sm": "0.1875rem",
-        "dt-md": "0.3125rem",
-        dt: "0.4375rem",
+        "dt-xs": "0.1875rem",
+        "dt-sm": "0.3125rem",
+        "dt-md": "0.625rem",
+        dt: "0.5rem",
+        "dt-lg": "0.875rem",
+        "dt-xl": "1rem",
       },
       keyframes: {
         spin: {
@@ -85,11 +110,26 @@ export default {
         "dash-offset": {
           to: { strokeDashoffset: "-8" },
         },
+        fadeIn: {
+          from: { opacity: "0", transform: "translateY(4px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        slideUp: {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
       },
       animation: {
         spin: "spin .8s linear infinite",
         "pulse-opacity": "pulse-opacity 1.2s ease-in-out infinite",
         "dash-offset": "dash-offset 1s linear infinite",
+        "fade-in": "fadeIn var(--duration-normal) var(--ease-out-expo)",
+        "slide-up": "slideUp var(--duration-normal) var(--ease-out-expo)",
+        shimmer: "shimmer 1.5s ease-in-out infinite",
       },
     },
   },

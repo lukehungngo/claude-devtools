@@ -190,7 +190,7 @@ function VirtualizedTurnList({
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className="flex-1 overflow-y-auto px-4 py-3 relative dt-scrollbar"
+      className="flex-1 overflow-y-auto px-5 py-4 relative dt-scrollbar"
     >
       {filteredTurns.length === 0 ? (
         <div className="flex items-center justify-center h-full text-dt-text2 text-base">
@@ -505,7 +505,7 @@ export function ConversationView({
   return (
     <div className="flex flex-col h-full bg-dt-bg1 overflow-hidden">
       {/* Panel header */}
-      <div className="flex items-center justify-between px-3 h-8 border-b border-dt-border bg-dt-bg2 shrink-0">
+      <div className="flex items-center justify-between px-4 h-10 border-b border-dt-border bg-dt-bg2/80 shrink-0">
         <div className="flex items-center gap-2 text-base font-semibold font-sans text-dt-text0">
           <svg
             width="14"
@@ -518,7 +518,7 @@ export function ConversationView({
           </svg>
           Conversation
           {isLive && (
-            <span className="text-xs font-semibold text-dt-green bg-dt-green-dim px-1.5 py-px rounded-dt-xs uppercase tracking-[0.5px]">
+            <span className="text-xs font-semibold text-dt-green bg-dt-green-dim px-2 py-0.5 rounded-full shadow-[0_0_8px_var(--green-dim)] uppercase tracking-[0.5px]">
               live
             </span>
           )}
@@ -539,7 +539,7 @@ export function ConversationView({
 
       {/* Search bar (Ctrl+F) */}
       {showSearch && (
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-dt-bg2 border-b border-dt-border shrink-0">
+        <div className="flex items-center gap-2 px-4 py-2 bg-dt-bg2/80 backdrop-blur-dt-sm border-b border-dt-border shrink-0">
           <svg
             width="14"
             height="14"
@@ -557,7 +557,7 @@ export function ConversationView({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search turns..."
-            className="flex-1 bg-transparent border-none outline-none text-dt-text0 font-mono text-base"
+            className="flex-1 bg-transparent border-none outline-none text-dt-text0 font-mono text-base placeholder:text-dt-text2/60"
           />
           <span className="text-sm text-dt-text2 shrink-0">
             {filteredTurns.length}/{turns.length}
@@ -603,7 +603,7 @@ export function ConversationView({
         <div className="absolute bottom-30 left-1/2 -translate-x-1/2 z-10">
           <button
             onClick={scrollToBottom}
-            className="bg-dt-bg3 border border-dt-border rounded-dt text-dt-text1 px-3 py-1 text-sm cursor-pointer flex items-center gap-1 shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
+            className="bg-dt-bg3/80 backdrop-blur-dt-sm border border-dt-border rounded-full text-dt-text1 px-4 py-1.5 text-sm cursor-pointer flex items-center gap-1 shadow-dt-md hover:bg-dt-bg4 transition-all duration-dt-fast"
           >
             {"\u2193"} New turns
           </button>

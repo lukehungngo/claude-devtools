@@ -55,7 +55,7 @@ function TurnFooter({ turn }: { turn: TurnSnapshot }) {
   return (
     <div
       data-testid="turn-completion-indicator"
-      className="mt-2 pt-1.5 border-t border-dt-border flex items-center gap-1.5 text-dt-text2 text-xs font-mono"
+      className="mt-3 pt-2 border-t border-dt-border/50 flex items-center gap-1.5 text-dt-text2 text-xs font-mono"
     >
       {isStreaming ? (
         <>
@@ -109,26 +109,26 @@ export function TurnCard({
 
   return (
     <div
-      className={`conv-turn ${collapsed ? "collapsed" : ""} ${isHighlighted ? "highlighted" : ""} rounded-dt border border-dt-border mb-2 overflow-hidden transition-colors ${
-        isHighlighted ? "bg-dt-accent-dim" : "bg-dt-bg2"
+      className={`conv-turn ${collapsed ? "collapsed" : ""} ${isHighlighted ? "highlighted" : ""} rounded-dt-lg border border-dt-border mb-3 overflow-hidden transition-all duration-dt-normal ease-dt-expo shadow-dt-sm ${
+        isHighlighted ? "bg-dt-accent-dim border-l-4 border-l-dt-accent shadow-dt-glow" : "bg-dt-bg2"
       }`}
       onClick={onTurnClick}
     >
       {/* Header */}
       <div
         onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}
-        className="flex items-center gap-2.5 px-4 py-3 cursor-pointer select-none"
+        className="flex items-center gap-3 px-5 py-3.5 cursor-pointer select-none"
       >
         {/* Expand icon */}
         <span
           className="text-sm text-dt-text2 transition-transform shrink-0"
-          style={{ transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+          style={{ transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 150ms var(--ease-out-expo)" }}
         >
           {"\u25BC"}
         </span>
 
         {/* Turn label */}
-        <span className="text-sm font-bold text-dt-accent uppercase tracking-[0.5px] shrink-0">
+        <span className="text-sm font-semibold text-dt-accent/80 uppercase tracking-[0.6px] shrink-0">
           PROMPT {"\u00B7"} TURN {turn.turnNumber}
         </span>
 
@@ -154,10 +154,10 @@ export function TurnCard({
 
       {/* User prompt */}
       <div
-        className={`flex gap-2 pr-4 pb-3 pl-9 ${promptExpanded ? "items-start" : "items-center"}`}
+        className={`flex gap-2 pr-5 pb-3 pl-10 ${promptExpanded ? "items-start" : "items-center"}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <span className="text-sm font-bold text-dt-accent uppercase tracking-[0.4px] shrink-0">
+        <span className="text-sm font-semibold text-dt-accent/80 uppercase tracking-[0.5px] shrink-0">
           USER PROMPT
         </span>
         <span
@@ -185,7 +185,7 @@ export function TurnCard({
 
       {/* Body */}
       {!collapsed && (
-        <div className="conv-turn-body pr-4 pb-3 pl-9">
+        <div className="conv-turn-body pr-5 pb-4 pl-10">
           {/* Agent pills */}
           <AgentPills agents={turn.agents} onPillClick={onAgentPillClick} />
 

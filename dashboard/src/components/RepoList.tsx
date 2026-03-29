@@ -112,7 +112,7 @@ export function RepoList({ repos, loading, selected, onSelect, onNewSession, act
   return (
     <div className="panel sidebar flex flex-col h-full overflow-hidden">
       {/* Panel header */}
-      <div className="panel-header flex items-center justify-between px-3 py-2 border-b border-dt-border shrink-0 bg-dt-bg2">
+      <div className="panel-header flex items-center justify-between px-4 py-2.5 border-b border-dt-border shrink-0 bg-dt-bg2/80">
         <div className="panel-title text-base font-semibold uppercase tracking-wide text-dt-text2 flex items-center gap-1.5">
           Repositories
           {onAddRepo && (
@@ -140,10 +140,10 @@ export function RepoList({ repos, loading, selected, onSelect, onNewSession, act
             <button
               key={mode}
               onClick={() => setFilterMode(mode)}
-              className={`px-1.5 py-0.5 text-xs rounded-dt-sm cursor-pointer uppercase tracking-[0.3px] border-none ${
+              className={`px-2.5 py-1 text-xs rounded-full cursor-pointer capitalize tracking-[0.3px] border-none transition-all duration-dt-fast ${
                 filterMode === mode
-                  ? "font-semibold text-dt-accent bg-dt-accent-dim"
-                  : "font-normal text-dt-text2 bg-transparent"
+                  ? "font-semibold text-white bg-dt-accent shadow-dt-sm"
+                  : "font-normal text-dt-text2 bg-transparent hover:text-dt-text1"
               }`}
             >
               {mode}
@@ -220,7 +220,7 @@ export function RepoList({ repos, loading, selected, onSelect, onNewSession, act
               <div key={repo.cwd}>
                 {/* Repo item */}
                 <div
-                  className={`repo-item flex items-center gap-2 cursor-pointer transition-all duration-100 py-1.5 pr-3 pl-4 border-l-2 ${
+                  className={`repo-item flex items-center gap-2.5 cursor-pointer transition-all duration-dt-normal ease-dt-expo py-2.5 pr-4 pl-4 border-l-[3px] hover:bg-dt-bg3/50 ${
                     isActiveRepo
                       ? "border-dt-accent bg-dt-accent-dim"
                       : "border-transparent bg-transparent"
@@ -372,28 +372,28 @@ function SessionItem({
 
   return (
     <div
-      className={`group session-item flex items-center gap-2 cursor-pointer transition-all duration-100 py-1.5 pr-3 pl-6 border-l-2 ${borderClass}`}
+      className={`group session-item flex items-center gap-2 cursor-pointer transition-all duration-dt-normal ease-dt-expo py-2 pr-3 pl-7 border-l-[3px] hover:bg-dt-bg3/50 rounded-r-dt-sm ${borderClass}`}
       onClick={onSelect}
     >
       {/* Status dot */}
       {session.isRunning ? (
         <span
-          className="w-1.5 h-1.5 rounded-full bg-dt-green animate-pulse-opacity shrink-0 transition-colors"
+          className="w-2 h-2 rounded-full bg-dt-green animate-pulse-opacity shrink-0 transition-colors shadow-[0_0_6px_var(--green)]"
           aria-hidden="true"
         />
       ) : session.isActive ? (
         <span
-          className="w-1.5 h-1.5 rounded-full bg-dt-yellow shrink-0 transition-colors"
+          className="w-2 h-2 rounded-full bg-dt-yellow shrink-0 transition-colors"
           aria-hidden="true"
         />
       ) : (
         <span
-          className="w-1.5 h-1.5 rounded-full bg-dt-text2 opacity-40 shrink-0 transition-colors"
+          className="w-2 h-2 rounded-full bg-dt-text2 opacity-40 shrink-0 transition-colors"
           aria-hidden="true"
         />
       )}
       {session.isRunning && (
-        <span className="text-xs font-bold px-1 py-px rounded-dt-xs bg-dt-green text-dt-bg1 tracking-[0.5px] shrink-0 animate-pulse-opacity">
+        <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-dt-green text-dt-bg0 shadow-[0_0_8px_var(--green-dim)] tracking-[0.5px] shrink-0 animate-pulse-opacity">
           LIVE
         </span>
       )}

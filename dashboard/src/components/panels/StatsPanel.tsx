@@ -32,9 +32,9 @@ interface StatCardProps {
 
 function StatCard({ label, value }: StatCardProps): JSX.Element {
   return (
-    <div className="flex flex-col items-center justify-center p-3 rounded-dt bg-dt-bg3">
-      <span className="text-2xl font-bold text-dt-text0">{value}</span>
-      <span className="text-sm text-dt-text2">{label}</span>
+    <div className="flex flex-col items-center justify-center p-4 rounded-dt-md bg-dt-bg2 border border-dt-border shadow-dt-sm">
+      <span className="text-2xl font-bold text-dt-text0 font-mono">{value}</span>
+      <span className="text-xs text-dt-text2 mt-1 uppercase tracking-wider">{label}</span>
     </div>
   );
 }
@@ -70,8 +70,8 @@ export function StatsPanel(): JSX.Element {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-full p-4 gap-4">
-        <h2 className="text-lg font-bold text-dt-text0">Statistics</h2>
+      <div className="flex flex-col h-full p-5 gap-4">
+        <h2 className="text-lg font-semibold text-dt-text0 font-sans tracking-[-0.3px]">Statistics</h2>
         <div className="text-sm text-dt-text2">Loading...</div>
       </div>
     );
@@ -79,9 +79,9 @@ export function StatsPanel(): JSX.Element {
 
   if (error) {
     return (
-      <div className="flex flex-col h-full p-4 gap-4">
-        <h2 className="text-lg font-bold text-dt-text0">Statistics</h2>
-        <div className="px-3 py-2 rounded-dt bg-dt-red-dim text-dt-red text-sm">
+      <div className="flex flex-col h-full p-5 gap-4">
+        <h2 className="text-lg font-semibold text-dt-text0 font-sans tracking-[-0.3px]">Statistics</h2>
+        <div className="px-4 py-2.5 rounded-dt-md bg-dt-red-dim text-dt-red text-sm border border-dt-red/20">
           {error}
         </div>
       </div>
@@ -100,11 +100,11 @@ export function StatsPanel(): JSX.Element {
   }));
 
   return (
-    <div className="flex flex-col h-full overflow-auto p-4 gap-4">
-      <h2 className="text-lg font-bold text-dt-text0">Statistics</h2>
+    <div className="flex flex-col h-full overflow-auto p-5 gap-5">
+      <h2 className="text-lg font-semibold text-dt-text0 font-sans tracking-[-0.3px]">Statistics</h2>
 
       {/* Summary cards -- 2x2 grid */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3.5">
         <StatCard label="Total Sessions" value={formatNumber(stats.totalSessions)} />
         <StatCard label="Total Events" value={formatNumber(stats.totalEvents)} />
         <StatCard label="Avg Events/Session" value={formatNumber(avgEvents)} />
@@ -114,7 +114,7 @@ export function StatsPanel(): JSX.Element {
       {/* Sessions per day chart */}
       {chartData.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-dt-text1 mb-2">Sessions per Day</h3>
+          <h3 className="text-sm font-semibold text-dt-text1 mb-2.5">Sessions per Day</h3>
           <div aria-label="Sessions per day bar chart" className="w-full h-[200px]">
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={chartData}>
@@ -125,8 +125,9 @@ export function StatsPanel(): JSX.Element {
                   contentStyle={{
                     backgroundColor: "var(--bg-3)",
                     border: "1px solid var(--border)",
-                    borderRadius: "6px",
+                    borderRadius: "8px",
                     color: "var(--text-0)",
+                    boxShadow: "var(--shadow-md)",
                   }}
                 />
                 <Bar dataKey="count" fill="var(--accent)" radius={[4, 4, 0, 0]} />
@@ -139,12 +140,12 @@ export function StatsPanel(): JSX.Element {
       {/* Top repos */}
       {stats.topRepos.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-dt-text1 mb-2">Top Repositories</h3>
-          <ol className="flex flex-col gap-1.5">
+          <h3 className="text-sm font-semibold text-dt-text1 mb-2.5">Top Repositories</h3>
+          <ol className="flex flex-col gap-2">
             {stats.topRepos.map((repo, i) => (
               <li
                 key={repo.name}
-                className="flex items-center gap-3 px-3 py-2 rounded-dt bg-dt-bg2 border border-dt-border"
+                className="flex items-center gap-3 px-4 py-2.5 rounded-dt-md bg-dt-bg2 border border-dt-border shadow-dt-sm transition-all duration-150 hover:border-dt-border-active"
               >
                 <span className="text-xs text-dt-text2 font-mono w-5 text-right">{i + 1}.</span>
                 <span className="text-sm text-dt-text1 font-medium flex-1 truncate">{repo.name}</span>

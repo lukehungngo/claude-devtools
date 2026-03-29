@@ -528,19 +528,19 @@ export function AgentLogs({
   return (
     <div className="flex flex-col h-full">
       {/* Panel header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-dt-border shrink-0 bg-dt-bg2">
-        <div className="text-base font-semibold uppercase tracking-[0.5px] text-dt-text2 flex items-center gap-1.5">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-dt-border shrink-0 bg-dt-bg2/80">
+        <div className="text-sm font-semibold uppercase tracking-[0.5px] text-dt-text2 flex items-center gap-2">
           <svg
             width="14"
             height="14"
             viewBox="0 0 16 16"
             fill="currentColor"
-            className="opacity-60"
+            className="opacity-50"
           >
             <path d="M1.5 1.75V13.5h13.75a.75.75 0 010 1.5H.75a.75.75 0 01-.75-.75V1.75a.75.75 0 011.5 0z" />
           </svg>
           Agents Log
-          <span className="text-xs px-1.25 py-px rounded-full font-semibold bg-dt-accent-dim text-dt-accent">
+          <span className="text-xs px-1.5 py-0.5 rounded-full font-semibold bg-dt-accent-dim text-dt-accent">
             {agents.length} agents
           </span>
         </div>
@@ -548,7 +548,7 @@ export function AgentLogs({
           {!autoScroll && (
             <button
               onClick={resumeAutoScroll}
-              className="w-6 h-6 flex items-center justify-center rounded-dt-sm text-dt-accent cursor-pointer border-none bg-dt-accent-dim transition-all text-sm"
+              className="w-7 h-7 flex items-center justify-center rounded-dt-sm text-dt-accent cursor-pointer border-none bg-dt-accent-dim hover:bg-dt-accent/20 transition-all duration-150 text-sm shadow-dt-sm"
               title="Resume auto-scroll"
             >
               &#x2193;
@@ -557,18 +557,18 @@ export function AgentLogs({
         </div>
       </div>
 
-      {/* Filter bar — dynamic tabs */}
-      <div className="flex gap-1 px-3 py-2 border-b border-dt-border bg-dt-bg2 shrink-0 overflow-x-auto [scrollbar-width:none] dt-scrollbar">
+      {/* Filter bar -- dynamic tabs */}
+      <div className="flex gap-1.5 px-4 py-2 border-b border-dt-border/50 bg-dt-bg2/60 shrink-0 overflow-x-auto [scrollbar-width:none] dt-scrollbar">
         {filterTabs.map((tab) => {
           const isActive = activeFilter === tab;
           return (
             <button
               key={tab}
               onClick={() => setActiveFilter(tab)}
-              className={`px-2.5 py-1 rounded-xl text-sm cursor-pointer transition-all border whitespace-nowrap shrink-0 ${
+              className={`px-2.5 py-1 rounded-full text-sm cursor-pointer transition-all duration-150 border whitespace-nowrap shrink-0 ${
                 isActive
-                  ? "text-dt-text0 border-dt-accent bg-dt-accent-dim"
-                  : "text-dt-text2 border-transparent bg-transparent"
+                  ? "text-dt-text0 border-dt-accent bg-dt-accent-dim font-medium"
+                  : "text-dt-text2 border-transparent bg-transparent hover:bg-dt-bg3/50"
               }`}
             >
               {tab}
@@ -576,7 +576,7 @@ export function AgentLogs({
           );
         })}
         {toolFilter && (
-          <span className="ml-auto text-sm text-dt-orange flex items-center gap-1">
+          <span className="ml-auto text-sm text-dt-orange flex items-center gap-1 bg-dt-orange-dim px-2 py-0.5 rounded-full">
             Tool: {toolFilter}
           </span>
         )}
@@ -644,12 +644,13 @@ export function AgentLogs({
                         display: "flex",
                         alignItems: "center",
                         gap: "8px",
-                        padding: "8px 12px",
+                        padding: "8px 14px",
                         fontSize: "11px",
                         background: "var(--bg-2)",
-                        borderBottom: "1px solid var(--border)",
+                        borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
                         cursor: "pointer",
                         userSelect: "none",
+                        transition: "background 0.15s",
                       }}
                     >
                       <span style={{
@@ -742,11 +743,11 @@ export function AgentLogs({
                       display: "grid",
                       gridTemplateColumns: "68px 80px 1fr auto",
                       gap: "8px",
-                      padding: "8px 12px",
+                      padding: "8px 14px",
                       fontSize: "11px",
-                      borderBottom: "1px solid var(--border)",
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
                       alignItems: "start",
-                      transition: "background 0.1s",
+                      transition: "background 0.15s",
                       background: isHighlighted ? "var(--bg-2)" : undefined,
                     }}
                   >

@@ -54,7 +54,7 @@ export function StreamingToolCall({ entry }: StreamingToolCallProps): JSX.Elemen
   const borderClass = entry.status === "error" ? "border-l-2 border-dt-red" : "";
 
   return (
-    <div className={`py-0.5 ${borderClass}`} aria-live="polite">
+    <div className={`py-1 ${borderClass} rounded-dt-sm`} aria-live="polite">
       {/* Header row */}
       <div className="flex items-center gap-2 py-0.75 text-base font-mono">
         {/* Status icon */}
@@ -74,7 +74,7 @@ export function StreamingToolCall({ entry }: StreamingToolCallProps): JSX.Elemen
         </span>
 
         {/* Tool name badge */}
-        <span className="px-1.5 py-px rounded-dt-xs bg-dt-orange text-black text-sm font-semibold whitespace-nowrap shrink-0">
+        <span className="px-2 py-0.5 rounded-dt-sm bg-dt-orange text-black text-sm font-semibold whitespace-nowrap shrink-0 shadow-dt-sm">
           {entry.name}
         </span>
 
@@ -98,7 +98,7 @@ export function StreamingToolCall({ entry }: StreamingToolCallProps): JSX.Elemen
 
       {/* Result area */}
       {entry.resultContent != null && (
-        <div data-testid="tool-result-area" className="ml-5">
+        <div data-testid="tool-result-area" className="ml-6 mt-1">
           {entry.resultContent != null && !resultExpanded && entry.status === "success" && (
             <button
               onClick={() => setResultExpanded(true)}

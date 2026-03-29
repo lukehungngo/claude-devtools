@@ -908,15 +908,15 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
   }
 
   return (
-    <div className="conv-input-wrap px-4 pt-2.5 pb-3.5 border-t border-dt-border bg-dt-bg1 shrink-0">
-      <div className="conv-input-box relative flex items-center gap-2 bg-dt-bg2 border border-dt-border rounded-xl px-4 py-3 transition-colors">
+    <div className="conv-input-wrap px-5 pt-3 pb-4 border-t border-dt-border bg-dt-bg1 shrink-0">
+      <div className="conv-input-box relative flex items-center gap-2.5 bg-dt-bg2 border border-dt-border rounded-dt-xl px-4 py-3.5 transition-shadow duration-dt-normal focus-within:border-dt-accent/50 focus-within:shadow-[0_0_0_1px_var(--accent-glow),0_0_20px_var(--accent-glow)]">
         {/* Slash command dropdown */}
         {dropdownVisible && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 bg-dt-bg3 border border-dt-border rounded-xl overflow-hidden shadow-lg z-50">
+          <div className="absolute bottom-full left-0 right-0 mb-2 bg-dt-bg3 backdrop-blur-dt-md border border-dt-border rounded-xl overflow-hidden shadow-dt-lg z-50 dt-fade-in">
             {filteredCommands.map((cmd, i) => (
               <div
                 key={cmd.name}
-                className={`flex items-center gap-2 px-4 py-2 cursor-pointer text-sm transition-colors ${
+                className={`flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-sm border-l-2 border-transparent hover:border-dt-accent transition-colors ${
                   i === selectedCmdIndex ? "bg-dt-accent-dim" : ""
                 }`}
                 onMouseDown={(e) => {
@@ -932,12 +932,12 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         )}
         {/* File autocomplete dropdown */}
         {fileDropdownVisible && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 bg-dt-bg3 border border-dt-border rounded-xl overflow-hidden shadow-lg z-50">
+          <div className="absolute bottom-full left-0 right-0 mb-2 bg-dt-bg3 backdrop-blur-dt-md border border-dt-border rounded-xl overflow-hidden shadow-dt-lg z-50 dt-fade-in">
             {fileResults.map((file, i) => (
               <div
                 key={file}
                 data-testid="file-option"
-                className={`flex items-center gap-2 px-4 py-2 cursor-pointer text-sm transition-colors ${
+                className={`flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-sm border-l-2 border-transparent hover:border-dt-accent transition-colors ${
                   i === selectedFileIndex ? "bg-dt-accent-dim" : ""
                 }`}
                 onMouseDown={(e) => {
@@ -955,7 +955,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
           {ghostSuggestion && prompt.length === 0 && !running && (
             <span
               aria-hidden="true"
-              className="absolute left-0 top-0 text-dt-text2 opacity-40 font-mono text-lg pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis w-full"
+              className="absolute left-0 top-0 text-dt-text2 opacity-50 font-mono text-lg pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis w-full"
               data-testid="ghost-suggestion"
             >
               {ghostSuggestion}
@@ -983,7 +983,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         {/* SSE status indicator */}
         {running && sseStatus === "streaming" && (
           <span
-            className="w-1.5 h-1.5 rounded-full bg-dt-green animate-pulse-opacity shrink-0"
+            className="w-2 h-2 rounded-full bg-dt-green animate-pulse-opacity shadow-[0_0_6px_var(--green)] shrink-0"
             title="Streaming response..."
           />
         )}
@@ -995,7 +995,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         {running ? (
           <button
             onClick={handleStop}
-            className="px-2.5 py-1 rounded-dt bg-dt-red-dim border-none text-dt-red text-base font-semibold cursor-pointer"
+            className="px-3 py-1.5 rounded-dt-md bg-dt-red-dim border-none text-dt-red shadow-[0_0_12px_var(--red-dim)] hover:bg-dt-red/20 transition-all duration-dt-fast text-base font-semibold cursor-pointer"
           >
             {"\u25A0"} Stop
           </button>
@@ -1003,10 +1003,10 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
           <button
             onClick={submitPrompt}
             disabled={!prompt.trim()}
-            className={`px-2.5 py-1 rounded-dt border-none text-base font-semibold transition-all ${
+            className={`px-2.5 py-1 rounded-dt border-none text-base font-semibold transition-all duration-dt-fast ${
               prompt.trim()
-                ? "bg-dt-accent text-white cursor-pointer"
-                : "bg-dt-bg3 text-dt-text2 cursor-default"
+                ? "bg-dt-accent text-white cursor-pointer shadow-dt-sm hover:bg-dt-accent-hover hover:shadow-dt-glow active:scale-[0.97]"
+                : "bg-dt-bg3/80 text-dt-text2/60 cursor-default"
             }`}
           >
             Send
@@ -1019,7 +1019,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
             <div
               key={idx}
               data-testid="image-attachment-preview"
-              className="relative inline-flex items-center gap-1 px-2 py-1 rounded-dt bg-dt-bg2 border border-dt-border"
+              className="relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-dt-md bg-dt-bg2 border border-dt-border shadow-dt-sm"
             >
               <img
                 src={img.dataUrl}
@@ -1048,7 +1048,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
       {sseError && (
         <div
           data-testid="sse-error-banner"
-          className="flex items-center justify-between gap-2 mt-1 px-3 py-2 rounded-dt bg-dt-red-dim text-dt-red text-sm font-mono"
+          className="flex items-center justify-between gap-2 mt-1.5 px-3 py-2 rounded-dt-md bg-dt-red-dim text-dt-red text-sm font-mono shadow-dt-sm"
         >
           <span>{sseError}</span>
           <button

@@ -19,7 +19,7 @@ export function StreamingThinking({ text, isComplete }: StreamingThinkingProps):
     : text;
 
   return (
-    <div className="border-l-2 border-dt-purple pl-3 py-1.5 my-1 bg-dt-purple-dim rounded-r-dt-xs">
+    <div className="border-l-2 border-dt-purple pl-3 py-2 my-1.5 bg-dt-purple-dim rounded-r-dt-sm shadow-dt-sm">
       <p className="text-dt-text2 text-sm italic whitespace-pre-wrap font-mono leading-relaxed">
         {displayText}
         {!isComplete && (

@@ -208,13 +208,13 @@ export function RightPanel({
 
       {/* Freeze/live badge */}
       <div
-        className={`flex items-center gap-1.5 px-3 py-1 bg-dt-bg2 border-b border-dt-border text-xs font-semibold ${
+        className={`flex items-center gap-2 px-4 py-1.5 bg-dt-bg2/60 border-b border-dt-border/50 text-xs font-semibold ${
           isLiveTurn ? "text-dt-green" : "text-dt-text2"
         }`}
       >
         {isLiveTurn ? (
           <>
-            <span className="w-1.25 h-1.25 rounded-full bg-dt-green animate-pulse-opacity" />
+            <span className="w-1.5 h-1.5 rounded-full bg-dt-green animate-pulse-opacity shadow-[0_0_6px_var(--green)]" />
             Real-Time
           </>
         ) : (

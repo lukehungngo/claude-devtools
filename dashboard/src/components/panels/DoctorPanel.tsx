@@ -51,13 +51,13 @@ export function DoctorPanel(): JSX.Element {
   const failCount = checks.filter((c) => c.status === "fail").length;
 
   return (
-    <div className="flex flex-col h-full overflow-auto p-4 gap-4">
+    <div className="flex flex-col h-full overflow-auto p-5 gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-dt-text0">Diagnostics</h2>
+        <h2 className="text-lg font-semibold text-dt-text0 font-sans tracking-[-0.3px]">Diagnostics</h2>
         <button
           onClick={runDiagnostics}
           disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-dt bg-dt-bg3 text-dt-text1 text-sm font-semibold border border-dt-border cursor-pointer hover:bg-dt-bg4 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-dt-md bg-dt-bg3 text-dt-text1 text-sm font-semibold border border-dt-border cursor-pointer hover:bg-dt-bg4 hover:border-dt-border-active disabled:opacity-50 transition-all duration-150 shadow-dt-sm"
           aria-label="Run diagnostics"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -66,7 +66,7 @@ export function DoctorPanel(): JSX.Element {
       </div>
 
       {error && (
-        <div className="px-3 py-2 rounded-dt bg-dt-red-dim text-dt-red text-sm">
+        <div className="px-4 py-2.5 rounded-dt-md bg-dt-red-dim text-dt-red text-sm border border-dt-red/20 shadow-dt-sm">
           {error}
         </div>
       )}
@@ -78,7 +78,7 @@ export function DoctorPanel(): JSX.Element {
               <div
                 key={check.name}
                 role="listitem"
-                className="flex items-center gap-3 px-3 py-2 rounded-dt bg-dt-bg2 border border-dt-border"
+                className="flex items-center gap-3 px-4 py-2.5 rounded-dt-md bg-dt-bg2 border border-dt-border shadow-dt-sm transition-all duration-150 hover:border-dt-border-active"
               >
                 <StatusIcon status={check.status} />
                 <span className="text-sm text-dt-text1 font-medium min-w-0">

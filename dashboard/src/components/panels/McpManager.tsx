@@ -103,12 +103,12 @@ export function McpManager({ servers: propServers, sessionId }: McpManagerProps)
   const isLive = source === "sdk";
 
   return (
-    <div className="flex flex-col h-full overflow-auto p-4 gap-4">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col h-full overflow-auto p-5 gap-4">
+      <div className="flex items-center gap-2.5">
         <Server className="w-5 h-5 text-dt-text1" />
-        <h2 className="text-lg font-bold text-dt-text0">MCP Servers</h2>
+        <h2 className="text-lg font-semibold text-dt-text0 font-sans tracking-[-0.3px]">MCP Servers</h2>
         {source !== "props" && (
-          <span className="text-xxs font-mono px-1.5 py-0.5 rounded bg-dt-bg3 text-dt-text2 ml-auto">
+          <span className={`text-xxs font-mono px-2 py-0.5 rounded-full ml-auto ${isLive ? "bg-dt-green-dim text-dt-green" : "bg-dt-bg3 text-dt-text2"}`}>
             {isLive ? "live" : "static"}
           </span>
         )}
@@ -126,15 +126,15 @@ export function McpManager({ servers: propServers, sessionId }: McpManagerProps)
           {servers.map((server) => (
             <div
               key={server.name}
-              className="flex flex-col gap-2 px-3 py-3 rounded-dt bg-dt-bg2 border border-dt-border"
+              className="flex flex-col gap-2.5 px-4 py-3.5 rounded-dt-md bg-dt-bg2 border border-dt-border shadow-dt-sm transition-all duration-200 hover:shadow-dt-md hover:border-dt-border-active"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${statusDotClass(server.status)}`}
+                  className={`w-2 h-2 rounded-full shrink-0 ${statusDotClass(server.status)} ${server.status === "connected" ? "shadow-[0_0_6px_var(--green)]" : ""}`}
                   title={server.status}
                 />
                 <span className="text-sm font-semibold text-dt-text0">{server.name}</span>
-                <span className="ml-auto text-xs text-dt-text2">
+                <span className="ml-auto text-xs text-dt-text2 bg-dt-bg3 px-1.5 py-0.5 rounded-full">
                   {server.toolCount} tools
                 </span>
               </div>

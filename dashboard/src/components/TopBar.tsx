@@ -88,10 +88,10 @@ export function TopBar({ usage, costs, metrics, isLive, onToolFilter }: Props) {
       <div className="topbar-row flex items-center px-5 min-h-8 flex-nowrap overflow-hidden border-b border-dt-border">
         <div className="flex items-center gap-0 flex-1 flex-nowrap overflow-hidden">
           {/* Title */}
-          <div className="flex items-center gap-2 font-sans font-bold text-2xl text-dt-text0 mr-4 tracking-[-0.3px] shrink-0">
+          <div className="flex items-center gap-2 font-sans font-semibold text-2xl text-dt-text0 mr-5 tracking-[-0.5px] shrink-0">
             <span
-              className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${isLive
-                ? "bg-dt-green animate-pulse-opacity"
+              className={`inline-block w-2 h-2 rounded-full shrink-0 ${isLive
+                ? "bg-dt-green animate-pulse-opacity shadow-[0_0_8px_var(--green)]"
                 : "bg-dt-red"
                 }`}
               title={isLive ? "Connected" : "Disconnected"}
@@ -153,7 +153,7 @@ export function TopBar({ usage, costs, metrics, isLive, onToolFilter }: Props) {
           {usage && (
             <div className="tb-sub-row flex items-center gap-2">
               {usage.planName && (
-                <span className="tb-sub-badge px-1.75 py-0.5 rounded-dt-sm text-xxs font-bold uppercase bg-dt-accent text-white">
+                <span className="tb-sub-badge px-2 py-0.5 rounded-full text-xxs font-bold uppercase bg-dt-accent text-white shadow-dt-sm">
                   {usage.planName}
                 </span>
               )}
@@ -283,7 +283,7 @@ export function TopBar({ usage, costs, metrics, isLive, onToolFilter }: Props) {
               <span
                 key={t.name}
                 onClick={() => onToolFilter?.(shortName)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-dt-xs text-md text-dt-text1 whitespace-nowrap mr-1.5 cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-dt-sm text-md text-dt-text1 whitespace-nowrap mr-1.5 cursor-pointer hover:bg-dt-bg3 transition-colors duration-dt-fast"
                 title={`${shortName}: ${t.count} calls, ${t.errors} errors — click to filter log`}
               >
                 <span style={{ color: checkColor, marginRight: "1px" }}>
@@ -307,7 +307,7 @@ export function TopBar({ usage, costs, metrics, isLive, onToolFilter }: Props) {
 /* --- Reusable pieces --- */
 
 function TbSep() {
-  return <div className="tb-sep w-px h-4 bg-dt-border mx-3 shrink-0" />;
+  return <div className="tb-sep w-px h-3.5 bg-dt-border/40 mx-3 shrink-0" />;
 }
 
 function TbStat({
