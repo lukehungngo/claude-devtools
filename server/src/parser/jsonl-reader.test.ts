@@ -108,6 +108,30 @@ describe("parseJsonlFile", () => {
 
     expect(result).toEqual([]);
   });
+
+  it("parses system events", () => {
+    const filePath = join(TEST_DIR, "system-event.jsonl");
+    const systemEvent = {
+      type: "system",
+      uuid: "sys1",
+      timestamp: "2026-03-29T10:00:00Z",
+      sessionId: "s1",
+      subtype: "turn_duration",
+      durationMs: 1234,
+      messageCount: 5,
+    };
+    writeFileSync(filePath, JSON.stringify(systemEvent) + "\n");
+
+    const result = parseJsonlFile(filePath);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("system");
+    // Verify SystemEvent-specific fields are preserved
+    const parsed = result[0] as import("../types.js").SystemEvent;
+    expect(parsed.subtype).toBe("turn_duration");
+    expect(parsed.durationMs).toBe(1234);
+    expect(parsed.messageCount).toBe(5);
+  });
 });
 
 describe("parseJsonlIncremental", () => {

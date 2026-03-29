@@ -3,7 +3,7 @@
 // === JSONL Event Types ===
 
 export interface BaseEvent {
-  type: "queue-operation" | "user" | "assistant" | "progress";
+  type: "queue-operation" | "user" | "assistant" | "progress" | "system";
   uuid: string;
   parentUuid?: string;
   timestamp: string;
@@ -60,11 +60,20 @@ export interface ProgressEvent extends BaseEvent {
   toolUseID?: string;
 }
 
+export interface SystemEvent extends BaseEvent {
+  type: "system";
+  subtype: string;
+  durationMs?: number;
+  messageCount?: number;
+  isMeta?: boolean;
+}
+
 export type SessionEvent =
   | QueueOperationEvent
   | UserEvent
   | AssistantEvent
-  | ProgressEvent;
+  | ProgressEvent
+  | SystemEvent;
 
 // === Content Types ===
 

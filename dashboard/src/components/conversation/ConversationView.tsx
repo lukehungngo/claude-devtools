@@ -248,7 +248,6 @@ export function ConversationView({
               <div key={turn.turnNumber}>
                 <TurnCard
                   turn={turn}
-                  isLastTurn={filteredIndex === filteredTurns.length - 1}
                   isHighlighted={highlightedTurnIndex === unfilteredIndex}
                   onAgentPillClick={onAgentPillClick}
                   onTurnClick={onTurnClick ? () => onTurnClick(unfilteredIndex) : undefined}

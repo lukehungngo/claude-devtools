@@ -11,6 +11,7 @@ export default defineConfig({
       include: [
         'src/lib/cost.ts',
         'src/lib/normalizeContent.ts',
+        'src/lib/turnSnapshot.ts',
       ],
       exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'node_modules'],
       thresholds: {

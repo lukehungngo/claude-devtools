@@ -2,6 +2,7 @@ import type {
   SessionEvent,
   UserEvent,
   AssistantEvent,
+  SystemEvent,
   ContentItem,
   SubagentMeta,
 } from "./types";
@@ -37,6 +38,8 @@ export interface TurnSnapshot {
   events: SessionEvent[];
   agents: AgentSummary[];
   status: "running" | "completed";
+  /** Duration in ms from the system/turn_duration event. Null if turn is still running. */
+  durationMs: number | null;
   /** Flat cost number (sonnet-only pricing) — kept for backward compatibility */
   cost: number;
   /** Detailed cost breakdown with input/output token costs */
@@ -156,10 +159,17 @@ function buildTurn(
     }
   }
 
-  // Turn status is determined by groupEventsIntoTurns after all turns
-  // are built — only it knows if there's a next turn. Default to "running"
-  // here; the caller overrides to "completed" for all non-last turns.
-  const status: "running" | "completed" = "running";
+  // Turn status is determined solely by the presence of a system/turn_duration event.
+  // No fallback to stop_reason or next-boundary detection.
+  let status: "running" | "completed" = "running";
+  let durationMs: number | null = null;
+  for (const event of events) {
+    if (event.type === "system" && (event as SystemEvent).subtype === "turn_duration") {
+      status = "completed";
+      durationMs = (event as SystemEvent).durationMs ?? null;
+      break;
+    }
+  }
 
   // Build agent summaries — agent status also defaults to "running".
   // groupEventsIntoTurns will finalize completed turns' agent statuses.
@@ -198,6 +208,7 @@ function buildTurn(
     events,
     agents,
     status,
+    durationMs,
     cost,
     costBreakdown: {
       total: cost,
@@ -253,23 +264,11 @@ export function groupEventsIntoTurns(
     turns.push(buildTurn(turnNumber, currentPrompt, currentEvents, agentMeta));
   }
 
-  // Finalize turn statuses. A turn is "completed" when:
-  //   1. A subsequent turn exists (next user message arrived → this turn is done)
-  //   2. It's the last turn AND the session gave its final answer
-  //      (last event is assistant with stop_reason === "end_turn")
-  // All non-last turns:
-  for (let i = 0; i < turns.length - 1; i++) {
-    finalizeTurn(turns[i]);
-  }
-  // Last turn: check if session finished (stop_reason === "end_turn")
-  if (turns.length > 0) {
-    const lastTurn = turns[turns.length - 1];
-    const lastEvt = lastTurn.events[lastTurn.events.length - 1];
-    if (lastEvt?.type === "assistant") {
-      const asst = lastEvt as AssistantEvent;
-      if (asst.message?.stop_reason === "end_turn") {
-        finalizeTurn(lastTurn);
-      }
+  // Finalize completed turns: set completedAt and agent statuses.
+  // Turn status is already determined by buildTurn() from turn_duration events.
+  for (const turn of turns) {
+    if (turn.status === "completed") {
+      finalizeTurn(turn);
     }
   }
 

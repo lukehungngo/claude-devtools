@@ -15,7 +15,6 @@ import { ToolEntries } from "./ToolEntries";
 
 interface TurnCardProps {
   turn: TurnSnapshot;
-  isLastTurn?: boolean;
   isHighlighted?: boolean;
   onAgentPillClick?: (agentId: string) => void;
   onTurnClick?: () => void;
@@ -40,7 +39,8 @@ function extractResponseContent(events: SessionEvent[]): ContentItem[] {
 
 // ─── TurnFooter (elapsed / completed duration) ─────────────────────
 
-function TurnFooter({ turn, isStreaming }: { turn: TurnSnapshot; isStreaming: boolean }) {
+function TurnFooter({ turn }: { turn: TurnSnapshot }) {
+  const isStreaming = turn.status === "running";
   const [elapsed, setElapsed] = useState<number>(0);
 
   useEffect(() => {
@@ -51,11 +51,6 @@ function TurnFooter({ turn, isStreaming }: { turn: TurnSnapshot; isStreaming: bo
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [isStreaming, turn.startTime]);
-
-  const completedDuration =
-    turn.endTime && turn.startTime
-      ? new Date(turn.endTime).getTime() - new Date(turn.startTime).getTime()
-      : null;
 
   return (
     <div
@@ -72,8 +67,8 @@ function TurnFooter({ turn, isStreaming }: { turn: TurnSnapshot; isStreaming: bo
         <>
           <span className="text-dt-green">&#10003;</span>
           <span data-testid="turn-completion-timestamp">
-            {completedDuration != null
-              ? `Completed in ${formatDuration(completedDuration)}`
+            {turn.durationMs != null
+              ? `Completed in ${formatDuration(turn.durationMs)}`
               : "Completed"}
           </span>
         </>
@@ -86,7 +81,6 @@ function TurnFooter({ turn, isStreaming }: { turn: TurnSnapshot; isStreaming: bo
 
 export function TurnCard({
   turn,
-  isLastTurn = false,
   isHighlighted = false,
   onAgentPillClick,
   onTurnClick,
@@ -94,7 +88,6 @@ export function TurnCard({
   const [collapsed, setCollapsed] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const isRunning = turn.status === "running";
-  const isStreaming = isLastTurn && !turn.endTime;
   const responseContent = extractResponseContent(turn.events);
   const canExpandPrompt = turn.promptText.length > 100;
 
@@ -193,7 +186,7 @@ export function TurnCard({
           )}
 
           {/* Completion indicator */}
-          <TurnFooter turn={turn} isStreaming={isStreaming} />
+          <TurnFooter turn={turn} />
         </div>
       )}
     </div>

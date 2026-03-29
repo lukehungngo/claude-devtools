@@ -7,9 +7,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent, screen } from "@testing-library/react";
+import { render, fireEvent } from "@testing-library/react";
 import { TurnCard } from "./TurnCard";
-import { formatTime } from "../../lib/formatTime";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 
 function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
@@ -65,17 +64,30 @@ describe("TurnCard — header click does NOT bubble to onTurnClick", () => {
 });
 
 describe("TurnCard — completion indicator", () => {
-  it("shows 'Completed in' with duration for a completed turn", () => {
-    const startTime = "2026-03-29T14:30:00Z";
-    const endTime = "2026-03-29T14:30:45Z";
+  it("shows 'Generating...' for a running turn (status === 'running')", () => {
     const turn = makeTurn({
-      startTime,
-      status: "completed",
-      endTime,
-      completedAt: endTime,
-      costBreakdown: { total: 0.01, tokensIn: 100, tokensOut: 50 },
+      status: "running",
+      durationMs: null,
+      endTime: "",
+      completedAt: "",
     });
-    const { container } = render(<TurnCard turn={turn} isLastTurn={false} />);
+    const { container } = render(<TurnCard turn={turn} />);
+
+    const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.textContent).toContain("Generating...");
+    expect(container.querySelector('[data-testid="turn-completion-timestamp"]')).toBeNull();
+  });
+
+  it("shows 'Completed in Xs' for a completed turn with durationMs", () => {
+    const turn = makeTurn({
+      status: "completed",
+      durationMs: 45000,
+      startTime: "2026-03-29T14:30:00Z",
+      endTime: "2026-03-29T14:30:45Z",
+      completedAt: "2026-03-29T14:30:45Z",
+    });
+    const { container } = render(<TurnCard turn={turn} />);
 
     const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
     expect(indicator).not.toBeNull();
@@ -84,37 +96,20 @@ describe("TurnCard — completion indicator", () => {
     expect(indicator!.textContent).not.toContain("Generating...");
   });
 
-  it("shows pulsing 'Generating...' for the last turn with no endTime", () => {
+  it("shows 'Completed' without duration when durationMs is null but turn is not running", () => {
     const turn = makeTurn({
-      status: "running" as TurnSnapshot["status"],
-      endTime: "",
-      completedAt: "",
-      costBreakdown: { total: 0, tokensIn: 0, tokensOut: 0 },
-    });
-    const { container } = render(<TurnCard turn={turn} isLastTurn={true} />);
-
-    const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
-    expect(indicator).not.toBeNull();
-    expect(indicator!.textContent).toContain("Generating...");
-    expect(container.querySelector('[data-testid="turn-completion-timestamp"]')).toBeNull();
-  });
-
-  it("shows 'Completed in' for a completed last turn (not streaming)", () => {
-    const startTime = "2026-03-29T09:15:00Z";
-    const endTime = "2026-03-29T09:15:22Z";
-    const turn = makeTurn({
-      startTime,
       status: "completed",
-      endTime,
-      completedAt: endTime,
-      costBreakdown: { total: 0.01, tokensIn: 100, tokensOut: 50 },
+      durationMs: null,
+      startTime: "2026-03-29T09:15:00Z",
+      endTime: "2026-03-29T09:15:22Z",
+      completedAt: "2026-03-29T09:15:22Z",
     });
-    const { container } = render(<TurnCard turn={turn} isLastTurn={true} />);
+    const { container } = render(<TurnCard turn={turn} />);
 
     const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
     expect(indicator).not.toBeNull();
-    expect(indicator!.textContent).toContain("Completed in");
-    expect(indicator!.textContent).toContain("22.0s");
+    expect(indicator!.textContent).toContain("Completed");
+    expect(indicator!.textContent).not.toContain("Completed in");
     expect(indicator!.textContent).not.toContain("Generating...");
   });
 });

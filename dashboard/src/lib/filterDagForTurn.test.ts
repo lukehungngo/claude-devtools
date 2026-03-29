@@ -39,6 +39,7 @@ function makeTurn(agents: { agentId: string }[]): TurnSnapshot {
     status: "running",
     cost: 0,
     costBreakdown: { total: 0, tokensIn: 0, tokensOut: 0 },
+    durationMs: null,
     startTime: "2026-01-01T00:00:00Z",
     completedAt: "",
     endTime: "",

@@ -4,6 +4,7 @@ import type {
   SessionEvent,
   UserEvent,
   AssistantEvent,
+  SystemEvent,
   ProgressEvent,
 } from "./types";
 
@@ -62,6 +63,35 @@ function makeAssistantEvent(
       },
     },
   } as AssistantEvent;
+}
+
+function makeTurnDurationEvent(
+  durationMs: number,
+  overrides: Partial<SystemEvent> = {}
+): SystemEvent {
+  return {
+    type: "system",
+    uuid: overrides.uuid ?? `sys-${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: overrides.timestamp ?? "2026-01-01T00:00:10Z",
+    sessionId: overrides.sessionId ?? "sess-1",
+    subtype: "turn_duration",
+    durationMs,
+    ...overrides,
+  } as SystemEvent;
+}
+
+function makeSystemEvent(
+  subtype: string,
+  overrides: Partial<SystemEvent> = {}
+): SystemEvent {
+  return {
+    type: "system",
+    uuid: overrides.uuid ?? `sys-${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: overrides.timestamp ?? "2026-01-01T00:00:10Z",
+    sessionId: overrides.sessionId ?? "sess-1",
+    subtype,
+    ...overrides,
+  } as SystemEvent;
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────
@@ -206,7 +236,7 @@ describe("groupEventsIntoTurns", () => {
     expect(turns[0].status).toBe("running");
   });
 
-  it("detects completed status when last event has stop_reason end_turn", () => {
+  it("stop_reason end_turn alone does NOT complete a turn (requires turn_duration)", () => {
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({
@@ -215,7 +245,8 @@ describe("groupEventsIntoTurns", () => {
       }),
     ];
     const turns = groupEventsIntoTurns(events);
-    expect(turns[0].status).toBe("completed");
+    expect(turns[0].status).toBe("running");
+    expect(turns[0].durationMs).toBeNull();
   });
 
   it("handles events before any external user event as turn 1", () => {
@@ -286,5 +317,121 @@ describe("groupEventsIntoTurns with agentMeta", () => {
     const unknownAgent = turns[0].agents.find((a) => a.agentId === "agent-unknown-xyz");
     expect(unknownAgent).toBeDefined();
     expect(unknownAgent!.agentType).toBe("agent-unknown-xyz");
+  });
+});
+
+describe("groupEventsIntoTurns — turn status state machine (turn_duration)", () => {
+  it("turn with system/turn_duration event has status completed and durationMs set", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:05Z" }),
+      makeTurnDurationEvent(5200, { timestamp: "2026-01-01T00:00:10Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].status).toBe("completed");
+    expect(turns[0].durationMs).toBe(5200);
+  });
+
+  it("turn without system/turn_duration event has status running and durationMs null", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:05Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].status).toBe("running");
+    expect(turns[0].durationMs).toBeNull();
+  });
+
+  it("non-last turn without turn_duration stays running (queue scenario)", () => {
+    // Turn 1: user + assistant (no turn_duration — queued/interrupted)
+    // Turn 2: user + assistant + turn_duration
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:05Z" }),
+      makeUserEvent({ text: "Turn 2", timestamp: "2026-01-01T00:01:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:01:05Z" }),
+      makeTurnDurationEvent(4000, { timestamp: "2026-01-01T00:01:10Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(2);
+    // Turn 1 has no turn_duration event — stays running
+    expect(turns[0].status).toBe("running");
+    expect(turns[0].durationMs).toBeNull();
+    // Turn 2 has turn_duration — completed
+    expect(turns[1].status).toBe("completed");
+    expect(turns[1].durationMs).toBe(4000);
+  });
+
+  it("durationMs comes from the turn_duration event, not from timestamp math", () => {
+    // Timestamps span 30 seconds, but turn_duration says 1234ms
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:30Z" }),
+      makeTurnDurationEvent(1234, { timestamp: "2026-01-01T00:00:30Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].durationMs).toBe(1234);
+    expect(turns[0].durationMs).not.toBe(30000);
+  });
+
+  it("system events with other subtypes do not trigger completion", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:05Z" }),
+      makeSystemEvent("init", { timestamp: "2026-01-01T00:00:10Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].status).toBe("running");
+    expect(turns[0].durationMs).toBeNull();
+  });
+
+  it("both turns completed when both have turn_duration events", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:05Z" }),
+      makeTurnDurationEvent(3000, { timestamp: "2026-01-01T00:00:08Z" }),
+      makeUserEvent({ text: "Turn 2", timestamp: "2026-01-01T00:01:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:01:05Z" }),
+      makeTurnDurationEvent(2000, { timestamp: "2026-01-01T00:01:08Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(2);
+    expect(turns[0].status).toBe("completed");
+    expect(turns[0].durationMs).toBe(3000);
+    expect(turns[1].status).toBe("completed");
+    expect(turns[1].durationMs).toBe(2000);
+  });
+
+  it("turn_duration event is included in the turn's events array", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:05Z" }),
+      makeTurnDurationEvent(5000, { timestamp: "2026-01-01T00:00:10Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].events).toHaveLength(3);
+    expect(turns[0].events[2].type).toBe("system");
+  });
+
+  it("completedAt is set when turn is completed via turn_duration", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:05Z" }),
+      makeTurnDurationEvent(5000, { timestamp: "2026-01-01T00:00:10Z" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].completedAt).toBe("2026-01-01T00:00:10Z");
   });
 });
