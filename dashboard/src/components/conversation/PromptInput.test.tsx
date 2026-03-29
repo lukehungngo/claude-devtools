@@ -436,6 +436,297 @@ describe("PromptInput", () => {
     });
   });
 
+  describe("/plan command", () => {
+    it("switches to plan mode via permission-mode endpoint", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, mode: "plan" }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-1" sessionCwd="/tmp" sessionId="sess-1" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/plan " } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-1/permission-mode");
+      expect(opts.method).toBe("POST");
+      const body = JSON.parse(opts.body);
+      expect(body.mode).toBe("plan");
+
+      // Should show confirmation
+      const output = container.querySelector(".text-xs.text-dt-text2.px-1.pt-1.font-mono");
+      expect(output).not.toBeNull();
+      expect(output!.textContent).toContain("Plan mode");
+    });
+
+    it("/plan off switches back to default mode", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, mode: "default" }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-1" sessionCwd="/tmp" sessionId="sess-1" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/plan off" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-1/permission-mode");
+      const body = JSON.parse(opts.body);
+      expect(body.mode).toBe("default");
+
+      const output = container.querySelector(".text-xs.text-dt-text2.px-1.pt-1.font-mono");
+      expect(output).not.toBeNull();
+      expect(output!.textContent).toContain("Default mode");
+    });
+
+    it("/plan with no active session shows error", async () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/plan " } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      const output = container.querySelector(".text-xs.text-dt-text2.px-1.pt-1.font-mono");
+      expect(output).not.toBeNull();
+      expect(output!.textContent).toContain("No active session");
+    });
+  });
+
+  describe("! bash prefix", () => {
+    it("sends ! prefixed text as a regular message", async () => {
+      const { container } = render(
+        <PromptInput activeSessionId="sess-1" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "! ls -la" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      // Should have called the message endpoint
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-1/message");
+      const body = JSON.parse(opts.body);
+      expect(body.prompt).toBe("! ls -la");
+    });
+  });
+
+  describe("/fast command", () => {
+    it("/fast on sends POST to fast endpoint with enabled: true", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, fastMode: true }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-fast-1" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/fast on" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-fast-1/fast");
+      expect(opts.method).toBe("POST");
+      const body = JSON.parse(opts.body);
+      expect(body.enabled).toBe(true);
+    });
+
+    it("/fast off sends POST to fast endpoint with enabled: false", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, fastMode: false }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-fast-2" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/fast off" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.enabled).toBe(false);
+    });
+
+    it("/fast with no arg toggles (sends toggle request)", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, fastMode: true }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-fast-3" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      // Trailing space dismisses dropdown so Enter submits
+      fireEvent.change(textarea, { target: { value: "/fast " } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      // Should call the fast endpoint (toggle behavior)
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-fast-3/fast");
+    });
+
+    it("/fast with no active session shows error", async () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/fast on" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      const output = container.querySelector(".text-xs.text-dt-text2.px-1.pt-1.font-mono");
+      expect(output).not.toBeNull();
+      expect(output!.textContent).toContain("No active session");
+    });
+  });
+
+  describe("/effort command", () => {
+    it("/effort low sends POST to effort endpoint", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, effortLevel: "low" }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-effort-1" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/effort low" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-effort-1/effort");
+      expect(opts.method).toBe("POST");
+      const body = JSON.parse(opts.body);
+      expect(body.level).toBe("low");
+    });
+
+    it("/effort medium sends POST to effort endpoint", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, effortLevel: "medium" }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-effort-2" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/effort medium" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.level).toBe("medium");
+    });
+
+    it("/effort high sends POST to effort endpoint", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, effortLevel: "high" }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-effort-3" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/effort high" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.level).toBe("high");
+    });
+
+    it("/effort with no arg shows current level info", async () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/effort " } });
+      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      await act(async () => {});
+      const output = container.querySelector(".text-xs.text-dt-text2.px-1.pt-1.font-mono");
+      expect(output).not.toBeNull();
+      expect(output!.textContent).toContain("effort");
+    });
+
+    it("/effort with no active session shows error", async () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/effort low" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      const output = container.querySelector(".text-xs.text-dt-text2.px-1.pt-1.font-mono");
+      expect(output).not.toBeNull();
+      expect(output!.textContent).toContain("No active session");
+    });
+
+    it("/effort with invalid level shows error", async () => {
+      const { container } = render(
+        <PromptInput activeSessionId="sess-effort-4" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/effort turbo" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      const output = container.querySelector(".text-xs.text-dt-text2.px-1.pt-1.font-mono");
+      expect(output).not.toBeNull();
+      expect(output!.textContent).toContain("low");
+    });
+  });
+
   describe("@ file path autocomplete", () => {
     it("typing @ triggers file autocomplete state (shows dropdown after fetch)", async () => {
       fetchMock.mockResolvedValueOnce({
@@ -526,6 +817,708 @@ describe("PromptInput", () => {
         (c: string[]) => typeof c[0] === "string" && c[0].includes("/files")
       );
       expect(fileCall).toBeUndefined();
+    });
+  });
+
+  describe("T2-11: Ctrl+C cancel binding", () => {
+    it("aborts streaming when Ctrl+C is pressed during active generation", async () => {
+      vi.useRealTimers();
+      const abortSpy = vi.spyOn(AbortController.prototype, "abort");
+
+      // Mock fetch to return a stream that never completes (simulates ongoing generation)
+      const mockReader = {
+        read: vi.fn().mockReturnValue(new Promise(() => {})), // never resolves
+      };
+      fetchMock.mockResolvedValue({
+        ok: true,
+        body: { getReader: () => mockReader },
+      });
+
+      const { container } = render(
+        <PromptInput
+          sessionCwd="/test"
+          sessionId="sess-1"
+          projectHash="proj-1"
+          activeSessionId="active-1"
+        />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      // Type a prompt and submit to enter running state
+      fireEvent.change(textarea, { target: { value: "hello" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter" });
+      });
+
+      // Verify component is in running state (stop button visible)
+      const stopButton = container.querySelector("button");
+      expect(stopButton?.textContent).toContain("Stop");
+
+      // Press Ctrl+C on the document
+      await act(async () => {
+        fireEvent.keyDown(document, { key: "c", ctrlKey: true });
+      });
+
+      expect(abortSpy).toHaveBeenCalled();
+    });
+
+    it("does not abort when Ctrl+C is pressed while idle (allows normal copy)", () => {
+      const abortSpy = vi.spyOn(AbortController.prototype, "abort");
+
+      render(<PromptInput />);
+
+      // Press Ctrl+C while idle -- should not trigger abort
+      fireEvent.keyDown(document, { key: "c", ctrlKey: true });
+
+      expect(abortSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("T2-12: /rewind command", () => {
+    it("/rewind sends it as a message via fetch (same as /compact)", async () => {
+      const { container } = render(
+        <PromptInput activeSessionId="sess-rewind-1" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/rewind " } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-rewind-1/message");
+      const body = JSON.parse(opts.body);
+      expect(body.prompt).toBe("/rewind ");
+    });
+
+    it("/rewind 3 sends the full string as a message", async () => {
+      const { container } = render(
+        <PromptInput activeSessionId="sess-rewind-2" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/rewind 3" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-rewind-2/message");
+      const body = JSON.parse(opts.body);
+      expect(body.prompt).toBe("/rewind 3");
+    });
+
+    it("/rewind appears in slash command dropdown", () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/rew" } });
+
+      const commandNames = Array.from(
+        container.querySelectorAll(".font-mono.font-semibold")
+      ).map((el) => el.textContent);
+      expect(commandNames).toContain("/rewind");
+    });
+  });
+
+  describe("T2-15: Image paste/upload", () => {
+    const mockDataUrl = "data:image/png;base64,iVBORw0KGgo=";
+
+    function mockFileReaderGlobal() {
+      const original = globalThis.FileReader;
+      const mockFR = {
+        readAsDataURL: vi.fn(),
+        result: mockDataUrl,
+        onload: null as (() => void) | null,
+      };
+      vi.stubGlobal("FileReader", vi.fn(() => mockFR));
+      return { mockFR, restore: () => { globalThis.FileReader = original; } };
+    }
+
+    function pasteImageOnTextarea(textarea: HTMLTextAreaElement) {
+      const file = new File(["fake-image-data"], "screenshot.png", { type: "image/png" });
+      const clipboardData = {
+        items: [
+          {
+            type: "image/png",
+            getAsFile: () => file,
+          },
+        ],
+      };
+      fireEvent.paste(textarea, { clipboardData });
+    }
+
+    it("pasting an image creates an attachment and shows thumbnail preview", async () => {
+      const { mockFR, restore } = mockFileReaderGlobal();
+
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      await act(async () => {
+        pasteImageOnTextarea(textarea);
+        // Simulate FileReader onload callback
+        if (mockFR.onload) mockFR.onload();
+      });
+
+      // Should show image preview thumbnail
+      const preview = container.querySelector("[data-testid='image-attachment-preview']");
+      expect(preview).not.toBeNull();
+
+      // Should show a remove button
+      const removeBtn = container.querySelector("[data-testid='image-attachment-remove']");
+      expect(removeBtn).not.toBeNull();
+
+      restore();
+    });
+
+    it("clicking remove button clears the image attachment", async () => {
+      const { mockFR, restore } = mockFileReaderGlobal();
+
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      await act(async () => {
+        pasteImageOnTextarea(textarea);
+        if (mockFR.onload) mockFR.onload();
+      });
+
+      expect(container.querySelector("[data-testid='image-attachment-preview']")).not.toBeNull();
+
+      // Click remove
+      await act(async () => {
+        const removeBtn = container.querySelector("[data-testid='image-attachment-remove']")!;
+        fireEvent.click(removeBtn);
+      });
+
+      expect(container.querySelector("[data-testid='image-attachment-preview']")).toBeNull();
+
+      restore();
+    });
+
+    it("submitting with an image attachment includes it in the request body", async () => {
+      vi.useRealTimers();
+      const { mockFR, restore } = mockFileReaderGlobal();
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-img-1" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      // Paste an image
+      await act(async () => {
+        pasteImageOnTextarea(textarea);
+        if (mockFR.onload) mockFR.onload();
+      });
+
+      // Type a prompt and submit
+      fireEvent.change(textarea, { target: { value: "analyze this image" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalled();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const msgCall = fetchMock.mock.calls.find(
+        (c: any[]) => typeof c[0] === "string" && c[0].includes("/message")
+      );
+      expect(msgCall).toBeDefined();
+      const body = JSON.parse(msgCall![1].body);
+      expect(body.images).toBeDefined();
+      expect(body.images).toHaveLength(1);
+      expect(body.images[0].dataUrl).toBe(mockDataUrl);
+
+      restore();
+    });
+  });
+
+  describe("T2-19: SSE error surfacing", () => {
+    it("shows error banner when SSE result contains an error", async () => {
+      vi.useRealTimers();
+
+      const errorPayload = JSON.stringify({
+        type: "result",
+        is_error: true,
+        error: "Rate limit exceeded",
+      });
+      const sseData = `data: ${errorPayload}\n\n`;
+      const encoder = new TextEncoder();
+      let readCount = 0;
+      const mockReader = {
+        read: vi.fn().mockImplementation(() => {
+          readCount++;
+          if (readCount === 1) {
+            return Promise.resolve({
+              done: false,
+              value: encoder.encode(sseData),
+            });
+          }
+          return Promise.resolve({ done: true, value: undefined });
+        }),
+      };
+      fetchMock.mockResolvedValue({
+        ok: true,
+        body: { getReader: () => mockReader },
+      });
+
+      const { container } = render(
+        <PromptInput
+          sessionCwd="/test"
+          sessionId="sess-1"
+          projectHash="proj-1"
+          activeSessionId="active-1"
+        />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "hello" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter" });
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      const banner = container.querySelector("[data-testid='sse-error-banner']");
+      expect(banner).not.toBeNull();
+      expect(banner!.textContent).toContain("Rate limit exceeded");
+    });
+
+    it("dismisses error banner when dismiss button is clicked", async () => {
+      vi.useRealTimers();
+
+      const errorPayload = JSON.stringify({
+        type: "result",
+        is_error: true,
+        error: "Something went wrong",
+      });
+      const sseData = `data: ${errorPayload}\n\n`;
+      const encoder = new TextEncoder();
+      let readCount = 0;
+      const mockReader = {
+        read: vi.fn().mockImplementation(() => {
+          readCount++;
+          if (readCount === 1) {
+            return Promise.resolve({
+              done: false,
+              value: encoder.encode(sseData),
+            });
+          }
+          return Promise.resolve({ done: true, value: undefined });
+        }),
+      };
+      fetchMock.mockResolvedValue({
+        ok: true,
+        body: { getReader: () => mockReader },
+      });
+
+      const { container } = render(
+        <PromptInput
+          sessionCwd="/test"
+          sessionId="sess-1"
+          projectHash="proj-1"
+          activeSessionId="active-1"
+        />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "hello" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter" });
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Banner should exist
+      expect(container.querySelector("[data-testid='sse-error-banner']")).not.toBeNull();
+
+      // Click dismiss
+      await act(async () => {
+        const dismissBtn = container.querySelector("[data-testid='sse-error-dismiss']");
+        expect(dismissBtn).not.toBeNull();
+        fireEvent.click(dismissBtn!);
+      });
+
+      // Banner should be gone
+      expect(container.querySelector("[data-testid='sse-error-banner']")).toBeNull();
+    });
+  });
+
+  describe("/diff command", () => {
+    it("shows in the slash command dropdown", () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/dif" } });
+
+      const dropdown = container.querySelectorAll(".text-dt-accent");
+      const names = Array.from(dropdown).map((el) => el.textContent);
+      expect(names).toContain("/diff");
+    });
+
+    it("fetches git-diff endpoint and displays output", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ diff: " src/index.ts | 5 ++---\n 1 file changed\n" }),
+      });
+
+      const { container } = render(
+        <PromptInput projectHash="projHash" sessionId="sess1" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      // Trailing space bypasses dropdown interception on Enter
+      fireEvent.change(textarea, { target: { value: "/diff " } });
+      // Fire Enter to trigger submitPrompt, then flush microtasks for async fetch
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter" });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith("/api/sessions/projHash/sess1/git-diff");
+      expect(container.textContent).toContain("src/index.ts");
+    });
+
+    it("shows fallback when no session selected", async () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      // Trailing space bypasses dropdown interception on Enter
+      fireEvent.change(textarea, { target: { value: "/diff " } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter" });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(container.textContent).toContain("No session selected");
+    });
+  });
+
+  describe("/mcp command", () => {
+    it("shows in the slash command dropdown", () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/mc" } });
+
+      const dropdown = container.querySelectorAll(".text-dt-accent");
+      const names = Array.from(dropdown).map((el) => el.textContent);
+      expect(names).toContain("/mcp");
+    });
+
+    it("shows MCP server grouping when metrics have MCP tools", async () => {
+      const metrics = {
+        session: { id: "s1", projectHash: "h", path: "/tmp/t.jsonl", startTime: "", lastModified: "", eventCount: 0, subagentCount: 0 },
+        dag: { nodes: [], edges: [] },
+        tokens: { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 },
+        tokensByModel: {},
+        tokensByTurn: [],
+        tools: [
+          { name: "mcp__fs__read", count: 5, errors: 0, isMcp: true, mcpServer: "filesystem" },
+          { name: "mcp__fs__write", count: 3, errors: 0, isMcp: true, mcpServer: "filesystem" },
+          { name: "mcp__gh__pr", count: 2, errors: 0, isMcp: true, mcpServer: "github" },
+        ],
+        totalEvents: 0,
+        totalToolCalls: 0,
+        totalAgents: 0,
+        models: [],
+        duration: 0,
+        contextPercent: 0,
+        contextWindowSize: 200000,
+        tasks: { total: 0, completed: 0, inProgress: 0, pending: 0 },
+        hasRemoteControl: false,
+      };
+
+      const { container } = render(<PromptInput metrics={metrics} />);
+      const textarea = container.querySelector("textarea")!;
+
+      // Trailing space bypasses dropdown interception on Enter
+      fireEvent.change(textarea, { target: { value: "/mcp " } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter" });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+
+      expect(container.textContent).toContain("filesystem");
+      expect(container.textContent).toContain("github");
+    });
+
+    it("shows 'No MCP servers connected' when no MCP tools", async () => {
+      const metrics = {
+        session: { id: "s1", projectHash: "h", path: "/tmp/t.jsonl", startTime: "", lastModified: "", eventCount: 0, subagentCount: 0 },
+        dag: { nodes: [], edges: [] },
+        tokens: { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 },
+        tokensByModel: {},
+        tokensByTurn: [],
+        tools: [],
+        totalEvents: 0,
+        totalToolCalls: 0,
+        totalAgents: 0,
+        models: [],
+        duration: 0,
+        contextPercent: 0,
+        contextWindowSize: 200000,
+        tasks: { total: 0, completed: 0, inProgress: 0, pending: 0 },
+        hasRemoteControl: false,
+      };
+
+      const { container } = render(<PromptInput metrics={metrics} />);
+      const textarea = container.querySelector("textarea")!;
+
+      // Trailing space bypasses dropdown interception on Enter
+      fireEvent.change(textarea, { target: { value: "/mcp " } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter" });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+
+      expect(container.textContent).toContain("No MCP servers connected");
+    });
+  });
+
+  describe("/tasks command (T2-16)", () => {
+    it("shows in the slash command dropdown", () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/ta" } });
+
+      const dropdown = container.querySelectorAll(".text-dt-accent");
+      const names = Array.from(dropdown).map((el) => el.textContent);
+      expect(names).toContain("/tasks");
+    });
+
+    it("shows task summary when metrics have tasks", async () => {
+      const metrics = {
+        session: { id: "s1", projectHash: "h", path: "/tmp/t.jsonl", startTime: "", lastModified: "", eventCount: 0, subagentCount: 0 },
+        dag: { nodes: [], edges: [] },
+        tokens: { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 },
+        tokensByModel: {},
+        tokensByTurn: [],
+        tools: [],
+        totalEvents: 0,
+        totalToolCalls: 0,
+        totalAgents: 0,
+        models: [],
+        duration: 0,
+        contextPercent: 0,
+        contextWindowSize: 200000,
+        tasks: { total: 5, completed: 3, inProgress: 1, pending: 1 },
+        hasRemoteControl: false,
+      };
+
+      const { container } = render(<PromptInput metrics={metrics} />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/tasks " } });
+      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+      await act(async () => {});
+
+      expect(container.textContent).toContain("3/5");
+      expect(container.textContent).toContain("3 completed");
+    });
+
+    it("shows 'No tasks' when no tasks exist", async () => {
+      const metrics = {
+        session: { id: "s1", projectHash: "h", path: "/tmp/t.jsonl", startTime: "", lastModified: "", eventCount: 0, subagentCount: 0 },
+        dag: { nodes: [], edges: [] },
+        tokens: { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 },
+        tokensByModel: {},
+        tokensByTurn: [],
+        tools: [],
+        totalEvents: 0,
+        totalToolCalls: 0,
+        totalAgents: 0,
+        models: [],
+        duration: 0,
+        contextPercent: 0,
+        contextWindowSize: 200000,
+        tasks: { total: 0, completed: 0, inProgress: 0, pending: 0 },
+        hasRemoteControl: false,
+      };
+
+      const { container } = render(<PromptInput metrics={metrics} />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/tasks " } });
+      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+      await act(async () => {});
+
+      expect(container.textContent).toContain("No tasks");
+    });
+  });
+
+  describe("/analytics command (T2-18)", () => {
+    it("shows in the slash command dropdown", () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/an" } });
+
+      const dropdown = container.querySelectorAll(".text-dt-accent");
+      const names = Array.from(dropdown).map((el) => el.textContent);
+      expect(names).toContain("/analytics");
+    });
+
+    it("shows analytics data when costs are provided", async () => {
+      const costs = {
+        cost24h: 5.25,
+        cost7d: 18.50,
+        sessionCount24h: 10,
+        sessionCount7d: 35,
+        tokenIn24h: 500000,
+        tokenOut24h: 100000,
+        tokenIn7d: 2000000,
+        tokenOut7d: 400000,
+      };
+
+      const { container } = render(<PromptInput costs={costs} />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/analytics " } });
+      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+      await act(async () => {});
+
+      expect(container.textContent).toContain("10 sessions (24h)");
+      expect(container.textContent).toContain("$5.25");
+    });
+
+    it("shows fallback when costs are null", async () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/analytics " } });
+      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+      await act(async () => {});
+
+      expect(container.textContent).toContain("No analytics data");
+    });
+  });
+
+  describe("/context command", () => {
+    it("shows context percentage and status when metrics are available", async () => {
+      const metrics = {
+        session: { id: "s1", projectHash: "h", path: "/tmp/t.jsonl", startTime: "", lastModified: "", eventCount: 0, subagentCount: 0 },
+        dag: { nodes: [], edges: [] },
+        tokens: { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 },
+        tokensByModel: {},
+        tokensByTurn: [],
+        tools: [],
+        totalEvents: 0,
+        totalToolCalls: 0,
+        totalAgents: 0,
+        models: [],
+        duration: 0,
+        contextPercent: 42,
+        contextWindowSize: 200000,
+        tasks: { total: 0, completed: 0, inProgress: 0, pending: 0 },
+        hasRemoteControl: false,
+      };
+
+      const { container } = render(<PromptInput metrics={metrics} />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/context " } });
+      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+      await act(async () => {});
+
+      expect(container.textContent).toContain("42%");
+      expect(container.textContent).toContain("OK");
+      expect(container.textContent).toContain("200K");
+    });
+
+    it("shows fallback when metrics are null", async () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/context " } });
+      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+      await act(async () => {});
+
+      expect(container.textContent).toContain("No session data");
+    });
+
+    it("does NOT call fetch (handled locally)", async () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/context " } });
+      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("/permissions command", () => {
+    it("fetches permissions info and shows mode and allowances", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          mode: "default",
+          allowances: ["Bash", "Write"],
+          pendingCount: 1,
+        }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-perm-1" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/permissions " } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-perm-1/permissions-info");
+      expect(container.textContent).toContain("default");
+      expect(container.textContent).toContain("Bash");
+      expect(container.textContent).toContain("Write");
+      expect(container.textContent).toContain("1");
+    });
+
+    it("shows fallback when no active session", async () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/permissions " } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(container.textContent).toContain("No permission data");
+    });
+
+    it("shows fallback when fetch fails", async () => {
+      fetchMock.mockRejectedValueOnce(new Error("network error"));
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-perm-2" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/permissions " } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(container.textContent).toContain("No permission data");
     });
   });
 

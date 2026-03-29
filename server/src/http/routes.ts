@@ -19,6 +19,7 @@ import {
   getPendingPermissions,
   getPermissionStatus,
   addSessionAllowance,
+  getSessionAllowances,
 } from "../hooks/permission-handler.js";
 import { buildLifecycleRecords } from "../debug/lifecycle-builder.js";
 import { SessionManager } from "../session/session-manager.js";
@@ -68,6 +69,37 @@ export function setupRoutes(state?: ServerState): Router {
       res.json({ costs });
     } catch (err) {
       res.status(500).json({ error: "Failed to compute costs" });
+    }
+  });
+
+  // Get permissions info for a session (mode, allowances, pending count)
+  // Must be defined BEFORE /sessions/:projectHash/:sessionId to avoid param collision
+  router.get("/sessions/:sessionId/permissions-info", (req, res) => {
+    try {
+      const { sessionId } = req.params;
+
+      // Check active session first (via SessionManager), then fall back to discovery
+      const activeSession = state?.sessionManager?.getStatus(sessionId);
+      let mode = "unknown";
+      if (activeSession) {
+        mode = activeSession.permissionMode;
+      } else {
+        // Try to find in discovered sessions
+        const sessions = discoverSessions();
+        const discovered = sessions.find((s) => s.id === sessionId);
+        if (discovered) {
+          mode = "default";
+        }
+      }
+
+      const allowances = getSessionAllowances(sessionId);
+      const pendingCount = getPendingPermissions().filter(
+        (p) => p.sessionId === sessionId
+      ).length;
+
+      res.json({ mode, allowances, pendingCount });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to get permissions info" });
     }
   });
 
@@ -238,6 +270,43 @@ export function setupRoutes(state?: ServerState): Router {
       res.json({ files });
     } catch (err) {
       res.status(500).json({ error: "Failed to list files" });
+    }
+  });
+
+  // Get git diff for a session's cwd
+  router.get("/sessions/:projectHash/:sessionId/git-diff", (req, res) => {
+    try {
+      const { projectHash, sessionId } = req.params;
+      const sessions = discoverSessions();
+      const session = sessions.find(
+        (s) => s.projectHash === projectHash && s.id === sessionId
+      );
+
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      const cwd = session.cwd;
+      if (!cwd) {
+        return res.json({ diff: "" });
+      }
+
+      const result = spawnSync("git", ["diff", "--stat"], {
+        cwd,
+        timeout: 5000,
+      });
+
+      if (result.error || result.status !== 0) {
+        return res.json({ diff: "" });
+      }
+
+      const diff = typeof result.stdout === "string"
+        ? result.stdout
+        : result.stdout?.toString() ?? "";
+
+      res.json({ diff });
+    } catch (err) {
+      res.json({ diff: "" });
     }
   });
 
@@ -522,6 +591,41 @@ export function setupRoutes(state?: ServerState): Router {
       return res.status(404).json({ error: "Session not found" });
     }
     res.json({ success: true, mode });
+  });
+
+  // Set fast mode for an active session
+  router.post("/sessions/:sessionId/fast", (req, res) => {
+    const { enabled } = req.body;
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ error: "enabled is required (boolean)" });
+    }
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    const success = sessionManager.setFastMode(req.params.sessionId, enabled);
+    if (!success) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    res.json({ success: true, fastMode: enabled });
+  });
+
+  // Set effort level for an active session
+  router.post("/sessions/:sessionId/effort", (req, res) => {
+    const { level } = req.body;
+    const validLevels = new Set(["low", "medium", "high"]);
+    if (!level || typeof level !== "string" || !validLevels.has(level)) {
+      return res.status(400).json({ error: "level is required (low | medium | high)" });
+    }
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    const success = sessionManager.setEffortLevel(req.params.sessionId, level as "low" | "medium" | "high");
+    if (!success) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    res.json({ success: true, effortLevel: level });
   });
 
   // Abort active session streaming

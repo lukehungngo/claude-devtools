@@ -1,6 +1,7 @@
 import type { SessionEvent, AssistantEvent, UserEvent, ContentItem, ToolUseContent, ToolResultContent } from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
 import { ToolResultBlock } from "../viewer/ToolResultBlock";
+import { DiffBlock } from "../viewer/DiffBlock";
 
 interface ToolEntriesProps {
   events: SessionEvent[];
@@ -13,6 +14,7 @@ interface ToolEntry {
   status: "success" | "running" | "error";
   resultContent?: string | unknown[];
   resultIsError?: boolean;
+  toolInput?: Record<string, unknown>;
 }
 
 function extractToolEntries(events: SessionEvent[]): ToolEntry[] {
@@ -40,6 +42,7 @@ function extractToolEntries(events: SessionEvent[]): ToolEntry[] {
               : toolUse.name,
             target: typeof target === "string" ? target.slice(0, 80) : "",
             status: "running",
+            toolInput: input,
           };
           toolUseMap.set(toolUse.id, entry);
           entries.push(entry);
@@ -117,6 +120,21 @@ export function ToolEntries({ events }: ToolEntriesProps) {
                 content={entry.resultContent}
                 isError={entry.resultIsError ?? false}
                 toolName={entry.name}
+              />
+            )}
+            {/* Diff view for Edit/Write tools */}
+            {entry.name === "Edit" && entry.toolInput && (
+              <DiffBlock
+                oldContent={String(entry.toolInput.old_string ?? "")}
+                newContent={String(entry.toolInput.new_string ?? "")}
+                filePath={String(entry.toolInput.file_path ?? "")}
+              />
+            )}
+            {entry.name === "Write" && entry.toolInput && (
+              <DiffBlock
+                oldContent=""
+                newContent={String(entry.toolInput.content ?? "")}
+                filePath={String(entry.toolInput.file_path ?? "")}
               />
             )}
           </div>

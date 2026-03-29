@@ -1,6 +1,8 @@
-import { useRef, useState, useEffect, useCallback, useMemo } from "react";
-import type { SessionEvent, SessionMetrics, PermissionRequest } from "../../lib/types";
+import { useRef, useState, useEffect, useCallback, useMemo, useContext } from "react";
+import type { SessionEvent, SessionMetrics, PermissionRequest, AssistantEvent } from "../../lib/types";
+import { LayoutContext } from "../../contexts/LayoutContext";
 import { groupEventsIntoTurns } from "../../lib/turnSnapshot";
+import { normalizeContent } from "../../lib/normalizeContent";
 import { CostStrip } from "../viewer/CostStrip";
 import { PermissionBlock } from "./PermissionBlock";
 import { PermissionModeBadge, cyclePermissionMode } from "./PermissionModeBadge";
@@ -59,6 +61,9 @@ export function ConversationView({
   onSubmitAnswer,
   onSessionStarted,
 }: ConversationViewProps) {
+  const layoutCtx = useContext(LayoutContext);
+  const usage = layoutCtx?.usage ?? null;
+  const costs = layoutCtx?.costs ?? null;
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -183,6 +188,21 @@ export function ConversationView({
       // Silently fail -- user can retry manually
     }
   }, [activeSessionId, sessionId]);
+
+  /** Extract text from the last N assistant responses for /copy */
+  const getAssistantResponses = useCallback((count: number): string[] => {
+    const assistantEvents = events.filter(
+      (e): e is AssistantEvent => e.type === "assistant"
+    );
+    const lastN = assistantEvents.slice(-count);
+    return lastN.map((evt) => {
+      const items = normalizeContent(evt.message?.content);
+      return items
+        .filter((item) => item.type === "text" && "text" in item)
+        .map((item) => ("text" in item ? item.text : ""))
+        .join("\n");
+    }).filter((text) => text.length > 0);
+  }, [events]);
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
@@ -377,7 +397,7 @@ export function ConversationView({
       <CostStrip metrics={metrics} />
 
       {/* Command input */}
-      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} projectHash={projectHash} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} />
+      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} projectHash={projectHash} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} getAssistantResponses={getAssistantResponses} metrics={metrics} usage={usage} costs={costs} />
     </div>
   );
 }
