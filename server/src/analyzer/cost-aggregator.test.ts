@@ -1,15 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { SessionInfo } from "../types.js";
+import type { SessionInfo, SessionEvent } from "../types.js";
 
-// Mock parseJsonlFile since cost-aggregator reads files
+// Mock parseJsonlIncremental since cost-aggregator reads files incrementally
 vi.mock("../parser/jsonl-reader.js", () => ({
-  parseJsonlFile: vi.fn(() => []),
+  parseJsonlIncremental: vi.fn(() => ({ events: [], newOffset: 0 })),
 }));
 
-import { aggregateCosts } from "./cost-aggregator.js";
-import { parseJsonlFile } from "../parser/jsonl-reader.js";
+// Mock fs.statSync for cost aggregator's file stat check
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    statSync: vi.fn(() => ({ size: 1000 })),
+  };
+});
 
-const mockedParseJsonlFile = vi.mocked(parseJsonlFile);
+import { aggregateCosts } from "./cost-aggregator.js";
+import { parseJsonlIncremental } from "../parser/jsonl-reader.js";
+import { statSync } from "node:fs";
+
+const mockedParseJsonlIncremental = vi.mocked(parseJsonlIncremental);
+const mockedStatSync = vi.mocked(statSync);
 
 function makeSessionInfo(
   lastModifiedDate: Date,
@@ -54,6 +65,9 @@ function makeAssistantEvents(inputTokens: number, outputTokens: number) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default: statSync returns a distinct size each call to avoid stale cache hits
+  let fileCounter = 0;
+  mockedStatSync.mockImplementation(() => ({ size: ++fileCounter * 1000 }) as ReturnType<typeof statSync>);
 });
 
 describe("aggregateCosts", () => {
@@ -69,8 +83,8 @@ describe("aggregateCosts", () => {
   it("includes sessions within 24h window", () => {
     const now = new Date();
     const recentSession = makeSessionInfo(now);
-    mockedParseJsonlFile.mockReturnValue(
-      makeAssistantEvents(1000, 500)
+    mockedParseJsonlIncremental.mockReturnValue(
+      { events: makeAssistantEvents(1000, 500) as unknown as SessionEvent[], newOffset: 500 }
     );
 
     const result = aggregateCosts([recentSession]);
@@ -85,8 +99,8 @@ describe("aggregateCosts", () => {
     // Session from 3 days ago
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
     const olderSession = makeSessionInfo(threeDaysAgo);
-    mockedParseJsonlFile.mockReturnValue(
-      makeAssistantEvents(2000, 1000)
+    mockedParseJsonlIncremental.mockReturnValue(
+      { events: makeAssistantEvents(2000, 1000) as unknown as SessionEvent[], newOffset: 500 }
     );
 
     const result = aggregateCosts([olderSession]);
@@ -116,9 +130,9 @@ describe("aggregateCosts", () => {
     const session1 = makeSessionInfo(now, { path: "/tmp/s1.jsonl" });
     const session2 = makeSessionInfo(now, { path: "/tmp/s2.jsonl" });
 
-    mockedParseJsonlFile
-      .mockReturnValueOnce(makeAssistantEvents(1000, 500))
-      .mockReturnValueOnce(makeAssistantEvents(2000, 1000));
+    mockedParseJsonlIncremental
+      .mockReturnValueOnce({ events: makeAssistantEvents(1000, 500) as unknown as SessionEvent[], newOffset: 500 })
+      .mockReturnValueOnce({ events: makeAssistantEvents(2000, 1000) as unknown as SessionEvent[], newOffset: 500 });
 
     const result = aggregateCosts([session1, session2]);
 
@@ -130,8 +144,8 @@ describe("aggregateCosts", () => {
   it("24h sessions are also counted in 7d window", () => {
     const now = new Date();
     const recentSession = makeSessionInfo(now);
-    mockedParseJsonlFile.mockReturnValue(
-      makeAssistantEvents(1000, 500)
+    mockedParseJsonlIncremental.mockReturnValue(
+      { events: makeAssistantEvents(1000, 500) as unknown as SessionEvent[], newOffset: 500 }
     );
 
     const result = aggregateCosts([recentSession]);
@@ -144,7 +158,9 @@ describe("aggregateCosts", () => {
   it("handles sessions with no assistant events (zero cost)", () => {
     const now = new Date();
     const session = makeSessionInfo(now);
-    mockedParseJsonlFile.mockReturnValue([]);
+    mockedParseJsonlIncremental.mockReturnValue(
+      { events: [], newOffset: 0 }
+    );
 
     const result = aggregateCosts([session]);
 
@@ -157,8 +173,8 @@ describe("aggregateCosts", () => {
     // Session at exactly 24h boundary
     const justOver24h = new Date(Date.now() - 25 * 60 * 60 * 1000);
     const session = makeSessionInfo(justOver24h);
-    mockedParseJsonlFile.mockReturnValue(
-      makeAssistantEvents(1000, 500)
+    mockedParseJsonlIncremental.mockReturnValue(
+      { events: makeAssistantEvents(1000, 500) as unknown as SessionEvent[], newOffset: 500 }
     );
 
     const result = aggregateCosts([session]);

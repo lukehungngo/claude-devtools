@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
 import { ConversationView } from "../components/conversation/ConversationView";
+import { groupEventsIntoTurns } from "../lib/turnSnapshot";
 import type { SessionEvent, SessionMetrics } from "../lib/types";
 import { LayoutContext } from "../contexts/LayoutContext";
 import type { LayoutContextValue } from "../contexts/LayoutContext";
@@ -114,6 +115,7 @@ describe("GROUP-5: onOpenPanel wiring", () => {
       <LayoutContext.Provider value={ctx}>
         <ConversationView
           events={[]}
+          turns={[]}
           metrics={null}
           onOpenPanel={onOpenPanel}
         />
@@ -146,7 +148,7 @@ describe("GROUP-5: ghost text props wiring", () => {
 
     const { getByTestId } = render(
       <LayoutContext.Provider value={ctx}>
-        <ConversationView events={[]} metrics={null} />
+        <ConversationView events={[]} turns={[]} metrics={null} />
       </LayoutContext.Provider>,
     );
 
@@ -163,7 +165,7 @@ describe("GROUP-5: ghost text props wiring", () => {
 
     const { getByTestId } = render(
       <LayoutContext.Provider value={ctx}>
-        <ConversationView events={events} metrics={null} />
+        <ConversationView events={events} turns={groupEventsIntoTurns(events)} metrics={null} />
       </LayoutContext.Provider>,
     );
 
@@ -181,7 +183,7 @@ describe("GROUP-5: ghost text props wiring", () => {
 
     const { getByTestId } = render(
       <LayoutContext.Provider value={ctx}>
-        <ConversationView events={events} metrics={null} />
+        <ConversationView events={events} turns={groupEventsIntoTurns(events)} metrics={null} />
       </LayoutContext.Provider>,
     );
 

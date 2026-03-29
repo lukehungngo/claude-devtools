@@ -36,6 +36,8 @@ function makeTurn(n: number): TurnSnapshot {
     status: "completed",
     promptText: `Prompt ${n}`,
     events: [] as SessionEvent[],
+    startIndex: 0,
+    endIndex: 0,
     agents: [],
     cost: 0,
     costBreakdown: { total: 0, tokensIn: 0, tokensOut: 0 },

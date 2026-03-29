@@ -1,4 +1,5 @@
 import chokidar from "chokidar";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { broadcast, type ServerState } from "./server.js";
@@ -139,7 +140,34 @@ export function startWatcher(state: ServerState): { close: () => Promise<void> }
     broadcast(state, buildNewSessionMessage(filePath));
   });
 
+  // Clean up map entries when files are deleted
+  watcher.on("unlink", (filePath) => {
+    offsets.delete(filePath);
+    const sessionId = extractSessionIdFromPath(filePath);
+    builderStates.delete(sessionId);
+    logger.debug({ filePath }, "watcher: cleaned up maps for deleted file");
+  });
+
+  // Periodic cleanup: remove entries for files that no longer exist (every 10 minutes)
+  const cleanupInterval = setInterval(() => {
+    let cleaned = 0;
+    for (const filePath of offsets.keys()) {
+      if (!existsSync(filePath)) {
+        offsets.delete(filePath);
+        const sessionId = extractSessionIdFromPath(filePath);
+        builderStates.delete(sessionId);
+        cleaned++;
+      }
+    }
+    if (cleaned > 0) {
+      logger.debug({ cleaned }, "watcher: periodic cleanup removed stale entries");
+    }
+  }, 10 * 60 * 1000);
+
   return {
-    close: () => watcher.close(),
+    close: async () => {
+      clearInterval(cleanupInterval);
+      await watcher.close();
+    },
   };
 }

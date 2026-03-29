@@ -28,6 +28,8 @@ function makeTurn(overrides: Partial<TurnSnapshot> & { userUuid?: string } = {})
     turnNumber: 1,
     promptText: "Set up the project structure",
     events: [makeUserEvent(userUuid)],
+    startIndex: 0,
+    endIndex: 1,
     status: "completed",
     durationMs: 5000,
     cost: 0.04,

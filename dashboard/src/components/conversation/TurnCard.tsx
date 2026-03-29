@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import type {
   SessionEvent,
@@ -78,6 +78,22 @@ function TurnFooter({ turn }: { turn: TurnSnapshot }) {
 }
 
 // ─── TurnCard ────────────────────────────────────────────────────────
+
+/** Custom comparator for React.memo — checks fields that affect rendering */
+export function turnCardAreEqual(
+  prev: Readonly<TurnCardProps>,
+  next: Readonly<TurnCardProps>,
+): boolean {
+  return (
+    prev.turn.turnNumber === next.turn.turnNumber &&
+    prev.turn.status === next.turn.status &&
+    prev.turn.events.length === next.turn.events.length &&
+    prev.turn.durationMs === next.turn.durationMs &&
+    prev.isHighlighted === next.isHighlighted &&
+    prev.onAgentPillClick === next.onAgentPillClick &&
+    prev.onTurnClick === next.onTurnClick
+  );
+}
 
 export function TurnCard({
   turn,
@@ -192,3 +208,6 @@ export function TurnCard({
     </div>
   );
 }
+
+/** Memoized TurnCard — skips re-render when turn content hasn't changed */
+export const MemoTurnCard = memo(TurnCard, turnCardAreEqual);

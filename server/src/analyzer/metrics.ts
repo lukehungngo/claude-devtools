@@ -265,7 +265,14 @@ export function computeMetrics(
     ? new Date(firstTimestamped.timestamp).getTime()
     : 0;
   const isActive = sessionInfo.isActive;
-  const lastTimestamped = [...mainEvents].reverse().find((e) => e.timestamp);
+  // Find last timestamped event with a backward loop (avoids array copy + reverse)
+  let lastTimestamped: SessionEvent | undefined;
+  for (let i = mainEvents.length - 1; i >= 0; i--) {
+    if (mainEvents[i].timestamp) {
+      lastTimestamped = mainEvents[i];
+      break;
+    }
+  }
   const endTime = isActive
     ? Date.now()
     : lastTimestamped
