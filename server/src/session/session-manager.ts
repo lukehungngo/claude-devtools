@@ -16,12 +16,16 @@ const PLAN_ALLOW: ReadonlySet<string> = new Set(["Read", "Glob", "Grep"]);
 const PLAN_DENY: ReadonlySet<string> = new Set(["Edit", "Write", "Bash"]);
 
 // Active session tracking
+export type EffortLevel = "low" | "medium" | "high";
+
 export interface ActiveSession {
   sessionId: string;
   cwd: string;
   status: "idle" | "streaming" | "waiting-permission" | "error";
   permissionMode: PermissionMode;
   model?: string;
+  fastMode: boolean;
+  effortLevel?: EffortLevel;
   abortController: AbortController;
   permissionResolvers: Map<string, (result: PermissionResult) => void>;
   questionResolvers: Map<string, (answer: string) => void>;
@@ -79,6 +83,7 @@ export class SessionManager {
       cwd,
       status: "idle",
       permissionMode: "default",
+      fastMode: false,
       abortController: new AbortController(),
       permissionResolvers: new Map(),
       questionResolvers: new Map(),
@@ -111,6 +116,7 @@ export class SessionManager {
           forkSession: false,
           includePartialMessages: true,
           ...(session.model ? { model: session.model } : {}),
+          ...(session.effortLevel ? { effort: session.effortLevel } : {}),
           canUseTool: async (toolName, input) => {
             return this.handlePermission(session, toolName, input);
           },
@@ -272,6 +278,7 @@ export class SessionManager {
       cwd,
       status: "idle",
       permissionMode: "default",
+      fastMode: false,
       abortController: new AbortController(),
       permissionResolvers: new Map(),
       questionResolvers: new Map(),
@@ -302,6 +309,24 @@ export class SessionManager {
     if (!session) return false;
     session.model = model;
     sessionLog.info({ sessionId, model: model ?? "default" }, "model changed");
+    return true;
+  }
+
+  /** Set fast mode for a session */
+  setFastMode(sessionId: string, enabled: boolean): boolean {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) return false;
+    session.fastMode = enabled;
+    sessionLog.info({ sessionId, fastMode: enabled }, "fast mode changed");
+    return true;
+  }
+
+  /** Set effort level for a session */
+  setEffortLevel(sessionId: string, level: EffortLevel): boolean {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) return false;
+    session.effortLevel = level;
+    sessionLog.info({ sessionId, effortLevel: level }, "effort level changed");
     return true;
   }
 

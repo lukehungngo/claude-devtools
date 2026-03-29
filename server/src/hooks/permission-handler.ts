@@ -23,6 +23,11 @@ export function isToolAllowedForSession(sessionId: string, toolName: string): bo
   return sessionAllowances.get(sessionId)?.has(toolName) ?? false;
 }
 
+export function getSessionAllowances(sessionId: string): string[] {
+  const tools = sessionAllowances.get(sessionId);
+  return tools ? Array.from(tools) : [];
+}
+
 export function clearSessionAllowances(): void {
   sessionAllowances.clear();
 }

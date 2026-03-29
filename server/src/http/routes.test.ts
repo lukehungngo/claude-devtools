@@ -13,6 +13,8 @@ vi.mock("../parser/session-discovery.js", () => ({
   discoverRepoGroups: vi.fn(() => []),
   loadFullSession: vi.fn(),
 }));
+
+import { discoverSessions } from "../parser/session-discovery.js";
 vi.mock("../analyzer/metrics.js", () => ({
   computeMetrics: vi.fn(),
 }));
@@ -30,11 +32,14 @@ vi.mock("../hooks/permission-handler.js", () => ({
   resolvePermissionRequest: vi.fn(),
   getPendingPermissions: vi.fn(() => []),
   getPermissionStatus: vi.fn(),
+  getSessionAllowances: vi.fn(() => []),
+  addSessionAllowance: vi.fn(),
 }));
 vi.mock("../debug/lifecycle-builder.js", () => ({
   buildLifecycleRecords: vi.fn(),
 }));
 
+import { getSessionAllowances, getPendingPermissions } from "../hooks/permission-handler.js";
 import request from "supertest";
 import express from "express";
 import { setupRoutes } from "./routes.js";
@@ -162,5 +167,107 @@ describe("POST /open-file", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("filePath is required");
     expect(mockSpawnSync).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /sessions/:projectHash/:sessionId/git-diff", () => {
+  let app: express.Express;
+  const mockSpawnSync = child_process.spawnSync as unknown as ReturnType<typeof vi.fn>;
+  const mockDiscoverSessions = discoverSessions as unknown as ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    app = express();
+    app.use(setupRoutes());
+    vi.clearAllMocks();
+  });
+
+  it("returns git diff stat output for a valid session", async () => {
+    mockDiscoverSessions.mockReturnValue([
+      { projectHash: "abc", id: "sess1", cwd: "/tmp/myrepo" },
+    ]);
+    mockSpawnSync.mockReturnValue({
+      status: 0,
+      error: null,
+      stdout: " src/index.ts | 5 ++---\n 1 file changed\n",
+    });
+
+    const res = await request(app).get("/sessions/abc/sess1/git-diff");
+
+    expect(res.status).toBe(200);
+    expect(res.body.diff).toContain("src/index.ts");
+    expect(mockSpawnSync).toHaveBeenCalledWith(
+      "git",
+      ["diff", "--stat"],
+      expect.objectContaining({ cwd: "/tmp/myrepo" })
+    );
+  });
+
+  it("returns empty diff when session not found", async () => {
+    mockDiscoverSessions.mockReturnValue([]);
+
+    const res = await request(app).get("/sessions/abc/nosess/git-diff");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns empty diff when git fails", async () => {
+    mockDiscoverSessions.mockReturnValue([
+      { projectHash: "abc", id: "sess1", cwd: "/tmp/myrepo" },
+    ]);
+    mockSpawnSync.mockReturnValue({
+      status: 1,
+      error: new Error("not a git repo"),
+      stdout: "",
+    });
+
+    const res = await request(app).get("/sessions/abc/sess1/git-diff");
+
+    expect(res.status).toBe(200);
+    expect(res.body.diff).toBe("");
+  });
+});
+
+describe("GET /sessions/:sessionId/permissions-info", () => {
+  let app: express.Express;
+  const mockGetAllowances = getSessionAllowances as unknown as ReturnType<typeof vi.fn>;
+  const mockGetPending = getPendingPermissions as unknown as ReturnType<typeof vi.fn>;
+  const mockDiscoverSessions = discoverSessions as unknown as ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    app = express();
+    app.use(setupRoutes());
+    vi.clearAllMocks();
+  });
+
+  it("returns mode, allowances, and pending count", async () => {
+    mockDiscoverSessions.mockReturnValue([
+      { projectHash: "abc", id: "sess1", permissionMode: "default" },
+    ]);
+    mockGetAllowances.mockReturnValue(["Bash", "Write"]);
+    mockGetPending.mockReturnValue([
+      { id: "p1", sessionId: "sess1", status: "pending" },
+    ]);
+
+    const res = await request(app).get("/sessions/sess1/permissions-info");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      mode: "default",
+      allowances: ["Bash", "Write"],
+      pendingCount: 1,
+    });
+  });
+
+  it("returns default values when session not found in discovery", async () => {
+    mockDiscoverSessions.mockReturnValue([]);
+    mockGetAllowances.mockReturnValue([]);
+    mockGetPending.mockReturnValue([]);
+
+    const res = await request(app).get("/sessions/nosess/permissions-info");
+
+    expect(res.status).toBe(200);
+    expect(res.body.mode).toBe("unknown");
+    expect(res.body.allowances).toEqual([]);
+    expect(res.body.pendingCount).toBe(0);
   });
 });
