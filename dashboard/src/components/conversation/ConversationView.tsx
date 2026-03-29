@@ -48,8 +48,8 @@ interface ConversationViewProps {
   onSubmitAnswer?: (questionId: string, answer: string) => void;
   /** Called when PromptInput auto-starts or resumes a session */
   onSessionStarted?: (sessionId: string) => void;
-  /** Called when slash commands (/doctor, /stats, /mcp) request a panel */
-  onOpenPanel?: (panel: "doctor" | "stats" | "mcp") => void;
+  /** Called when slash commands request opening a right-panel tab */
+  onOpenPanel?: (panel: string) => void;
 }
 
 // ─── Virtualized turn list ──────────────────────────────────────────

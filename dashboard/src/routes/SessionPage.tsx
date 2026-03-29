@@ -7,6 +7,7 @@ import { resolveSlugToProjectHash } from "../lib/repoSlug";
 import { groupEventsIntoTurns } from "../lib/turnSnapshot";
 import { ConversationView } from "../components/conversation/ConversationView";
 import { RightPanel } from "../components/right-panel/RightPanel";
+import type { PrimaryTab } from "../components/right-panel/PrimaryTabs";
 
 export function SessionPage() {
   const { repoSlug, sessionId } = useParams({ strict: false }) as {
@@ -120,8 +121,8 @@ export function SessionPage() {
     setRequestedRightTab("graph");
   }, [setRequestedRightTab]);
 
-  const handleOpenPanel = useCallback((panel: "doctor" | "stats" | "mcp") => {
-    setRequestedRightTab(panel);
+  const handleOpenPanel = useCallback((panel: string) => {
+    setRequestedRightTab(panel as PrimaryTab);
   }, [setRequestedRightTab]);
 
   // Render right panel content into layout context

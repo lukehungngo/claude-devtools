@@ -50,8 +50,8 @@ interface PromptInputProps {
   hasMessages?: boolean;
   /** Whether the last turn had an error (for ghost text) */
   lastTurnHadError?: boolean;
-  /** Callback for slash commands that open panels (doctor, stats, mcp) */
-  onOpenPanel?: (panel: "doctor" | "stats" | "mcp") => void;
+  /** Callback for slash commands that open right-panel tabs */
+  onOpenPanel?: (panel: string) => void;
   /** Callback when a bash command (! prefix) completes */
   onBashOutput?: (result: { command: string; stdout: string; stderr: string; exitCode: number }) => void;
   /** Callback for streaming SSE events (tool calls, thinking, etc.) */
@@ -347,6 +347,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         showOutput(formatContextCommand(metrics ?? null));
         return;
       } else if (command === "/permissions") {
+        onOpenPanel?.("permissions");
         const targetId = activeSessionId || sessionId;
         if (!targetId) {
           showOutput(formatPermissionsCommand(null));
@@ -474,12 +475,23 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         }
 
         try {
-          const SESSION_NAMES_KEY = "session-names";
-          const raw = localStorage.getItem(SESSION_NAMES_KEY);
-          const names: Record<string, string> = raw ? JSON.parse(raw) : {};
-          names[targetId] = newName;
-          localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names));
-          showOutput(`Session renamed to "${newName}"`);
+          const res = await fetch(`/api/sessions/${targetId}/rename`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: newName }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            // Also persist in localStorage for immediate UI display
+            const SESSION_NAMES_KEY = "session-names";
+            const raw = localStorage.getItem(SESSION_NAMES_KEY);
+            const names: Record<string, string> = raw ? JSON.parse(raw) : {};
+            names[targetId] = data.title;
+            localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names));
+            showOutput(`Session renamed to "${data.title}"`);
+          } else {
+            showOutput(`Failed to rename: ${data.error || "unknown error"}`);
+          }
         } catch {
           showOutput("Failed to rename session.");
         }
@@ -541,13 +553,16 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         showOutput("Opening statistics panel...");
         return;
       } else if (command === "/settings") {
-        showOutput("Settings panel is available in the right panel tabs.");
+        onOpenPanel?.("settings");
+        showOutput("Opening settings panel...");
         return;
       } else if (command === "/hooks") {
-        showOutput("Hooks panel is available in the right panel tabs.");
+        onOpenPanel?.("hooks");
+        showOutput("Opening hooks panel...");
         return;
       } else if (command === "/memory") {
-        showOutput("Memory panel is available in the right panel tabs.");
+        onOpenPanel?.("memory");
+        showOutput("Opening memory panel...");
         return;
       } else if (command === "/init") {
         const targetId = activeSessionId || sessionId;

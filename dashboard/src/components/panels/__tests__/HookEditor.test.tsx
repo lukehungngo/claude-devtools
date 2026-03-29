@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { HookEditor } from "../HookEditor";
 
 describe("HookEditor", () => {
@@ -7,7 +7,17 @@ describe("HookEditor", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders empty state when API returns no hooks", async () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows loading state initially", () => {
+    vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
+    render(<HookEditor />);
+    expect(screen.getByText("Loading hooks...")).toBeTruthy();
+  });
+
+  it("renders event type groups even when API returns no hooks", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({ hooks: {} }),
@@ -15,18 +25,19 @@ describe("HookEditor", () => {
 
     render(<HookEditor />);
     await waitFor(() => {
-      expect(screen.getByText("No hooks configured")).toBeTruthy();
+      expect(screen.getByText("PreToolUse")).toBeTruthy();
+      expect(screen.getByText("PostToolUse")).toBeTruthy();
     });
   });
 
   it("renders hooks grouped by event type", async () => {
     const hooks = {
       PreToolUse: [
-        { matcher: "Bash", command: "check-allowlist.sh" },
-        { matcher: "Write", command: "lint-on-save.sh" },
+        { matcher: "Bash", hooks: [{ type: "command", command: "check-allowlist.sh" }] },
+        { matcher: "Write", hooks: [{ type: "command", command: "lint-on-save.sh" }] },
       ],
       PostToolUse: [
-        { matcher: "*", command: "log-tool-use.sh" },
+        { matcher: "*", hooks: [{ type: "command", command: "log-tool-use.sh" }] },
       ],
     };
 
@@ -40,21 +51,12 @@ describe("HookEditor", () => {
       expect(screen.getByText("PreToolUse")).toBeTruthy();
     });
     expect(screen.getByText("PostToolUse")).toBeTruthy();
-    expect(screen.getByText("check-allowlist.sh")).toBeTruthy();
-    expect(screen.getByText("lint-on-save.sh")).toBeTruthy();
-    expect(screen.getByText("log-tool-use.sh")).toBeTruthy();
   });
 
-  it("shows loading state initially", () => {
-    vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
-    render(<HookEditor />);
-    expect(screen.getByText("Loading hooks...")).toBeTruthy();
-  });
-
-  it("collapses and expands hook groups on click", async () => {
+  it("renders legacy flat hook format", async () => {
     const hooks = {
       PreToolUse: [
-        { matcher: "Bash", command: "check.sh" },
+        { matcher: "Bash", command: "check-allowlist.sh" },
       ],
     };
 
@@ -65,21 +67,123 @@ describe("HookEditor", () => {
 
     render(<HookEditor />);
     await waitFor(() => {
-      expect(screen.getByText("check.sh")).toBeTruthy();
+      expect(screen.getByText("PreToolUse")).toBeTruthy();
+    });
+    // Should show the hook with delete button (normalized from legacy format)
+    expect(screen.getByLabelText("Delete hook matcher")).toBeTruthy();
+  });
+
+  it("has add hook button per event type", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ hooks: {} }),
+    } as Response);
+
+    render(<HookEditor />);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Add hook to PreToolUse")).toBeTruthy();
+      expect(screen.getByLabelText("Add hook to PostToolUse")).toBeTruthy();
+    });
+  });
+
+  it("adds a new matcher when add button is clicked", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ hooks: {} }),
+    } as Response);
+
+    render(<HookEditor />);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Add hook to PreToolUse")).toBeTruthy();
     });
 
-    // Command should be visible initially (expanded by default)
-    expect(screen.getByText("check.sh")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Add hook to PreToolUse"));
 
-    // Click the toggle button to collapse
+    await waitFor(() => {
+      expect(screen.getByLabelText("Delete hook matcher")).toBeTruthy();
+    });
+  });
+
+  it("shows save button when hooks are modified", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ hooks: {} }),
+    } as Response);
+
+    render(<HookEditor />);
+    await waitFor(() => {
+      expect(screen.getByText("PreToolUse")).toBeTruthy();
+    });
+
+    // Initially no save button
+    expect(screen.queryByLabelText("Save hooks")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("Add hook to PreToolUse"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Save hooks")).toBeTruthy();
+    });
+  });
+
+  it("calls PUT endpoint on save", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ hooks: {} }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true }),
+      } as Response);
+
+    render(<HookEditor />);
+    await waitFor(() => {
+      expect(screen.getByText("PreToolUse")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByLabelText("Add hook to PreToolUse"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Save hooks")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByLabelText("Save hooks"));
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/settings/hooks",
+        expect.objectContaining({
+          method: "PUT",
+        }),
+      );
+    });
+  });
+
+  it("collapses and expands hook groups on click", async () => {
+    const hooks = {
+      PreToolUse: [
+        { matcher: "Bash", hooks: [{ type: "command", command: "check.sh" }] },
+      ],
+    };
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ hooks }),
+    } as Response);
+
+    render(<HookEditor />);
+    await waitFor(() => {
+      expect(screen.getByText("PreToolUse")).toBeTruthy();
+    });
+
+    // Find the toggle button for PreToolUse
     const preToolUseButton = screen.getAllByRole("button").find(
-      (btn) => btn.getAttribute("aria-expanded") === "true"
+      (btn) => btn.getAttribute("aria-expanded") === "true" && btn.textContent?.includes("PreToolUse"),
     )!;
     expect(preToolUseButton).toBeTruthy();
 
+    // Collapse
     fireEvent.click(preToolUseButton);
-
-    // Button should now be collapsed
     await waitFor(() => {
       expect(preToolUseButton.getAttribute("aria-expanded")).toBe("false");
     });

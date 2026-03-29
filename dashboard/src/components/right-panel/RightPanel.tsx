@@ -19,6 +19,8 @@ import { MemoryEditor } from "../panels/MemoryEditor";
 import { DoctorPanel } from "../panels/DoctorPanel";
 import { StatsPanel } from "../panels/StatsPanel";
 import { McpManager } from "../panels/McpManager";
+import { TaskPanel } from "../panels/TaskPanel";
+import { PermissionRulesEditor } from "../panels/PermissionRulesEditor";
 import { filterDagForTurn } from "../../lib/filterDagForTurn";
 
 /** Exported for overflow regression tests (TASK-005) */
@@ -262,6 +264,10 @@ export function RightPanel({
           <StatsPanel />
         ) : activePrimaryTab === "mcp" ? (
           <McpManager servers={[]} />
+        ) : activePrimaryTab === "permissions" ? (
+          <PermissionRulesEditor />
+        ) : activePrimaryTab === "tasks" ? (
+          <TaskPanel events={events} />
         ) : null}
       </div>
     </div>

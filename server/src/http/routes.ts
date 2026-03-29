@@ -1,5 +1,5 @@
 import { execSync, spawnSync } from "child_process";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { join, resolve } from "node:path";
@@ -818,6 +818,23 @@ export function setupRoutes(state?: ServerState): Router {
     res.json({ ok: true });
   });
 
+  // Rename a session via SDK renameSession()
+  router.post("/sessions/:sessionId/rename", async (req, res) => {
+    try {
+      const { title } = req.body;
+      if (!title || typeof title !== "string" || title.trim() === "") {
+        return res.status(400).json({ error: "title must be a non-empty string" });
+      }
+
+      const { renameSession } = await import("@anthropic-ai/claude-agent-sdk");
+      await renameSession(req.params.sessionId, title.trim());
+      res.json({ success: true, title: title.trim() });
+    } catch (err) {
+      logger.error({ error: String(err) }, "Failed to rename session");
+      res.status(500).json({ error: "Failed to rename session" });
+    }
+  });
+
   // List active sessions
   router.get("/sessions/active", (_req, res) => {
     const sessionManager = state?.sessionManager;
@@ -1055,7 +1072,7 @@ export function setupRoutes(state?: ServerState): Router {
 
   // === Settings & Config Routes (GROUP-4) ===
 
-  // Get hooks from ~/.claude/settings.json (read-only)
+  // Get hooks from ~/.claude/settings.json
   router.get("/settings/hooks", (_req, res) => {
     try {
       const settingsPath = join(homedir(), ".claude", "settings.json");
@@ -1066,6 +1083,138 @@ export function setupRoutes(state?: ServerState): Router {
       res.json({ hooks: settings.hooks ?? {} });
     } catch {
       res.json({ hooks: {} });
+    }
+  });
+
+  // Update hooks in ~/.claude/settings.json
+  router.put("/settings/hooks", (req, res) => {
+    try {
+      const { hooks } = req.body;
+      if (hooks === undefined || hooks === null || typeof hooks !== "object" || Array.isArray(hooks)) {
+        return res.status(400).json({ error: "hooks must be an object" });
+      }
+
+      const settings = readSettingsJson();
+      settings.hooks = hooks;
+      writeSettingsJson(settings);
+
+      res.json({ success: true });
+    } catch (err) {
+      logger.error({ error: String(err) }, "Failed to write hooks");
+      res.status(500).json({ error: "Failed to write hooks" });
+    }
+  });
+
+  // --- Permission Rules (settings.json § permissions) ---
+
+  /** Validate that a permission rule matches ToolName(pattern) or ToolName format */
+  function isValidPermissionRule(rule: string): boolean {
+    // Match: ToolName(anything) or just ToolName (bare tool)
+    return /^[A-Za-z_][A-Za-z0-9_]*(\(.*\))?$/.test(rule);
+  }
+
+  /** Read settings.json safely, returning empty object on missing/invalid */
+  function readSettingsJson(): Record<string, unknown> {
+    const settingsPath = join(homedir(), ".claude", "settings.json");
+    if (!existsSync(settingsPath)) return {};
+    try {
+      return JSON.parse(readFileSync(settingsPath, "utf-8"));
+    } catch {
+      return {};
+    }
+  }
+
+  /** Write settings.json, creating ~/.claude/ if needed */
+  function writeSettingsJson(data: Record<string, unknown>): void {
+    const claudeDir = join(homedir(), ".claude");
+    if (!existsSync(claudeDir)) {
+      mkdirSync(claudeDir, { recursive: true });
+    }
+    const settingsPath = join(claudeDir, "settings.json");
+    writeFileSync(settingsPath, JSON.stringify(data, null, 2), "utf-8");
+  }
+
+  // Get permissions from ~/.claude/settings.json
+  router.get("/settings/permissions", (_req, res) => {
+    try {
+      const settings = readSettingsJson();
+      const perms = (settings.permissions ?? {}) as Record<string, unknown>;
+      res.json({
+        allow: Array.isArray(perms.allow) ? perms.allow : [],
+        deny: Array.isArray(perms.deny) ? perms.deny : [],
+        ask: Array.isArray(perms.ask) ? perms.ask : [],
+      });
+    } catch {
+      res.json({ allow: [], deny: [], ask: [] });
+    }
+  });
+
+  // Write permissions to ~/.claude/settings.json
+  router.put("/settings/permissions", (req, res) => {
+    try {
+      const { allow, deny, ask } = req.body;
+      if (!Array.isArray(allow) || !Array.isArray(deny) || !Array.isArray(ask)) {
+        return res.status(400).json({ error: "allow, deny, and ask must be arrays" });
+      }
+
+      const allRules = [...allow, ...deny, ...ask];
+      for (const rule of allRules) {
+        if (typeof rule !== "string" || !isValidPermissionRule(rule)) {
+          return res.status(400).json({
+            error: `Invalid rule format: "${rule}". Expected ToolName(pattern) or ToolName`,
+          });
+        }
+      }
+
+      const existing = readSettingsJson();
+      existing.permissions = { allow, deny, ask };
+      writeSettingsJson(existing);
+      res.json({ success: true });
+    } catch (err) {
+      logger.error({ error: String(err) }, "Failed to write permissions");
+      res.status(500).json({ error: "Failed to write permissions" });
+    }
+  });
+
+  // --- Full Settings Editor (safe fields only) ---
+
+  const SAFE_SETTINGS_FIELDS = new Set(["model", "effort", "permissions", "env", "permissionMode"]);
+
+  // Get full settings.json (user-level)
+  router.get("/settings", (_req, res) => {
+    try {
+      const settings = readSettingsJson();
+      res.json(settings);
+    } catch {
+      res.json({});
+    }
+  });
+
+  // Write safe fields to settings.json
+  router.put("/settings", (req, res) => {
+    try {
+      const body = req.body;
+      if (!body || typeof body !== "object" || Object.keys(body).length === 0) {
+        return res.status(400).json({ error: "Body must be a non-empty object" });
+      }
+
+      const keys = Object.keys(body);
+      const disallowed = keys.filter((k) => !SAFE_SETTINGS_FIELDS.has(k));
+      if (disallowed.length > 0) {
+        return res.status(400).json({
+          error: `Fields not allowed: ${disallowed.join(", ")}. Only ${[...SAFE_SETTINGS_FIELDS].join(", ")} can be modified.`,
+        });
+      }
+
+      const existing = readSettingsJson();
+      for (const key of keys) {
+        (existing as Record<string, unknown>)[key] = body[key];
+      }
+      writeSettingsJson(existing);
+      res.json({ success: true });
+    } catch (err) {
+      logger.error({ error: String(err) }, "Failed to write settings");
+      res.status(500).json({ error: "Failed to write settings" });
     }
   });
 
@@ -1097,6 +1246,40 @@ export function setupRoutes(state?: ServerState): Router {
     } catch (err) {
       logger.error({ error: String(err) }, "Failed to read CLAUDE.md");
       res.json({ content: null });
+    }
+  });
+
+  // Update CLAUDE.md content in session cwd
+  router.put("/sessions/:projectHash/:sessionId/memory", (req, res) => {
+    try {
+      const { projectHash, sessionId } = req.params;
+      const { content } = req.body;
+
+      if (content === undefined || content === null || typeof content !== "string") {
+        return res.status(400).json({ error: "content must be a string" });
+      }
+
+      const sessions = discoverSessions();
+      const session = sessions.find(
+        (s) => s.projectHash === projectHash && s.id === sessionId
+      );
+
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      const cwd = session.cwd;
+      if (!cwd) {
+        return res.status(400).json({ error: "Session has no working directory" });
+      }
+
+      // Security: only write CLAUDE.md in the session's cwd, never arbitrary paths
+      const claudeMdPath = join(cwd, "CLAUDE.md");
+      writeFileSync(claudeMdPath, content, "utf-8");
+      res.json({ success: true });
+    } catch (err) {
+      logger.error({ error: String(err) }, "Failed to write CLAUDE.md");
+      res.status(500).json({ error: "Failed to write CLAUDE.md" });
     }
   });
 
@@ -1395,6 +1578,103 @@ export function setupRoutes(state?: ServerState): Router {
       res.json({ success: true, serverName });
     } catch (err) {
       res.status(500).json({ error: "Failed to reconnect MCP server" });
+    }
+  });
+
+  // === MCP write operations (P2-04) ===
+
+  /** Helper: resolve the .mcp.json path for a project */
+  function resolveMcpJsonPath(projectPath?: string): string {
+    if (projectPath) {
+      return join(projectPath, ".mcp.json");
+    }
+    return join(homedir(), ".claude.json");
+  }
+
+  // Add a new MCP server
+  router.post("/mcp/servers", (req, res) => {
+    try {
+      const { name, command, args, env, projectPath } = req.body;
+
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ error: "name is required (string)" });
+      }
+      if (!command || typeof command !== "string") {
+        return res.status(400).json({ error: "command is required (string)" });
+      }
+
+      const mcpPath = resolveMcpJsonPath(projectPath);
+      let config: Record<string, unknown> = {};
+
+      if (existsSync(mcpPath)) {
+        try {
+          config = JSON.parse(readFileSync(mcpPath, "utf-8"));
+        } catch {
+          return res.status(500).json({ error: "Failed to parse existing .mcp.json" });
+        }
+      }
+
+      const mcpServers = (config.mcpServers ?? {}) as Record<string, unknown>;
+
+      if (mcpServers[name]) {
+        return res.status(409).json({ error: `Server "${name}" already exists` });
+      }
+
+      const serverEntry: Record<string, unknown> = {
+        command,
+        args: Array.isArray(args) ? args : [],
+      };
+      if (env && typeof env === "object" && !Array.isArray(env)) {
+        serverEntry.env = env;
+      }
+
+      mcpServers[name] = serverEntry;
+      config.mcpServers = mcpServers;
+
+      writeFileSync(mcpPath, JSON.stringify(config, null, 2) + "\n");
+      logger.info({ name, mcpPath }, "Added MCP server");
+
+      res.json({ success: true, server: { name, command, args: serverEntry.args, env: serverEntry.env } });
+    } catch (err) {
+      logger.error({ error: String(err) }, "Failed to add MCP server");
+      res.status(500).json({ error: "Failed to add MCP server" });
+    }
+  });
+
+  // Remove an MCP server
+  router.delete("/mcp/servers/:name", (req, res) => {
+    try {
+      const { name } = req.params;
+      const { projectPath } = req.body ?? {};
+
+      const mcpPath = resolveMcpJsonPath(projectPath);
+
+      if (!existsSync(mcpPath)) {
+        return res.status(404).json({ error: `Server "${name}" not found (no .mcp.json)` });
+      }
+
+      let config: Record<string, unknown>;
+      try {
+        config = JSON.parse(readFileSync(mcpPath, "utf-8"));
+      } catch {
+        return res.status(500).json({ error: "Failed to parse .mcp.json" });
+      }
+
+      const mcpServers = (config.mcpServers ?? {}) as Record<string, unknown>;
+      if (!mcpServers[name]) {
+        return res.status(404).json({ error: `Server "${name}" not found` });
+      }
+
+      delete mcpServers[name];
+      config.mcpServers = mcpServers;
+
+      writeFileSync(mcpPath, JSON.stringify(config, null, 2) + "\n");
+      logger.info({ name, mcpPath }, "Removed MCP server");
+
+      res.json({ success: true, name });
+    } catch (err) {
+      logger.error({ error: String(err) }, "Failed to remove MCP server");
+      res.status(500).json({ error: "Failed to remove MCP server" });
     }
   });
 
