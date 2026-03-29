@@ -12,6 +12,8 @@ import { PromptInput } from "./PromptInput";
 import { ContextWarningBanner } from "./ContextWarningBanner";
 import { TurnCard } from "./TurnCard";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
+import { useStreamingState } from "../../hooks/useStreamingState";
+import { StreamingTurnArea } from "./StreamingTurnArea";
 import { ThemePicker } from "../ThemePicker";
 
 export interface QuestionItem {
@@ -78,6 +80,8 @@ export function ConversationView({
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(
     (metrics?.permissionMode as PermissionMode) || "default"
   );
+
+  const { state: streamingState, actions: streamingActions } = useStreamingState();
 
   const turns = useMemo(() => groupEventsIntoTurns(events), [events]);
 
@@ -436,6 +440,8 @@ export function ConversationView({
               onSubmitAnswer={onSubmitAnswer}
             />
           ))}
+        {/* Streaming turn area (visible during active SSE) */}
+        <StreamingTurnArea state={streamingState} />
       </div>
 
       {/* Scroll-to-bottom button */}
@@ -454,7 +460,7 @@ export function ConversationView({
       <CostStrip metrics={metrics} />
 
       {/* Command input */}
-      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} projectHash={projectHash} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} getAssistantResponses={getAssistantResponses} metrics={metrics} usage={usage} costs={costs} events={events} onOpenPanel={onOpenPanel} hasMessages={turns.length > 0} lastTurnHadError={lastTurnHadError} />
+      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} projectHash={projectHash} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} getAssistantResponses={getAssistantResponses} metrics={metrics} usage={usage} costs={costs} events={events} onOpenPanel={onOpenPanel} hasMessages={turns.length > 0} lastTurnHadError={lastTurnHadError} onStreamingEvent={streamingActions.handleSSEEvent} onStreamingReset={streamingActions.reset} />
     </div>
   );
 }

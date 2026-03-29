@@ -4,6 +4,15 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, cleanup, act } from "@testing-library/react";
+
+// Mock useDiscoveryCommands to prevent fetch calls from the hook
+vi.mock("../../hooks/useDiscovery", () => ({
+  useDiscoveryCommands: () => [
+    { name: "/help", description: "Show available commands" },
+    { name: "/copy", description: "Copy last assistant response(s) to clipboard" },
+  ],
+}));
+
 import { PromptInput } from "./PromptInput";
 
 let fetchMock: ReturnType<typeof vi.fn>;

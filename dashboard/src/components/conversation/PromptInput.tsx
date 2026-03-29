@@ -3,6 +3,7 @@ import { isIgnoredStderrWarning } from "../../lib/filterStderrWarnings";
 import { formatCostCommand, formatUsageCommand, formatDiffCommand, formatMcpCommand, formatTasksCommand, formatAnalyticsCommand, formatContextCommand, formatPermissionsCommand } from "../../lib/commandFormatters";
 import { computeSuggestion } from "./promptSuggestions";
 import { generateMarkdownExport, generateJsonExport, triggerDownload } from "../../lib/exportSession";
+import { useDiscoveryCommands } from "../../hooks/useDiscovery";
 import type { SessionMetrics, UsageInfo, CostSummary, SessionEvent } from "../../lib/types";
 
 interface ImageAttachment {
@@ -51,37 +52,13 @@ interface PromptInputProps {
   lastTurnHadError?: boolean;
   /** Callback for slash commands that open panels (doctor, stats, mcp) */
   onOpenPanel?: (panel: "doctor" | "stats" | "mcp") => void;
+  /** Callback when a bash command (! prefix) completes */
+  onBashOutput?: (result: { command: string; stdout: string; stderr: string; exitCode: number }) => void;
+  /** Callback for streaming SSE events (tool calls, thinking, etc.) */
+  onStreamingEvent?: (data: { type: string; [key: string]: unknown }) => void;
+  /** Reset streaming state (called when starting a new message) */
+  onStreamingReset?: () => void;
 }
-
-const SLASH_COMMANDS = [
-  { name: "/help",    description: "Show available commands" },
-  { name: "/clear",   description: "Clear context (starts new session)" },
-  { name: "/compact", description: "Compact the conversation context" },
-  { name: "/context", description: "Show context window usage" },
-  { name: "/copy",    description: "Copy last assistant response(s) to clipboard" },
-  { name: "/cost",    description: "Show session cost summary" },
-  { name: "/diff",    description: "Show git diff (uncommitted changes)" },
-  { name: "/effort",  description: "Set effort level (low | medium | high)" },
-  { name: "/fast",    description: "Toggle fast mode (on | off)" },
-  { name: "/hooks",   description: "View configured hooks" },
-  { name: "/init",    description: "Initialize CLAUDE.md in project" },
-  { name: "/mcp",     description: "Show connected MCP servers and tools" },
-  { name: "/memory",  description: "View CLAUDE.md content" },
-  { name: "/model",   description: "Show current model info" },
-  { name: "/permissions", description: "Show permission mode and allowances" },
-  { name: "/plan",    description: "Switch to plan mode (read-only)" },
-  { name: "/rename",  description: "Rename the current session" },
-  { name: "/rewind",  description: "Rewind conversation (optional: N turns)" },
-  { name: "/settings", description: "View session settings" },
-  { name: "/tasks",     description: "Show task summary" },
-  { name: "/analytics", description: "Show cross-session analytics" },
-  { name: "/usage",   description: "Show rate limit utilization" },
-  { name: "/export",  description: "Export conversation (md | json)" },
-  { name: "/shortcuts", description: "Show keyboard shortcuts" },
-  { name: "/doctor",  description: "Run system diagnostics" },
-  { name: "/stats",   description: "Show usage statistics" },
-  { name: "/exit",    description: "Exit the current session" },
-] as const;
 
 /** Commands that are forwarded to the server rather than handled client-side */
 const SERVER_FORWARDED_COMMANDS = new Set(["/compact", "/clear", "/rewind"]);
@@ -93,13 +70,16 @@ const MODEL_SHORTCUTS: Record<string, string> = {
   haiku: "claude-haiku-4-5-20251001",
 };
 
-type SlashCommand = typeof SLASH_COMMANDS[number];
+interface SlashCommand {
+  name: string;
+  description: string;
+}
 
-function getFilteredCommands(prompt: string): SlashCommand[] {
+function getFilteredCommands(prompt: string, commands: SlashCommand[]): SlashCommand[] {
   const trimmed = prompt.trimStart();
   if (!trimmed.startsWith("/") || trimmed.includes(" ")) return [];
   const lower = trimmed.toLowerCase();
-  return SLASH_COMMANDS.filter((cmd) =>
+  return commands.filter((cmd) =>
     cmd.name.toLowerCase().startsWith(lower)
   ).slice(0, 8);
 }
@@ -137,9 +117,12 @@ function getAtMentionPrefix(text: string): string | null {
   return after;
 }
 
-export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionId, onSessionStarted, getAssistantResponses, metrics, usage, costs, events, hasMessages = false, lastTurnHadError = false, onOpenPanel }: PromptInputProps) {
+export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionId, onSessionStarted, getAssistantResponses, metrics, usage, costs, events, hasMessages = false, lastTurnHadError = false, onOpenPanel, onBashOutput, onStreamingEvent, onStreamingReset }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
+
+  // Dynamic slash command discovery (P1-06)
+  const discoveredCommands = useDiscoveryCommands(activeSessionId || sessionId);
 
   // Command history state (T2-07)
   const [history, setHistory] = useState<string[]>(() => loadHistory());
@@ -193,7 +176,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
     };
   }, [atPrefix, projectHash, sessionId]);
 
-  const filteredCommands = getFilteredCommands(prompt);
+  const filteredCommands = getFilteredCommands(prompt, discoveredCommands);
   const dropdownVisible = filteredCommands.length > 0 && !dropdownDismissed && !fileDropdownVisible;
 
   // Ghost text suggestion (T3-12)
@@ -263,8 +246,49 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
     setHistoryIndex(-1);
     draftRef.current = "";
 
-    // Client-side slash command handling
+    // ! bash mode: execute shell command directly (P1-07)
     const trimmed = currentPrompt.trimStart();
+    if (trimmed.startsWith("!")) {
+      const bashCommand = trimmed.slice(1).trim();
+      if (!bashCommand) {
+        showOutput("Usage: !<command> (e.g. !ls, !git status)");
+        return;
+      }
+
+      const targetId = activeSessionId || sessionId;
+      if (!targetId) {
+        showOutput("No active session. Start or resume a session first.");
+        return;
+      }
+
+      try {
+        showOutput("Running...");
+        const res = await fetch(`/api/sessions/${targetId}/bash`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: bashCommand }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          onBashOutput?.({
+            command: bashCommand,
+            stdout: data.stdout || "",
+            stderr: data.stderr || "",
+            exitCode: data.exitCode ?? 1,
+          });
+          // Also show brief status in command output area
+          const exitMsg = data.exitCode === 0 ? "OK" : `exit ${data.exitCode}`;
+          showOutput(`$ ${bashCommand} [${exitMsg}]`);
+        } else {
+          showOutput(`Bash error: ${data.error || "unknown error"}`);
+        }
+      } catch {
+        showOutput("Failed to execute bash command.");
+      }
+      return;
+    }
+
+    // Client-side slash command handling
     if (trimmed.startsWith("/")) {
       const command = trimmed.split(/\s+/)[0];
 
@@ -588,6 +612,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
 
     setRunning(true);
     setSseError(null);
+    onStreamingReset?.();
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -672,13 +697,19 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
             if (data.type === "stderr" && isIgnoredStderrWarning(data.text as string)) {
               continue;
             }
+            // Forward streaming events to parent
+            onStreamingEvent?.(data);
             if (data.type === "result") {
               if (data.is_error || data.error) {
                 const errorMsg = typeof data.error === "string"
                   ? data.error
                   : typeof data.result === "string"
                     ? data.result
-                    : "An error occurred";
+                    : typeof data.errors === "object" && Array.isArray(data.errors) && data.errors.length > 0
+                      ? String(data.errors[0])
+                      : data.subtype
+                        ? String(data.subtype)
+                        : "An error occurred";
                 setSseError(errorMsg);
                 setSseStatus("error");
               } else {

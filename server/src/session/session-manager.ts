@@ -1,19 +1,24 @@
 import { randomUUID } from "node:crypto";
-import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk";
+import type { PermissionResult, PermissionUpdate, Query, RewindFilesResult } from "@anthropic-ai/claude-agent-sdk";
 import { sessionLog } from "../logger.js";
 
-export type PermissionMode = "default" | "acceptEdits" | "plan";
+/** Subset of the canUseTool options parameter we forward to the dashboard */
+export interface CanUseToolOptions {
+  title?: string;
+  displayName?: string;
+  description?: string;
+  suggestions?: PermissionUpdate[];
+  toolUseID: string;
+  agentID?: string;
+}
 
-const VALID_PERMISSION_MODES: ReadonlySet<string> = new Set(["default", "acceptEdits", "plan"]);
+/** Permission modes matching the SDK PermissionMode type.
+ *  'bypassPermissions' requires allowDangerouslySkipPermissions to be set. */
+export type PermissionMode = "default" | "acceptEdits" | "bypassPermissions" | "plan" | "dontAsk";
 
-// Tools auto-approved in acceptEdits mode
-const ACCEPT_EDITS_ALLOW: ReadonlySet<string> = new Set(["Edit", "Write", "Read"]);
-
-// Tools auto-allowed in plan mode (read-only)
-const PLAN_ALLOW: ReadonlySet<string> = new Set(["Read", "Glob", "Grep"]);
-
-// Tools auto-denied in plan mode (write/execute)
-const PLAN_DENY: ReadonlySet<string> = new Set(["Edit", "Write", "Bash"]);
+const VALID_PERMISSION_MODES: ReadonlySet<string> = new Set([
+  "default", "acceptEdits", "bypassPermissions", "plan", "dontAsk",
+]);
 
 // Active session tracking
 export type EffortLevel = "low" | "medium" | "high";
@@ -30,6 +35,8 @@ export interface ActiveSession {
   permissionResolvers: Map<string, (result: PermissionResult) => void>;
   questionResolvers: Map<string, (answer: string) => void>;
   createdAt: string;
+  /** Active SDK Query object for mid-session control (setModel, setPermissionMode, rewindFiles) */
+  activeQuery?: Query;
 }
 
 // Broadcast function type (injected to avoid circular deps)
@@ -95,7 +102,11 @@ export class SessionManager {
   }
 
   /** Send a message to an existing session (multi-turn). Returns async iterable of SDK messages. */
-  async *sendMessage(sessionId: string, prompt: string): AsyncGenerator<unknown> {
+  async *sendMessage(
+    sessionId: string,
+    prompt: string,
+    images?: Array<{ mediaType?: string; data: string }>
+  ): AsyncGenerator<unknown> {
     const session = this.activeSessions.get(sessionId);
     if (!session) throw new Error(`Session ${sessionId} not found`);
     if (session.status === "streaming") throw new Error(`Session ${sessionId} is already streaming`);
@@ -107,29 +118,67 @@ export class SessionManager {
     try {
       const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
+      // Build prompt: if images are provided, construct content blocks array
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let queryPrompt: any = prompt;
+      if (images && images.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const contentBlocks: any[] = [];
+        if (prompt) {
+          contentBlocks.push({ type: "text", text: prompt });
+        }
+        for (const img of images) {
+          contentBlocks.push({
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: img.mediaType || "image/png",
+              data: img.data,
+            },
+          });
+        }
+        queryPrompt = contentBlocks;
+      }
+
       const responseStream = query({
-        prompt,
+        prompt: queryPrompt,
         options: {
           abortController: session.abortController,
           cwd: session.cwd,
           resume: sessionId,
           forkSession: false,
           includePartialMessages: true,
+          enableFileCheckpointing: true,
+          permissionMode: session.permissionMode,
+          ...(session.permissionMode === "bypassPermissions" ? { allowDangerouslySkipPermissions: true } : {}),
           ...(session.model ? { model: session.model } : {}),
           ...(session.effortLevel ? { effort: session.effortLevel } : {}),
-          canUseTool: async (toolName, input) => {
-            return this.handlePermission(session, toolName, input);
+          ...(session.fastMode ? { settings: { fastMode: true } } : {}),
+          canUseTool: async (toolName, input, options) => {
+            return this.handlePermission(session, toolName, input, {
+              title: options.title,
+              displayName: options.displayName,
+              description: options.description,
+              suggestions: options.suggestions,
+              toolUseID: options.toolUseID,
+              agentID: options.agentID,
+            });
           },
         },
       });
+
+      // Store the Query object for mid-session SDK control methods
+      session.activeQuery = responseStream;
 
       for await (const message of responseStream) {
         yield message;
       }
 
       sessionLog.info({ sessionId }, "sendMessage: streaming completed");
+      session.activeQuery = undefined;
       session.status = "idle";
     } catch (err) {
+      session.activeQuery = undefined;
       if (err instanceof Error && err.message === "Aborted") {
         sessionLog.warn({ sessionId }, "sendMessage: aborted by user");
         session.status = "idle";
@@ -141,38 +190,37 @@ export class SessionManager {
     }
   }
 
-  /** Handle permission request -- returns Promise that resolves when user decides */
+  /** Handle permission request -- returns Promise that resolves when user decides.
+   *  Note: The SDK handles mode-specific auto-resolution natively via the permissionMode
+   *  query option. This callback is still needed for the WebSocket-based UI flow where
+   *  the dashboard user manually approves/denies tool use. */
   private handlePermission(
     session: ActiveSession,
     toolName: string,
-    input: Record<string, unknown>
+    input: Record<string, unknown>,
+    options?: CanUseToolOptions
   ): Promise<PermissionResult> {
-    // Check permission mode for auto-resolution
-    const autoResult = this.shouldAutoResolve(session.sessionId, toolName);
-    if (autoResult) {
-      sessionLog.info(
-        { sessionId: session.sessionId, toolName, mode: session.permissionMode, behavior: autoResult.behavior },
-        "permission auto-resolved by mode"
-      );
-      return Promise.resolve(autoResult);
-    }
-
     const requestId = randomUUID();
 
     sessionLog.info({ sessionId: session.sessionId, requestId, toolName }, "permission requested");
     session.status = "waiting-permission";
 
-    // Broadcast permission request to dashboard
+    // Broadcast permission request to dashboard with rich SDK fields
     this.broadcast({
       type: "permission-request",
       permission: {
         id: requestId,
         sessionId: session.sessionId,
-        agentId: "main",
+        agentId: options?.agentID ?? "main",
         toolName,
         input,
         timestamp: new Date().toISOString(),
         status: "pending",
+        ...(options?.title ? { title: options.title } : {}),
+        ...(options?.displayName ? { displayName: options.displayName } : {}),
+        ...(options?.description ? { description: options.description } : {}),
+        ...(options?.suggestions?.length ? { suggestions: options.suggestions } : {}),
+        ...(options?.toolUseID ? { toolUseId: options.toolUseID } : {}),
       },
     });
 
@@ -197,11 +245,20 @@ export class SessionManager {
     });
   }
 
-  /** Set the permission mode for a session */
+  /** Set the permission mode for a session.
+   *  If session is actively streaming, calls the SDK method for immediate effect. */
   setPermissionMode(sessionId: string, mode: PermissionMode): boolean {
     const session = this.activeSessions.get(sessionId);
     if (!session) return false;
     session.permissionMode = mode;
+
+    // If streaming, call SDK method for immediate mid-session effect
+    if (session.activeQuery?.setPermissionMode) {
+      session.activeQuery.setPermissionMode(mode).catch((err) => {
+        sessionLog.warn({ sessionId, error: String(err) }, "SDK setPermissionMode failed");
+      });
+    }
+
     sessionLog.info({ sessionId, permissionMode: mode }, "permission mode changed");
     return true;
   }
@@ -209,33 +266,6 @@ export class SessionManager {
   /** Check if a permission mode is valid */
   static isValidPermissionMode(mode: string): mode is PermissionMode {
     return VALID_PERMISSION_MODES.has(mode);
-  }
-
-  /** Determine if a tool should be auto-resolved based on permission mode.
-   *  Returns PermissionResult if auto-resolved, null if user should be prompted. */
-  shouldAutoResolve(sessionId: string, toolName: string): PermissionResult | null {
-    const session = this.activeSessions.get(sessionId);
-    if (!session) return null;
-
-    switch (session.permissionMode) {
-      case "acceptEdits":
-        if (ACCEPT_EDITS_ALLOW.has(toolName)) {
-          return { behavior: "allow" };
-        }
-        return null; // prompt user for Bash, Agent, etc.
-
-      case "plan":
-        if (PLAN_ALLOW.has(toolName)) {
-          return { behavior: "allow" };
-        }
-        if (PLAN_DENY.has(toolName)) {
-          return { behavior: "deny", message: "Blocked by plan mode" };
-        }
-        return null; // prompt for anything else
-
-      default:
-        return null; // "default" mode: always prompt user
-    }
   }
 
   /** Resolve a pending permission request (called when dashboard user clicks approve/deny) */
@@ -294,6 +324,7 @@ export class SessionManager {
     if (!session) return false;
     sessionLog.warn({ sessionId }, "session aborted");
     session.abortController.abort();
+    session.activeQuery = undefined;
     session.status = "idle";
     return true;
   }
@@ -303,11 +334,20 @@ export class SessionManager {
     return this.activeSessions.get(sessionId);
   }
 
-  /** Set the model for a session (used by /model command) */
+  /** Set the model for a session (used by /model command).
+   *  If session is actively streaming, calls the SDK method for immediate effect. */
   setModel(sessionId: string, model: string | undefined): boolean {
     const session = this.activeSessions.get(sessionId);
     if (!session) return false;
     session.model = model;
+
+    // If streaming, call SDK method for immediate mid-session effect
+    if (session.activeQuery?.setModel) {
+      session.activeQuery.setModel(model).catch((err) => {
+        sessionLog.warn({ sessionId, error: String(err) }, "SDK setModel failed");
+      });
+    }
+
     sessionLog.info({ sessionId, model: model ?? "default" }, "model changed");
     return true;
   }
@@ -328,6 +368,33 @@ export class SessionManager {
     session.effortLevel = level;
     sessionLog.info({ sessionId, effortLevel: level }, "effort level changed");
     return true;
+  }
+
+  /** Rewind files to their state at a specific user message.
+   *  Requires an active streaming session with file checkpointing enabled. */
+  async rewindFiles(
+    sessionId: string,
+    userMessageId: string,
+    dryRun: boolean
+  ): Promise<RewindFilesResult> {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) {
+      return { canRewind: false, error: "Session not found" };
+    }
+    if (!session.activeQuery?.rewindFiles) {
+      return { canRewind: false, error: "No active query — session must be streaming to rewind files" };
+    }
+
+    sessionLog.info({ sessionId, userMessageId, dryRun }, "rewindFiles requested");
+
+    try {
+      const result = await session.activeQuery.rewindFiles(userMessageId, { dryRun });
+      sessionLog.info({ sessionId, userMessageId, dryRun, canRewind: result.canRewind }, "rewindFiles completed");
+      return result;
+    } catch (err) {
+      sessionLog.error({ sessionId, userMessageId, error: String(err) }, "rewindFiles failed");
+      return { canRewind: false, error: String(err) };
+    }
   }
 
   /** List all active sessions */
@@ -352,6 +419,7 @@ export class SessionManager {
     if (!session) return false;
     sessionLog.info({ sessionId }, "session removed");
     session.abortController.abort();
+    session.activeQuery = undefined;
     return this.activeSessions.delete(sessionId);
   }
 }

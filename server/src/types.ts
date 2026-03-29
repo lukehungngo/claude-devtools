@@ -259,6 +259,15 @@ export interface CostSummary {
   tokenOut7d: number;
 }
 
+export interface PermissionSuggestion {
+  type: string;
+  rules?: Array<{ toolName: string; ruleContent?: string }>;
+  behavior?: string;
+  destination?: string;
+  mode?: string;
+  directories?: string[];
+}
+
 export interface PermissionRequest {
   id: string;
   sessionId: string;
@@ -267,6 +276,12 @@ export interface PermissionRequest {
   input: Record<string, unknown>;
   timestamp: string;
   status: "pending" | "approved" | "denied";
+  // Rich SDK fields (optional for backward compatibility)
+  title?: string;
+  displayName?: string;
+  description?: string;
+  suggestions?: PermissionSuggestion[];
+  toolUseId?: string;
 }
 
 export interface AgentLogEntry {

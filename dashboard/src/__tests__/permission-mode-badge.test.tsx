@@ -11,8 +11,16 @@ describe("cyclePermissionMode", () => {
     expect(cyclePermissionMode("acceptEdits")).toBe("plan");
   });
 
-  it("cycles plan -> default", () => {
-    expect(cyclePermissionMode("plan")).toBe("default");
+  it("cycles plan -> dontAsk", () => {
+    expect(cyclePermissionMode("plan")).toBe("dontAsk");
+  });
+
+  it("cycles dontAsk -> bypassPermissions", () => {
+    expect(cyclePermissionMode("dontAsk")).toBe("bypassPermissions");
+  });
+
+  it("cycles bypassPermissions -> default", () => {
+    expect(cyclePermissionMode("bypassPermissions")).toBe("default");
   });
 
   it("treats unknown mode as default", () => {
@@ -48,10 +56,10 @@ describe("PermissionModeBadge", () => {
     expect(onModeChange).toHaveBeenCalledWith("plan");
   });
 
-  it("clicking plan cycles to default", () => {
+  it("clicking plan cycles to dontAsk", () => {
     render(<PermissionModeBadge mode="plan" onModeChange={onModeChange} />);
     fireEvent.click(screen.getByRole("button"));
-    expect(onModeChange).toHaveBeenCalledWith("default");
+    expect(onModeChange).toHaveBeenCalledWith("dontAsk");
   });
 
   it("displays acceptEdits mode", () => {

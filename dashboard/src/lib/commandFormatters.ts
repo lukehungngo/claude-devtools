@@ -131,11 +131,18 @@ export async function formatDiffCommand(
   try {
     const res = await fetch(`/api/sessions/${projectHash}/${sessionId}/git-diff`);
     const data = await res.json();
-    const diff = data.diff as string;
-    if (!diff) {
+    const stat = (data.stat as string) || "";
+    const diff = (data.diff as string) || "";
+
+    if (!stat && !diff) {
       return "No uncommitted changes.";
     }
-    return diff;
+
+    // Show stat summary followed by full diff
+    const parts: string[] = [];
+    if (stat) parts.push(stat.trimEnd());
+    if (diff) parts.push(diff.trimEnd());
+    return parts.join("\n\n");
   } catch {
     return "Failed to fetch git diff.";
   }
