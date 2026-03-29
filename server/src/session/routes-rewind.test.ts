@@ -30,6 +30,7 @@ vi.mock("../hooks/permission-handler.js", () => ({
   getPendingPermissions: vi.fn(() => []),
   getPermissionStatus: vi.fn(),
   addSessionAllowance: vi.fn(),
+  getSessionAllowances: vi.fn(() => []),
 }));
 vi.mock("../debug/lifecycle-builder.js", () => ({
   buildLifecycleRecords: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock("../logger.js", () => ({
     debug: vi.fn(),
   },
   permissionLog: { info: vi.fn(), warn: vi.fn() },
+  logger: { warn: vi.fn(), error: vi.fn(), child: vi.fn(() => ({ error: vi.fn(), warn: vi.fn() })) },
 }));
 
 import request from "supertest";
@@ -49,7 +51,7 @@ import express from "express";
 import { setupRoutes } from "../http/routes.js";
 import { SessionManager } from "./session-manager.js";
 
-describe("POST /sessions/:sessionId/permission-mode", () => {
+describe("POST /sessions/:sessionId/rewind", () => {
   let app: express.Express;
   let sessionManager: SessionManager;
 
@@ -69,56 +71,61 @@ describe("POST /sessions/:sessionId/permission-mode", () => {
     sessionManager.dispose();
   });
 
-  it("sets permission mode on a valid session", async () => {
+  it("returns 400 when userMessageId is missing", async () => {
     const sessionId = await sessionManager.startSession("/tmp");
 
     const res = await request(app)
-      .post(`/sessions/${sessionId}/permission-mode`)
-      .send({ mode: "acceptEdits" });
+      .post(`/sessions/${sessionId}/rewind`)
+      .send({});
 
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true, mode: "acceptEdits" });
-    expect(sessionManager.getStatus(sessionId)?.permissionMode).toBe("acceptEdits");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("userMessageId is required");
   });
 
   it("returns 404 for unknown session", async () => {
     const res = await request(app)
-      .post("/sessions/nonexistent-id/permission-mode")
-      .send({ mode: "plan" });
+      .post("/sessions/nonexistent/rewind")
+      .send({ userMessageId: "msg-123" });
 
     expect(res.status).toBe(404);
   });
 
-  it("returns 400 for invalid mode", async () => {
+  it("returns canRewind:false when session has no activeQuery", async () => {
     const sessionId = await sessionManager.startSession("/tmp");
 
     const res = await request(app)
-      .post(`/sessions/${sessionId}/permission-mode`)
-      .send({ mode: "invalid" });
+      .post(`/sessions/${sessionId}/rewind`)
+      .send({ userMessageId: "msg-123" });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      canRewind: false,
+      error: "No active query — session must be streaming to rewind files",
+    });
   });
 
-  it("accepts all 5 SDK permission modes", async () => {
+  it("passes dryRun flag correctly", async () => {
     const sessionId = await sessionManager.startSession("/tmp");
 
-    for (const mode of ["default", "acceptEdits", "plan", "dontAsk", "bypassPermissions"]) {
-      const res = await request(app)
-        .post(`/sessions/${sessionId}/permission-mode`)
-        .send({ mode });
-
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual({ success: true, mode });
-    }
-  });
-
-  it("returns 400 when mode is missing", async () => {
-    const sessionId = await sessionManager.startSession("/tmp");
+    // Mock the activeQuery on the session
+    const mockRewindFiles = vi.fn().mockResolvedValue({
+      canRewind: true,
+      filesChanged: ["src/App.tsx"],
+      insertions: 3,
+      deletions: 1,
+    });
+    const session = sessionManager.getStatus(sessionId)!;
+    session.activeQuery = {
+      rewindFiles: mockRewindFiles,
+    } as unknown as import("@anthropic-ai/claude-agent-sdk").Query;
 
     const res = await request(app)
-      .post(`/sessions/${sessionId}/permission-mode`)
-      .send({});
+      .post(`/sessions/${sessionId}/rewind`)
+      .send({ userMessageId: "msg-456", dryRun: true });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    expect(res.body.canRewind).toBe(true);
+    expect(res.body.filesChanged).toEqual(["src/App.tsx"]);
+    expect(mockRewindFiles).toHaveBeenCalledWith("msg-456", { dryRun: true });
   });
 });

@@ -1,8 +1,8 @@
 import type { PermissionMode } from "./permissionModeTypes";
 
-const MODE_ORDER: PermissionMode[] = ["default", "acceptEdits", "plan"];
+const MODE_ORDER: PermissionMode[] = ["default", "acceptEdits", "plan", "dontAsk", "bypassPermissions"];
 
-/** Cycle to the next permission mode in order: default -> acceptEdits -> plan -> default */
+/** Cycle to the next permission mode in order: default -> acceptEdits -> plan -> dontAsk -> bypassPermissions -> default */
 export function cyclePermissionMode(current: string): PermissionMode {
   const idx = MODE_ORDER.indexOf(current as PermissionMode);
   if (idx === -1) return MODE_ORDER[1]; // unknown -> treat as default, return next
@@ -13,6 +13,8 @@ const MODE_COLORS: Record<PermissionMode, string> = {
   default: "bg-dt-bg3 text-dt-text2",
   acceptEdits: "bg-dt-yellow-dim text-dt-yellow",
   plan: "bg-dt-cyan-dim text-dt-cyan",
+  dontAsk: "bg-dt-bg3 text-dt-orange",
+  bypassPermissions: "bg-dt-red-dim text-dt-red",
 };
 
 interface PermissionModeBadgeProps {

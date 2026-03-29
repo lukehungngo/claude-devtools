@@ -181,23 +181,30 @@ describe("GET /sessions/:projectHash/:sessionId/git-diff", () => {
     vi.clearAllMocks();
   });
 
-  it("returns git diff stat output for a valid session", async () => {
+  it("returns git diff stat and full diff for a valid session", async () => {
     mockDiscoverSessions.mockReturnValue([
       { projectHash: "abc", id: "sess1", cwd: "/tmp/myrepo" },
     ]);
-    mockSpawnSync.mockReturnValue({
-      status: 0,
-      error: null,
-      stdout: " src/index.ts | 5 ++---\n 1 file changed\n",
-    });
+    mockSpawnSync
+      .mockReturnValueOnce({
+        status: 0,
+        error: null,
+        stdout: " src/index.ts | 5 ++---\n 1 file changed\n",
+      })
+      .mockReturnValueOnce({
+        status: 0,
+        error: null,
+        stdout: "diff --git a/src/index.ts b/src/index.ts\n",
+      });
 
     const res = await request(app).get("/sessions/abc/sess1/git-diff");
 
     expect(res.status).toBe(200);
-    expect(res.body.diff).toContain("src/index.ts");
+    expect(res.body.stat).toContain("src/index.ts");
+    expect(res.body.diff).toContain("diff --git");
     expect(mockSpawnSync).toHaveBeenCalledWith(
       "git",
-      ["diff", "--stat"],
+      ["diff", "--stat", "--no-color"],
       expect.objectContaining({ cwd: "/tmp/myrepo" })
     );
   });

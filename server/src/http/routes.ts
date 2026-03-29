@@ -27,6 +27,7 @@ import { SessionManager } from "../session/session-manager.js";
 import type { SessionEvent } from "../types.js";
 import type { ServerState } from "./server.js";
 import { broadcast } from "./server.js";
+import { mapSdkMessageToSSEEvents } from "./sse-event-handler.js";
 
 export function setupRoutes(state?: ServerState): Router {
   const router = Router();
@@ -102,6 +103,105 @@ export function setupRoutes(state?: ServerState): Router {
     } catch (err) {
       res.status(500).json({ error: "Failed to get permissions info" });
     }
+  });
+
+  // === Discovery Endpoints (P1-06) ===
+  // Must be defined BEFORE /sessions/:projectHash/:sessionId to avoid param collision
+
+  // Fallback model list when SDK Query is not available
+  const FALLBACK_MODELS = [
+    { value: "claude-opus-4-6", displayName: "Claude Opus 4", description: "Most capable model" },
+    { value: "claude-sonnet-4-6", displayName: "Claude Sonnet 4", description: "Balanced performance" },
+    { value: "claude-haiku-4-5-20251001", displayName: "Claude Haiku 4.5", description: "Fastest model" },
+  ];
+
+  // Fallback slash commands when SDK Query is not available
+  const FALLBACK_COMMANDS = [
+    { name: "help", description: "Show available commands", argumentHint: "" },
+    { name: "clear", description: "Clear context (starts new session)", argumentHint: "" },
+    { name: "compact", description: "Compact the conversation context", argumentHint: "" },
+    { name: "context", description: "Show context window usage", argumentHint: "" },
+    { name: "cost", description: "Show session cost summary", argumentHint: "" },
+    { name: "diff", description: "Show git diff (uncommitted changes)", argumentHint: "" },
+    { name: "effort", description: "Set effort level", argumentHint: "<low|medium|high>" },
+    { name: "fast", description: "Toggle fast mode", argumentHint: "<on|off>" },
+    { name: "hooks", description: "View configured hooks", argumentHint: "" },
+    { name: "init", description: "Initialize CLAUDE.md in project", argumentHint: "" },
+    { name: "mcp", description: "Show connected MCP servers and tools", argumentHint: "" },
+    { name: "memory", description: "View CLAUDE.md content", argumentHint: "" },
+    { name: "model", description: "Show or switch model", argumentHint: "<model>" },
+    { name: "permissions", description: "Show permission mode and allowances", argumentHint: "" },
+    { name: "plan", description: "Switch to plan mode (read-only)", argumentHint: "" },
+    { name: "rewind", description: "Rewind conversation", argumentHint: "[N turns]" },
+  ];
+
+  // Get supported models for a session
+  router.get("/sessions/:sessionId/models", async (req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.json({ models: FALLBACK_MODELS, source: "fallback" });
+    }
+    const session = sessionManager.getStatus(req.params.sessionId);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    if (session.activeQuery?.supportedModels) {
+      try {
+        const models = await session.activeQuery.supportedModels();
+        return res.json({ models, source: "sdk" });
+      } catch {
+        return res.json({ models: FALLBACK_MODELS, source: "fallback" });
+      }
+    }
+
+    res.json({ models: FALLBACK_MODELS, source: "fallback" });
+  });
+
+  // Get supported slash commands for a session
+  router.get("/sessions/:sessionId/commands", async (req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.json({ commands: FALLBACK_COMMANDS, source: "fallback" });
+    }
+    const session = sessionManager.getStatus(req.params.sessionId);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    if (session.activeQuery?.supportedCommands) {
+      try {
+        const commands = await session.activeQuery.supportedCommands();
+        return res.json({ commands, source: "sdk" });
+      } catch {
+        return res.json({ commands: FALLBACK_COMMANDS, source: "fallback" });
+      }
+    }
+
+    res.json({ commands: FALLBACK_COMMANDS, source: "fallback" });
+  });
+
+  // Get supported agents for a session
+  router.get("/sessions/:sessionId/agents", async (req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.json({ agents: [], source: "fallback" });
+    }
+    const session = sessionManager.getStatus(req.params.sessionId);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    if (session.activeQuery?.supportedAgents) {
+      try {
+        const agents = await session.activeQuery.supportedAgents();
+        return res.json({ agents, source: "sdk" });
+      } catch {
+        return res.json({ agents: [], source: "fallback" });
+      }
+    }
+
+    res.json({ agents: [], source: "fallback" });
   });
 
   // Get session detail + metrics
@@ -289,25 +389,28 @@ export function setupRoutes(state?: ServerState): Router {
 
       const cwd = session.cwd;
       if (!cwd) {
-        return res.json({ diff: "" });
+        return res.json({ stat: "", diff: "" });
       }
 
-      const result = spawnSync("git", ["diff", "--stat"], {
+      const statResult = spawnSync("git", ["diff", "--stat", "--no-color"], {
         cwd,
         timeout: 5000,
       });
+      const fullResult = spawnSync("git", ["diff", "--no-color"], {
+        cwd,
+        timeout: 10000,
+      });
 
-      if (result.error || result.status !== 0) {
-        return res.json({ diff: "" });
-      }
+      const stat = (!statResult.error && statResult.status === 0)
+        ? (typeof statResult.stdout === "string" ? statResult.stdout : statResult.stdout?.toString() ?? "")
+        : "";
+      const diff = (!fullResult.error && fullResult.status === 0)
+        ? (typeof fullResult.stdout === "string" ? fullResult.stdout : fullResult.stdout?.toString() ?? "")
+        : "";
 
-      const diff = typeof result.stdout === "string"
-        ? result.stdout
-        : result.stdout?.toString() ?? "";
-
-      res.json({ diff });
+      res.json({ stat, diff });
     } catch (err) {
-      res.json({ diff: "" });
+      res.json({ stat: "", diff: "" });
     }
   });
 
@@ -466,7 +569,7 @@ export function setupRoutes(state?: ServerState): Router {
   // Send message to session (SSE stream)
   router.post("/sessions/:sessionId/message", async (req, res) => {
     const { sessionId } = req.params;
-    const { prompt } = req.body;
+    const { prompt, images } = req.body;
     if (!prompt) {
       return res.status(400).json({ error: "Missing prompt" });
     }
@@ -493,53 +596,29 @@ export function setupRoutes(state?: ServerState): Router {
     });
 
     try {
-      for await (const message of sessionManager.sendMessage(sessionId, prompt)) {
-        const msg = message as {
-          type: string;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          event?: any;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          message?: any;
-          is_error?: boolean;
-          subtype?: string;
-        };
-
-        if (msg.type === "stream_event") {
-          const event = msg.event as {
-            type: string;
-            delta?: { type: string; text?: string };
-          };
-          if (
-            event?.type === "content_block_delta" &&
-            event.delta?.type === "text_delta" &&
-            event.delta.text
-          ) {
-            res.write(
-              `data: ${JSON.stringify({ type: "stdout", text: event.delta.text })}\n\n`
-            );
-          }
-        } else if (msg.type === "assistant") {
-          const content = msg.message?.content as
-            | Array<{ type: string; text?: string }>
-            | undefined;
-          if (Array.isArray(content)) {
-            for (const block of content) {
-              if (block.type === "text" && block.text) {
-                res.write(
-                  `data: ${JSON.stringify({ type: "stdout", text: block.text })}\n\n`
-                );
+      // Parse images from body: extract base64 data and mediaType
+      const parsedImages = Array.isArray(images)
+        ? images.map((img: { dataUrl?: string; data?: string; mediaType?: string; name?: string }) => {
+            // Client sends dataUrl (data:image/png;base64,...), extract base64 and mediaType
+            let data = img.data || "";
+            let mediaType = img.mediaType || "image/png";
+            if (img.dataUrl) {
+              const match = img.dataUrl.match(/^data:(image\/[^;]+);base64,(.+)$/);
+              if (match) {
+                mediaType = match[1];
+                data = match[2];
               }
             }
-          }
-        } else if (msg.type === "result") {
-          if (msg.is_error) {
-            const errMsg = msg.subtype
-              ? String(msg.subtype)
-              : "Execution error";
-            res.write(
-              `data: ${JSON.stringify({ type: "error", message: errMsg })}\n\n`
-            );
-          }
+            return { mediaType, data };
+          })
+        : undefined;
+
+      for await (const message of sessionManager.sendMessage(sessionId, prompt, parsedImages)) {
+        const sseEvents = mapSdkMessageToSSEEvents(
+          message as { type: string; [key: string]: unknown }
+        );
+        for (const sseEvent of sseEvents) {
+          res.write(`data: ${JSON.stringify(sseEvent)}\n\n`);
         }
       }
 
@@ -580,7 +659,7 @@ export function setupRoutes(state?: ServerState): Router {
     }
 
     if (!SessionManager.isValidPermissionMode(mode)) {
-      return res.status(400).json({ error: `Invalid mode: ${mode}. Must be one of: default, acceptEdits, plan` });
+      return res.status(400).json({ error: `Invalid mode: ${mode}. Must be one of: default, acceptEdits, bypassPermissions, plan, dontAsk` });
     }
 
     const sessionManager = state?.sessionManager;
@@ -629,6 +708,32 @@ export function setupRoutes(state?: ServerState): Router {
     res.json({ success: true, effortLevel: level });
   });
 
+  // Rewind files to a previous user message state
+  router.post("/sessions/:sessionId/rewind", async (req, res) => {
+    const { userMessageId, dryRun } = req.body;
+    if (!userMessageId || typeof userMessageId !== "string") {
+      return res.status(400).json({ error: "userMessageId is required (string)" });
+    }
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    const session = sessionManager.getStatus(req.params.sessionId);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    try {
+      const result = await sessionManager.rewindFiles(
+        req.params.sessionId,
+        userMessageId,
+        dryRun === true
+      );
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: "Rewind failed", detail: String(err) });
+    }
+  });
+
   // Abort active session streaming
   router.post("/sessions/:sessionId/abort", (req, res) => {
     const sessionManager = state?.sessionManager;
@@ -641,6 +746,7 @@ export function setupRoutes(state?: ServerState): Router {
     }
     res.json({ ok: true });
   });
+
 
   // Resume a historical session (register it with SessionManager)
   router.post("/sessions/:sessionId/resume", async (req, res) => {
@@ -780,6 +886,46 @@ export function setupRoutes(state?: ServerState): Router {
       }
     } catch (err) {
       res.status(500).json({ error: "Failed to open file" });
+    }
+  });
+
+  // Execute bash command in session cwd (P1-07: ! bash mode)
+  router.post("/sessions/:sessionId/bash", (req, res) => {
+    try {
+      const { command } = req.body;
+      if (!command || typeof command !== "string") {
+        return res.status(400).json({ error: "command is required (string)" });
+      }
+
+      const sessionManager = state?.sessionManager;
+      if (!sessionManager) {
+        return res.status(500).json({ error: "Session manager not available" });
+      }
+
+      const session = sessionManager.getStatus(req.params.sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      const result = spawnSync("bash", ["-c", command], {
+        cwd: session.cwd,
+        timeout: 30000,
+      });
+
+      const stdout = result.stdout
+        ? (typeof result.stdout === "string" ? result.stdout : result.stdout.toString())
+        : "";
+      const stderr = result.stderr
+        ? (typeof result.stderr === "string" ? result.stderr : result.stderr.toString())
+        : "";
+
+      res.json({
+        stdout,
+        stderr,
+        exitCode: result.status ?? 1,
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to execute command" });
     }
   });
 
@@ -1105,6 +1251,111 @@ export function setupRoutes(state?: ServerState): Router {
       res.json({ servers });
     } catch {
       res.json({ servers: [] });
+    }
+  });
+
+  // === Live MCP via SDK (GROUP-D / P1-05) ===
+
+  /** Helper: read MCP servers from settings.json (static fallback) */
+  function readMcpFromSettings(): Array<{ name: string; command: string | null; args: string[]; status: string; toolCount: number }> {
+    const settingsPath = join(homedir(), ".claude", "settings.json");
+    if (!existsSync(settingsPath)) return [];
+    const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+    const mcpServers = settings.mcpServers ?? {};
+    return Object.entries(mcpServers).map(([name, config]) => {
+      const cfg = config as Record<string, unknown>;
+      return {
+        name,
+        command: (cfg.command as string) ?? null,
+        args: Array.isArray(cfg.args) ? (cfg.args as string[]) : [],
+        status: "configured",
+        toolCount: 0,
+      };
+    });
+  }
+
+  // Get MCP server status for a session (uses SDK if available, else settings.json)
+  router.get("/sessions/:sessionId/mcp/status", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const session = state?.sessionManager?.getStatus(sessionId);
+
+      // If there's an active query with mcpServerStatus, use it
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const activeQuery = (session as any)?.activeQuery;
+      if (activeQuery && typeof activeQuery.mcpServerStatus === "function") {
+        try {
+          const status = await activeQuery.mcpServerStatus();
+          return res.json({ servers: status, source: "sdk" });
+        } catch {
+          // Fall through to settings.json
+        }
+      }
+
+      // Fallback: read from settings.json
+      const servers = readMcpFromSettings();
+      res.json({ servers, source: "settings" });
+    } catch {
+      res.json({ servers: [], source: "error" });
+    }
+  });
+
+  // Toggle MCP server enabled/disabled (requires active query)
+  router.post("/sessions/:sessionId/mcp/toggle", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const { serverName, enabled } = req.body;
+
+      if (!serverName || typeof serverName !== "string") {
+        return res.status(400).json({ error: "serverName is required (string)" });
+      }
+      if (typeof enabled !== "boolean") {
+        return res.status(400).json({ error: "enabled is required (boolean)" });
+      }
+
+      const session = state?.sessionManager?.getStatus(sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const activeQuery = (session as any)?.activeQuery;
+      if (!activeQuery || typeof activeQuery.toggleMcpServer !== "function") {
+        return res.status(400).json({ error: "No active query. Toggle requires an active streaming session." });
+      }
+
+      await activeQuery.toggleMcpServer(serverName, enabled);
+      res.json({ success: true, serverName, enabled });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to toggle MCP server" });
+    }
+  });
+
+  // Reconnect MCP server (requires active query)
+  router.post("/sessions/:sessionId/mcp/reconnect", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const { serverName } = req.body;
+
+      if (!serverName || typeof serverName !== "string") {
+        return res.status(400).json({ error: "serverName is required (string)" });
+      }
+
+      const session = state?.sessionManager?.getStatus(sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const activeQuery = (session as any)?.activeQuery;
+      if (!activeQuery || typeof activeQuery.reconnectMcpServer !== "function") {
+        return res.status(400).json({ error: "No active query. Reconnect requires an active streaming session." });
+      }
+
+      await activeQuery.reconnectMcpServer(serverName);
+      res.json({ success: true, serverName });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to reconnect MCP server" });
     }
   });
 

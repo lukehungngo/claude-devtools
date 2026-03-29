@@ -14,6 +14,40 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, cleanup, act } from "@testing-library/react";
+
+// Mock useDiscoveryCommands to prevent fetch calls from the hook
+vi.mock("../../hooks/useDiscovery", () => ({
+  useDiscoveryCommands: () => [
+    { name: "/help", description: "Show available commands" },
+    { name: "/clear", description: "Clear context (starts new session)" },
+    { name: "/compact", description: "Compact the conversation context" },
+    { name: "/context", description: "Show context window usage" },
+    { name: "/copy", description: "Copy last assistant response(s) to clipboard" },
+    { name: "/cost", description: "Show session cost summary" },
+    { name: "/diff", description: "Show git diff (uncommitted changes)" },
+    { name: "/effort", description: "Set effort level (low | medium | high)" },
+    { name: "/fast", description: "Toggle fast mode (on | off)" },
+    { name: "/hooks", description: "View configured hooks" },
+    { name: "/init", description: "Initialize CLAUDE.md in project" },
+    { name: "/mcp", description: "Show connected MCP servers and tools" },
+    { name: "/memory", description: "View CLAUDE.md content" },
+    { name: "/model", description: "Show current model info" },
+    { name: "/permissions", description: "Show permission mode and allowances" },
+    { name: "/plan", description: "Switch to plan mode (read-only)" },
+    { name: "/rename", description: "Rename the current session" },
+    { name: "/rewind", description: "Rewind conversation (optional: N turns)" },
+    { name: "/settings", description: "View session settings" },
+    { name: "/tasks", description: "Show task summary" },
+    { name: "/analytics", description: "Show cross-session analytics" },
+    { name: "/usage", description: "Show rate limit utilization" },
+    { name: "/export", description: "Export conversation (md | json)" },
+    { name: "/shortcuts", description: "Show keyboard shortcuts" },
+    { name: "/doctor", description: "Run system diagnostics" },
+    { name: "/stats", description: "Show usage statistics" },
+    { name: "/exit", description: "Exit the current session" },
+  ],
+}));
+
 import { PromptInput } from "./PromptInput";
 
 // Mock fetch for submit tests
@@ -511,23 +545,59 @@ describe("PromptInput", () => {
   });
 
   describe("! bash prefix", () => {
-    it("sends ! prefixed text as a regular message", async () => {
+    it("sends ! prefixed text to bash endpoint", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ stdout: "output", stderr: "", exitCode: 0 }),
+      });
+
+      const onBashOutput = vi.fn();
+      const { container } = render(
+        <PromptInput activeSessionId="sess-1" sessionCwd="/tmp" onBashOutput={onBashOutput} />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "!ls -la" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      // Should have called the bash endpoint
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-1/bash");
+      const body = JSON.parse(opts.body);
+      expect(body.command).toBe("ls -la");
+    });
+
+    it("shows error when no active session for ! command", async () => {
+      const { container } = render(
+        <PromptInput sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "!ls" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      // Should not call fetch
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("shows usage message for empty ! command", async () => {
       const { container } = render(
         <PromptInput activeSessionId="sess-1" sessionCwd="/tmp" />
       );
       const textarea = container.querySelector("textarea")!;
 
-      fireEvent.change(textarea, { target: { value: "! ls -la" } });
+      fireEvent.change(textarea, { target: { value: "!" } });
       await act(async () => {
         fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
       });
 
-      // Should have called the message endpoint
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      const [url, opts] = fetchMock.mock.calls[0];
-      expect(url).toBe("/api/sessions/sess-1/message");
-      const body = JSON.parse(opts.body);
-      expect(body.prompt).toBe("! ls -la");
+      // Should not call fetch (empty command)
+      expect(fetchMock).not.toHaveBeenCalled();
     });
   });
 
