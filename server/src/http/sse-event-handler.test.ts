@@ -227,11 +227,100 @@ describe("mapSdkMessageToSSEEvents", () => {
       ]);
     });
 
-    it("ignores other system subtypes", () => {
+    it("maps system init to init event", () => {
       const result = mapSdkMessageToSSEEvents({
         type: "system",
         subtype: "init",
-        tools: [],
+        tools: ["Read", "Write"],
+        model: "claude-sonnet-4-20250514",
+        cwd: "/tmp/project",
+      });
+      expect(result).toEqual([
+        {
+          type: "init",
+          tools: ["Read", "Write"],
+          model: "claude-sonnet-4-20250514",
+          cwd: "/tmp/project",
+        },
+      ]);
+    });
+
+    it("maps system task_started to task_started event", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "task_started",
+        taskId: "task-1",
+        description: "Running build",
+      });
+      expect(result).toEqual([
+        { type: "task_started", taskId: "task-1", description: "Running build" },
+      ]);
+    });
+
+    it("maps system task_progress to task_progress event", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "task_progress",
+        taskId: "task-1",
+        progress: 50,
+      });
+      expect(result).toEqual([
+        { type: "task_progress", taskId: "task-1", progress: 50 },
+      ]);
+    });
+
+    it("maps system task_notification to task_notification event", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "task_notification",
+        taskId: "task-1",
+        message: "Build complete",
+      });
+      expect(result).toEqual([
+        { type: "task_notification", taskId: "task-1", message: "Build complete" },
+      ]);
+    });
+
+    it("maps system hook_started to hook_started event", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "hook_started",
+        hookName: "pre-commit",
+        hookId: "h-1",
+      });
+      expect(result).toEqual([
+        { type: "hook_started", hookName: "pre-commit", hookId: "h-1" },
+      ]);
+    });
+
+    it("maps system hook_progress to hook_progress event", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "hook_progress",
+        hookId: "h-1",
+        output: "linting...",
+      });
+      expect(result).toEqual([
+        { type: "hook_progress", hookId: "h-1", output: "linting..." },
+      ]);
+    });
+
+    it("maps system hook_response to hook_response event", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "hook_response",
+        hookId: "h-1",
+        exitCode: 0,
+      });
+      expect(result).toEqual([
+        { type: "hook_response", hookId: "h-1", exitCode: 0 },
+      ]);
+    });
+
+    it("ignores unknown system subtypes", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "some_unknown_subtype",
       });
       expect(result).toEqual([]);
     });
@@ -280,6 +369,76 @@ describe("mapSdkMessageToSSEEvents", () => {
           duration_ms: 5000,
           num_turns: 1,
           errors: ["Rate limit exceeded"],
+        },
+      ]);
+    });
+  });
+
+  describe("tool_use_summary", () => {
+    it("maps tool_use_summary to tool_summary event", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "tool_use_summary",
+        tool_use_id: "toolu_abc",
+        tool_name: "Bash",
+        summary: "Ran npm test",
+      });
+      expect(result).toEqual([
+        {
+          type: "tool_summary",
+          tool_use_id: "toolu_abc",
+          tool_name: "Bash",
+          summary: "Ran npm test",
+        },
+      ]);
+    });
+  });
+
+  describe("rate_limit_event", () => {
+    it("maps rate_limit_event to rate_limit event", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "rate_limit_event",
+        retry_after_seconds: 30,
+        message: "Rate limited",
+      });
+      expect(result).toEqual([
+        {
+          type: "rate_limit",
+          retry_after_seconds: 30,
+          message: "Rate limited",
+        },
+      ]);
+    });
+  });
+
+  describe("prompt_suggestion", () => {
+    it("maps prompt_suggestion to prompt_suggestion event", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "prompt_suggestion",
+        suggestions: ["Fix the bug", "Add tests"],
+      });
+      expect(result).toEqual([
+        {
+          type: "prompt_suggestion",
+          suggestions: ["Fix the bug", "Add tests"],
+        },
+      ]);
+    });
+  });
+
+  describe("local_command_output", () => {
+    it("maps local_command_output to command_output event", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "local_command_output",
+        command: "npm test",
+        output: "All tests passed",
+        exitCode: 0,
+      });
+      expect(result).toEqual([
+        {
+          type: "command_output",
+          command: "npm test",
+          output: "All tests passed",
+          exitCode: 0,
         },
       ]);
     });

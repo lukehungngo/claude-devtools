@@ -341,8 +341,11 @@ describe("SessionManager.setPermissionMode with SDK modes", () => {
     }
   });
 
+  it("accepts 'auto' as a valid permission mode", () => {
+    expect(SessionManager.isValidPermissionMode("auto")).toBe(true);
+  });
+
   it("rejects invalid permission modes", () => {
-    expect(SessionManager.isValidPermissionMode("auto")).toBe(false);
     expect(SessionManager.isValidPermissionMode("invalid")).toBe(false);
   });
 

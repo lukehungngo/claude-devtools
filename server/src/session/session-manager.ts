@@ -14,10 +14,10 @@ export interface CanUseToolOptions {
 
 /** Permission modes matching the SDK PermissionMode type.
  *  'bypassPermissions' requires allowDangerouslySkipPermissions to be set. */
-export type PermissionMode = "default" | "acceptEdits" | "bypassPermissions" | "plan" | "dontAsk";
+export type PermissionMode = "default" | "acceptEdits" | "bypassPermissions" | "plan" | "auto" | "dontAsk";
 
 const VALID_PERMISSION_MODES: ReadonlySet<string> = new Set([
-  "default", "acceptEdits", "bypassPermissions", "plan", "dontAsk",
+  "default", "acceptEdits", "bypassPermissions", "plan", "auto", "dontAsk",
 ]);
 
 // Active session tracking
@@ -149,7 +149,9 @@ export class SessionManager {
           forkSession: false,
           includePartialMessages: true,
           enableFileCheckpointing: true,
-          permissionMode: session.permissionMode,
+          // Cast needed: our PermissionMode includes 'auto' which the SDK type may not yet define
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          permissionMode: session.permissionMode as any,
           ...(session.permissionMode === "bypassPermissions" ? { allowDangerouslySkipPermissions: true } : {}),
           ...(session.model ? { model: session.model } : {}),
           ...(session.effortLevel ? { effort: session.effortLevel } : {}),
@@ -254,7 +256,8 @@ export class SessionManager {
 
     // If streaming, call SDK method for immediate mid-session effect
     if (session.activeQuery?.setPermissionMode) {
-      session.activeQuery.setPermissionMode(mode).catch((err) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      session.activeQuery.setPermissionMode(mode as any).catch((err) => {
         sessionLog.warn({ sessionId, error: String(err) }, "SDK setPermissionMode failed");
       });
     }

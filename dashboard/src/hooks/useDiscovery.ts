@@ -37,6 +37,18 @@ const FALLBACK_COMMANDS: DashboardSlashCommand[] = [
   { name: "/exit",    description: "Exit the current session" },
 ];
 
+/** Shape for a discovered model */
+interface DiscoveryModel {
+  id: string;
+  name: string;
+}
+
+/** Shape for a discovered agent */
+interface DiscoveryAgent {
+  id: string;
+  name: string;
+}
+
 /**
  * Fetches slash commands from the discovery endpoint.
  * Falls back to hardcoded commands on error or when no sessionId.
@@ -85,4 +97,92 @@ export function useDiscoveryCommands(sessionId: string | undefined): DashboardSl
   }, [sessionId]);
 
   return commands;
+}
+
+/**
+ * Fetches available models from the discovery endpoint.
+ * Falls back to empty array on error or when no sessionId.
+ * Caches results per sessionId -- does not refetch unless sessionId changes.
+ */
+export function useDiscoveryModels(sessionId: string | undefined): DiscoveryModel[] {
+  const [models, setModels] = useState<DiscoveryModel[]>([]);
+  const fetchedForRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setModels([]);
+      fetchedForRef.current = null;
+      return;
+    }
+
+    if (fetchedForRef.current === sessionId) return;
+
+    let cancelled = false;
+
+    fetch(`/api/sessions/${sessionId}/models`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data: { models?: DiscoveryModel[] }) => {
+        if (cancelled) return;
+        if (data.models && Array.isArray(data.models) && data.models.length > 0) {
+          setModels(data.models);
+          fetchedForRef.current = sessionId;
+        }
+      })
+      .catch(() => {
+        // Keep empty fallback on error
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  return models;
+}
+
+/**
+ * Fetches available agents from the discovery endpoint.
+ * Falls back to empty array on error or when no sessionId.
+ * Caches results per sessionId -- does not refetch unless sessionId changes.
+ */
+export function useDiscoveryAgents(sessionId: string | undefined): DiscoveryAgent[] {
+  const [agents, setAgents] = useState<DiscoveryAgent[]>([]);
+  const fetchedForRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setAgents([]);
+      fetchedForRef.current = null;
+      return;
+    }
+
+    if (fetchedForRef.current === sessionId) return;
+
+    let cancelled = false;
+
+    fetch(`/api/sessions/${sessionId}/agents`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data: { agents?: DiscoveryAgent[] }) => {
+        if (cancelled) return;
+        if (data.agents && Array.isArray(data.agents) && data.agents.length > 0) {
+          setAgents(data.agents);
+          fetchedForRef.current = sessionId;
+        }
+      })
+      .catch(() => {
+        // Keep empty fallback on error
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  return agents;
 }

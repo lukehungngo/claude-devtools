@@ -2,7 +2,7 @@
   "mcpServers": {
     "claude-devtools": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/server/dist/index.js"],
+      "args": ["./server/dist/index.js"],
       "env": {
         "DEVTOOLS_PORT": "3142"
       }

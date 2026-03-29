@@ -74,6 +74,74 @@ export interface SSEErrorEvent {
   message: string;
 }
 
+export interface SSEToolSummaryEvent {
+  type: "tool_summary";
+  tool_use_id: string;
+  tool_name: string;
+  summary: string;
+}
+
+export interface SSEInitEvent {
+  type: "init";
+  tools: unknown;
+  model: string;
+  cwd?: string;
+}
+
+export interface SSERateLimitEvent {
+  type: "rate_limit";
+  retry_after_seconds: number;
+  message?: string;
+}
+
+export interface SSETaskStartedEvent {
+  type: "task_started";
+  taskId: string;
+  description?: string;
+}
+
+export interface SSETaskProgressEvent {
+  type: "task_progress";
+  taskId: string;
+  progress?: number;
+}
+
+export interface SSETaskNotificationEvent {
+  type: "task_notification";
+  taskId: string;
+  message?: string;
+}
+
+export interface SSEHookStartedEvent {
+  type: "hook_started";
+  hookName: string;
+  hookId: string;
+}
+
+export interface SSEHookProgressEvent {
+  type: "hook_progress";
+  hookId: string;
+  output?: string;
+}
+
+export interface SSEHookResponseEvent {
+  type: "hook_response";
+  hookId: string;
+  exitCode?: number;
+}
+
+export interface SSEPromptSuggestionEvent {
+  type: "prompt_suggestion";
+  suggestions: string[];
+}
+
+export interface SSECommandOutputEvent {
+  type: "command_output";
+  command: string;
+  output?: string;
+  exitCode?: number;
+}
+
 export type SSEEvent =
   | SSETextEvent
   | SSEThinkingEvent
@@ -85,7 +153,18 @@ export type SSEEvent =
   | SSEStatusEvent
   | SSECompactEvent
   | SSEResultEvent
-  | SSEErrorEvent;
+  | SSEErrorEvent
+  | SSEToolSummaryEvent
+  | SSEInitEvent
+  | SSERateLimitEvent
+  | SSETaskStartedEvent
+  | SSETaskProgressEvent
+  | SSETaskNotificationEvent
+  | SSEHookStartedEvent
+  | SSEHookProgressEvent
+  | SSEHookResponseEvent
+  | SSEPromptSuggestionEvent
+  | SSECommandOutputEvent;
 
 /**
  * Maps an SDK message to zero or more SSE events.
@@ -189,6 +268,75 @@ export function mapSdkMessageToSSEEvents(msg: {
     events.push({
       type: "compact",
       metadata: msg.compact_metadata,
+    });
+  }
+
+  // System init
+  if (msg.type === "system" && msg.subtype === "init") {
+    events.push({
+      type: "init",
+      tools: msg.tools,
+      model: msg.model,
+      cwd: msg.cwd,
+    });
+  }
+
+  // System task events
+  if (msg.type === "system" && msg.subtype === "task_started") {
+    events.push({ type: "task_started", taskId: msg.taskId, description: msg.description });
+  }
+  if (msg.type === "system" && msg.subtype === "task_progress") {
+    events.push({ type: "task_progress", taskId: msg.taskId, progress: msg.progress });
+  }
+  if (msg.type === "system" && msg.subtype === "task_notification") {
+    events.push({ type: "task_notification", taskId: msg.taskId, message: msg.message });
+  }
+
+  // System hook events
+  if (msg.type === "system" && msg.subtype === "hook_started") {
+    events.push({ type: "hook_started", hookName: msg.hookName, hookId: msg.hookId });
+  }
+  if (msg.type === "system" && msg.subtype === "hook_progress") {
+    events.push({ type: "hook_progress", hookId: msg.hookId, output: msg.output });
+  }
+  if (msg.type === "system" && msg.subtype === "hook_response") {
+    events.push({ type: "hook_response", hookId: msg.hookId, exitCode: msg.exitCode });
+  }
+
+  // Tool use summary
+  if (msg.type === "tool_use_summary") {
+    events.push({
+      type: "tool_summary",
+      tool_use_id: msg.tool_use_id,
+      tool_name: msg.tool_name,
+      summary: msg.summary,
+    });
+  }
+
+  // Rate limit event
+  if (msg.type === "rate_limit_event") {
+    events.push({
+      type: "rate_limit",
+      retry_after_seconds: msg.retry_after_seconds,
+      message: msg.message,
+    });
+  }
+
+  // Prompt suggestion
+  if (msg.type === "prompt_suggestion") {
+    events.push({
+      type: "prompt_suggestion",
+      suggestions: msg.suggestions,
+    });
+  }
+
+  // Local command output
+  if (msg.type === "local_command_output") {
+    events.push({
+      type: "command_output",
+      command: msg.command,
+      output: msg.output,
+      exitCode: msg.exitCode,
     });
   }
 

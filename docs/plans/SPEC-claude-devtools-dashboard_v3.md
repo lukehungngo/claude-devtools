@@ -3,8 +3,8 @@
 **Author:** Luke
 **Date:** 2026-03-24 (updated 2026-03-29)
 **Status:** Active
-**Version:** 3.1
-**Supersedes:** v1.0 (observability-only), v2.0 (observability + conversation view)
+**Version:** 3.2 — Post-audit restructure
+**Supersedes:** v1.0 (observability-only), v2.0 (observability + conversation view), v3.1 (tier-based)
 
 ---
 
@@ -606,107 +606,114 @@ POST   /api/open-file                         → open in editor
 
 ---
 
-## Implementation Roadmap (Updated 2026-03-29)
+## Implementation Roadmap (Updated 2026-03-29 — v3.2 Post-Audit)
 
-> **Phase A (infrastructure) is 100% complete.** The old Phase B/C have been superseded by a tier-based roadmap driven by the CLI parity gap analysis (`docs/plans/cli-parity-gap-analysis.md`).
+> **Tiers 1-3 are code-complete (PRs #7, #8, #9).** Post-audit review revealed 3 broken features and 14 partial implementations that inflate the parity estimate. The tier structure has been restructured to prioritize fixing broken features and completing interactive coding before adding new features.
 >
-> Current effective CLI parity: **36%** (47% including partial). Full detail in `docs/plans/v3-okr-tiers.md`.
+> **Honest CLI parity: ~39% working, ~58% with partial.** Previous claim of 75% was inflated.
+> Full audit: `docs/reports/combined-audit-2026-03-29.md`
+> OKR detail: `docs/plans/v3-okr-tiers.md`
 
 ### Completed — Infrastructure Foundation
 
-All core infrastructure is done:
-
 - ✅ SessionManager (multi-turn, resume, abort, GC)
 - ✅ Multi-turn routes (new/message/abort/resume/delete)
-- ✅ PromptInput session routing
 - ✅ Promise-based permissions (10min timeout)
 - ✅ Unified WebSocket (reconnect, heartbeat)
-- ✅ PermissionBlock + QuestionBlock (inline, tool-specific previews, agent ID badge)
 - ✅ JSONL byte-range incremental parsing
-- ✅ SystemEvent type (turn_duration for state machine)
-- ✅ Turn status state machine (system/turn_duration signal, no heuristics)
-- ✅ Markdown rendering (react-markdown + remark-gfm)
-- ✅ Per-model pricing (opus/sonnet/haiku on both server and dashboard)
-- ✅ Structured logging (pino, file + stdout)
-- ✅ DAG deduplication + error detection
-- ✅ Graph stability (filterDagForTurn fallback)
-- ✅ Setup gate (first-launch wizard)
+- ✅ Turn status state machine (system/turn_duration signal)
+- ✅ Structured logging (pino, 5 subsystems)
 - ✅ 7/7 architecture invariants passing
-- ✅ 424 tests, 0 P1 bugs
 
-### Tier 1: "Can Replace CLI" (~24h)
+### Tier 1: "Can Replace CLI" — COMPLETE (PR #7)
 
-**Goal:** A developer can use the web client for a full coding session without opening a terminal.
+9/9 P1 features: tool results, syntax highlighting, /clear, /compact, /model, permission modes, allow-for-session, context warning, @ file mentions.
 
-| # | Task | Priority | Effort |
+### Tier 2: "Better Than CLI" — COMPLETE (PR #8)
+
+19/19 P2 features: diff viewer, /cost, /context, /permissions, /diff, /copy, command history, /plan, /fast, /effort, Ctrl+C, /rewind, /mcp, /usage, image paste, task display, ! bash, analytics, SSE errors.
+
+### Tier 3: "Power User Features" — COMPLETE (PR #9)
+
+16/18 P3 features: settings panel, themes (dark/light/high-contrast), MCP viewer, hook viewer, session rename, continue last session, /export, /init, /memory viewer, keyboard shortcuts, prompt suggestions, /doctor, /stats, active indicator, add repo, empty state. Deferred: fork (SDK), collaborative viewing (architecture).
+
+### ⚠️ POST-AUDIT: 3 Broken Features + 14 Partial
+
+**Broken (users think these work but they don't):**
+1. **SSE drops tool/thinking events** — `routes.ts:507-543` only forwards text_delta. User is blind to 60% of Claude's activity during interactive coding. (P0)
+2. **Image paste silently broken** — Client captures, server drops. `routes.ts:469` ignores `images` field. (P1)
+3. **`/fast` stored but never used** — `session-manager.ts` stores flag, `query()` call omits it. (P1)
+
+**Partial (exist but incomplete):**
+/compact (text not API), /diff (--stat only), /rewind (text not API), /settings (read-only), /hooks (read-only), /memory (read-only), /tasks (count only), /rename (localStorage only), image paste (broken), ghost suggestions (static), auto-compact (manual button), MCP (read-only), tool rules (not configurable)
+
+### NEW: Tier 0 — Fix Broken (IMMEDIATE, ~11h)
+
+| # | Task | Severity | Effort |
 |---|------|----------|--------|
-| T1-01 | Tool result display (data parsed, not rendered) | P1 | 3h |
-| T1-02 | Code syntax highlighting (rehype-highlight/shiki) | P1 | 2h |
-| T1-03 | `/clear` clears context (new session or SDK clear) | P1 | 2h |
-| T1-04 | `/compact` with focus instructions | P1 | 3h |
-| T1-05 | `/model` switching mid-session | P1 | 3h |
-| T1-06 | Permission mode cycling (Shift+Tab + UI) | P1 | 3h |
-| T1-07 | Wire "Allow for session" end-to-end | P1 | 2h |
-| T1-08 | Auto-compact on context > 90% | P1 | 2h |
-| T1-09 | `@` file path mentions with autocomplete | P1 | 4h |
+| T0-01 | SSE: Forward tool_use/tool_result/thinking events | P0 | 4-6h |
+| T0-02 | SSE: Client renders tool/thinking inline during streaming | P0 | 4h |
+| T0-03 | Image paste: Read from body, pass to SDK | P1 | 1h |
+| T0-04 | fastMode: Wire to query() options | P1 | 30min |
+| T0-05 | /diff: Full unified diff content | P1 | 1h |
 
-**Success metric:** User completes "build feature → test → commit" without terminal.
+### NEW: Tier 4 — Interactive Coding Core (~30h)
 
-### Tier 2: "Better Than CLI" (~47h)
+| # | Task | Effort |
+|---|------|--------|
+| T4-01 | ! bash mode (detect ! prefix, execute shell) | 2h |
+| T4-02 | /compact: Real SDK API call with progress | 3h |
+| T4-03 | Interactive task panel (real-time) | 3h |
+| T4-04 | Auto-compact at context limit (automatic) | 2h |
+| T4-05 | Settings editable (write endpoints) | 4h |
+| T4-06 | CLAUDE.md editable (write endpoint + editor) | 3h |
+| T4-07 | Hooks editable (write to settings.json) | 3h |
+| T4-08 | Tool allow/deny rules (permission config UI) | 4h |
+| T4-09 | MCP server add/remove (write to settings.json) | 3h |
+| T4-10 | /rewind via dedicated API | 3h |
 
-**Goal:** Observability and control features the CLI fundamentally cannot provide.
+### NEW: Tier 5 — Full Parity (~26h)
 
-| # | Task | Priority | Effort |
-|---|------|----------|--------|
-| T2-01 | Diff viewer (per-turn file changes) | P2 | 4h |
-| T2-02 | `/cost` detailed breakdown modal | P2 | 2h |
-| T2-03 | `/context` visualization grid | P2 | 4h |
-| T2-04 | `/permissions` rules viewer/editor | P2 | 3h |
-| T2-05 | `/diff` git changes command | P2 | 3h |
-| T2-06 | `/copy` clipboard command | P2 | 1h |
-| T2-07 | Command history (Up/Down arrows) | P2 | 2h |
-| T2-08 | `/plan` mode entry | P2 | 2h |
-| T2-09 | `/fast` toggle | P2 | 1h |
-| T2-10 | `/effort` level control | P2 | 1h |
-| T2-11 | Ctrl+C cancel binding | P2 | 1h |
-| T2-12 | `/rewind` (checkpoint) | P2 | 4h |
-| T2-13 | `/mcp` server status panel | P2 | 3h |
-| T2-14 | `/usage` detailed rate limits | P2 | 2h |
-| T2-15 | Image paste/upload | P2 | 3h |
-| T2-16 | Task list panel (Ctrl+T) | P2 | 3h |
-| T2-17 | `!` bash mode | P2 | 2h |
-| T2-18 | Session analytics dashboard | P2 | 6h |
+| # | Task | Effort |
+|---|------|--------|
+| T5-01 | /resume as slash command | 1h |
+| T5-02 | /add-dir multi-directory | 2h |
+| T5-03 | Remaining keyboard shortcuts | 3h |
+| T5-04 | /login + /logout | 2h |
+| T5-05 | Session naming persistence (server-side) | 2h |
+| T5-06 | Background task management | 4h |
+| T5-07 | /review PR integration | 4h |
+| T5-08 | /agents management | 3h |
+| T5-09 | /batch parallel changes | 3h |
+| T5-10 | Transcript search | 2h |
 
-**Success metric:** 10+ features that provide information/control the CLI cannot.
+### Priority Order
 
-### Tier 3: "Power User Features" (~51h)
+```
+Tier 0 (fix broken — IMMEDIATE)
+  → Tier 4 (interactive coding core)
+    → Tier 5 (full parity)
+```
 
-**Goal:** Feature coverage >= 90% of applicable CLI features.
+### Parity Projections
 
-| # | Task | Priority | Effort |
-|---|------|----------|--------|
-| T3-01 | Settings UI | P3 | 4h |
-| T3-02 | Theme support (light/dark/colorblind) | P3 | 4h |
-| T3-03 | MCP server management | P3 | 4h |
-| T3-04 | Hook configuration editor | P3 | 3h |
-| T3-05 | Session naming/rename | P3 | 2h |
-| T3-06 | Continue last session shortcut | P3 | 1h |
-| T3-07 | Fork session UI | P3 | 2h |
-| T3-08 | `/export` conversation | P3 | 2h |
-| T3-09 | `/init` CLAUDE.md wizard | P3 | 3h |
-| T3-10 | `/memory` editor | P3 | 3h |
-| T3-11 | Keyboard shortcut parity | P3 | 3h |
-| T3-12 | Prompt suggestions | P3 | 4h |
-| T3-13 | `/doctor` diagnostics | P3 | 3h |
-| T3-14 | `/stats` usage statistics | P3 | 3h |
-| T3-15 | Collaborative session viewing | P3 | 6h |
-| T3-16 | Active session indicator in sidebar | P3 | 2h |
-| T3-17 | Add Repo button handler | P3 | 1h |
-| T3-18 | Empty state CTA | P3 | 1h |
+| After | Working % | With Partial |
+|-------|-----------|-------------|
+| Current | 39% | 58% |
+| Tier 0 | ~47% | ~65% |
+| Tier 4 | ~72% | ~82% |
+| Tier 5 | ~90%+ | ~95% |
 
-**Success metric:** Feature coverage >= 90%, no reason to switch back to terminal.
+### Build Health
 
-**Total: 45 tasks, ~122h across all tiers**
+| Metric | Count |
+|--------|-------|
+| Server tests | 271 |
+| Dashboard tests | 464 |
+| **Total tests** | **735** |
+| Test failures | 0 |
+| TypeScript errors | 0 |
+| Architecture invariants | 7/7 |
 
 ---
 

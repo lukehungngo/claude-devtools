@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { useDiscoveryCommands } from "./useDiscovery";
+import { useDiscoveryCommands, useDiscoveryModels, useDiscoveryAgents } from "./useDiscovery";
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -130,5 +130,126 @@ describe("useDiscoveryCommands", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useDiscoveryModels", () => {
+  it("returns empty array when no sessionId", () => {
+    const { result } = renderHook(() => useDiscoveryModels(undefined));
+    expect(result.current).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fetches models from server when sessionId is provided", async () => {
+    const models = [
+      { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4" },
+      { id: "claude-opus-4-20250514", name: "Claude Opus 4" },
+    ];
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ models }),
+    });
+
+    const { result } = renderHook(() => useDiscoveryModels("session-m1"));
+
+    await waitFor(() => {
+      expect(result.current.length).toBe(2);
+    });
+
+    expect(result.current).toEqual(models);
+    expect(fetchMock).toHaveBeenCalledWith("/api/sessions/session-m1/models");
+  });
+
+  it("returns empty array on fetch error", async () => {
+    fetchMock.mockRejectedValue(new Error("Network error"));
+
+    const { result } = renderHook(() => useDiscoveryModels("session-m2"));
+
+    // Wait for fetch to settle
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    expect(result.current).toEqual([]);
+  });
+
+  it("does not refetch when sessionId stays the same", async () => {
+    const models = [{ id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4" }];
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ models }),
+    });
+
+    const { result, rerender } = renderHook(
+      ({ id }) => useDiscoveryModels(id),
+      { initialProps: { id: "session-m3" as string | undefined } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.length).toBe(1);
+    });
+
+    rerender({ id: "session-m3" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useDiscoveryAgents", () => {
+  it("returns empty array when no sessionId", () => {
+    const { result } = renderHook(() => useDiscoveryAgents(undefined));
+    expect(result.current).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fetches agents from server when sessionId is provided", async () => {
+    const agents = [
+      { id: "main", name: "Main Agent" },
+      { id: "sub-1", name: "Sub Agent 1" },
+    ];
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ agents }),
+    });
+
+    const { result } = renderHook(() => useDiscoveryAgents("session-a1"));
+
+    await waitFor(() => {
+      expect(result.current.length).toBe(2);
+    });
+
+    expect(result.current).toEqual(agents);
+    expect(fetchMock).toHaveBeenCalledWith("/api/sessions/session-a1/agents");
+  });
+
+  it("returns empty array on fetch error", async () => {
+    fetchMock.mockRejectedValue(new Error("Network error"));
+
+    const { result } = renderHook(() => useDiscoveryAgents("session-a2"));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    expect(result.current).toEqual([]);
+  });
+
+  it("does not refetch when sessionId stays the same", async () => {
+    const agents = [{ id: "main", name: "Main Agent" }];
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ agents }),
+    });
+
+    const { result, rerender } = renderHook(
+      ({ id }) => useDiscoveryAgents(id),
+      { initialProps: { id: "session-a3" as string | undefined } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.length).toBe(1);
+    });
+
+    rerender({ id: "session-a3" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

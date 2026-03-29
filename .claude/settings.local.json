@@ -97,7 +97,10 @@
       "Bash(for f:*)",
       "Bash(while read:*)",
       "Bash(do sed:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(mv /Users/soh/working/ai/claude-devtools/.claude/rules/meta-rules-guide.md /Users/soh/working/ai/claude-devtools/docs/meta-rules-guide.md)",
+      "Bash(rm /Users/soh/working/ai/claude-devtools/.claude/rules/severity-discipline.md)",
+      "Bash(npx node-gyp:*)"
     ],
     "deny": [
       "Read:.env*",
