@@ -96,6 +96,26 @@ describe("useKeyboardShortcuts", () => {
     expect(partial.onClear).not.toHaveBeenCalled();
   });
 
+  it("calls onToggleTasks on Ctrl+T", () => {
+    const actionsWithTasks: ShortcutActions = {
+      ...actions,
+      onToggleTasks: vi.fn(),
+    };
+    renderHook(() => useKeyboardShortcuts(actionsWithTasks));
+    fireKey("t", { ctrlKey: true });
+    expect(actionsWithTasks.onToggleTasks).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onToggleTasks on Meta+T (macOS)", () => {
+    const actionsWithTasks: ShortcutActions = {
+      ...actions,
+      onToggleTasks: vi.fn(),
+    };
+    renderHook(() => useKeyboardShortcuts(actionsWithTasks));
+    fireKey("t", { metaKey: true });
+    expect(actionsWithTasks.onToggleTasks).toHaveBeenCalledTimes(1);
+  });
+
   it("cleans up listener on unmount", () => {
     const { unmount } = renderHook(() => useKeyboardShortcuts(actions));
     unmount();

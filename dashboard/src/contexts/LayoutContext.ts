@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 import type { RepoGroup, PermissionRequest, UsageInfo, CostSummary, SessionEvent, SessionMetrics } from "../lib/types";
 import type { ReactNode } from "react";
+import type { PrimaryTab } from "../components/right-panel/PrimaryTabs";
 
 /** Maps repoSlug -> projectHash */
 export type SlugMap = Map<string, string>;
@@ -36,8 +37,8 @@ export interface LayoutContextValue {
   setCurrentMetrics: (m: SessionMetrics | null) => void;
   toolFilter: string | null;
   setToolFilter: (f: string | null | ((prev: string | null) => string | null)) => void;
-  requestedRightTab: "graph" | "log" | "doctor" | "stats" | "mcp" | undefined;
-  setRequestedRightTab: (tab: "graph" | "log" | "doctor" | "stats" | "mcp" | undefined) => void;
+  requestedRightTab: PrimaryTab | undefined;
+  setRequestedRightTab: (tab: PrimaryTab | undefined) => void;
   rightPanelContent: ReactNode;
   setRightPanelContent: (content: ReactNode) => void;
   questions: QuestionItem[];

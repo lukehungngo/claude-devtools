@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { SettingsPanel } from "../SettingsPanel";
 import type { SessionMetrics, UsageInfo } from "../../../lib/types";
 
@@ -44,21 +44,44 @@ function makeMetrics(overrides?: Partial<SessionMetrics>): SessionMetrics {
   };
 }
 
+function mockFetchResponse(data: unknown) {
+  return Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve(data),
+  });
+}
+
 describe("SettingsPanel", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    // Default fetch mock for EditableSettings
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      if (typeof url === "string" && url.includes("/api/settings")) {
+        return mockFetchResponse({}) as Promise<Response>;
+      }
+      if (typeof url === "string" && url.includes("/models")) {
+        return mockFetchResponse({ models: [] }) as Promise<Response>;
+      }
+      return mockFetchResponse({}) as Promise<Response>;
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
   it("renders placeholder when no metrics provided", () => {
     render(<SettingsPanel metrics={null} usage={null} />);
     expect(screen.getByText("Select a session to view settings")).toBeTruthy();
   });
 
-  it("renders session section with model name", () => {
+  it("renders session section with model name", async () => {
     render(<SettingsPanel metrics={makeMetrics()} usage={null} />);
-    expect(screen.getByText("Model")).toBeTruthy();
     expect(screen.getByText("claude-opus-4-6")).toBeTruthy();
   });
 
   it("renders permission mode", () => {
     const { container } = render(<SettingsPanel metrics={makeMetrics()} usage={null} />);
-    expect(container.textContent).toContain("Permission Mode");
     expect(container.textContent).toContain("default");
   });
 
@@ -99,7 +122,89 @@ describe("SettingsPanel", () => {
       repoConfig: undefined,
     });
     const { container } = render(<SettingsPanel metrics={metrics} usage={null} />);
-    // Model should show "--" when models array is empty, repoConfig fields too
     expect(container.textContent).toContain("--");
+  });
+});
+
+describe("SettingsPanel - Editable Settings", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders model, effort, and permission mode dropdowns", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      if (typeof url === "string" && url === "/api/settings") {
+        return mockFetchResponse({ model: "claude-opus-4-6", effort: "high" }) as Promise<Response>;
+      }
+      return mockFetchResponse({ models: [] }) as Promise<Response>;
+    });
+
+    render(<SettingsPanel metrics={makeMetrics()} usage={null} />);
+
+    await waitFor(() => {
+      const modelSelect = screen.getByLabelText("Model") as HTMLSelectElement;
+      expect(modelSelect).toBeTruthy();
+    });
+
+    expect(screen.getByLabelText("Effort")).toBeTruthy();
+    expect(screen.getByLabelText("Permission Mode")).toBeTruthy();
+  });
+
+  it("enables save button when a field is changed", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      if (typeof url === "string" && url === "/api/settings") {
+        return mockFetchResponse({}) as Promise<Response>;
+      }
+      return mockFetchResponse({ models: [] }) as Promise<Response>;
+    });
+
+    render(<SettingsPanel metrics={makeMetrics()} usage={null} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Effort")).toBeTruthy();
+    });
+
+    const effortSelect = screen.getByLabelText("Effort") as HTMLSelectElement;
+    fireEvent.change(effortSelect, { target: { value: "high" } });
+
+    const saveButton = screen.getByText("Save Settings");
+    expect(saveButton.closest("button")?.disabled).toBe(false);
+  });
+
+  it("calls PUT /api/settings on save", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    fetchSpy.mockImplementation((url) => {
+      if (typeof url === "string" && url === "/api/settings") {
+        return mockFetchResponse({}) as Promise<Response>;
+      }
+      return mockFetchResponse({ models: [] }) as Promise<Response>;
+    });
+
+    render(<SettingsPanel metrics={makeMetrics()} usage={null} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Effort")).toBeTruthy();
+    });
+
+    // Change effort
+    fireEvent.change(screen.getByLabelText("Effort"), { target: { value: "low" } });
+
+    // Mock the PUT response
+    fetchSpy.mockImplementation(() =>
+      mockFetchResponse({ success: true }) as Promise<Response>,
+    );
+
+    fireEvent.click(screen.getByText("Save Settings"));
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/settings",
+        expect.objectContaining({ method: "PUT" }),
+      );
+    });
   });
 });

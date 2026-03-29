@@ -172,3 +172,142 @@ describe("McpManager: session-aware mode", () => {
     });
   });
 });
+
+describe("McpManager: add/remove operations", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows Add Server button", () => {
+    render(<McpManager servers={[]} />);
+    expect(screen.getByText("Add Server")).toBeTruthy();
+  });
+
+  it("shows add form when Add Server is clicked", () => {
+    render(<McpManager servers={[]} />);
+    fireEvent.click(screen.getByText("Add Server"));
+    expect(screen.getByLabelText("Server name")).toBeTruthy();
+    expect(screen.getByLabelText("Command")).toBeTruthy();
+  });
+
+  it("hides add form when cancel is clicked", () => {
+    render(<McpManager servers={[]} />);
+    fireEvent.click(screen.getByText("Add Server"));
+    fireEvent.click(screen.getByLabelText("Cancel add server"));
+    expect(screen.queryByLabelText("Server name")).toBeNull();
+  });
+
+  it("calls POST /api/mcp/servers on form submit", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, server: { name: "new-srv", command: "cmd", args: [] } }),
+    } as Response);
+
+    render(<McpManager servers={[]} />);
+    fireEvent.click(screen.getByText("Add Server"));
+
+    fireEvent.change(screen.getByLabelText("Server name"), { target: { value: "new-srv" } });
+    fireEvent.change(screen.getByLabelText("Command"), { target: { value: "npx" } });
+    fireEvent.change(screen.getByLabelText("Arguments"), { target: { value: "-y, @mcp/test" } });
+
+    // Submit the form
+    const submitBtn = screen.getAllByText("Add Server").find(
+      (el) => el.tagName === "BUTTON" && el.getAttribute("type") === "submit"
+    );
+    fireEvent.click(submitBtn!);
+
+    await waitFor(() => {
+      const postCall = fetchSpy.mock.calls.find(
+        (c) => c[0] === "/api/mcp/servers" && (c[1] as RequestInit)?.method === "POST"
+      );
+      expect(postCall).toBeTruthy();
+      const body = JSON.parse((postCall![1] as RequestInit).body as string);
+      expect(body.name).toBe("new-srv");
+      expect(body.command).toBe("npx");
+      expect(body.args).toEqual(["-y", "@mcp/test"]);
+    });
+  });
+
+  it("shows Remove button per server", () => {
+    render(
+      <McpManager
+        servers={[
+          { name: "fs-server", command: "npx", args: [], status: "configured", toolCount: 5 },
+        ]}
+      />
+    );
+    expect(screen.getByLabelText("Remove fs-server")).toBeTruthy();
+  });
+
+  it("shows confirmation dialog on Remove click", () => {
+    render(
+      <McpManager
+        servers={[
+          { name: "fs-server", command: "npx", args: [], status: "configured", toolCount: 5 },
+        ]}
+      />
+    );
+    fireEvent.click(screen.getByLabelText("Remove fs-server"));
+    expect(screen.getByText("Remove?")).toBeTruthy();
+    expect(screen.getByLabelText("Confirm remove fs-server")).toBeTruthy();
+  });
+
+  it("calls DELETE /api/mcp/servers/:name on confirm", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true }),
+    } as Response);
+
+    render(
+      <McpManager
+        servers={[
+          { name: "fs-server", command: "npx", args: [], status: "configured", toolCount: 5 },
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText("Remove fs-server"));
+    fireEvent.click(screen.getByLabelText("Confirm remove fs-server"));
+
+    await waitFor(() => {
+      const deleteCall = fetchSpy.mock.calls.find(
+        (c) => (c[0] as string).includes("/api/mcp/servers/fs-server") && (c[1] as RequestInit)?.method === "DELETE"
+      );
+      expect(deleteCall).toBeTruthy();
+    });
+  });
+
+  it("cancels removal when No is clicked", () => {
+    render(
+      <McpManager
+        servers={[
+          { name: "fs-server", command: "npx", args: [], status: "configured", toolCount: 5 },
+        ]}
+      />
+    );
+    fireEvent.click(screen.getByLabelText("Remove fs-server"));
+    fireEvent.click(screen.getByLabelText("Cancel remove"));
+    expect(screen.queryByText("Remove?")).toBeNull();
+  });
+
+  it("displays error message from server on add failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: "Server \"dup\" already exists" }),
+    } as Response);
+
+    render(<McpManager servers={[]} />);
+    fireEvent.click(screen.getByText("Add Server"));
+    fireEvent.change(screen.getByLabelText("Server name"), { target: { value: "dup" } });
+    fireEvent.change(screen.getByLabelText("Command"), { target: { value: "cmd" } });
+
+    const submitBtn = screen.getAllByText("Add Server").find(
+      (el) => el.tagName === "BUTTON" && el.getAttribute("type") === "submit"
+    );
+    fireEvent.click(submitBtn!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/already exists/)).toBeTruthy();
+    });
+  });
+});

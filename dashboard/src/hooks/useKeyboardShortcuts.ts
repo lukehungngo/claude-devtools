@@ -4,6 +4,7 @@ export interface ShortcutActions {
   onClear?: () => void;
   onCompact?: () => void;
   onDismiss?: () => void;
+  onToggleTasks?: () => void;
 }
 
 /**
@@ -45,6 +46,13 @@ export function useKeyboardShortcuts(actions: ShortcutActions): void {
       if (isMod && e.shiftKey && (e.key === "K" || e.key === "k")) {
         e.preventDefault();
         actionsRef.current.onCompact?.();
+        return;
+      }
+
+      // Ctrl+T / Cmd+T -> toggle tasks panel
+      if (isMod && (e.key === "t" || e.key === "T")) {
+        e.preventDefault();
+        actionsRef.current.onToggleTasks?.();
         return;
       }
 
