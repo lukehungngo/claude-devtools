@@ -2,11 +2,26 @@ import { randomUUID } from "node:crypto";
 import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk";
 import { sessionLog } from "../logger.js";
 
+export type PermissionMode = "default" | "acceptEdits" | "plan";
+
+const VALID_PERMISSION_MODES: ReadonlySet<string> = new Set(["default", "acceptEdits", "plan"]);
+
+// Tools auto-approved in acceptEdits mode
+const ACCEPT_EDITS_ALLOW: ReadonlySet<string> = new Set(["Edit", "Write", "Read"]);
+
+// Tools auto-allowed in plan mode (read-only)
+const PLAN_ALLOW: ReadonlySet<string> = new Set(["Read", "Glob", "Grep"]);
+
+// Tools auto-denied in plan mode (write/execute)
+const PLAN_DENY: ReadonlySet<string> = new Set(["Edit", "Write", "Bash"]);
+
 // Active session tracking
 export interface ActiveSession {
   sessionId: string;
   cwd: string;
   status: "idle" | "streaming" | "waiting-permission" | "error";
+  permissionMode: PermissionMode;
+  model?: string;
   abortController: AbortController;
   permissionResolvers: Map<string, (result: PermissionResult) => void>;
   questionResolvers: Map<string, (answer: string) => void>;
@@ -63,6 +78,7 @@ export class SessionManager {
       sessionId,
       cwd,
       status: "idle",
+      permissionMode: "default",
       abortController: new AbortController(),
       permissionResolvers: new Map(),
       questionResolvers: new Map(),
@@ -94,6 +110,7 @@ export class SessionManager {
           resume: sessionId,
           forkSession: false,
           includePartialMessages: true,
+          ...(session.model ? { model: session.model } : {}),
           canUseTool: async (toolName, input) => {
             return this.handlePermission(session, toolName, input);
           },
@@ -124,6 +141,16 @@ export class SessionManager {
     toolName: string,
     input: Record<string, unknown>
   ): Promise<PermissionResult> {
+    // Check permission mode for auto-resolution
+    const autoResult = this.shouldAutoResolve(session.sessionId, toolName);
+    if (autoResult) {
+      sessionLog.info(
+        { sessionId: session.sessionId, toolName, mode: session.permissionMode, behavior: autoResult.behavior },
+        "permission auto-resolved by mode"
+      );
+      return Promise.resolve(autoResult);
+    }
+
     const requestId = randomUUID();
 
     sessionLog.info({ sessionId: session.sessionId, requestId, toolName }, "permission requested");
@@ -162,6 +189,47 @@ export class SessionManager {
         resolve(result);
       });
     });
+  }
+
+  /** Set the permission mode for a session */
+  setPermissionMode(sessionId: string, mode: PermissionMode): boolean {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) return false;
+    session.permissionMode = mode;
+    sessionLog.info({ sessionId, permissionMode: mode }, "permission mode changed");
+    return true;
+  }
+
+  /** Check if a permission mode is valid */
+  static isValidPermissionMode(mode: string): mode is PermissionMode {
+    return VALID_PERMISSION_MODES.has(mode);
+  }
+
+  /** Determine if a tool should be auto-resolved based on permission mode.
+   *  Returns PermissionResult if auto-resolved, null if user should be prompted. */
+  shouldAutoResolve(sessionId: string, toolName: string): PermissionResult | null {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) return null;
+
+    switch (session.permissionMode) {
+      case "acceptEdits":
+        if (ACCEPT_EDITS_ALLOW.has(toolName)) {
+          return { behavior: "allow" };
+        }
+        return null; // prompt user for Bash, Agent, etc.
+
+      case "plan":
+        if (PLAN_ALLOW.has(toolName)) {
+          return { behavior: "allow" };
+        }
+        if (PLAN_DENY.has(toolName)) {
+          return { behavior: "deny", message: "Blocked by plan mode" };
+        }
+        return null; // prompt for anything else
+
+      default:
+        return null; // "default" mode: always prompt user
+    }
   }
 
   /** Resolve a pending permission request (called when dashboard user clicks approve/deny) */
@@ -203,6 +271,7 @@ export class SessionManager {
       sessionId,
       cwd,
       status: "idle",
+      permissionMode: "default",
       abortController: new AbortController(),
       permissionResolvers: new Map(),
       questionResolvers: new Map(),
@@ -225,6 +294,15 @@ export class SessionManager {
   /** Get status of a specific session */
   getStatus(sessionId: string): ActiveSession | undefined {
     return this.activeSessions.get(sessionId);
+  }
+
+  /** Set the model for a session (used by /model command) */
+  setModel(sessionId: string, model: string | undefined): boolean {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) return false;
+    session.model = model;
+    sessionLog.info({ sessionId, model: model ?? "default" }, "model changed");
+    return true;
   }
 
   /** List all active sessions */

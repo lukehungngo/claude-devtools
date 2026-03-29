@@ -60,9 +60,25 @@ export function usePermissions() {
     []
   );
 
+  /** Approve a permission and allow all future uses of this tool in the session */
+  const decideSession = useCallback(
+    async (id: string) => {
+      await fetch(`/api/permissions/${id}/decide`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "approved", scope: "session" }),
+      });
+      setPermissions((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, status: "approved" as const } : p))
+      );
+    },
+    []
+  );
+
   return {
     permissions,
     decide,
+    decideSession,
     handlePermissionRequest,
     handlePermissionResolved,
   };

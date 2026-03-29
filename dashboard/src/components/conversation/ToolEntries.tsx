@@ -1,5 +1,6 @@
 import type { SessionEvent, AssistantEvent, UserEvent, ContentItem, ToolUseContent, ToolResultContent } from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
+import { ToolResultBlock } from "../viewer/ToolResultBlock";
 
 interface ToolEntriesProps {
   events: SessionEvent[];
@@ -10,6 +11,8 @@ interface ToolEntry {
   name: string;
   target: string;
   status: "success" | "running" | "error";
+  resultContent?: string | unknown[];
+  resultIsError?: boolean;
 }
 
 function extractToolEntries(events: SessionEvent[]): ToolEntry[] {
@@ -50,6 +53,8 @@ function extractToolEntries(events: SessionEvent[]): ToolEntry[] {
           const existing = toolUseMap.get(result.tool_use_id);
           if (existing) {
             existing.status = result.is_error ? "error" : "success";
+            existing.resultContent = result.content;
+            existing.resultIsError = result.is_error ?? false;
           }
         }
       }
@@ -76,34 +81,43 @@ export function ToolEntries({ events }: ToolEntriesProps) {
         const icon = STATUS_ICONS[entry.status];
 
         return (
-          <div
-            key={entry.id}
-            className="flex items-center gap-2 py-0.75 text-base font-mono"
-          >
-            {/* Status icon */}
-            <span
-              style={{
-                color: icon.color,
-                width: "14px",
-                textAlign: "center",
-              }}
-              className="text-xxs w-3.5 text-center shrink-0"
+          <div key={entry.id}>
+            <div
+              className="flex items-center gap-2 py-0.75 text-base font-mono"
             >
-              {icon.char}
-            </span>
-            {/* Tool name badge */}
-            <span
-              className="px-1.5 py-px rounded-dt-xs bg-dt-orange text-black text-sm font-semibold whitespace-nowrap shrink-0"
-            >
-              {entry.name}
-            </span>
-            {/* File path / command */}
-            {entry.target && (
+              {/* Status icon */}
               <span
-                className="text-dt-text2 overflow-hidden text-ellipsis whitespace-nowrap text-sm"
+                style={{
+                  color: icon.color,
+                  width: "14px",
+                  textAlign: "center",
+                }}
+                className="text-xxs w-3.5 text-center shrink-0"
               >
-                {entry.target}
+                {icon.char}
               </span>
+              {/* Tool name badge */}
+              <span
+                className="px-1.5 py-px rounded-dt-xs bg-dt-orange text-black text-sm font-semibold whitespace-nowrap shrink-0"
+              >
+                {entry.name}
+              </span>
+              {/* File path / command */}
+              {entry.target && (
+                <span
+                  className="text-dt-text2 overflow-hidden text-ellipsis whitespace-nowrap text-sm"
+                >
+                  {entry.target}
+                </span>
+              )}
+            </div>
+            {/* Tool result */}
+            {entry.resultContent != null && (
+              <ToolResultBlock
+                content={entry.resultContent}
+                isError={entry.resultIsError ?? false}
+                toolName={entry.name}
+              />
             )}
           </div>
         );

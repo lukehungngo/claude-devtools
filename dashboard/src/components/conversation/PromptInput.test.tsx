@@ -199,6 +199,44 @@ describe("PromptInput", () => {
       expect(output!.textContent).toContain("Available commands");
     });
 
+    it("submitting /compact sends it as a message via fetch (no focus)", async () => {
+      const { container } = render(
+        <PromptInput activeSessionId="sess-compact-1" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      // Type "/compact " with trailing space so dropdown dismisses
+      fireEvent.change(textarea, { target: { value: "/compact " } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      // /compact should call fetch (sent as a message, not handled locally)
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-compact-1/message");
+      const body = JSON.parse(opts.body);
+      expect(body.prompt).toBe("/compact ");
+    });
+
+    it("submitting /compact with focus text sends the full string as a message", async () => {
+      const { container } = render(
+        <PromptInput activeSessionId="sess-compact-2" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/compact focus on auth module" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-compact-2/message");
+      const body = JSON.parse(opts.body);
+      expect(body.prompt).toBe("/compact focus on auth module");
+    });
+
     it("submitting /unknownxyz does NOT call fetch and shows unknown command message", async () => {
       const { container } = render(<PromptInput />);
       const textarea = container.querySelector("textarea")!;
@@ -216,4 +254,279 @@ describe("PromptInput", () => {
       expect(output!.textContent).toBe("Unknown command: /unknownxyz");
     });
   });
+
+  describe("/clear command", () => {
+    it("calls POST /api/sessions/new and invokes onSessionStarted", async () => {
+      const onSessionStarted = vi.fn();
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ sessionId: "new-session-123" }),
+      });
+
+      const { container } = render(
+        <PromptInput
+          sessionCwd="/projects/foo"
+          sessionId="old-session"
+          onSessionStarted={onSessionStarted}
+        />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      // /clear is a server-forwarded command; Enter submits directly even with dropdown visible
+      fireEvent.change(textarea, { target: { value: "/clear" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      // Should have called POST /api/sessions/new with the current cwd
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/new");
+      expect(opts.method).toBe("POST");
+      const body = JSON.parse(opts.body);
+      expect(body.cwd).toBe("/projects/foo");
+
+      // Should notify parent with new session id
+      expect(onSessionStarted).toHaveBeenCalledWith("new-session-123");
+    });
+
+    it("uses fallback cwd '/' when sessionCwd is not provided", async () => {
+      const onSessionStarted = vi.fn();
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ sessionId: "new-session-456" }),
+      });
+
+      const { container } = render(
+        <PromptInput onSessionStarted={onSessionStarted} />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/clear" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [, opts] = fetchMock.mock.calls[0];
+      const body = JSON.parse(opts.body);
+      expect(body.cwd).toBe("/");
+      expect(onSessionStarted).toHaveBeenCalledWith("new-session-456");
+    });
+  });
+
+  describe("/model command", () => {
+    it("shows current model info when /model has no argument", async () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/model " } });
+      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+
+      // No fetch should have been made (no active session, just shows info)
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      await act(async () => {});
+      const output = container.querySelector(".text-xs.text-dt-text2.px-1.pt-1.font-mono");
+      expect(output).not.toBeNull();
+      expect(output!.textContent).toContain("model");
+    });
+
+    it("/model opus sends POST to model endpoint with full model name", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, model: "claude-opus-4-6" }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-123" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/model opus" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/sessions/sess-123/model");
+      expect(opts.method).toBe("POST");
+      const body = JSON.parse(opts.body);
+      expect(body.model).toBe("claude-opus-4-6");
+    });
+
+    it("/model sonnet maps to claude-sonnet-4-6", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, model: "claude-sonnet-4-6" }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-123" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/model sonnet" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.model).toBe("claude-sonnet-4-6");
+    });
+
+    it("/model haiku maps to claude-haiku-4-5-20251001", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, model: "claude-haiku-4-5-20251001" }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-123" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/model haiku" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.model).toBe("claude-haiku-4-5-20251001");
+    });
+
+    it("/model with no active session shows error", async () => {
+      const { container } = render(<PromptInput />);
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/model opus" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      // No fetch should have been made since there's no active session
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      await act(async () => {});
+      const output = container.querySelector(".text-xs.text-dt-text2.px-1.pt-1.font-mono");
+      expect(output).not.toBeNull();
+      expect(output!.textContent).toContain("No active session");
+    });
+
+    it("shows confirmation message after successful model switch", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, model: "claude-opus-4-6" }),
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="sess-123" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "/model opus" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      const output = container.querySelector(".text-xs.text-dt-text2.px-1.pt-1.font-mono");
+      expect(output).not.toBeNull();
+      expect(output!.textContent).toContain("claude-opus-4-6");
+    });
+  });
+
+  describe("@ file path autocomplete", () => {
+    it("typing @ triggers file autocomplete state (shows dropdown after fetch)", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ files: ["src/", "package.json", "README.md"] }),
+      });
+
+      const { container } = render(
+        <PromptInput
+          sessionCwd="/projects/foo"
+          sessionId="sid-1"
+          projectHash="hash-1"
+        />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "hello @" } });
+
+      // Advance debounce timer (200ms)
+      await act(async () => {
+        vi.advanceTimersByTime(200);
+      });
+
+      // Wait for fetch to resolve
+      await act(async () => {});
+
+      // Should have fetched files from API
+      const fileCall = fetchMock.mock.calls.find(
+        (c: string[]) => typeof c[0] === "string" && c[0].includes("/files")
+      );
+      expect(fileCall).toBeDefined();
+      expect(fileCall![0]).toContain("/api/sessions/hash-1/sid-1/files?prefix=");
+
+      // Should show a file dropdown
+      const fileItems = container.querySelectorAll("[data-testid='file-option']");
+      expect(fileItems.length).toBeGreaterThan(0);
+    });
+
+    it("selecting a file inserts the full path after @", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ files: ["src/", "package.json"] }),
+      });
+
+      const { container } = render(
+        <PromptInput
+          sessionCwd="/projects/foo"
+          sessionId="sid-1"
+          projectHash="hash-1"
+        />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "@" } });
+
+      // Advance debounce
+      await act(async () => {
+        vi.advanceTimersByTime(200);
+      });
+      await act(async () => {});
+
+      // Select the first item via mousedown
+      const fileItems = container.querySelectorAll("[data-testid='file-option']");
+      expect(fileItems.length).toBeGreaterThan(0);
+      fireEvent.mouseDown(fileItems[0]);
+
+      // Textarea should now contain the selected file path
+      const value = (textarea as HTMLTextAreaElement).value;
+      expect(value).toContain("@src/");
+    });
+
+    it("does not trigger file autocomplete when projectHash is missing", async () => {
+      const { container } = render(
+        <PromptInput sessionCwd="/projects/foo" sessionId="sid-1" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "@src" } });
+
+      await act(async () => {
+        vi.advanceTimersByTime(200);
+      });
+      await act(async () => {});
+
+      // No fetch call for files
+      const fileCall = fetchMock.mock.calls.find(
+        (c: string[]) => typeof c[0] === "string" && c[0].includes("/files")
+      );
+      expect(fileCall).toBeUndefined();
+    });
+  });
+
 });

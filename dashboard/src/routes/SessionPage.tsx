@@ -26,6 +26,7 @@ export function SessionPage() {
     setRequestedRightTab,
     permissions,
     decidePermission,
+    decidePermissionSession,
     questions,
     submitAnswer,
     activeSessionId,
@@ -194,11 +195,13 @@ export function SessionPage() {
       isLive={isLive}
       sessionCwd={metrics.session.cwd}
       sessionId={metrics.session.id}
+      projectHash={projectHash}
       activeSessionId={activeSessionId ?? undefined}
       onSessionStarted={setActiveSessionId}
       highlightedTurnIndex={highlightedTurnIndex}
       permissions={permissions}
       onPermissionDecide={decidePermission}
+      onDecideSession={decidePermissionSession}
       questions={questions}
       onSubmitAnswer={submitAnswer}
       onAgentPillClick={handleAgentPillClick}

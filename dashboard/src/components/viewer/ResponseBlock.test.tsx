@@ -120,4 +120,26 @@ describe("ResponseBlock", () => {
     expect(wrapper.className).toContain("border-dt-green");
     expect(wrapper.className).toContain("pl-2");
   });
+
+  it("applies hljs class to code blocks with a language", () => {
+    const { container } = render(
+      <ResponseBlock text={"```typescript\nconst x: number = 1;\n```"} />
+    );
+    const code = container.querySelector("pre code");
+    expect(code).not.toBeNull();
+    expect(code!.className).toContain("hljs");
+  });
+
+  it("does not apply hljs class to inline code", () => {
+    const { container } = render(
+      <ResponseBlock text="Use `npm install` to install" />
+    );
+    const codes = container.querySelectorAll("code");
+    const inlineCode = Array.from(codes).find(
+      (c) => c.parentElement?.tagName !== "PRE"
+    );
+    expect(inlineCode).not.toBeUndefined();
+    expect(inlineCode!.className).not.toContain("hljs");
+    expect(inlineCode!.className).toContain("bg-dt-bg3");
+  });
 });

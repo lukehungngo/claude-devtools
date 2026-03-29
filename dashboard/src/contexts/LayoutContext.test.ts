@@ -18,6 +18,7 @@ describe("LayoutContext", () => {
       refreshRepos: () => {},
       permissions: [],
       decidePermission: async () => {},
+      decidePermissionSession: async () => {},
       usage: null,
       costs: null,
       isLive: false,

@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 
 import type { Components } from "react-markdown";
@@ -19,10 +20,10 @@ const markdownComponents: Components = {
   ),
   p: ({ children }) => <p className="mb-2 text-dt-text0">{children}</p>,
   code: ({ className, children }) => {
-    const isBlock = className?.includes("language-") || false;
+    const isBlock = className?.includes("language-") || className?.includes("hljs") || false;
     if (isBlock) {
       return (
-        <code className="block bg-dt-bg3 p-3 rounded-md font-mono text-sm overflow-x-auto">
+        <code className={`block bg-dt-bg3 p-3 rounded-md font-mono text-sm overflow-x-auto ${className ?? ""}`}>
           {children}
         </code>
       );
@@ -78,7 +79,7 @@ export function ResponseBlock({ text }: ResponseBlockProps) {
   return (
     <div className="text-dt-text0 font-mono text-md leading-[1.6] mb-1.5 break-words border-l-2 border-dt-green pl-2">
       {isSuccess && <span className="text-dt-green mr-1">{"\u2713"}</span>}
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
         {displayText}
       </ReactMarkdown>
     </div>

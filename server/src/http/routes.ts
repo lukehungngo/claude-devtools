@@ -1,7 +1,8 @@
 import { execSync, spawnSync } from "child_process";
-import { statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import path from "node:path";
+import { join, resolve } from "node:path";
 import { Router, json } from "express";
 import {
   discoverSessions,
@@ -17,8 +18,10 @@ import {
   resolvePermissionRequest,
   getPendingPermissions,
   getPermissionStatus,
+  addSessionAllowance,
 } from "../hooks/permission-handler.js";
 import { buildLifecycleRecords } from "../debug/lifecycle-builder.js";
+import { SessionManager } from "../session/session-manager.js";
 import type { SessionEvent } from "../types.js";
 import type { ServerState } from "./server.js";
 import { broadcast } from "./server.js";
@@ -161,6 +164,83 @@ export function setupRoutes(state?: ServerState): Router {
     }
   });
 
+  // List files in session cwd (for @ autocomplete)
+  const IGNORED_DIRS = new Set([
+    "node_modules", ".git", ".hg", ".svn", "__pycache__",
+    ".next", ".nuxt", "dist", ".cache", ".turbo",
+  ]);
+
+  router.get("/sessions/:projectHash/:sessionId/files", (req, res) => {
+    try {
+      const { projectHash, sessionId } = req.params;
+      const prefix = (req.query.prefix as string) ?? "";
+
+      const sessions = discoverSessions();
+      const session = sessions.find(
+        (s) => s.projectHash === projectHash && s.id === sessionId
+      );
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      const cwd = session.cwd;
+      if (!cwd || !existsSync(cwd)) {
+        return res.json({ files: [] });
+      }
+
+      // Split prefix into directory part and name filter
+      // e.g. "src/comp" -> dir="src", filter="comp"
+      // e.g. "src/" -> dir="src", filter=""
+      // e.g. "pack" -> dir="", filter="pack"
+      const lastSlash = prefix.lastIndexOf("/");
+      const dirPart = lastSlash >= 0 ? prefix.slice(0, lastSlash) : "";
+      const filterPart = lastSlash >= 0 ? prefix.slice(lastSlash + 1) : prefix;
+
+      const targetDir = dirPart ? resolve(cwd, dirPart) : cwd;
+
+      // Security: ensure targetDir is within cwd (prevent traversal)
+      // Must append path.sep to prevent sibling directory prefix bypass
+      // e.g. "/home/user/project-secrets".startsWith("/home/user/project") is true
+      const resolvedCwd = resolve(cwd);
+      const resolvedTarget = resolve(targetDir);
+      if (
+        resolvedTarget !== resolvedCwd &&
+        !resolvedTarget.startsWith(resolvedCwd + path.sep)
+      ) {
+        return res.json({ files: [] });
+      }
+
+      if (!existsSync(targetDir)) {
+        return res.json({ files: [] });
+      }
+
+      const entries = readdirSync(targetDir, { withFileTypes: true });
+      const filterLower = filterPart.toLowerCase();
+
+      const files: string[] = [];
+      for (const entry of entries) {
+        if (IGNORED_DIRS.has(entry.name)) continue;
+        if (filterLower && !entry.name.toLowerCase().startsWith(filterLower)) continue;
+
+        const relativePath = dirPart
+          ? `${dirPart}/${entry.name}`
+          : entry.name;
+
+        if (entry.isDirectory()) {
+          files.push(relativePath + "/");
+        } else {
+          files.push(relativePath);
+        }
+
+        if (files.length >= 20) break;
+      }
+
+      res.json({ files });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to list files" });
+    }
+  });
+
   // Get agent events/logs
   router.get(
     "/sessions/:projectHash/:sessionId/events/:agentId",
@@ -218,8 +298,13 @@ export function setupRoutes(state?: ServerState): Router {
   // Approve/deny permission
   router.post("/permissions/:id/decide", (req, res) => {
     try {
-      const { decision } = req.body; // "approved" | "denied"
+      const { decision, scope } = req.body; // decision: "approved" | "denied", scope?: "session"
       const result = resolvePermissionRequest(req.params.id, decision);
+
+      // If scope is "session", add tool to session allowances for auto-approval
+      if (scope === "session" && decision === "approved" && result) {
+        addSessionAllowance(result.sessionId, result.toolName);
+      }
 
       // Also resolve via SessionManager (for promise-based sessions)
       const sessionResolved = state?.sessionManager
@@ -398,6 +483,45 @@ export function setupRoutes(state?: ServerState): Router {
       );
       res.end();
     }
+  });
+
+  // Set model for an active session
+  router.post("/sessions/:sessionId/model", (req, res) => {
+    const { model } = req.body;
+    if (!model || typeof model !== "string") {
+      return res.status(400).json({ error: "model is required (string)" });
+    }
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    const success = sessionManager.setModel(req.params.sessionId, model);
+    if (!success) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    res.json({ success: true, model });
+  });
+
+  // Set permission mode for an active session
+  router.post("/sessions/:sessionId/permission-mode", (req, res) => {
+    const { mode } = req.body;
+    if (!mode || typeof mode !== "string") {
+      return res.status(400).json({ error: "mode is required" });
+    }
+
+    if (!SessionManager.isValidPermissionMode(mode)) {
+      return res.status(400).json({ error: `Invalid mode: ${mode}. Must be one of: default, acceptEdits, plan` });
+    }
+
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    const success = sessionManager.setPermissionMode(req.params.sessionId, mode);
+    if (!success) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    res.json({ success: true, mode });
   });
 
   // Abort active session streaming

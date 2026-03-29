@@ -6,9 +6,9 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, screen } from "@testing-library/react";
 import { ConversationView } from "./ConversationView";
-import type { UserEvent, AssistantEvent } from "../../lib/types";
+import type { UserEvent, AssistantEvent, PermissionRequest } from "../../lib/types";
 
 function makeUserEvent(text: string, index: number): UserEvent {
   return {
@@ -90,5 +90,66 @@ describe("ConversationView onTurnClick", () => {
     fireEvent.click(turnCards[1]);
 
     expect(onTurnClick).toHaveBeenCalledWith(1);
+  });
+});
+
+describe("ConversationView onDecideSession", () => {
+  function makePermission(overrides?: Partial<PermissionRequest>): PermissionRequest {
+    return {
+      id: "perm-1",
+      sessionId: "sess-1",
+      agentId: "main",
+      toolName: "Bash",
+      input: { command: "echo hello" },
+      timestamp: "2026-01-01T00:00:01Z",
+      status: "pending",
+      ...overrides,
+    };
+  }
+
+  it("passes onDecideSession to PermissionBlock and clicking 'Allow for session' calls it", () => {
+    const onDecideSession = vi.fn();
+    const onPermissionDecide = vi.fn();
+    const permission = makePermission();
+    const events = [
+      makeUserEvent("Prompt", 0),
+      makeAssistantEvent(1),
+    ];
+
+    render(
+      <ConversationView
+        events={events}
+        metrics={null}
+        permissions={[permission]}
+        onPermissionDecide={onPermissionDecide}
+        onDecideSession={onDecideSession}
+      />
+    );
+
+    const sessionBtn = screen.getByRole("button", { name: /allow.*for.*session/i });
+    fireEvent.click(sessionBtn);
+
+    expect(onDecideSession).toHaveBeenCalledWith("perm-1");
+    expect(onPermissionDecide).not.toHaveBeenCalled();
+  });
+
+  it("does not render 'Allow for session' button when onDecideSession is not provided", () => {
+    const onPermissionDecide = vi.fn();
+    const permission = makePermission();
+    const events = [
+      makeUserEvent("Prompt", 0),
+      makeAssistantEvent(1),
+    ];
+
+    render(
+      <ConversationView
+        events={events}
+        metrics={null}
+        permissions={[permission]}
+        onPermissionDecide={onPermissionDecide}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: /allow.*for.*session/i })).toBeNull();
   });
 });

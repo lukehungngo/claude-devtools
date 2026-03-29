@@ -4,18 +4,29 @@ import { isIgnoredStderrWarning } from "../../lib/filterStderrWarnings";
 interface PromptInputProps {
   sessionCwd?: string;
   sessionId?: string;
+  projectHash?: string;
   activeSessionId?: string;
   onSessionStarted?: (sessionId: string) => void;
 }
 
 const SLASH_COMMANDS = [
   { name: "/help",    description: "Show available commands" },
-  { name: "/clear",   description: "Clear the command output" },
+  { name: "/clear",   description: "Clear context (starts new session)" },
   { name: "/compact", description: "Compact the conversation context" },
   { name: "/cost",    description: "Show session cost summary" },
   { name: "/model",   description: "Show current model info" },
   { name: "/exit",    description: "Exit the current session" },
 ] as const;
+
+/** Commands that are forwarded to the server rather than handled client-side */
+const SERVER_FORWARDED_COMMANDS = new Set(["/compact", "/clear"]);
+
+/** Model name shortcuts for /model command */
+const MODEL_SHORTCUTS: Record<string, string> = {
+  opus: "claude-opus-4-6",
+  sonnet: "claude-sonnet-4-6",
+  haiku: "claude-haiku-4-5-20251001",
+};
 
 type SlashCommand = typeof SLASH_COMMANDS[number];
 
@@ -34,8 +45,6 @@ function getCommandOutput(command: string): string {
       return "Available commands: /help, /clear, /compact, /cost, /model, /exit";
     case "/clear":
       return "";
-    case "/compact":
-      return "Compact is handled automatically by Claude Code in the active session.";
     case "/cost":
       return "View session costs in the TopBar metrics.";
     case "/model":
@@ -47,7 +56,23 @@ function getCommandOutput(command: string): string {
   }
 }
 
-export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionStarted }: PromptInputProps) {
+/**
+ * Extract the @ mention prefix from text.
+ * Returns the text after the last `@` if it looks like a file path mention,
+ * or null if no active @ mention is detected.
+ */
+function getAtMentionPrefix(text: string): string | null {
+  const lastAt = text.lastIndexOf("@");
+  if (lastAt < 0) return null;
+  // @ must be at start or preceded by a space
+  if (lastAt > 0 && text[lastAt - 1] !== " ") return null;
+  const after = text.slice(lastAt + 1);
+  // If there's a space after the prefix, the mention is "closed"
+  if (after.includes(" ")) return null;
+  return after;
+}
+
+export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionId, onSessionStarted }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
   const [sseStatus, setSseStatus] = useState<"idle" | "streaming" | "error">("idle");
@@ -58,8 +83,43 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionS
   const abortRef = useRef<AbortController | null>(null);
   const outputTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // @ file autocomplete state
+  const [fileResults, setFileResults] = useState<string[]>([]);
+  const [selectedFileIndex, setSelectedFileIndex] = useState(-1);
+  const [fileDismissed, setFileDismissed] = useState(false);
+  const fileDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const atPrefix = getAtMentionPrefix(prompt);
+  const fileDropdownVisible = !fileDismissed && fileResults.length > 0 && atPrefix !== null;
+
+  // Debounced file fetch when @ prefix changes
+  useEffect(() => {
+    if (atPrefix === null || !projectHash || !sessionId) {
+      setFileResults([]);
+      return;
+    }
+
+    if (fileDebounceRef.current) clearTimeout(fileDebounceRef.current);
+    fileDebounceRef.current = setTimeout(() => {
+      const encoded = encodeURIComponent(atPrefix);
+      fetch(`/api/sessions/${projectHash}/${sessionId}/files?prefix=${encoded}`)
+        .then((r) => r.json())
+        .then((data: { files?: string[] }) => {
+          setFileResults(data.files ?? []);
+          setSelectedFileIndex(-1);
+        })
+        .catch(() => {
+          setFileResults([]);
+        });
+    }, 200);
+
+    return () => {
+      if (fileDebounceRef.current) clearTimeout(fileDebounceRef.current);
+    };
+  }, [atPrefix, projectHash, sessionId]);
+
   const filteredCommands = getFilteredCommands(prompt);
-  const dropdownVisible = filteredCommands.length > 0 && !dropdownDismissed;
+  const dropdownVisible = filteredCommands.length > 0 && !dropdownDismissed && !fileDropdownVisible;
 
   const adjustFocus = useCallback(() => {
     inputRef.current?.focus();
@@ -91,13 +151,69 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionS
     }
     setSelectedCmdIndex(-1);
     setDropdownDismissed(false);
+    setFileResults([]);
+    setFileDismissed(false);
 
-    // Client-side slash command handling — all slash commands handled locally
+    // Client-side slash command handling
     const trimmed = currentPrompt.trimStart();
     if (trimmed.startsWith("/")) {
       const command = trimmed.split(/\s+/)[0];
-      showOutput(getCommandOutput(command));
-      return;
+
+      // /compact is sent as a message to the SDK (supports optional focus text)
+      if (command === "/compact") {
+        // Fall through to the message-sending path below
+      } else if (command === "/clear") {
+        try {
+          const res = await fetch("/api/sessions/new", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cwd: sessionCwd || "/" }),
+          });
+          const data = await res.json();
+          if (data.sessionId) {
+            onSessionStarted?.(data.sessionId);
+          }
+        } catch {
+          showOutput("Failed to start new session.");
+        }
+        return;
+      } else if (command === "/model") {
+        const parts = trimmed.split(/\s+/);
+        const modelArg = parts[1]?.trim();
+
+        if (!modelArg) {
+          showOutput("Current model: default (use /model opus|sonnet|haiku to switch)");
+          return;
+        }
+
+        const resolvedModel = MODEL_SHORTCUTS[modelArg.toLowerCase()] || modelArg;
+        const targetId = activeSessionId || sessionId;
+
+        if (!targetId) {
+          showOutput("No active session. Start or resume a session first.");
+          return;
+        }
+
+        try {
+          const res = await fetch(`/api/sessions/${targetId}/model`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model: resolvedModel }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            showOutput(`Model switched to ${data.model}`);
+          } else {
+            showOutput(`Failed to switch model: ${data.error || "unknown error"}`);
+          }
+        } catch {
+          showOutput("Failed to switch model.");
+        }
+        return;
+      } else {
+        showOutput(getCommandOutput(command));
+        return;
+      }
     }
 
     setRunning(true);
@@ -107,14 +223,9 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionS
 
     setSseStatus("streaming");
     try {
-      // Determine which session to send the prompt to:
-      // 1. If we have an activeSessionId (started/resumed from web UI), use it
-      // 2. If we have a viewed sessionId, resume it via the session API
-      // 3. Otherwise, start a new session first
       let targetSessionId = activeSessionId;
 
       if (!targetSessionId && sessionId) {
-        // Resume the viewed session
         try {
           await fetch(`/api/sessions/${sessionId}/resume`, {
             method: "POST",
@@ -129,7 +240,6 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionS
       }
 
       if (!targetSessionId) {
-        // Start a new session
         try {
           const newRes = await fetch("/api/sessions/new", {
             method: "POST",
@@ -185,7 +295,6 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionS
             if (data.type === "stderr" && isIgnoredStderrWarning(data.text as string)) {
               continue;
             }
-            // Consume SSE events — real-time view shows them via WebSocket
             if (data.type === "result") {
               setSseStatus("idle");
             }
@@ -202,7 +311,6 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionS
     } finally {
       abortRef.current = null;
       setRunning(false);
-      // Reset status after a brief delay for error visibility
       setTimeout(() => setSseStatus("idle"), 2000);
     }
   }
@@ -214,7 +322,53 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionS
     inputRef.current?.focus();
   }
 
+  function selectFile(filePath: string) {
+    // Replace @prefix with @filePath in the prompt
+    const lastAt = prompt.lastIndexOf("@");
+    if (lastAt >= 0) {
+      const before = prompt.slice(0, lastAt);
+      setPrompt(before + "@" + filePath + " ");
+    }
+    setFileResults([]);
+    setSelectedFileIndex(-1);
+    setFileDismissed(false);
+    inputRef.current?.focus();
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // File autocomplete keyboard navigation
+    if (fileDropdownVisible) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedFileIndex((prev) =>
+          prev < fileResults.length - 1 ? prev + 1 : 0
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedFileIndex((prev) =>
+          prev > 0 ? prev - 1 : fileResults.length - 1
+        );
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        e.preventDefault();
+        const idx = selectedFileIndex >= 0 ? selectedFileIndex : 0;
+        if (fileResults[idx]) {
+          selectFile(fileResults[idx]);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSelectedFileIndex(-1);
+        setFileDismissed(true);
+        return;
+      }
+    }
+
+    // Slash command keyboard navigation
     if (dropdownVisible) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -232,6 +386,14 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionS
       }
       if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
         e.preventDefault();
+        const trimmedPrompt = prompt.trimStart().toLowerCase();
+        const exactMatch = filteredCommands.length === 1 &&
+          filteredCommands[0].name.toLowerCase() === trimmedPrompt &&
+          SERVER_FORWARDED_COMMANDS.has(filteredCommands[0].name);
+        if (exactMatch && e.key === "Enter") {
+          submitPrompt();
+          return;
+        }
         const idx = selectedCmdIndex >= 0 ? selectedCmdIndex : 0;
         if (filteredCommands[idx]) {
           selectCommand(filteredCommands[idx]);
@@ -265,6 +427,7 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionS
   return (
     <div className="conv-input-wrap px-4 pt-2.5 pb-3.5 border-t border-dt-border bg-dt-bg1 shrink-0">
       <div className="conv-input-box relative flex items-center gap-2 bg-dt-bg2 border border-dt-border rounded-xl px-4 py-3 transition-colors">
+        {/* Slash command dropdown */}
         {dropdownVisible && (
           <div className="absolute bottom-full left-0 right-0 mb-1 bg-dt-bg3 border border-dt-border rounded-xl overflow-hidden shadow-lg z-50">
             {filteredCommands.map((cmd, i) => (
@@ -284,6 +447,26 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionS
             ))}
           </div>
         )}
+        {/* File autocomplete dropdown */}
+        {fileDropdownVisible && (
+          <div className="absolute bottom-full left-0 right-0 mb-1 bg-dt-bg3 border border-dt-border rounded-xl overflow-hidden shadow-lg z-50">
+            {fileResults.map((file, i) => (
+              <div
+                key={file}
+                data-testid="file-option"
+                className={`flex items-center gap-2 px-4 py-2 cursor-pointer text-sm transition-colors ${
+                  i === selectedFileIndex ? "bg-dt-accent-dim" : ""
+                }`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectFile(file);
+                }}
+              >
+                <span className="text-dt-text1 font-mono">{file}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <textarea
           ref={inputRef}
           value={prompt}
@@ -292,6 +475,7 @@ export function PromptInput({ sessionCwd, sessionId, activeSessionId, onSessionS
             setPrompt(e.target.value);
             setSelectedCmdIndex(-1);
             setDropdownDismissed(false);
+            setFileDismissed(false);
             if (commandOutput) setCommandOutput(null);
           }}
           onKeyDown={handleKeyDown}
