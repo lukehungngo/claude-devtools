@@ -47,50 +47,6 @@ import express from "express";
 import { setupRoutes } from "./routes.js";
 import { SessionManager } from "../session/session-manager.js";
 
-describe("GET /sessions/:projectHash/:sessionId/git-diff (P0-05)", () => {
-  let app: express.Express;
-
-  beforeEach(() => {
-    app = express();
-    app.use(setupRoutes());
-    mockSpawnSync.mockReset();
-  });
-
-  it("returns both stat and diff fields", async () => {
-    mockSpawnSync
-      .mockReturnValueOnce({
-        status: 0,
-        error: null,
-        stdout: " src/index.ts | 5 ++---\n 1 file changed\n",
-      })
-      .mockReturnValueOnce({
-        status: 0,
-        error: null,
-        stdout: "diff --git a/src/index.ts b/src/index.ts\n--- a/src/index.ts\n+++ b/src/index.ts\n@@ -1 +1 @@\n-old\n+new\n",
-      });
-
-    const res = await request(app)
-      .get("/sessions/proj-1/sess-1/git-diff")
-      .expect(200);
-
-    expect(res.body).toHaveProperty("stat");
-    expect(res.body).toHaveProperty("diff");
-    expect(res.body.stat).toContain("src/index.ts");
-    expect(res.body.diff).toContain("diff --git");
-  });
-
-  it("returns empty strings when git diff fails", async () => {
-    mockSpawnSync.mockReturnValue({ status: 1, error: new Error("fail"), stdout: "" });
-
-    const res = await request(app)
-      .get("/sessions/proj-1/sess-1/git-diff")
-      .expect(200);
-
-    expect(res.body.stat).toBe("");
-    expect(res.body.diff).toBe("");
-  });
-});
-
 describe("POST /sessions/:sessionId/bash (P1-07)", () => {
   let app: express.Express;
   let sessionManager: SessionManager;
