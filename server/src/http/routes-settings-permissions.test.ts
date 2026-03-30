@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFile, writeFile, access, mkdir } from "node:fs/promises";
 
 // Mock child_process before importing routes
 vi.mock("child_process", () => ({
@@ -20,6 +21,14 @@ vi.mock("node:fs", async (importOriginal) => {
     statSync: vi.fn(() => ({ isDirectory: () => true })),
   };
 });
+
+// Mock node:fs/promises for async route handlers
+vi.mock("node:fs/promises", () => ({
+  readFile: vi.fn(async () => ""),
+  writeFile: vi.fn(async () => undefined),
+  access: vi.fn(async () => { throw new Error("ENOENT"); }),
+  mkdir: vi.fn(async () => undefined),
+}));
 
 // Mock all heavy dependencies that routes.ts imports
 vi.mock("../parser/session-discovery.js", () => ({
@@ -60,6 +69,9 @@ const mockExistsSync = existsSync as unknown as ReturnType<typeof vi.fn>;
 const mockReadFileSync = readFileSync as unknown as ReturnType<typeof vi.fn>;
 const mockWriteFileSync = writeFileSync as unknown as ReturnType<typeof vi.fn>;
 const mockMkdirSync = mkdirSync as unknown as ReturnType<typeof vi.fn>;
+const mockReadFile = readFile as unknown as ReturnType<typeof vi.fn>;
+const mockWriteFile = writeFile as unknown as ReturnType<typeof vi.fn>;
+const mockMkdir = mkdir as unknown as ReturnType<typeof vi.fn>;
 
 describe("GET /settings/permissions", () => {
   let app: express.Express;
@@ -71,7 +83,7 @@ describe("GET /settings/permissions", () => {
   });
 
   it("returns empty arrays when settings.json does not exist", async () => {
-    mockExistsSync.mockReturnValue(false);
+    mockReadFile.mockRejectedValue(new Error("ENOENT"));
 
     const res = await request(app).get("/settings/permissions");
     expect(res.status).toBe(200);
@@ -79,7 +91,6 @@ describe("GET /settings/permissions", () => {
   });
 
   it("returns permissions from settings.json", async () => {
-    mockExistsSync.mockReturnValue(true);
     const mockSettings = {
       permissions: {
         allow: ["Read(*)", "Bash(npm test)"],
@@ -87,7 +98,7 @@ describe("GET /settings/permissions", () => {
         ask: ["Edit(/src/**)"],
       },
     };
-    mockReadFileSync.mockReturnValue(JSON.stringify(mockSettings));
+    mockReadFile.mockResolvedValue(JSON.stringify(mockSettings));
 
     const res = await request(app).get("/settings/permissions");
     expect(res.status).toBe(200);
@@ -99,8 +110,7 @@ describe("GET /settings/permissions", () => {
   });
 
   it("returns empty arrays when no permissions key in settings", async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue(JSON.stringify({ other: "data" }));
+    mockReadFile.mockResolvedValue(JSON.stringify({ other: "data" }));
 
     const res = await request(app).get("/settings/permissions");
     expect(res.status).toBe(200);
@@ -108,8 +118,7 @@ describe("GET /settings/permissions", () => {
   });
 
   it("returns empty arrays when settings.json is invalid JSON", async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue("bad json{");
+    mockReadFile.mockResolvedValue("bad json{");
 
     const res = await request(app).get("/settings/permissions");
     expect(res.status).toBe(200);
@@ -127,8 +136,8 @@ describe("PUT /settings/permissions", () => {
   });
 
   it("writes permissions to settings.json", async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue(JSON.stringify({ model: "opus" }));
+    mockReadFile.mockResolvedValue(JSON.stringify({ model: "opus" }));
+    mockWriteFile.mockResolvedValue(undefined);
 
     const res = await request(app)
       .put("/settings/permissions")
@@ -136,10 +145,10 @@ describe("PUT /settings/permissions", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true });
-    expect(mockWriteFileSync).toHaveBeenCalledTimes(1);
+    expect(mockWriteFile).toHaveBeenCalledTimes(1);
 
     // Verify the written JSON merges with existing
-    const writtenData = JSON.parse(mockWriteFileSync.mock.calls[0][1]);
+    const writtenData = JSON.parse(mockWriteFile.mock.calls[0][1]);
     expect(writtenData.model).toBe("opus");
     expect(writtenData.permissions).toEqual({
       allow: ["Read(*)"],
@@ -149,16 +158,17 @@ describe("PUT /settings/permissions", () => {
   });
 
   it("creates settings.json if it does not exist", async () => {
-    mockExistsSync.mockReturnValue(false);
+    mockReadFile.mockRejectedValue(new Error("ENOENT"));
+    mockWriteFile.mockResolvedValue(undefined);
 
     const res = await request(app)
       .put("/settings/permissions")
       .send({ allow: ["Bash(npm test)"], deny: [], ask: [] });
 
     expect(res.status).toBe(200);
-    expect(mockMkdirSync).toHaveBeenCalled();
-    expect(mockWriteFileSync).toHaveBeenCalledTimes(1);
-    const writtenData = JSON.parse(mockWriteFileSync.mock.calls[0][1]);
+    expect(mockMkdir).toHaveBeenCalled();
+    expect(mockWriteFile).toHaveBeenCalledTimes(1);
+    const writtenData = JSON.parse(mockWriteFile.mock.calls[0][1]);
     expect(writtenData.permissions).toEqual({
       allow: ["Bash(npm test)"],
       deny: [],
@@ -173,7 +183,7 @@ describe("PUT /settings/permissions", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toContain("Invalid rule");
-    expect(mockWriteFileSync).not.toHaveBeenCalled();
+    expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
   it("rejects when body is missing required arrays", async () => {
@@ -182,7 +192,7 @@ describe("PUT /settings/permissions", () => {
       .send({ allow: ["Read(*)"] });
 
     expect(res.status).toBe(400);
-    expect(mockWriteFileSync).not.toHaveBeenCalled();
+    expect(mockWriteFile).not.toHaveBeenCalled();
   });
 });
 
@@ -196,7 +206,7 @@ describe("GET /settings", () => {
   });
 
   it("returns empty settings when file does not exist", async () => {
-    mockExistsSync.mockReturnValue(false);
+    mockReadFile.mockRejectedValue(new Error("ENOENT"));
 
     const res = await request(app).get("/settings");
     expect(res.status).toBe(200);
@@ -204,13 +214,12 @@ describe("GET /settings", () => {
   });
 
   it("returns full settings from settings.json", async () => {
-    mockExistsSync.mockReturnValue(true);
     const mockSettings = {
       model: "claude-opus-4-6",
       permissions: { allow: [], deny: [], ask: [] },
       env: { API_KEY: "abc" },
     };
-    mockReadFileSync.mockReturnValue(JSON.stringify(mockSettings));
+    mockReadFile.mockResolvedValue(JSON.stringify(mockSettings));
 
     const res = await request(app).get("/settings");
     expect(res.status).toBe(200);
@@ -219,8 +228,7 @@ describe("GET /settings", () => {
   });
 
   it("returns empty object for invalid JSON", async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue("broken{");
+    mockReadFile.mockResolvedValue("broken{");
 
     const res = await request(app).get("/settings");
     expect(res.status).toBe(200);
@@ -238,8 +246,8 @@ describe("PUT /settings", () => {
   });
 
   it("updates safe fields only", async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue(JSON.stringify({ hooks: { PreToolUse: [] } }));
+    mockReadFile.mockResolvedValue(JSON.stringify({ hooks: { PreToolUse: [] } }));
+    mockWriteFile.mockResolvedValue(undefined);
 
     const res = await request(app)
       .put("/settings")
@@ -248,7 +256,7 @@ describe("PUT /settings", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true });
 
-    const writtenData = JSON.parse(mockWriteFileSync.mock.calls[0][1]);
+    const writtenData = JSON.parse(mockWriteFile.mock.calls[0][1]);
     expect(writtenData.model).toBe("claude-sonnet-4-6");
     expect(writtenData.env).toEqual({ FOO: "bar" });
     // Existing hooks should be preserved
@@ -256,8 +264,7 @@ describe("PUT /settings", () => {
   });
 
   it("rejects arbitrary fields", async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue(JSON.stringify({}));
+    mockReadFile.mockResolvedValue(JSON.stringify({}));
 
     const res = await request(app)
       .put("/settings")
@@ -265,19 +272,20 @@ describe("PUT /settings", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toContain("not allowed");
-    expect(mockWriteFileSync).not.toHaveBeenCalled();
+    expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
   it("creates settings.json if missing", async () => {
-    mockExistsSync.mockReturnValue(false);
+    mockReadFile.mockRejectedValue(new Error("ENOENT"));
+    mockWriteFile.mockResolvedValue(undefined);
 
     const res = await request(app)
       .put("/settings")
       .send({ model: "claude-opus-4-6" });
 
     expect(res.status).toBe(200);
-    expect(mockMkdirSync).toHaveBeenCalled();
-    expect(mockWriteFileSync).toHaveBeenCalledTimes(1);
+    expect(mockMkdir).toHaveBeenCalled();
+    expect(mockWriteFile).toHaveBeenCalledTimes(1);
   });
 
   it("rejects empty body", async () => {

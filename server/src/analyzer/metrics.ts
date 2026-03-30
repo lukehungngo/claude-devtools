@@ -11,6 +11,7 @@ import type {
 } from "../types.js";
 import { buildAgentDAG } from "./dag-builder.js";
 import { buildToolStats } from "./tool-stats.js";
+import { normalizeContent } from "../lib/normalizeContent.js";
 
 // Pricing per million tokens (March 2026)
 const MODEL_PRICING: Record<
@@ -62,7 +63,7 @@ function extractTasks(events: SessionEvent[]): TaskSummary {
 
   for (const event of events) {
     if (event.type !== "assistant") continue;
-    for (const content of event.message.content) {
+    for (const content of normalizeContent(event.message.content)) {
       if (content.type !== "tool_use") continue;
 
       const input = content.input as Record<string, unknown>;
@@ -114,8 +115,7 @@ function detectRemoteControl(events: SessionEvent[]): boolean {
     }
     // Check for remote-control related events
     if (event.type === "user") {
-      const content = event.message.content;
-      for (const item of content) {
+      for (const item of normalizeContent(event.message.content)) {
         if (item.type === "text" && item.text.includes("/remote-control")) {
           return true;
         }

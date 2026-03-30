@@ -8,6 +8,7 @@ import type {
   ToolUseContent,
 } from "../types.js";
 import { calculateTokenCost } from "./metrics.js";
+import { normalizeContent } from "../lib/normalizeContent.js";
 
 const ACTIVE_THRESHOLD_MS = 30_000; // 30 seconds
 
@@ -40,7 +41,7 @@ export function buildAgentDAG(
   const edgeTargets = new Set<string>();
   for (const event of mainEvents) {
     if (event.type !== "assistant") continue;
-    for (const content of event.message.content) {
+    for (const content of normalizeContent(event.message.content)) {
       if (content.type === "tool_use" && content.name === "Agent") {
         const agentDesc =
           (content.input as Record<string, unknown>).description as string;
@@ -98,7 +99,7 @@ function determineAgentStatus(
   for (let i = events.length - 1; i >= Math.max(0, events.length - 3); i--) {
     const evt = events[i];
     if (evt.type === "user") {
-      for (const content of evt.message.content) {
+      for (const content of normalizeContent(evt.message.content)) {
         if (content.type === "tool_result" && content.is_error) {
           return "error";
         }
@@ -155,7 +156,7 @@ function countToolCalls(events: SessionEvent[]): number {
   let count = 0;
   for (const event of events) {
     if (event.type !== "assistant") continue;
-    for (const content of event.message.content) {
+    for (const content of normalizeContent(event.message.content)) {
       if (content.type === "tool_use") count++;
     }
   }
@@ -166,7 +167,7 @@ function countMcpToolCalls(events: SessionEvent[]): number {
   let count = 0;
   for (const event of events) {
     if (event.type !== "assistant") continue;
-    for (const content of event.message.content) {
+    for (const content of normalizeContent(event.message.content)) {
       if (content.type === "tool_use" && content.name.startsWith("mcp__")) {
         count++;
       }

@@ -358,22 +358,10 @@ function highlightMessage(msg: string): React.ReactNode {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ filePath: text }),
           }).catch(() => {
-            // Silently fail — editor may not be available
+            // Silently fail -- editor may not be available
           });
         }}
-        style={{
-          color: "var(--cyan)",
-          fontFamily: "var(--font)",
-          fontSize: "10px",
-          cursor: "pointer",
-          textDecoration: "none",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLSpanElement).style.textDecoration = "underline";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLSpanElement).style.textDecoration = "none";
-        }}
+        className="text-dt-cyan font-mono text-[10px] cursor-pointer no-underline hover:underline"
         title={text}
       >
         {text}
@@ -640,36 +628,15 @@ export function AgentLogs({
                           return next;
                         });
                       }}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        padding: "8px 14px",
-                        fontSize: "11px",
-                        background: "var(--bg-2)",
-                        borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
-                        cursor: "pointer",
-                        userSelect: "none",
-                        transition: "background 0.15s",
-                      }}
+                      className="flex items-center gap-2 px-3.5 py-2 text-[11px] bg-dt-bg2 border-b border-white/[0.04] cursor-pointer select-none transition-colors duration-150"
                     >
-                      <span style={{
-                        fontSize: "8px",
-                        color: "var(--text-2)",
-                        transition: "transform 0.15s",
-                        transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                      }}>
+                      <span className={`text-[8px] text-dt-text2 transition-transform duration-150 ${isCollapsed ? "-rotate-90" : "rotate-0"}`}>
                         {"\u25BC"}
                       </span>
-                      <span style={{
-                        padding: "1px 6px",
-                        borderRadius: "3px",
-                        fontWeight: 600,
-                        fontSize: "10px",
-                        background: badgeStyle.background,
-                        color: badgeStyle.color,
-                        cursor: "pointer",
-                      }}
+                      {/* Dynamic badge colors must stay inline */}
+                      <span
+                        className="px-1.5 py-px rounded-[3px] font-semibold text-[10px] cursor-pointer"
+                        style={{ background: badgeStyle.background, color: badgeStyle.color }}
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelectAgent(group.agentId);
@@ -677,38 +644,23 @@ export function AgentLogs({
                       >
                         {normalizeAgentTypeLabel(group.agentType)}
                       </span>
-                      <span style={{ color: "var(--text-2)", fontSize: "10px" }}>
+                      <span className="text-dt-text2 text-[10px]">
                         inv #{group.invocationNumber}
                       </span>
-                      <span style={{ color: "var(--text-2)", fontSize: "10px" }}>
+                      <span className="text-dt-text2 text-[10px]">
                         {formatTime(group.startTime)} - {formatTime(group.endTime)}
                       </span>
                       {group.durationMs > 0 && (
-                        <span style={{ color: "var(--text-2)", fontSize: "10px", fontFamily: "var(--font)" }}>
+                        <span className="text-dt-text2 text-[10px] font-mono">
                           {formatDuration(group.durationMs)}
                         </span>
                       )}
                       {group.cost > 0 && (
-                        <span style={{
-                          fontSize: "10px",
-                          padding: "1px 5px",
-                          borderRadius: "3px",
-                          fontWeight: 600,
-                          background: "var(--green-dim)",
-                          color: "var(--green)",
-                          fontFamily: "var(--font)",
-                        }}>
+                        <span className="text-[10px] px-[5px] py-px rounded-[3px] font-semibold bg-dt-green-dim text-dt-green font-mono">
                           {formatCost(group.cost)}
                         </span>
                       )}
-                      <span style={{
-                        fontSize: "10px",
-                        padding: "1px 5px",
-                        borderRadius: "8px",
-                        fontWeight: 600,
-                        background: "var(--bg-4)",
-                        color: "var(--text-2)",
-                      }}>
+                      <span className="text-[10px] px-[5px] py-px rounded-full font-semibold bg-dt-bg4 text-dt-text2">
                         {group.entries.length}
                       </span>
                     </div>
@@ -739,110 +691,52 @@ export function AgentLogs({
                   }}
                 >
                   <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "68px 80px 1fr auto",
-                      gap: "8px",
-                      padding: "8px 14px",
-                      fontSize: "11px",
-                      borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
-                      alignItems: "start",
-                      transition: "background 0.15s",
-                      background: isHighlighted ? "var(--bg-2)" : undefined,
-                    }}
+                    className={`grid grid-cols-[68px_80px_1fr_auto] gap-2 px-3.5 py-2 text-[11px] border-b border-white/[0.04] items-start transition-colors duration-150 ${isHighlighted ? "bg-dt-bg2" : ""}`}
                   >
-                    <div style={{
-                      fontFamily: "var(--font)",
-                      color: "var(--text-2)",
-                      fontSize: "10px",
-                    }}>
+                    <div className="font-mono text-dt-text2 text-[10px]">
                       {formatTime(entry.timestamp)}
                     </div>
+                    {/* Dynamic badge colors must stay inline */}
                     <div
                       onClick={() => onSwitchToGraph?.(entry.agentId)}
-                      style={{
-                        fontFamily: "var(--font)",
-                        fontSize: "10px",
-                        fontWeight: 600,
-                        padding: "1px 6px",
-                        borderRadius: "3px",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        textAlign: "center",
-                        cursor: "pointer",
-                        background: badgeStyle.background,
-                        color: badgeStyle.color,
-                      }}
+                      className="font-mono text-[10px] font-semibold px-1.5 py-px rounded-[3px] whitespace-nowrap overflow-hidden text-ellipsis text-center cursor-pointer"
+                      style={{ background: badgeStyle.background, color: badgeStyle.color }}
                     >
                       {normalizeAgentTypeLabel(entry.agentType)}
                     </div>
                     <div
                       onClick={() => hasMore && toggleExpand(entry.uuid)}
-                      style={{
-                        color: "var(--text-1)",
-                        lineHeight: 1.4,
-                        overflow: "hidden",
-                        textOverflow: isExpanded ? "clip" : "ellipsis",
-                        whiteSpace: isExpanded ? "pre-wrap" : "nowrap",
-                        cursor: hasMore ? "pointer" : "default",
-                        wordBreak: isExpanded ? "break-all" : undefined,
-                        display: "flex",
-                        alignItems: isExpanded ? "flex-start" : "center",
-                        gap: "6px",
-                      }}
+                      className={`text-dt-text1 leading-[1.4] overflow-hidden flex gap-1.5 ${
+                        isExpanded
+                          ? "whitespace-pre-wrap break-all items-start"
+                          : "whitespace-nowrap text-ellipsis items-center"
+                      } ${hasMore ? "cursor-pointer" : "cursor-default"}`}
                     >
-                      <span style={{
-                        overflow: isExpanded ? "visible" : "hidden",
-                        textOverflow: isExpanded ? "clip" : "ellipsis",
-                        flexShrink: isExpanded ? 1 : undefined,
-                      }}>
+                      <span className={isExpanded ? "overflow-visible shrink" : "overflow-hidden text-ellipsis"}>
                         {highlightMessage(displayMessage)}
                       </span>
                       {entry.count > 1 && (
-                        <span style={{
-                          fontSize: "10px",
-                          padding: "1px 5px",
-                          borderRadius: "8px",
-                          fontWeight: 600,
-                          background: "var(--bg-4)",
-                          color: "var(--text-2)",
-                          flexShrink: 0,
-                        }}>
+                        <span className="text-[10px] px-[5px] py-px rounded-full font-semibold bg-dt-bg4 text-dt-text2 shrink-0">
                           x{entry.count}
                         </span>
                       )}
                       {hasMore && !isExpanded && (
-                        <span style={{
-                          fontSize: "9px",
-                          color: "var(--accent)",
-                          flexShrink: 0,
-                          opacity: 0.7,
-                        }}>
-                          ▶
+                        <span className="text-[9px] text-dt-accent shrink-0 opacity-70">
+                          {"\u25B6"}
                         </span>
                       )}
                       {isExpanded && (
-                        <span style={{
-                          fontSize: "9px",
-                          color: "var(--accent)",
-                          flexShrink: 0,
-                          opacity: 0.7,
-                        }}>
-                          ▼
+                        <span className="text-[9px] text-dt-accent shrink-0 opacity-70">
+                          {"\u25BC"}
                         </span>
                       )}
                     </div>
+                    {/* Dynamic action badge colors must stay inline */}
                     {entry.toolName && (
-                      <div style={{
-                        fontSize: "10px",
-                        padding: "1px 5px",
-                        borderRadius: "3px",
-                        whiteSpace: "nowrap",
-                        fontWeight: 600,
-                        background: actionStyle.background,
-                        color: actionStyle.color,
-                      }}>
+                      <div
+                        className="text-[10px] px-[5px] py-px rounded-[3px] whitespace-nowrap font-semibold"
+                        style={{ background: actionStyle.background, color: actionStyle.color }}
+                      >
                         {actionStyle.label}
                       </div>
                     )}

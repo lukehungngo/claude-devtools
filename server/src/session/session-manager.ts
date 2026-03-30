@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PermissionResult, PermissionUpdate, Query, RewindFilesResult } from "@anthropic-ai/claude-agent-sdk";
+import type { PermissionResult, PermissionUpdate, Query, RewindFilesResult, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import { sessionLog } from "../logger.js";
 
 /** Subset of the canUseTool options parameter we forward to the dashboard */
@@ -149,9 +149,9 @@ export class SessionManager {
           forkSession: false,
           includePartialMessages: true,
           enableFileCheckpointing: true,
-          // Cast needed: our PermissionMode includes 'auto' which the SDK type may not yet define
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          permissionMode: session.permissionMode as any,
+          // Our PermissionMode includes 'auto' which the SDK type omits.
+          // Cast through unknown to SdkPermissionMode for SDK compatibility.
+          permissionMode: session.permissionMode as unknown as SdkPermissionMode,
           ...(session.permissionMode === "bypassPermissions" ? { allowDangerouslySkipPermissions: true } : {}),
           ...(session.model ? { model: session.model } : {}),
           ...(session.effortLevel ? { effort: session.effortLevel } : {}),
@@ -256,8 +256,8 @@ export class SessionManager {
 
     // If streaming, call SDK method for immediate mid-session effect
     if (session.activeQuery?.setPermissionMode) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      session.activeQuery.setPermissionMode(mode as any).catch((err) => {
+      // Our PermissionMode includes 'auto' which SDK omits -- cast through unknown
+      session.activeQuery.setPermissionMode(mode as unknown as SdkPermissionMode).catch((err: unknown) => {
         sessionLog.warn({ sessionId, error: String(err) }, "SDK setPermissionMode failed");
       });
     }

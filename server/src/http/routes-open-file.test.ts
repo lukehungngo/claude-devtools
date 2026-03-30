@@ -14,8 +14,9 @@ import * as path from "node:path";
  * existing absolute-path check but still injects into the shell command.
  */
 describe("POST /open-file — shell metacharacter sanitization (P2b)", () => {
+  // The /open-file route handler was extracted to routes/session-routes.ts
   const routesSource = fs.readFileSync(
-    path.resolve(import.meta.dirname, "routes.ts"),
+    path.resolve(import.meta.dirname, "routes", "session-routes.ts"),
     "utf-8"
   );
 

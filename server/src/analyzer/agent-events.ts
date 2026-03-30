@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import type { SessionInfo, AgentLogEntry, SessionEvent, ContentItem } from "../types.js";
 import { parseJsonlFile } from "../parser/jsonl-reader.js";
+import { normalizeContent } from "../lib/normalizeContent.js";
 
 function getContentPreview(content: ContentItem[]): string {
   for (const item of content) {
@@ -14,7 +15,8 @@ function getContentPreview(content: ContentItem[]): string {
     }
     if (item.type === "tool_result") {
       const prefix = item.is_error ? "[ERROR] " : "";
-      return `${prefix}${item.content.slice(0, 100).replace(/\n/g, " ")}`;
+      const raw = typeof item.content === "string" ? item.content : JSON.stringify(item.content);
+      return `${prefix}${raw.slice(0, 100).replace(/\n/g, " ")}`;
     }
     if (item.type === "thinking") {
       return `[thinking] ${item.thinking.slice(0, 100).replace(/\n/g, " ")}`;
@@ -27,7 +29,7 @@ function eventToLogEntry(event: SessionEvent, agentId: string): AgentLogEntry {
   let contentPreview = "";
 
   if (event.type === "user" || event.type === "assistant") {
-    contentPreview = getContentPreview(event.message.content);
+    contentPreview = getContentPreview(normalizeContent(event.message.content));
   } else if (event.type === "progress") {
     contentPreview = event.data?.type || "progress";
   } else if (event.type === "queue-operation") {

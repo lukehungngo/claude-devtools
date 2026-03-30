@@ -1,4 +1,5 @@
 import type { SessionEvent, ToolCallStat } from "../types.js";
+import { normalizeContent } from "../lib/normalizeContent.js";
 
 export function buildToolStats(events: SessionEvent[]): ToolCallStat[] {
   const stats = new Map<string, { count: number; errors: number }>();
@@ -7,7 +8,7 @@ export function buildToolStats(events: SessionEvent[]): ToolCallStat[] {
   // Collect tool_use calls
   for (const event of events) {
     if (event.type !== "assistant") continue;
-    for (const content of event.message.content) {
+    for (const content of normalizeContent(event.message.content)) {
       if (content.type === "tool_use") {
         toolUseIds.set(content.id, content.name);
         const existing = stats.get(content.name) || { count: 0, errors: 0 };
@@ -20,7 +21,7 @@ export function buildToolStats(events: SessionEvent[]): ToolCallStat[] {
   // Match tool_results for error tracking
   for (const event of events) {
     if (event.type !== "user") continue;
-    for (const content of event.message.content) {
+    for (const content of normalizeContent(event.message.content)) {
       if (content.type === "tool_result" && content.is_error) {
         const toolName = toolUseIds.get(content.tool_use_id);
         if (toolName) {

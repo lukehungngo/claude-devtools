@@ -1,33 +1,15 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type ClipboardEvent as ReactClipboardEvent } from "react";
 import { isIgnoredStderrWarning } from "../../lib/filterStderrWarnings";
-import { formatCostCommand, formatUsageCommand, formatDiffCommand, formatMcpCommand, formatTasksCommand, formatAnalyticsCommand, formatContextCommand, formatPermissionsCommand } from "../../lib/commandFormatters";
 import { computeSuggestion } from "./promptSuggestions";
-import { generateMarkdownExport, generateJsonExport, triggerDownload } from "../../lib/exportSession";
 import { useDiscoveryCommands } from "../../hooks/useDiscovery";
+import { useCommandHistory } from "../../hooks/useCommandHistory";
+import { handleSlashCommand, SERVER_FORWARDED_COMMANDS } from "../../lib/slashCommandHandler";
 import type { SessionMetrics, UsageInfo, CostSummary, SessionEvent } from "../../lib/types";
 
 interface ImageAttachment {
   type: "image";
   dataUrl: string;
   name: string;
-}
-
-const HISTORY_KEY = "promptHistory";
-const HISTORY_MAX = 50;
-
-function loadHistory(): string[] {
-  try {
-    const raw = sessionStorage.getItem(HISTORY_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveHistory(history: string[]): void {
-  sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history));
 }
 
 interface PromptInputProps {
@@ -60,15 +42,6 @@ interface PromptInputProps {
   onStreamingReset?: () => void;
 }
 
-/** Commands that are forwarded to the server rather than handled client-side */
-const SERVER_FORWARDED_COMMANDS = new Set(["/compact", "/clear", "/rewind"]);
-
-/** Model name shortcuts for /model command */
-const MODEL_SHORTCUTS: Record<string, string> = {
-  opus: "claude-opus-4-6",
-  sonnet: "claude-sonnet-4-6",
-  haiku: "claude-haiku-4-5-20251001",
-};
 
 interface SlashCommand {
   name: string;
@@ -84,22 +57,6 @@ function getFilteredCommands(prompt: string, commands: SlashCommand[]): SlashCom
   ).slice(0, 8);
 }
 
-function getCommandOutput(command: string): string {
-  switch (command) {
-    case "/help":
-      return "Available commands: /help, /clear, /compact, /context, /copy, /cost, /diff, /doctor, /effort, /export, /fast, /hooks, /init, /mcp, /memory, /model, /permissions, /plan, /rename, /rewind, /settings, /shortcuts, /stats, /tasks, /analytics, /usage, /exit";
-    case "/clear":
-      return "";
-    case "/cost":
-      return "View session costs in the TopBar metrics.";
-    case "/model":
-      return "Model configuration is set in your Claude Code settings.";
-    case "/exit":
-      return "To exit, close this session or select another in the sidebar.";
-    default:
-      return `Unknown command: ${command}`;
-  }
-}
 
 /**
  * Extract the @ mention prefix from text.
@@ -124,10 +81,8 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
   // Dynamic slash command discovery (P1-06)
   const discoveredCommands = useDiscoveryCommands(activeSessionId || sessionId);
 
-  // Command history state (T2-07)
-  const [history, setHistory] = useState<string[]>(() => loadHistory());
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const draftRef = useRef("");
+  // Command history (T2-07)
+  const { history, historyIndex, addToHistory, navigateUp, navigateDown, resetNavigation } = useCommandHistory();
   const [sseStatus, setSseStatus] = useState<"idle" | "streaming" | "error">("idle");
   const [sseError, setSseError] = useState<string | null>(null);
   const [selectedCmdIndex, setSelectedCmdIndex] = useState(-1);
@@ -237,14 +192,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
     setImageAttachments([]);
 
     // Save to command history (T2-07)
-    setHistory((prev) => {
-      const next = [...prev, currentPrompt];
-      const trimmed = next.length > HISTORY_MAX ? next.slice(next.length - HISTORY_MAX) : next;
-      saveHistory(trimmed);
-      return trimmed;
-    });
-    setHistoryIndex(-1);
-    draftRef.current = "";
+    addToHistory(currentPrompt);
 
     // ! bash mode: execute shell command directly (P1-07)
     const trimmed = currentPrompt.trimStart();
@@ -290,339 +238,21 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
 
     // Client-side slash command handling
     if (trimmed.startsWith("/")) {
-      const command = trimmed.split(/\s+/)[0];
-
-      // /compact and /rewind are sent as messages to the SDK (handled natively by Claude Code)
-      if (command === "/compact" || command === "/rewind") {
-        // Fall through to the message-sending path below
-      } else if (command === "/clear") {
-        try {
-          const res = await fetch("/api/sessions/new", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cwd: sessionCwd || "/" }),
-          });
-          const data = await res.json();
-          if (data.sessionId) {
-            onSessionStarted?.(data.sessionId);
-          }
-        } catch {
-          showOutput("Failed to start new session.");
-        }
-        return;
-      } else if (command === "/copy") {
-        const parts = trimmed.split(/\s+/);
-        const countArg = parts[1] ? parseInt(parts[1], 10) : 1;
-        const count = isNaN(countArg) || countArg < 1 ? 1 : countArg;
-
-        if (!getAssistantResponses) {
-          showOutput("No responses to copy.");
-          return;
-        }
-
-        const responses = getAssistantResponses(count);
-        if (responses.length === 0) {
-          showOutput("No responses to copy.");
-          return;
-        }
-
-        const text = responses.join("\n\n---\n\n");
-        navigator.clipboard.writeText(text).then(
-          () => showOutput(`Copied ${responses.length} response${responses.length !== 1 ? "s" : ""} to clipboard`),
-          () => showOutput("Failed to copy to clipboard.")
-        );
-        return;
-      } else if (command === "/cost") {
-        showOutput(formatCostCommand(metrics ?? null));
-        return;
-      } else if (command === "/diff") {
-        const result = await formatDiffCommand(projectHash, sessionId);
-        showOutput(result);
-        return;
-      } else if (command === "/mcp") {
-        onOpenPanel?.("mcp");
-        showOutput(formatMcpCommand(metrics ?? null));
-        return;
-      } else if (command === "/context") {
-        showOutput(formatContextCommand(metrics ?? null));
-        return;
-      } else if (command === "/permissions") {
-        onOpenPanel?.("permissions");
-        const targetId = activeSessionId || sessionId;
-        if (!targetId) {
-          showOutput(formatPermissionsCommand(null));
-          return;
-        }
-        try {
-          const res = await fetch(`/api/sessions/${targetId}/permissions-info`);
-          const data = await res.json();
-          showOutput(formatPermissionsCommand(data));
-        } catch {
-          showOutput(formatPermissionsCommand(null));
-        }
-        return;
-      } else if (command === "/usage") {
-        showOutput(formatUsageCommand(usage ?? null));
-        return;
-      } else if (command === "/fast") {
-        const parts = trimmed.split(/\s+/);
-        const arg = parts[1]?.toLowerCase();
-        const targetId = activeSessionId || sessionId;
-
-        if (!targetId) {
-          showOutput("No active session. Start or resume a session first.");
-          return;
-        }
-
-        // Determine enabled value: "on" -> true, "off" -> false, no arg -> toggle (send true as default)
-        const enabled = arg === "off" ? false : true;
-
-        try {
-          const res = await fetch(`/api/sessions/${targetId}/fast`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ enabled }),
-          });
-          const data = await res.json();
-          if (data.success) {
-            showOutput(`Fast mode ${data.fastMode ? "enabled" : "disabled"}`);
-          } else {
-            showOutput(`Failed to set fast mode: ${data.error || "unknown error"}`);
-          }
-        } catch {
-          showOutput("Failed to set fast mode.");
-        }
-        return;
-      } else if (command === "/effort") {
-        const parts = trimmed.split(/\s+/);
-        const levelArg = parts[1]?.toLowerCase();
-        const validLevels = new Set(["low", "medium", "high"]);
-
-        if (!levelArg) {
-          showOutput("Usage: /effort low | medium | high (sets effort level for the session)");
-          return;
-        }
-
-        if (!validLevels.has(levelArg)) {
-          showOutput("Invalid effort level. Use: /effort low | medium | high");
-          return;
-        }
-
-        const targetId = activeSessionId || sessionId;
-        if (!targetId) {
-          showOutput("No active session. Start or resume a session first.");
-          return;
-        }
-
-        try {
-          const res = await fetch(`/api/sessions/${targetId}/effort`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ level: levelArg }),
-          });
-          const data = await res.json();
-          if (data.success) {
-            showOutput(`Effort level set to ${data.effortLevel}`);
-          } else {
-            showOutput(`Failed to set effort level: ${data.error || "unknown error"}`);
-          }
-        } catch {
-          showOutput("Failed to set effort level.");
-        }
-        return;
-      } else if (command === "/plan") {
-        const parts = trimmed.split(/\s+/);
-        const arg = parts[1]?.toLowerCase();
-        const targetId = activeSessionId || sessionId;
-
-        if (!targetId) {
-          showOutput("No active session. Start or resume a session first.");
-          return;
-        }
-
-        const mode = arg === "off" ? "default" : "plan";
-
-        try {
-          const res = await fetch(`/api/sessions/${targetId}/permission-mode`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mode }),
-          });
-          const data = await res.json();
-          if (data.success) {
-            const label = data.mode === "plan" ? "Plan" : "Default";
-            showOutput(`Switched to ${label} mode${data.mode === "plan" ? " (read-only)" : ""}`);
-          } else {
-            showOutput(`Failed to switch mode: ${data.error || "unknown error"}`);
-          }
-        } catch {
-          showOutput("Failed to switch permission mode.");
-        }
-        return;
-      } else if (command === "/rename") {
-        const parts = trimmed.split(/\s+/);
-        const newName = parts.slice(1).join(" ").trim();
-
-        if (!newName) {
-          showOutput("Usage: /rename <new name> (renames the current session)");
-          return;
-        }
-
-        const targetId = activeSessionId || sessionId;
-        if (!targetId) {
-          showOutput("No active session to rename.");
-          return;
-        }
-
-        try {
-          const res = await fetch(`/api/sessions/${targetId}/rename`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title: newName }),
-          });
-          const data = await res.json();
-          if (data.success) {
-            // Also persist in localStorage for immediate UI display
-            const SESSION_NAMES_KEY = "session-names";
-            const raw = localStorage.getItem(SESSION_NAMES_KEY);
-            const names: Record<string, string> = raw ? JSON.parse(raw) : {};
-            names[targetId] = data.title;
-            localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names));
-            showOutput(`Session renamed to "${data.title}"`);
-          } else {
-            showOutput(`Failed to rename: ${data.error || "unknown error"}`);
-          }
-        } catch {
-          showOutput("Failed to rename session.");
-        }
-        return;
-      } else if (command === "/tasks") {
-        showOutput(formatTasksCommand(metrics ?? null));
-        return;
-      } else if (command === "/analytics") {
-        showOutput(formatAnalyticsCommand(costs ?? null));
-        return;
-      } else if (command === "/export") {
-        const parts = trimmed.split(/\s+/);
-        const format = parts[1]?.toLowerCase() || "md";
-
-        if (format !== "md" && format !== "json") {
-          showOutput("Usage: /export md | json");
-          return;
-        }
-
-        const exportEvents = events ?? [];
-        const sid = sessionId || "unknown";
-
-        if (exportEvents.length === 0) {
-          showOutput("No conversation to export.");
-          return;
-        }
-
-        if (format === "md") {
-          const content = generateMarkdownExport(exportEvents, sid);
-          triggerDownload(content, `session-${sid}.md`, "text/markdown");
-          showOutput("Exported conversation as Markdown");
-        } else {
-          const content = generateJsonExport(exportEvents, sid);
-          triggerDownload(content, `session-${sid}.json`, "application/json");
-          showOutput("Exported conversation as JSON");
-        }
-        return;
-      } else if (command === "/shortcuts") {
-        const isMac = typeof navigator !== "undefined" && navigator.platform?.includes("Mac");
-        const mod = isMac ? "Cmd" : "Ctrl";
-        showOutput(
-          `Keyboard Shortcuts:\n` +
-          `  ${mod}+L          Clear conversation\n` +
-          `  ${mod}+Shift+K    Compact context\n` +
-          `  ${mod}+F          Search turns\n` +
-          `  Escape            Close modal / dismiss\n` +
-          `  Shift+Tab         Cycle permission mode\n` +
-          `  Enter             Send message\n` +
-          `  Shift+Enter       New line in input\n` +
-          `  Up Arrow          Previous prompt history`
-        );
-        return;
-      } else if (command === "/doctor") {
-        onOpenPanel?.("doctor");
-        showOutput("Opening diagnostics panel...");
-        return;
-      } else if (command === "/stats") {
-        onOpenPanel?.("stats");
-        showOutput("Opening statistics panel...");
-        return;
-      } else if (command === "/settings") {
-        onOpenPanel?.("settings");
-        showOutput("Opening settings panel...");
-        return;
-      } else if (command === "/hooks") {
-        onOpenPanel?.("hooks");
-        showOutput("Opening hooks panel...");
-        return;
-      } else if (command === "/memory") {
-        onOpenPanel?.("memory");
-        showOutput("Opening memory panel...");
-        return;
-      } else if (command === "/init") {
-        const targetId = activeSessionId || sessionId;
-        if (!targetId) {
-          showOutput("No active session. Start or resume a session first.");
-          return;
-        }
-        try {
-          const res = await fetch(`/api/sessions/${targetId}/init`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          });
-          const data = await res.json();
-          if (data.created) {
-            showOutput("CLAUDE.md created successfully.");
-          } else {
-            showOutput(data.message || "CLAUDE.md already exists.");
-          }
-        } catch {
-          showOutput("Failed to initialize CLAUDE.md.");
-        }
-        return;
-      } else if (command === "/model") {
-        const parts = trimmed.split(/\s+/);
-        const modelArg = parts[1]?.trim();
-
-        if (!modelArg) {
-          showOutput("Current model: default (use /model opus|sonnet|haiku to switch)");
-          return;
-        }
-
-        const resolvedModel = MODEL_SHORTCUTS[modelArg.toLowerCase()] || modelArg;
-        const targetId = activeSessionId || sessionId;
-
-        if (!targetId) {
-          showOutput("No active session. Start or resume a session first.");
-          return;
-        }
-
-        try {
-          const res = await fetch(`/api/sessions/${targetId}/model`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ model: resolvedModel }),
-          });
-          const data = await res.json();
-          if (data.success) {
-            showOutput(`Model switched to ${data.model}`);
-          } else {
-            showOutput(`Failed to switch model: ${data.error || "unknown error"}`);
-          }
-        } catch {
-          showOutput("Failed to switch model.");
-        }
-        return;
-      } else {
-        showOutput(getCommandOutput(command));
-        return;
-      }
+      const handled = await handleSlashCommand(trimmed, {
+        sessionCwd,
+        sessionId,
+        projectHash,
+        activeSessionId,
+        metrics,
+        usage,
+        costs,
+        events,
+        getAssistantResponses,
+        onSessionStarted,
+        onOpenPanel,
+      }, showOutput);
+      if (handled) return;
+      // Not handled means forward as message (e.g., /compact, /rewind)
     }
 
     setRunning(true);
@@ -844,29 +474,15 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
     // Command history navigation (T2-07)
     if (e.key === "ArrowUp" && !dropdownVisible && !fileDropdownVisible && history.length > 0) {
       e.preventDefault();
-      if (historyIndex === -1) {
-        // Save current draft before entering history
-        draftRef.current = prompt;
-      }
-      const newIndex = historyIndex === -1
-        ? history.length - 1
-        : Math.max(0, historyIndex - 1);
-      setHistoryIndex(newIndex);
-      setPrompt(history[newIndex]);
+      const prev = navigateUp(prompt);
+      if (prev !== null) setPrompt(prev);
       return;
     }
 
     if (e.key === "ArrowDown" && !dropdownVisible && !fileDropdownVisible && historyIndex !== -1) {
       e.preventDefault();
-      const newIndex = historyIndex + 1;
-      if (newIndex >= history.length) {
-        // Back to draft
-        setHistoryIndex(-1);
-        setPrompt(draftRef.current);
-      } else {
-        setHistoryIndex(newIndex);
-        setPrompt(history[newIndex]);
-      }
+      const next = navigateDown();
+      if (next !== null) setPrompt(next);
       return;
     }
 

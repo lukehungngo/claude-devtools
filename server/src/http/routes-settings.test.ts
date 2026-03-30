@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFile, writeFile, access, mkdir } from "node:fs/promises";
 
 // Mock child_process before importing routes
 vi.mock("child_process", () => ({
@@ -20,6 +21,14 @@ vi.mock("node:fs", async (importOriginal) => {
     statSync: vi.fn(() => ({ isDirectory: () => true })),
   };
 });
+
+// Mock node:fs/promises for async route handlers
+vi.mock("node:fs/promises", () => ({
+  readFile: vi.fn(async () => ""),
+  writeFile: vi.fn(async () => undefined),
+  access: vi.fn(async () => { throw new Error("ENOENT"); }),
+  mkdir: vi.fn(async () => undefined),
+}));
 
 // Mock all heavy dependencies that routes.ts imports
 vi.mock("../parser/session-discovery.js", () => ({
@@ -63,6 +72,9 @@ import { setupRoutes } from "./routes.js";
 const mockExistsSync = existsSync as unknown as ReturnType<typeof vi.fn>;
 const mockReadFileSync = readFileSync as unknown as ReturnType<typeof vi.fn>;
 const mockWriteFileSync = writeFileSync as unknown as ReturnType<typeof vi.fn>;
+const mockReadFile = readFile as unknown as ReturnType<typeof vi.fn>;
+const mockWriteFile = writeFile as unknown as ReturnType<typeof vi.fn>;
+const mockAccess = access as unknown as ReturnType<typeof vi.fn>;
 const mockDiscoverSessions = discoverSessions as unknown as ReturnType<typeof vi.fn>;
 
 describe("GET /settings/hooks", () => {
@@ -75,7 +87,7 @@ describe("GET /settings/hooks", () => {
   });
 
   it("returns empty hooks when settings.json does not exist", async () => {
-    mockExistsSync.mockReturnValue(false);
+    mockReadFile.mockRejectedValue(new Error("ENOENT"));
 
     const res = await request(app).get("/settings/hooks");
     expect(res.status).toBe(200);
@@ -83,7 +95,6 @@ describe("GET /settings/hooks", () => {
   });
 
   it("returns hooks section from settings.json", async () => {
-    mockExistsSync.mockReturnValue(true);
     const mockSettings = {
       hooks: {
         PreToolUse: [
@@ -91,7 +102,7 @@ describe("GET /settings/hooks", () => {
         ],
       },
     };
-    mockReadFileSync.mockReturnValue(JSON.stringify(mockSettings));
+    mockReadFile.mockResolvedValue(JSON.stringify(mockSettings));
 
     const res = await request(app).get("/settings/hooks");
     expect(res.status).toBe(200);
@@ -99,8 +110,7 @@ describe("GET /settings/hooks", () => {
   });
 
   it("returns empty hooks when settings.json has no hooks key", async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue(JSON.stringify({ other: "data" }));
+    mockReadFile.mockResolvedValue(JSON.stringify({ other: "data" }));
 
     const res = await request(app).get("/settings/hooks");
     expect(res.status).toBe(200);
@@ -108,8 +118,7 @@ describe("GET /settings/hooks", () => {
   });
 
   it("returns empty hooks when settings.json is invalid JSON", async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue("not json{");
+    mockReadFile.mockResolvedValue("not json{");
 
     const res = await request(app).get("/settings/hooks");
     expect(res.status).toBe(200);
@@ -137,7 +146,7 @@ describe("GET /sessions/:projectHash/:sessionId/memory", () => {
     mockDiscoverSessions.mockReturnValue([
       { id: "sess1", projectHash: "proj1", cwd: "/tmp/project" },
     ]);
-    mockExistsSync.mockReturnValue(false);
+    mockAccess.mockRejectedValue(new Error("ENOENT"));
 
     const res = await request(app).get("/sessions/proj1/sess1/memory");
     expect(res.status).toBe(200);
@@ -148,8 +157,8 @@ describe("GET /sessions/:projectHash/:sessionId/memory", () => {
     mockDiscoverSessions.mockReturnValue([
       { id: "sess1", projectHash: "proj1", cwd: "/tmp/project" },
     ]);
-    mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue("# My Project\n\nSome content");
+    mockAccess.mockResolvedValue(undefined);
+    mockReadFile.mockResolvedValue("# My Project\n\nSome content");
 
     const res = await request(app).get("/sessions/proj1/sess1/memory");
     expect(res.status).toBe(200);
@@ -222,13 +231,14 @@ describe("PUT /sessions/:projectHash/:sessionId/memory", () => {
     mockDiscoverSessions.mockReturnValue([
       { id: "sess1", projectHash: "proj1", cwd: "/tmp/project" },
     ]);
+    mockWriteFile.mockResolvedValue(undefined);
 
     const res = await request(app)
       .put("/sessions/proj1/sess1/memory")
       .send({ content: "# Updated Content" });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true });
-    expect(mockWriteFileSync).toHaveBeenCalledWith(
+    expect(mockWriteFile).toHaveBeenCalledWith(
       "/tmp/project/CLAUDE.md",
       "# Updated Content",
       "utf-8",
@@ -239,6 +249,7 @@ describe("PUT /sessions/:projectHash/:sessionId/memory", () => {
     mockDiscoverSessions.mockReturnValue([
       { id: "sess1", projectHash: "../etc", cwd: "/tmp/project" },
     ]);
+    mockWriteFile.mockResolvedValue(undefined);
 
     const res = await request(app)
       .put("/sessions/../etc/sess1/memory")
@@ -246,7 +257,7 @@ describe("PUT /sessions/:projectHash/:sessionId/memory", () => {
     // Even if session matches, the endpoint should only write to {cwd}/CLAUDE.md
     // This test verifies the write target is always {cwd}/CLAUDE.md
     if (res.status === 200) {
-      expect(mockWriteFileSync).toHaveBeenCalledWith(
+      expect(mockWriteFile).toHaveBeenCalledWith(
         "/tmp/project/CLAUDE.md",
         "# Hack",
         "utf-8",
@@ -279,8 +290,8 @@ describe("PUT /settings/hooks", () => {
   });
 
   it("writes hooks to settings.json when file exists", async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue(JSON.stringify({ other: "data", hooks: {} }));
+    mockReadFile.mockResolvedValue(JSON.stringify({ other: "data", hooks: {} }));
+    mockWriteFile.mockResolvedValue(undefined);
 
     const newHooks = {
       PreToolUse: [
@@ -295,13 +306,14 @@ describe("PUT /settings/hooks", () => {
     expect(res.body).toEqual({ success: true });
 
     // Should preserve existing settings and update hooks
-    const written = JSON.parse(mockWriteFileSync.mock.calls[0][1] as string);
+    const written = JSON.parse(mockWriteFile.mock.calls[0][1] as string);
     expect(written.other).toBe("data");
     expect(written.hooks).toEqual(newHooks);
   });
 
   it("creates settings.json when it does not exist", async () => {
-    mockExistsSync.mockReturnValue(false);
+    mockReadFile.mockRejectedValue(new Error("ENOENT"));
+    mockWriteFile.mockResolvedValue(undefined);
 
     const newHooks = {
       PostToolUse: [
@@ -314,20 +326,20 @@ describe("PUT /settings/hooks", () => {
       .send({ hooks: newHooks });
     expect(res.status).toBe(200);
 
-    const written = JSON.parse(mockWriteFileSync.mock.calls[0][1] as string);
+    const written = JSON.parse(mockWriteFile.mock.calls[0][1] as string);
     expect(written.hooks).toEqual(newHooks);
   });
 
   it("writes empty hooks object to clear all hooks", async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue(JSON.stringify({ hooks: { PreToolUse: [] } }));
+    mockReadFile.mockResolvedValue(JSON.stringify({ hooks: { PreToolUse: [] } }));
+    mockWriteFile.mockResolvedValue(undefined);
 
     const res = await request(app)
       .put("/settings/hooks")
       .send({ hooks: {} });
     expect(res.status).toBe(200);
 
-    const written = JSON.parse(mockWriteFileSync.mock.calls[0][1] as string);
+    const written = JSON.parse(mockWriteFile.mock.calls[0][1] as string);
     expect(written.hooks).toEqual({});
   });
 });
@@ -428,7 +440,7 @@ describe("POST /sessions/:sessionId/init", () => {
 
   it("returns created: false when CLAUDE.md already exists", async () => {
     mockSessionManager.getStatus.mockReturnValue({ cwd: "/tmp/project" });
-    mockExistsSync.mockReturnValue(true);
+    mockAccess.mockResolvedValue(undefined);
 
     const res = await request(app)
       .post("/sessions/test-session/init")
@@ -438,12 +450,13 @@ describe("POST /sessions/:sessionId/init", () => {
       created: false,
       message: "CLAUDE.md already exists",
     });
-    expect(mockWriteFileSync).not.toHaveBeenCalled();
+    expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
   it("creates CLAUDE.md scaffold when it does not exist", async () => {
     mockSessionManager.getStatus.mockReturnValue({ cwd: "/tmp/project" });
-    mockExistsSync.mockReturnValue(false);
+    mockAccess.mockRejectedValue(new Error("ENOENT"));
+    mockWriteFile.mockResolvedValue(undefined);
 
     const res = await request(app)
       .post("/sessions/test-session/init")
@@ -453,12 +466,12 @@ describe("POST /sessions/:sessionId/init", () => {
       created: true,
       message: "CLAUDE.md created",
     });
-    expect(mockWriteFileSync).toHaveBeenCalledWith(
+    expect(mockWriteFile).toHaveBeenCalledWith(
       "/tmp/project/CLAUDE.md",
       expect.stringContaining("# Project Name"),
       "utf-8",
     );
-    expect(mockWriteFileSync).toHaveBeenCalledWith(
+    expect(mockWriteFile).toHaveBeenCalledWith(
       "/tmp/project/CLAUDE.md",
       expect.stringContaining("## Build & Test"),
       "utf-8",

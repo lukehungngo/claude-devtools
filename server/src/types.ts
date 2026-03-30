@@ -1,4 +1,7 @@
 // server/src/types.ts
+// NOTE: dashboard/src/lib/types.ts mirrors these types for client-side use.
+// Keep both files in sync. The dashboard types are the canonical reference
+// for fields that may appear as multiple types (e.g., content: ContentItem[] | string).
 
 // === JSONL Event Types ===
 
@@ -25,7 +28,8 @@ export interface UserEvent extends BaseEvent {
   type: "user";
   message: {
     role: "user";
-    content: ContentItem[];
+    // May be a plain string for simple user prompts (matches Claude Code JSONL format)
+    content: ContentItem[] | string;
   };
   userType: "external" | "internal";
   promptId?: string;
@@ -39,7 +43,8 @@ export interface AssistantEvent extends BaseEvent {
   requestId?: string;
   message: {
     role: "assistant";
-    content: ContentItem[];
+    // May be a plain string in some SDK responses
+    content: ContentItem[] | string;
     model: string;
     id: string;
     type: "message";
@@ -98,7 +103,8 @@ export interface ToolUseContent {
 export interface ToolResultContent {
   type: "tool_result";
   tool_use_id: string;
-  content: string;
+  // May be a string or an array of content blocks (SDK returns both forms)
+  content: string | unknown[];
   is_error?: boolean;
 }
 
