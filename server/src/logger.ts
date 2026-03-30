@@ -1,5 +1,5 @@
 import pino from "pino";
-import path from "path";
+import path from "node:path";
 import fs from "fs";
 
 const LOG_DIR = path.join(

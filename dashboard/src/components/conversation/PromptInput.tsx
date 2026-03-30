@@ -543,10 +543,16 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
       <div className="conv-input-box relative flex items-center gap-2.5 bg-dt-bg2 border border-dt-border rounded-dt-xl px-4 py-3.5 transition-shadow duration-dt-normal focus-within:border-dt-accent/50 focus-within:shadow-[0_0_0_1px_var(--accent-glow),0_0_20px_var(--accent-glow)]">
         {/* Slash command dropdown */}
         {dropdownVisible && (
-          <div className="absolute bottom-full left-0 right-0 mb-2 bg-dt-bg3 backdrop-blur-dt-md border border-dt-border rounded-xl overflow-hidden shadow-dt-lg z-50 dt-fade-in">
+          <div
+            role="listbox"
+            aria-label="Slash commands"
+            className="absolute bottom-full left-0 right-0 mb-2 bg-dt-bg3 backdrop-blur-dt-md border border-dt-border rounded-xl overflow-hidden shadow-dt-lg z-50 dt-fade-in"
+          >
             {filteredCommands.map((cmd, i) => (
               <div
                 key={cmd.name}
+                role="option"
+                aria-selected={i === selectedCmdIndex}
                 className={`flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-sm border-l-2 border-transparent hover:border-dt-accent transition-colors ${
                   i === selectedCmdIndex ? "bg-dt-accent-dim" : ""
                 }`}

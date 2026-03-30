@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -147,11 +147,13 @@ export function createDiscoveryRoutes({ state }: RouteContext): Router {
     const checks: { name: string; ok: boolean; detail: string }[] = [];
 
     // 1. Check Claude Code CLI in PATH
-    try {
-      execSync("which claude", { stdio: "pipe" });
-      checks.push({ name: "cli", ok: true, detail: "Claude Code CLI found" });
-    } catch {
-      checks.push({ name: "cli", ok: false, detail: "Claude Code CLI not found in PATH" });
+    {
+      const result = spawnSync("which", ["claude"], { stdio: "pipe" });
+      if (result.status === 0) {
+        checks.push({ name: "cli", ok: true, detail: "Claude Code CLI found" });
+      } else {
+        checks.push({ name: "cli", ok: false, detail: "Claude Code CLI not found in PATH" });
+      }
     }
 
     // 2. Check ~/.claude/projects/ directory exists

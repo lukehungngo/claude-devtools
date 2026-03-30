@@ -60,7 +60,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  // MCP convention: startup messages go to stderr (stdout reserved for JSON-RPC)
   console.error("Claude DevTools MCP server running");
 }
 
+// MCP convention: fatal errors go to stderr
 main().catch(console.error);

@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { request } from "node:https";
 import { platform, homedir } from "node:os";
@@ -61,10 +61,13 @@ function readKeychainToken(): {
   // Try macOS keychain first
   if (platform() === "darwin") {
     try {
-      const raw = execSync(
-        `security find-generic-password -s "${KEYCHAIN_SERVICE}" -w 2>/dev/null`,
+      const result = spawnSync(
+        "security",
+        ["find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"],
         { encoding: "utf-8", timeout: 3000 }
-      ).trim();
+      );
+      if (result.status !== 0) throw new Error("keychain lookup failed");
+      const raw = (result.stdout || "").trim();
 
       const creds: KeychainCredentials = JSON.parse(raw);
       if (creds.claudeAiOauth?.accessToken) {

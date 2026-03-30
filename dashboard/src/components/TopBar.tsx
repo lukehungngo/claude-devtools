@@ -165,6 +165,7 @@ export function TopBar({ usage, costs, metrics, isLive, onToolFilter }: Props) {
                     value={usage.fiveHour.utilization}
                     resetsAt={usage.fiveHour.resetsAt}
                   />
+                  <span className="text-dt-border">|</span>
                   <UsageBar
                     label="Week"
                     value={usage.sevenDay.utilization}
@@ -282,7 +283,11 @@ export function TopBar({ usage, costs, metrics, isLive, onToolFilter }: Props) {
             return (
               <span
                 key={t.name}
+                role="button"
+                tabIndex={0}
+                aria-label={`Filter by ${shortName}: ${t.count} calls, ${t.errors} errors`}
                 onClick={() => onToolFilter?.(shortName)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToolFilter?.(shortName); } }}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-dt-sm text-md text-dt-text1 whitespace-nowrap mr-1.5 cursor-pointer hover:bg-dt-bg3 transition-colors duration-dt-fast"
                 title={`${shortName}: ${t.count} calls, ${t.errors} errors — click to filter log`}
               >
@@ -383,7 +388,6 @@ function UsageBar({
   resetsAt: string | null;
 }) {
   const pct = value ?? 0;
-  const used = pct;
   const barColor =
     pct > 80 ? "var(--red)" : pct > 50 ? "var(--yellow)" : "var(--green)";
   const resetStr = resetsAt ? formatResetTime(resetsAt) : "";
@@ -420,10 +424,9 @@ function UsageBar({
         )}
       </div>
       <span className="font-mono text-xs font-semibold" style={{ color: barColor }}>
-        {value !== null ? `${used.toFixed(0)}%` : "--"}
+        {value !== null ? `${pct.toFixed(0)}%` : "--"}
       </span>
       <span className="font-mono text-xxs text-dt-text2">{resetLabel}</span>
-      <span className="text-dt-border">|</span>
     </div>
   );
 }

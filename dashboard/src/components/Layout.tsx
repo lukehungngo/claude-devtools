@@ -51,6 +51,7 @@ export function Layout({
               sidebarCollapsed ? "rotate-180" : ""
             }`}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             &#x25C0;
           </button>

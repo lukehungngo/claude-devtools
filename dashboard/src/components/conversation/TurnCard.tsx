@@ -116,7 +116,12 @@ export function TurnCard({
     >
       {/* Header */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={!collapsed}
+        aria-label={`Turn ${turn.turnNumber}: ${collapsed ? "expand" : "collapse"}`}
         onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setCollapsed(!collapsed); } }}
         className="flex items-center gap-3 px-5 py-3.5 cursor-pointer select-none"
       >
         {/* Expand icon */}

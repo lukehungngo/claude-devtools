@@ -1,8 +1,7 @@
 import { spawnSync } from "child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { readFile, writeFile, access } from "node:fs/promises";
-import path from "node:path";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { Router } from "express";
 import { logger } from "../../logger.js";
 import {
@@ -235,7 +234,7 @@ export function createSessionRoutes({ state }: RouteContext): Router {
       const resolvedTarget = resolve(targetDir);
       if (
         resolvedTarget !== resolvedCwd &&
-        !resolvedTarget.startsWith(resolvedCwd + path.sep)
+        !resolvedTarget.startsWith(resolvedCwd + sep)
       ) {
         return res.json({ files: [] });
       }

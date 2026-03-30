@@ -12,7 +12,3 @@ export async function openDashboard(): Promise<string> {
   await open(serverInstance.url);
   return `Dashboard opened at ${serverInstance.url}`;
 }
-
-export function getDashboardUrl(): string | null {
-  return serverInstance?.url || null;
-}
