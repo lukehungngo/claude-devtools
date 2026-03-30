@@ -458,6 +458,159 @@
   }
 }
 
+/* ── Trace (Gantt) Tab ── */
+.trace-area {
+  padding: 10px 16px;
+  overflow-y: auto;
+}
+
+.trace-ticks {
+  display: flex;
+  margin-left: 110px;
+  margin-bottom: 6px;
+}
+
+.trace-ticks span {
+  flex: 1;
+  font-size: 9px;
+  color: var(--t3);
+  font-family: var(--font);
+}
+
+.trace-body {
+  position: relative;
+}
+
+.trace-grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 110px;
+  right: 0;
+  display: flex;
+  pointer-events: none;
+}
+
+.trace-grid div {
+  flex: 1;
+  border-left: 1px solid var(--bd);
+  opacity: 0.25;
+}
+
+.trace-grid div:first-child {
+  border: none;
+}
+
+.trace-row {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.1s;
+  margin-bottom: 2px;
+}
+
+.trace-row:hover {
+  background: var(--bg-h);
+}
+
+.trace-row-selected {
+  background: var(--bg-h);
+}
+
+.trace-label {
+  width: 110px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-right: 8px;
+  overflow: hidden;
+}
+
+.trace-indent {
+  flex-shrink: 0;
+}
+
+.trace-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.trace-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--t1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trace-track {
+  flex: 1;
+  position: relative;
+  height: 26px;
+}
+
+.trace-bar {
+  position: absolute;
+  height: 100%;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 500;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: filter 0.1s;
+}
+
+.trace-bar:hover {
+  filter: brightness(1.05);
+}
+
+.trace-bar-right {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.trace-spacer {
+  height: 10px;
+}
+
+.par-bracket {
+  position: absolute;
+  left: 4px;
+  width: 8px;
+  border: 2px solid var(--bd);
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  z-index: 2;
+}
+
+.running-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

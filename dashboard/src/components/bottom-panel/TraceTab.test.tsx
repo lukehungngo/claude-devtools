@@ -1,28 +1,31 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import type { AgentDAG } from "../../lib/types";
+import type { AgentDAG, AgentNode } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
-
-// Mock @xyflow/react before importing anything that uses it
-vi.mock("@xyflow/react", () => ({
-  ReactFlow: () => null,
-  ReactFlowProvider: ({ children }: { children: React.ReactNode }) => children,
-  useReactFlow: () => ({ fitView: vi.fn(), zoomIn: vi.fn(), zoomOut: vi.fn() }),
-  useNodesState: () => [[], vi.fn(), vi.fn()],
-  useEdgesState: () => [[], vi.fn(), vi.fn()],
-  Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
-  Handle: () => null,
-  BaseEdge: () => null,
-  getStraightPath: () => ["", 0, 0],
-  MarkerType: { ArrowClosed: "arrowclosed" },
-}));
-
-// Mock AgentFlowDAG itself so we test TraceTab in isolation
-vi.mock("../../components/AgentFlowDAG", () => ({
-  AgentFlowDAG: () => <div data-testid="agent-flow-dag" />,
-}));
-
 import { TraceTab } from "./TraceTab";
+import {
+  computeTimeline,
+  computeBarPosition,
+  getSpanColor,
+  getSpanIcon,
+} from "./TraceTab";
+
+function makeNode(overrides: Partial<AgentNode> & { id: string }): AgentNode {
+  return {
+    type: "engineer",
+    status: "completed",
+    toolCalls: 5,
+    mcpToolCalls: 0,
+    tokenUsage: {
+      inputTokens: 100,
+      outputTokens: 50,
+      cacheWriteTokens: 0,
+      cacheReadTokens: 0,
+      totalCost: 0.5,
+    },
+    ...overrides,
+  };
+}
 
 const mockTurn: TurnSnapshot = {
   turnNumber: 1,
@@ -38,26 +41,6 @@ const mockTurn: TurnSnapshot = {
   startTime: "2026-01-01T00:00:00Z",
   completedAt: "2026-01-01T00:00:01Z",
   endTime: "2026-01-01T00:00:01Z",
-};
-
-const mockDag: AgentDAG = {
-  nodes: [
-    {
-      id: "main",
-      type: "main",
-      status: "completed",
-      toolCalls: 3,
-      mcpToolCalls: 0,
-      tokenUsage: {
-        inputTokens: 100,
-        outputTokens: 50,
-        cacheWriteTokens: 0,
-        cacheReadTokens: 0,
-        totalCost: 0.5,
-      },
-    },
-  ],
-  edges: [],
 };
 
 describe("TraceTab", () => {
@@ -89,38 +72,114 @@ describe("TraceTab", () => {
     expect(screen.getByText("No agent data")).toBeDefined();
   });
 
-  it("renders AgentFlowDAG when dag has nodes", () => {
+  it("renders trace rows for each node", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "main",
+          type: "orchestrator",
+          description: "Orchestrator",
+          startTime: "2026-01-01T00:00:00Z",
+          endTime: "2026-01-01T00:10:00Z",
+        }),
+        makeNode({
+          id: "agent-1",
+          type: "engineer",
+          description: "SWE frontend",
+          parentId: "main",
+          startTime: "2026-01-01T00:01:00Z",
+          endTime: "2026-01-01T00:05:00Z",
+        }),
+      ],
+      edges: [{ source: "main", target: "agent-1" }],
+    };
     render(
       <TraceTab
-        dag={mockDag}
+        dag={dag}
         turns={[mockTurn]}
         activeTurnIndex={null}
         selectedAgent={null}
         panelHeight={300}
       />,
     );
-    expect(screen.getByTestId("agent-flow-dag")).toBeDefined();
+    expect(screen.getByText("Orchestrator")).toBeDefined();
+    expect(screen.getByText("SWE frontend")).toBeDefined();
   });
 
-  it("renders without crashing with all props", () => {
+  it("shows correct agent icons", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "main",
+          type: "orchestrator",
+          description: "Orchestrator",
+          startTime: "2026-01-01T00:00:00Z",
+          endTime: "2026-01-01T00:10:00Z",
+        }),
+        makeNode({
+          id: "agent-1",
+          type: "reviewer",
+          description: "Code Reviewer",
+          parentId: "main",
+          startTime: "2026-01-01T00:01:00Z",
+          endTime: "2026-01-01T00:05:00Z",
+        }),
+      ],
+      edges: [{ source: "main", target: "agent-1" }],
+    };
     render(
       <TraceTab
-        dag={mockDag}
+        dag={dag}
         turns={[mockTurn]}
-        activeTurnIndex={0}
-        selectedAgent="main"
-        onSelectAgent={vi.fn()}
-        isLive={true}
-        panelHeight={400}
+        activeTurnIndex={null}
+        selectedAgent={null}
+        panelHeight={300}
       />,
     );
-    expect(screen.getByTestId("agent-flow-dag")).toBeDefined();
+    expect(screen.getByText("PM")).toBeDefined();
+    expect(screen.getByText("CR")).toBeDefined();
+  });
+
+  it("shows 'running' text for active agents", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "main",
+          type: "orchestrator",
+          description: "Orchestrator",
+          status: "active",
+          startTime: "2026-01-01T00:00:00Z",
+        }),
+      ],
+      edges: [],
+    };
+    render(
+      <TraceTab
+        dag={dag}
+        turns={[mockTurn]}
+        activeTurnIndex={null}
+        selectedAgent={null}
+        panelHeight={300}
+      />,
+    );
+    expect(screen.getByText("running")).toBeDefined();
   });
 
   it("sets container height to panelHeight - 37", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "main",
+          type: "orchestrator",
+          startTime: "2026-01-01T00:00:00Z",
+          endTime: "2026-01-01T00:10:00Z",
+        }),
+      ],
+      edges: [],
+    };
     const { container } = render(
       <TraceTab
-        dag={mockDag}
+        dag={dag}
         turns={[mockTurn]}
         activeTurnIndex={null}
         selectedAgent={null}
@@ -129,5 +188,106 @@ describe("TraceTab", () => {
     );
     const wrapper = container.firstElementChild as HTMLElement;
     expect(wrapper.style.height).toBe("263px");
+  });
+});
+
+describe("computeTimeline", () => {
+  it("computes start, end, and ticks from nodes", () => {
+    const nodes: AgentNode[] = [
+      makeNode({
+        id: "a",
+        startTime: "2026-01-01T00:00:00Z",
+        endTime: "2026-01-01T00:40:00Z",
+      }),
+      makeNode({
+        id: "b",
+        startTime: "2026-01-01T00:05:00Z",
+        endTime: "2026-01-01T00:30:00Z",
+      }),
+    ];
+    const timeline = computeTimeline(nodes);
+    expect(timeline.sessionStartMs).toBe(
+      new Date("2026-01-01T00:00:00Z").getTime(),
+    );
+    expect(timeline.sessionEndMs).toBe(
+      new Date("2026-01-01T00:40:00Z").getTime(),
+    );
+    expect(timeline.totalMs).toBe(40 * 60 * 1000);
+    expect(timeline.ticks.length).toBeGreaterThanOrEqual(2);
+    expect(timeline.ticks[0]).toBe("0m");
+  });
+
+  it("handles single node with no times", () => {
+    const nodes: AgentNode[] = [makeNode({ id: "a" })];
+    const timeline = computeTimeline(nodes);
+    expect(timeline.totalMs).toBeGreaterThan(0);
+    expect(timeline.ticks.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("computeBarPosition", () => {
+  it("computes left and width percentages", () => {
+    const start = new Date("2026-01-01T00:00:00Z").getTime();
+    const total = 10 * 60 * 1000; // 10 min
+    const node = makeNode({
+      id: "a",
+      startTime: "2026-01-01T00:02:00Z",
+      endTime: "2026-01-01T00:07:00Z",
+    });
+    const pos = computeBarPosition(node, start, total);
+    expect(pos.leftPct).toBeCloseTo(20);
+    expect(pos.widthPct).toBeCloseTo(50);
+  });
+
+  it("extends active agents to 100%", () => {
+    const start = new Date("2026-01-01T00:00:00Z").getTime();
+    const total = 10 * 60 * 1000;
+    const node = makeNode({
+      id: "a",
+      status: "active",
+      startTime: "2026-01-01T00:02:00Z",
+    });
+    const pos = computeBarPosition(node, start, total);
+    expect(pos.leftPct).toBeCloseTo(20);
+    expect(pos.widthPct).toBeCloseTo(80);
+  });
+
+  it("defaults to full width when no times", () => {
+    const pos = computeBarPosition(
+      makeNode({ id: "a" }),
+      Date.now(),
+      60000,
+    );
+    expect(pos.leftPct).toBe(0);
+    expect(pos.widthPct).toBe(100);
+  });
+});
+
+describe("getSpanColor", () => {
+  it("returns known colors for orchestrator", () => {
+    const c = getSpanColor("orchestrator");
+    expect(c.bg).toBe("var(--span-pm)");
+    expect(c.text).toBe("var(--span-pm-t)");
+  });
+
+  it("returns fallback for unknown type", () => {
+    const c = getSpanColor("unknown-type");
+    expect(c.bg).toBeTruthy();
+    expect(c.text).toBeTruthy();
+  });
+});
+
+describe("getSpanIcon", () => {
+  it("returns PM for orchestrator", () => {
+    expect(getSpanIcon("orchestrator", 0)).toBe("PM");
+  });
+
+  it("numbers engineers", () => {
+    expect(getSpanIcon("engineer", 0)).toBe("S1");
+    expect(getSpanIcon("engineer", 1)).toBe("S2");
+  });
+
+  it("returns first 2 chars for unknown types", () => {
+    expect(getSpanIcon("custom-agent", 0)).toBe("CU");
   });
 });
