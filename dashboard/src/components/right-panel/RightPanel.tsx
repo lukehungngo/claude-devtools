@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import type {
   AgentDAG,
@@ -161,10 +161,13 @@ export function RightPanel({
   // graph nodes from disappearing on new prompt (TASK-003).
   // Gated on activePrimaryTab: skip expensive DAG filtering when the graph/log tabs aren't active.
   const needsDag = activePrimaryTab === "graph" || activePrimaryTab === "log";
-  const turnDag = useMemo(
-    () => needsDag ? filterDagForTurn(dag, activeTurn) : null,
-    [dag, activeTurn, needsDag],
-  );
+  const prevTurnDagRef = useRef<ReturnType<typeof filterDagForTurn>>(null);
+  const turnDag = useMemo(() => {
+    if (!needsDag) return null;
+    const result = filterDagForTurn(dag, activeTurn, prevTurnDagRef.current);
+    prevTurnDagRef.current = result;
+    return result;
+  }, [dag, activeTurn, needsDag]);
 
   const filteredAgents = turnDag?.nodes ?? [];
 

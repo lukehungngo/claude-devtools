@@ -72,13 +72,18 @@ export function SessionPage() {
   const [selectedTurnIndex, setSelectedTurnIndex] = useState<number | null>(null);
 
   // Background REST sync every 30 seconds (replaces per-event debounced refetch)
+  // Fix 6: Skip refresh when no new events have arrived since last sync
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastRefreshEventCountRef = useRef(0);
   useEffect(() => {
     // Start background sync only when we have a valid session
     if (!projectHash || !sessionId) return;
     syncIntervalRef.current = setInterval(() => {
-      refreshMetrics();
-      clearLiveEvents();
+      if (liveEvents.length > lastRefreshEventCountRef.current) {
+        lastRefreshEventCountRef.current = liveEvents.length;
+        refreshMetrics();
+        clearLiveEvents();
+      }
     }, 30_000);
     return () => {
       if (syncIntervalRef.current !== null) {
@@ -86,7 +91,7 @@ export function SessionPage() {
         syncIntervalRef.current = null;
       }
     };
-  }, [projectHash, sessionId, refreshMetrics, clearLiveEvents]);
+  }, [projectHash, sessionId, refreshMetrics, clearLiveEvents, liveEvents]);
 
   // Cache REST event UUIDs separately — only rebuilds when REST data changes, not on every live event
   const restKeys = useMemo(() => new Set(events.map((e) => e.uuid)), [events]);

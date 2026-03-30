@@ -83,4 +83,20 @@ describe("filterDagForTurn", () => {
     const result = filterDagForTurn(fullDag, turn)!;
     expect(result.nodes.map((n) => n.id)).toContain("main");
   });
+
+  it("returns same reference when called with same agent set and previous result", () => {
+    const turn = makeTurn([{ agentId: "agent-1" }]);
+    const first = filterDagForTurn(fullDag, turn, null);
+    const second = filterDagForTurn(fullDag, turn, first);
+    expect(second).toBe(first); // same reference, not a new object
+  });
+
+  it("returns new result when agent set changes", () => {
+    const turn1 = makeTurn([{ agentId: "agent-1" }]);
+    const turn2 = makeTurn([{ agentId: "agent-1" }, { agentId: "agent-2" }]);
+    const first = filterDagForTurn(fullDag, turn1, null);
+    const second = filterDagForTurn(fullDag, turn2, first);
+    expect(second).not.toBe(first);
+    expect(second!.nodes.map((n) => n.id)).toEqual(["main", "agent-1", "agent-2"]);
+  });
 });
