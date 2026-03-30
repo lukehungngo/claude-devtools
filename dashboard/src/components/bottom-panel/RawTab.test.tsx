@@ -32,10 +32,11 @@ const mockEvent2: SessionEvent = {
   },
 };
 
+const mockAllEvents: SessionEvent[] = [mockEvent, mockEvent2];
+
 const mockTurn: TurnSnapshot = {
   turnNumber: 1,
   promptText: "hello",
-  events: [mockEvent, mockEvent2],
   startIndex: 0,
   endIndex: 2,
   agents: [],
@@ -52,31 +53,31 @@ describe("RawTab", () => {
   afterEach(cleanup);
 
   it("renders empty state with null activeTurnIndex", () => {
-    render(<RawTab turns={[]} activeTurnIndex={null} />);
+    render(<RawTab turns={[]} allEvents={[]} activeTurnIndex={null} />);
     expect(screen.getByText("Select a turn to see raw events")).toBeDefined();
   });
 
   it("renders empty state when activeTurnIndex is out of bounds", () => {
-    render(<RawTab turns={[mockTurn]} activeTurnIndex={5} />);
+    render(<RawTab turns={[mockTurn]} allEvents={mockAllEvents} activeTurnIndex={5} />);
     expect(screen.getByText("Select a turn to see raw events")).toBeDefined();
   });
 
   it("renders event list when turn has events", () => {
-    render(<RawTab turns={[mockTurn]} activeTurnIndex={0} />);
+    render(<RawTab turns={[mockTurn]} allEvents={mockAllEvents} activeTurnIndex={0} />);
     // Should render rows for both events
     const rows = screen.getAllByTestId("raw-event-row");
     expect(rows.length).toBe(2);
   });
 
   it("shows event type and timestamp in summary rows", () => {
-    render(<RawTab turns={[mockTurn]} activeTurnIndex={0} />);
+    render(<RawTab turns={[mockTurn]} allEvents={mockAllEvents} activeTurnIndex={0} />);
     const rows = screen.getAllByTestId("raw-event-row");
     expect(rows[0].textContent).toContain("assistant");
     expect(rows[1].textContent).toContain("user");
   });
 
   it("expanding an event shows JSON content", () => {
-    render(<RawTab turns={[mockTurn]} activeTurnIndex={0} />);
+    render(<RawTab turns={[mockTurn]} allEvents={mockAllEvents} activeTurnIndex={0} />);
     const rows = screen.getAllByTestId("raw-event-row");
     fireEvent.click(rows[0]);
     const jsonArea = screen.getByTestId("raw-json-view");
@@ -86,7 +87,7 @@ describe("RawTab", () => {
   });
 
   it("clicking a different event switches the JSON view", () => {
-    render(<RawTab turns={[mockTurn]} activeTurnIndex={0} />);
+    render(<RawTab turns={[mockTurn]} allEvents={mockAllEvents} activeTurnIndex={0} />);
     const rows = screen.getAllByTestId("raw-event-row");
     fireEvent.click(rows[0]);
     expect(screen.getByTestId("raw-json-view").textContent).toContain("evt-1");
@@ -95,7 +96,7 @@ describe("RawTab", () => {
   });
 
   it("clicking the same event again deselects it", () => {
-    render(<RawTab turns={[mockTurn]} activeTurnIndex={0} />);
+    render(<RawTab turns={[mockTurn]} allEvents={mockAllEvents} activeTurnIndex={0} />);
     const rows = screen.getAllByTestId("raw-event-row");
     fireEvent.click(rows[0]);
     expect(screen.getByTestId("raw-json-view")).toBeDefined();

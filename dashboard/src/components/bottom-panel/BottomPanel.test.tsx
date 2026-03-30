@@ -73,7 +73,6 @@ const mockDag: AgentDAG = { nodes: [], edges: [] };
 const mockTurn: TurnSnapshot = {
   turnNumber: 1,
   promptText: "hello",
-  events: [],
   startIndex: 0,
   endIndex: 0,
   agents: [],

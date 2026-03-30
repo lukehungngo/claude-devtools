@@ -104,14 +104,15 @@ describe("TurnSnapshot event index ranges", () => {
     expect(turn2Events[1]).toBe(events[3]);
   });
 
-  it("turn.events still works for backward compatibility", () => {
+  it("getEventsForTurn retrieves correct events after events field removal", () => {
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
     ];
     const turns = groupEventsIntoTurns(events);
-    // events property still populated for backward compat
-    expect(turns[0].events).toHaveLength(2);
+    // events are no longer stored in the snapshot; use getEventsForTurn
+    const turnEvents = getEventsForTurn(turns[0], events);
+    expect(turnEvents).toHaveLength(2);
   });
 
   it("single turn covers entire events array", () => {
@@ -127,6 +128,44 @@ describe("TurnSnapshot event index ranges", () => {
   });
 });
 
+describe("getEventsForTurn edge cases", () => {
+  it("returns empty array when allEvents is empty", () => {
+    const turn = groupEventsIntoTurns([
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+    ])[0];
+    // Simulate an empty allEvents (e.g., session reset)
+    const result = getEventsForTurn(turn, []);
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty array when startIndex equals endIndex", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+    ];
+    // Manually construct a turn with zero range
+    const turn = { ...groupEventsIntoTurns(events)[0], startIndex: 0, endIndex: 0 };
+    expect(getEventsForTurn(turn, events)).toEqual([]);
+  });
+
+  it("handles out-of-range indices gracefully (slice behavior)", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+    ];
+    // endIndex beyond array length -- slice handles this safely
+    const turn = { ...groupEventsIntoTurns(events)[0], startIndex: 0, endIndex: 100 };
+    expect(getEventsForTurn(turn, events)).toHaveLength(1);
+  });
+
+  it("TurnSnapshot interface no longer has events field", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    // Verify events field is absent from the snapshot
+    expect("events" in turns[0]).toBe(false);
+  });
+});
+
 describe("TurnCard memo comparator fields", () => {
   it("TurnSnapshot has index and eventsLength for memo comparison", () => {
     const events: SessionEvent[] = [
@@ -139,8 +178,8 @@ describe("TurnCard memo comparator fields", () => {
     expect(typeof turns[0].turnNumber).toBe("number");
     // status used for memo
     expect(typeof turns[0].status).toBe("string");
-    // events.length used for memo (backward compat)
-    expect(typeof turns[0].events.length).toBe("number");
+    // endIndex - startIndex used for memo (replaces events.length)
+    expect(typeof (turns[0].endIndex - turns[0].startIndex)).toBe("number");
     // durationMs used for memo
     expect(turns[0].durationMs === null || typeof turns[0].durationMs === "number").toBe(true);
   });

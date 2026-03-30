@@ -22,23 +22,29 @@ function makeUserEvent(uuid: string): SessionEvent {
   } as SessionEvent;
 }
 
-function makeTurn(overrides: Partial<TurnSnapshot> & { userUuid?: string } = {}): TurnSnapshot {
+function makeTurnAndEvents(
+  overrides: Partial<TurnSnapshot> & { userUuid?: string } = {},
+  startIdx = 0,
+): { turn: TurnSnapshot; events: SessionEvent[] } {
   const { userUuid = "msg-001", ...rest } = overrides;
+  const events = [makeUserEvent(userUuid)];
   return {
-    turnNumber: 1,
-    promptText: "Set up the project structure",
-    events: [makeUserEvent(userUuid)],
-    startIndex: 0,
-    endIndex: 1,
-    status: "completed",
-    durationMs: 5000,
-    cost: 0.04,
-    costBreakdown: { total: 0.04, tokensIn: 1000, tokensOut: 500 },
-    startTime: "2026-03-29T12:30:00Z",
-    completedAt: "2026-03-29T12:30:05Z",
-    endTime: "2026-03-29T12:30:05Z",
-    agents: [],
-    ...rest,
+    turn: {
+      turnNumber: 1,
+      promptText: "Set up the project structure",
+      startIndex: startIdx,
+      endIndex: startIdx + 1,
+      status: "completed",
+      durationMs: 5000,
+      cost: 0.04,
+      costBreakdown: { total: 0.04, tokensIn: 1000, tokensOut: 500 },
+      startTime: "2026-03-29T12:30:00Z",
+      completedAt: "2026-03-29T12:30:05Z",
+      endTime: "2026-03-29T12:30:05Z",
+      agents: [],
+      ...rest,
+    },
+    events,
   };
 }
 
@@ -52,14 +58,14 @@ describe("RewindMenu", () => {
   });
 
   it("renders the rewind menu with turns", () => {
-    const turns = [
-      makeTurn({ turnNumber: 1, promptText: "First turn", userUuid: "msg-1" }),
-      makeTurn({ turnNumber: 2, promptText: "Second turn", userUuid: "msg-2" }),
-    ];
+    const t1 = makeTurnAndEvents({ turnNumber: 1, promptText: "First turn", userUuid: "msg-1" }, 0);
+    const t2 = makeTurnAndEvents({ turnNumber: 2, promptText: "Second turn", userUuid: "msg-2" }, 1);
+    const allEvents = [...t1.events, ...t2.events];
 
     render(
       <RewindMenu
-        turns={turns}
+        turns={[t1.turn, t2.turn]}
+        allEvents={allEvents}
         sessionId="sess-1"
         onClose={vi.fn()}
         onRewind={vi.fn()}
@@ -75,6 +81,7 @@ describe("RewindMenu", () => {
     render(
       <RewindMenu
         turns={[]}
+        allEvents={[]}
         sessionId="sess-1"
         onClose={vi.fn()}
         onRewind={vi.fn()}
@@ -86,9 +93,11 @@ describe("RewindMenu", () => {
 
   it("calls onClose when close button is clicked", () => {
     const onClose = vi.fn();
+    const { turn, events } = makeTurnAndEvents();
     render(
       <RewindMenu
-        turns={[makeTurn()]}
+        turns={[turn]}
+        allEvents={events}
         sessionId="sess-1"
         onClose={onClose}
         onRewind={vi.fn()}
@@ -101,9 +110,11 @@ describe("RewindMenu", () => {
 
   it("calls onClose when Escape is pressed", () => {
     const onClose = vi.fn();
+    const { turn, events } = makeTurnAndEvents();
     render(
       <RewindMenu
-        turns={[makeTurn()]}
+        turns={[turn]}
+        allEvents={events}
         sessionId="sess-1"
         onClose={onClose}
         onRewind={vi.fn()}
@@ -115,14 +126,14 @@ describe("RewindMenu", () => {
   });
 
   it("selects a turn on click and shows action panel", () => {
-    const turns = [
-      makeTurn({ turnNumber: 1, promptText: "First turn", userUuid: "msg-1" }),
-      makeTurn({ turnNumber: 2, promptText: "Second turn", userUuid: "msg-2" }),
-    ];
+    const t1 = makeTurnAndEvents({ turnNumber: 1, promptText: "First turn", userUuid: "msg-1" }, 0);
+    const t2 = makeTurnAndEvents({ turnNumber: 2, promptText: "Second turn", userUuid: "msg-2" }, 1);
+    const allEvents = [...t1.events, ...t2.events];
 
     render(
       <RewindMenu
-        turns={turns}
+        turns={[t1.turn, t2.turn]}
+        allEvents={allEvents}
         sessionId="sess-1"
         onClose={vi.fn()}
         onRewind={vi.fn()}
@@ -136,13 +147,12 @@ describe("RewindMenu", () => {
 
   it("calls onRewind with correct user message UUID when Restore all is clicked", async () => {
     const onRewind = vi.fn().mockResolvedValue(undefined);
-    const turns = [
-      makeTurn({ turnNumber: 1, promptText: "First turn", userUuid: "msg-1" }),
-    ];
+    const { turn, events } = makeTurnAndEvents({ turnNumber: 1, promptText: "First turn", userUuid: "msg-1" });
 
     render(
       <RewindMenu
-        turns={turns}
+        turns={[turn]}
+        allEvents={events}
         sessionId="sess-1"
         onClose={vi.fn()}
         onRewind={onRewind}
@@ -161,14 +171,14 @@ describe("RewindMenu", () => {
   });
 
   it("disables current turn (last turn cannot be rewound to)", () => {
-    const turns = [
-      makeTurn({ turnNumber: 1, promptText: "Old turn", userUuid: "msg-1" }),
-      makeTurn({ turnNumber: 2, promptText: "Current turn", userUuid: "msg-2" }),
-    ];
+    const t1 = makeTurnAndEvents({ turnNumber: 1, promptText: "Old turn", userUuid: "msg-1" }, 0);
+    const t2 = makeTurnAndEvents({ turnNumber: 2, promptText: "Current turn", userUuid: "msg-2" }, 1);
+    const allEvents = [...t1.events, ...t2.events];
 
     render(
       <RewindMenu
-        turns={turns}
+        turns={[t1.turn, t2.turn]}
+        allEvents={allEvents}
         sessionId="sess-1"
         onClose={vi.fn()}
         onRewind={vi.fn()}

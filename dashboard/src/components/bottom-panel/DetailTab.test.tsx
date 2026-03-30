@@ -4,7 +4,7 @@ import { DetailTab } from "./DetailTab";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import type { SessionEvent, AssistantEvent, UserEvent } from "../../lib/types";
 
-function makeToolUseTurn(): TurnSnapshot {
+function makeToolUseTurnData(): { turn: TurnSnapshot; allEvents: SessionEvent[] } {
   const assistantEvent: AssistantEvent = {
     type: "assistant",
     uuid: "a1",
@@ -42,10 +42,11 @@ function makeToolUseTurn(): TurnSnapshot {
     },
   };
 
-  return {
+  const allEvents = [assistantEvent, userEvent] as SessionEvent[];
+
+  const turn: TurnSnapshot = {
     turnNumber: 1,
     promptText: "Fix the bug",
-    events: [assistantEvent, userEvent] as SessionEvent[],
     startIndex: 0,
     endIndex: 2,
     agents: [],
@@ -57,32 +58,34 @@ function makeToolUseTurn(): TurnSnapshot {
     completedAt: "2026-01-01T10:00:05Z",
     endTime: "2026-01-01T10:00:05Z",
   };
+
+  return { turn, allEvents };
 }
 
 describe("DetailTab", () => {
   afterEach(cleanup);
 
   it("renders empty state with null activeTurnIndex", () => {
-    render(<DetailTab turns={[]} activeTurnIndex={null} />);
+    render(<DetailTab turns={[]} allEvents={[]} activeTurnIndex={null} />);
     expect(screen.getByText("Select a turn to see tool details")).toBeDefined();
   });
 
   it("renders empty state with out-of-bounds activeTurnIndex", () => {
-    render(<DetailTab turns={[]} activeTurnIndex={5} />);
+    render(<DetailTab turns={[]} allEvents={[]} activeTurnIndex={5} />);
     expect(screen.getByText("Select a turn to see tool details")).toBeDefined();
   });
 
   it("renders tool groups with mock turn containing tool_use events", () => {
-    const turn = makeToolUseTurn();
-    render(<DetailTab turns={[turn]} activeTurnIndex={0} />);
+    const { turn, allEvents } = makeToolUseTurnData();
+    render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
     // Should show tool group headers
     expect(screen.getByText(/Read/)).toBeDefined();
     expect(screen.getByText(/Bash/)).toBeDefined();
   });
 
   it("shows correct status icons", () => {
-    const turn = makeToolUseTurn();
-    const { container } = render(<DetailTab turns={[turn]} activeTurnIndex={0} />);
+    const { turn, allEvents } = makeToolUseTurnData();
+    const { container } = render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
     // tu1 = success, tu2 = error, tu3 = success
     const successIcons = container.querySelectorAll("[data-status='success']");
     const errorIcons = container.querySelectorAll("[data-status='error']");
@@ -91,8 +94,8 @@ describe("DetailTab", () => {
   });
 
   it("shows tool input summary", () => {
-    const turn = makeToolUseTurn();
-    render(<DetailTab turns={[turn]} activeTurnIndex={0} />);
+    const { turn, allEvents } = makeToolUseTurnData();
+    render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
     // Should show file paths from Read tool inputs
     expect(screen.getByText(/\/src\/main\.ts/)).toBeDefined();
     expect(screen.getByText(/\/src\/utils\.ts/)).toBeDefined();

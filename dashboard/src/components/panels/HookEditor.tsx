@@ -36,8 +36,14 @@ interface HooksData {
   [eventType: string]: HookMatcher[] | LegacyHookItem[];
 }
 
+interface DirectoryHookFile {
+  filename: string;
+  hooks: HooksData;
+}
+
 interface HooksResponse {
   hooks: HooksData;
+  directoryHooks?: DirectoryHookFile[];
 }
 
 /** Normalize legacy flat hooks to the matcher+hooks[] format */
@@ -262,8 +268,31 @@ function MatcherEditor({ matcher, onChange, onRemove }: MatcherEditorProps) {
   );
 }
 
+interface ReadOnlyMatcherCardProps {
+  matcher: HookMatcher;
+}
+
+function ReadOnlyMatcherCard({ matcher }: ReadOnlyMatcherCardProps) {
+  return (
+    <div className="bg-dt-bg2 rounded-dt border border-dt-border/50 px-3 py-2">
+      <div className="flex items-center gap-2">
+        <span className="text-dt-text0 font-mono text-xs bg-dt-bg3 px-1.5 py-0.5 rounded-dt-xs">
+          {matcher.matcher || "*"}
+        </span>
+        <span className="text-dt-text2 text-xs flex-1 truncate">
+          {matcher.hooks.map((h) => getHookSummary(h)).join(", ")}
+        </span>
+        <span className="text-dt-text2 text-xs bg-dt-bg4 px-1.5 py-px rounded-full">
+          {matcher.hooks.length}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function HookEditor() {
   const [hooks, setHooks] = useState<Record<string, HookMatcher[]> | null>(null);
+  const [directoryHooks, setDirectoryHooks] = useState<DirectoryHookFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -278,6 +307,9 @@ export function HookEditor() {
         const normalized = normalizeHooks(data.hooks);
         setHooks(normalized);
         setExpandedGroups(new Set(Object.keys(normalized)));
+        if (data.directoryHooks) {
+          setDirectoryHooks(data.directoryHooks);
+        }
         setLoading(false);
       })
       .catch(() => {
@@ -463,6 +495,49 @@ export function HookEditor() {
             </div>
           );
         })}
+
+        {directoryHooks.length > 0 && (
+          <div data-testid="directory-hooks-section" className="mt-4 border-t border-dt-border pt-3">
+            <div className="px-3 mb-2" style={{ fontSize: "12px", color: "var(--t2)" }}>
+              Directory Hooks
+            </div>
+            {directoryHooks.map((file) => {
+              const normalized = normalizeHooks(file.hooks);
+              const entries = Object.entries(normalized);
+              if (entries.length === 0) return null;
+
+              return (
+                <div key={file.filename} className="mb-3 px-3">
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      color: "var(--t3)",
+                      background: "var(--bg-s)",
+                      padding: "2px 8px",
+                      borderRadius: "var(--radius)",
+                    }}
+                  >
+                    {file.filename}
+                  </span>
+                  <div className="flex flex-col gap-2 mt-2">
+                    {entries.map(([eventType, matchers]) => (
+                      <div key={eventType}>
+                        <div className="text-xs text-dt-text2 font-bold uppercase tracking-wider mb-1">
+                          {eventType}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          {matchers.map((matcher, i) => (
+                            <ReadOnlyMatcherCard key={`${eventType}-${i}`} matcher={matcher} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

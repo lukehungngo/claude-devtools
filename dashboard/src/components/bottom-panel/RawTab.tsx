@@ -1,9 +1,11 @@
 import { memo, useState, useCallback, useMemo } from "react";
 import type { SessionEvent } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
+import { getEventsForTurn } from "../../lib/turnSnapshot";
 
 export interface RawTabProps {
   turns: TurnSnapshot[];
+  allEvents: SessionEvent[];
   activeTurnIndex: number | null;
 }
 
@@ -35,7 +37,7 @@ function highlightJson(json: string): string {
     .replace(/: (true|false|null)/g, ': <span style="color:var(--red)">$1</span>');
 }
 
-function RawTabInner({ turns, activeTurnIndex }: RawTabProps) {
+function RawTabInner({ turns, allEvents, activeTurnIndex }: RawTabProps) {
   const [selectedEventIndex, setSelectedEventIndex] = useState<number | null>(null);
 
   const activeTurn =
@@ -45,7 +47,10 @@ function RawTabInner({ turns, activeTurnIndex }: RawTabProps) {
       ? turns[activeTurnIndex]
       : undefined;
 
-  const events = activeTurn?.events ?? [];
+  const events = useMemo(
+    () => (activeTurn ? getEventsForTurn(activeTurn, allEvents) : []),
+    [activeTurn, allEvents],
+  );
 
   const handleClick = useCallback((index: number) => {
     setSelectedEventIndex((prev) => (prev === index ? null : index));

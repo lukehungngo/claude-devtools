@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { readFile, writeFile, access, mkdir } from "node:fs/promises";
+import { readFile, writeFile, access, mkdir, readdir } from "node:fs/promises";
 
 // Mock child_process before importing routes
 vi.mock("child_process", () => ({
@@ -28,6 +28,7 @@ vi.mock("node:fs/promises", () => ({
   writeFile: vi.fn(async () => undefined),
   access: vi.fn(async () => { throw new Error("ENOENT"); }),
   mkdir: vi.fn(async () => undefined),
+  readdir: vi.fn(async () => []),
 }));
 
 // Mock all heavy dependencies that routes.ts imports
@@ -75,6 +76,7 @@ const mockWriteFileSync = writeFileSync as unknown as ReturnType<typeof vi.fn>;
 const mockReadFile = readFile as unknown as ReturnType<typeof vi.fn>;
 const mockWriteFile = writeFile as unknown as ReturnType<typeof vi.fn>;
 const mockAccess = access as unknown as ReturnType<typeof vi.fn>;
+const mockReaddir = readdir as unknown as ReturnType<typeof vi.fn>;
 const mockDiscoverSessions = discoverSessions as unknown as ReturnType<typeof vi.fn>;
 
 describe("GET /settings/hooks", () => {
@@ -91,7 +93,8 @@ describe("GET /settings/hooks", () => {
 
     const res = await request(app).get("/settings/hooks");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ hooks: {} });
+    expect(res.body.hooks).toEqual({});
+    expect(res.body.directoryHooks).toEqual([]);
   });
 
   it("returns hooks section from settings.json", async () => {
@@ -106,7 +109,8 @@ describe("GET /settings/hooks", () => {
 
     const res = await request(app).get("/settings/hooks");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ hooks: mockSettings.hooks });
+    expect(res.body.hooks).toEqual(mockSettings.hooks);
+    expect(res.body.directoryHooks).toEqual([]);
   });
 
   it("returns empty hooks when settings.json has no hooks key", async () => {
@@ -114,7 +118,8 @@ describe("GET /settings/hooks", () => {
 
     const res = await request(app).get("/settings/hooks");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ hooks: {} });
+    expect(res.body.hooks).toEqual({});
+    expect(res.body.directoryHooks).toEqual([]);
   });
 
   it("returns empty hooks when settings.json is invalid JSON", async () => {
@@ -122,7 +127,90 @@ describe("GET /settings/hooks", () => {
 
     const res = await request(app).get("/settings/hooks");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ hooks: {} });
+    expect(res.body).toEqual({ hooks: {}, directoryHooks: [] });
+  });
+
+  it("returns directoryHooks from ~/.claude/hooks/ directory", async () => {
+    const settingsHooks = {
+      PreToolUse: [{ matcher: "Bash", command: "check.sh" }],
+    };
+    mockReadFile.mockImplementation(async (path: string) => {
+      if (path.endsWith("settings.json")) {
+        return JSON.stringify({ hooks: settingsHooks });
+      }
+      if (path.endsWith("my-hook.json")) {
+        return JSON.stringify({
+          PostToolUse: [{ matcher: "*", command: "log.sh" }],
+        });
+      }
+      throw new Error("ENOENT");
+    });
+    mockReaddir.mockResolvedValue(["my-hook.json"]);
+
+    const res = await request(app).get("/settings/hooks");
+    expect(res.status).toBe(200);
+    expect(res.body.hooks).toEqual(settingsHooks);
+    expect(res.body.directoryHooks).toEqual([
+      {
+        filename: "my-hook.json",
+        hooks: { PostToolUse: [{ matcher: "*", command: "log.sh" }] },
+      },
+    ]);
+  });
+
+  it("returns empty directoryHooks when hooks directory does not exist", async () => {
+    mockReadFile.mockResolvedValue(JSON.stringify({ hooks: { PreToolUse: [] } }));
+    const enoent = new Error("ENOENT") as NodeJS.ErrnoException;
+    enoent.code = "ENOENT";
+    mockReaddir.mockRejectedValue(enoent);
+
+    const res = await request(app).get("/settings/hooks");
+    expect(res.status).toBe(200);
+    expect(res.body.hooks).toEqual({ PreToolUse: [] });
+    expect(res.body.directoryHooks).toEqual([]);
+  });
+
+  it("skips malformed JSON files in hooks directory", async () => {
+    mockReadFile.mockImplementation(async (path: string) => {
+      if (path.endsWith("settings.json")) {
+        return JSON.stringify({});
+      }
+      if (path.endsWith("good.json")) {
+        return JSON.stringify({ PreToolUse: [{ matcher: "*", command: "ok.sh" }] });
+      }
+      if (path.endsWith("bad.json")) {
+        return "not valid json{";
+      }
+      throw new Error("ENOENT");
+    });
+    mockReaddir.mockResolvedValue(["good.json", "bad.json", "readme.txt"]);
+
+    const res = await request(app).get("/settings/hooks");
+    expect(res.status).toBe(200);
+    expect(res.body.directoryHooks).toEqual([
+      {
+        filename: "good.json",
+        hooks: { PreToolUse: [{ matcher: "*", command: "ok.sh" }] },
+      },
+    ]);
+  });
+
+  it("preserves hooks field unchanged when directoryHooks are present", async () => {
+    const settingsHooks = {
+      PreToolUse: [{ matcher: "Bash", command: "check.sh" }],
+    };
+    mockReadFile.mockImplementation(async (path: string) => {
+      if (path.endsWith("settings.json")) {
+        return JSON.stringify({ hooks: settingsHooks });
+      }
+      throw new Error("ENOENT");
+    });
+    mockReaddir.mockResolvedValue([]);
+
+    const res = await request(app).get("/settings/hooks");
+    expect(res.status).toBe(200);
+    expect(res.body.hooks).toEqual(settingsHooks);
+    expect(res.body.directoryHooks).toEqual([]);
   });
 });
 

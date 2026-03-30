@@ -111,6 +111,90 @@ describe("useEventStream", () => {
     expect("isLive" in result.current).toBe(false);
   });
 
+  describe("UUID deduplication", () => {
+    it("deduplicates events with the same UUID within a single batch", () => {
+      const { result } = renderHook(() => useEventStream("/path"));
+
+      act(() => {
+        result.current.handleNewEvents("", "/path", [
+          makeEvent("dup1"),
+          makeEvent("dup1"),
+          makeEvent("unique1"),
+        ]);
+      });
+
+      expect(result.current.liveEvents).toHaveLength(2);
+      expect(result.current.liveEvents.map(e => e.uuid)).toEqual(["dup1", "unique1"]);
+    });
+
+    it("deduplicates events across separate handleNewEvents calls", () => {
+      // Use deferred RAF to test cross-batch dedup accurately
+      const rafCallbacks: Array<() => void> = [];
+      vi.stubGlobal("requestAnimationFrame", (cb: () => void) => {
+        rafCallbacks.push(cb);
+        return rafCallbacks.length;
+      });
+
+      const { result } = renderHook(() => useEventStream("/path"));
+
+      act(() => {
+        result.current.handleNewEvents("", "/path", [makeEvent("ev1")]);
+      });
+      // Flush first batch
+      act(() => {
+        for (const cb of rafCallbacks) cb();
+        rafCallbacks.length = 0;
+      });
+      expect(result.current.liveEvents).toHaveLength(1);
+
+      // Second batch includes a duplicate (ev1) and a new event (ev2)
+      act(() => {
+        result.current.handleNewEvents("", "/path", [makeEvent("ev1"), makeEvent("ev2")]);
+      });
+      act(() => {
+        for (const cb of rafCallbacks) cb();
+        rafCallbacks.length = 0;
+      });
+
+      expect(result.current.liveEvents).toHaveLength(2);
+      expect(result.current.liveEvents.map(e => e.uuid)).toEqual(["ev1", "ev2"]);
+    });
+
+    it("resets seen UUIDs when session changes", () => {
+      const { result, rerender } = renderHook(
+        ({ path }: { path: string | null }) => useEventStream(path),
+        { initialProps: { path: "/path1" as string | null } }
+      );
+
+      act(() => {
+        result.current.handleNewEvents("", "/path1", [makeEvent("ev1")]);
+      });
+      expect(result.current.liveEvents).toHaveLength(1);
+
+      // Change session
+      rerender({ path: "/path2" });
+      expect(result.current.liveEvents).toHaveLength(0);
+
+      // Same UUID should be accepted again since session changed
+      act(() => {
+        result.current.handleNewEvents("", "/path2", [makeEvent("ev1")]);
+      });
+      expect(result.current.liveEvents).toHaveLength(1);
+      expect(result.current.liveEvents[0].uuid).toBe("ev1");
+    });
+
+    it("allows all unique events through without filtering", () => {
+      const { result } = renderHook(() => useEventStream("/path"));
+
+      const events = Array.from({ length: 100 }, (_, i) => makeEvent(`unique-${i}`));
+      act(() => {
+        result.current.handleNewEvents("", "/path", events);
+      });
+
+      expect(result.current.liveEvents).toHaveLength(100);
+    });
+  });
+
   describe("RAF batching", () => {
     let rafCallbacks: Array<() => void> = [];
 

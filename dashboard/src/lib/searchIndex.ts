@@ -1,14 +1,16 @@
 import type { TurnSnapshot } from "./turnSnapshot";
+import { getEventsForTurn } from "./turnSnapshot";
+import type { SessionEvent } from "./types";
 
 /**
  * Pre-compute searchable text for each turn.
  * Returns a Map from turnNumber to a single lowercase string containing
  * all searchable content (prompt text + event content).
  */
-export function buildSearchIndex(turns: TurnSnapshot[]): Map<number, string> {
+export function buildSearchIndex(turns: TurnSnapshot[], allEvents: SessionEvent[]): Map<number, string> {
   const index = new Map<number, string>();
   for (const turn of turns) {
-    index.set(turn.turnNumber, buildTurnSearchText(turn));
+    index.set(turn.turnNumber, buildTurnSearchText(turn, allEvents));
   }
   return index;
 }
@@ -20,10 +22,11 @@ export function buildSearchIndex(turns: TurnSnapshot[]): Map<number, string> {
 export function updateSearchIndex(
   existing: Map<number, string>,
   changedTurns: TurnSnapshot[],
+  allEvents: SessionEvent[],
 ): Map<number, string> {
   const updated = new Map(existing);
   for (const turn of changedTurns) {
-    updated.set(turn.turnNumber, buildTurnSearchText(turn));
+    updated.set(turn.turnNumber, buildTurnSearchText(turn, allEvents));
   }
   return updated;
 }
@@ -45,7 +48,7 @@ export function filterTurnsByQuery(
   });
 }
 
-function buildTurnSearchText(turn: TurnSnapshot): string {
+function buildTurnSearchText(turn: TurnSnapshot, allEvents: SessionEvent[]): string {
   const parts: string[] = [];
 
   // Prompt text
@@ -54,7 +57,8 @@ function buildTurnSearchText(turn: TurnSnapshot): string {
   }
 
   // Event content
-  for (const event of turn.events) {
+  const turnEvents = getEventsForTurn(turn, allEvents);
+  for (const event of turnEvents) {
     if (event.type === "assistant" || event.type === "user") {
       const msg = (event as { message?: { content?: unknown } }).message;
       if (typeof msg?.content === "string") {

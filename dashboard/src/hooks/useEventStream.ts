@@ -11,6 +11,9 @@ export function useEventStream(
   const sessionIdRef = useRef(currentSessionId);
   sessionIdRef.current = currentSessionId;
 
+  // UUID deduplication: track seen UUIDs to filter duplicates across batches
+  const seenUuidsRef = useRef<Set<string>>(new Set());
+
   // RAF batching: accumulate events in a ref, flush once per animation frame
   const pendingEventsRef = useRef<SessionEvent[]>([]);
   const rafRef = useRef<number | null>(null);
@@ -34,8 +37,16 @@ export function useEventStream(
         // Secondary guard: match by filePath
         if (filePath !== filePathRef.current) return;
       }
+      // Deduplicate: filter out events whose UUID has already been seen
+      const seen = seenUuidsRef.current;
+      const novel = events.filter((e) => {
+        if (seen.has(e.uuid)) return false;
+        seen.add(e.uuid);
+        return true;
+      });
+      if (novel.length === 0) return;
       // Accumulate into pending buffer
-      pendingEventsRef.current.push(...events);
+      pendingEventsRef.current.push(...novel);
       // Schedule a single flush per animation frame
       if (rafRef.current === null) {
         rafRef.current = requestAnimationFrame(() => {
@@ -58,6 +69,7 @@ export function useEventStream(
   const clearLiveEvents = useCallback(() => {
     // Also clear any pending events that haven't been flushed yet
     pendingEventsRef.current = [];
+    seenUuidsRef.current.clear();
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -70,6 +82,7 @@ export function useEventStream(
   if (sessionFilePath !== prevPath.current) {
     prevPath.current = sessionFilePath;
     pendingEventsRef.current = [];
+    seenUuidsRef.current.clear();
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;

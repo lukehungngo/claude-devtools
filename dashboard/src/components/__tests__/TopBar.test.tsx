@@ -1,14 +1,11 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { ThemeProvider } from "../../contexts/ThemeContext";
 import { TopBar } from "../TopBar";
 import type { SessionMetrics } from "../../lib/types";
 
 function renderTopBar(props: { metrics?: SessionMetrics | null; isLive?: boolean } = {}) {
   return render(
-    <ThemeProvider>
-      <TopBar metrics={props.metrics ?? null} isLive={props.isLive} />
-    </ThemeProvider>
+    <TopBar metrics={props.metrics ?? null} isLive={props.isLive} />
   );
 }
 
@@ -26,17 +23,10 @@ describe("TopBar", () => {
     cleanup();
   });
 
-  it("renders ThemePicker button", () => {
-    renderTopBar();
-    expect(screen.getByRole("button", { name: "Change theme" })).toBeDefined();
-  });
-
-  it("renders ThemePicker alongside metrics", () => {
+  it("renders metrics when provided", () => {
     renderTopBar({ metrics: STUB_METRICS });
-    // Metrics content should be present
     expect(screen.getByText("Cost")).toBeDefined();
-    // ThemePicker should also be present
-    expect(screen.getByRole("button", { name: "Change theme" })).toBeDefined();
+    expect(screen.getByText("Agents")).toBeDefined();
   });
 
   it("renders live status indicator", () => {

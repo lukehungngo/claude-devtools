@@ -1,9 +1,11 @@
 import { memo, useMemo } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
+import { getEventsForTurn } from "../../lib/turnSnapshot";
 import type { SessionEvent, AssistantEvent, UserEvent, ToolUseContent, ToolResultContent, ContentItem } from "../../lib/types";
 
 export interface DetailTabProps {
   turns: TurnSnapshot[];
+  allEvents: SessionEvent[];
   activeTurnIndex: number | null;
 }
 
@@ -99,7 +101,7 @@ const STATUS_ICONS: Record<string, { icon: string; color: string; testStatus: st
   running: { icon: "\u25B6", color: "var(--amb)", testStatus: "running" },
 };
 
-function DetailTabInner({ turns, activeTurnIndex }: DetailTabProps) {
+function DetailTabInner({ turns, allEvents, activeTurnIndex }: DetailTabProps) {
   const activeTurn =
     activeTurnIndex !== null &&
     activeTurnIndex >= 0 &&
@@ -109,8 +111,8 @@ function DetailTabInner({ turns, activeTurnIndex }: DetailTabProps) {
 
   const groups = useMemo(() => {
     if (!activeTurn) return [];
-    return extractToolCalls(activeTurn.events);
-  }, [activeTurn]);
+    return extractToolCalls(getEventsForTurn(activeTurn, allEvents));
+  }, [activeTurn, allEvents]);
 
   if (!activeTurn) {
     return (

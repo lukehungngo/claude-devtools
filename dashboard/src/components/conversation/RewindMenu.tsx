@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { X, RotateCcw, FileText, AlertCircle } from "lucide-react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
+import { getEventsForTurn } from "../../lib/turnSnapshot";
+import type { SessionEvent } from "../../lib/types";
 
 interface RewindFilesResult {
   canRewind: boolean;
@@ -12,6 +14,7 @@ interface RewindFilesResult {
 
 interface RewindMenuProps {
   turns: TurnSnapshot[];
+  allEvents: SessionEvent[];
   sessionId: string;
   onClose: () => void;
   onRewind: (userMessageId: string, dryRun: boolean) => Promise<void>;
@@ -34,12 +37,13 @@ function truncatePrompt(prompt: string, maxLen: number = 40): string {
 }
 
 /** Extract the user message UUID from the first user event in a turn's events. */
-function getUserMessageId(turn: TurnSnapshot): string | null {
-  const userEvent = turn.events.find((e) => e.type === "user");
+function getUserMessageId(turn: TurnSnapshot, allEvents: SessionEvent[]): string | null {
+  const turnEvents = getEventsForTurn(turn, allEvents);
+  const userEvent = turnEvents.find((e) => e.type === "user");
   return userEvent?.uuid ?? null;
 }
 
-export function RewindMenu({ turns, sessionId, onClose, onRewind, currentTurnNumber }: RewindMenuProps) {
+export function RewindMenu({ turns, allEvents, sessionId, onClose, onRewind, currentTurnNumber }: RewindMenuProps) {
   const [selectedTurn, setSelectedTurn] = useState<TurnSnapshot | null>(null);
   const [dryRunResult, setDryRunResult] = useState<RewindFilesResult | null>(null);
   const [dryRunLoading, setDryRunLoading] = useState(false);
@@ -69,7 +73,7 @@ export function RewindMenu({ turns, sessionId, onClose, onRewind, currentTurnNum
     setError(null);
     setDryRunResult(null);
 
-    const messageId = getUserMessageId(turn);
+    const messageId = getUserMessageId(turn, allEvents);
     if (!messageId) return;
 
     // Fetch dry-run preview
@@ -91,7 +95,7 @@ export function RewindMenu({ turns, sessionId, onClose, onRewind, currentTurnNum
 
   const handleRewind = useCallback(async () => {
     if (!selectedTurn || rewindLoading) return;
-    const messageId = getUserMessageId(selectedTurn);
+    const messageId = getUserMessageId(selectedTurn, allEvents);
     if (!messageId) return;
 
     setRewindLoading(true);

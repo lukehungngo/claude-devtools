@@ -7,6 +7,11 @@ import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { MemoTurnCard, turnCardAreEqual } from "./TurnCard";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
+import type { SessionEvent } from "../../lib/types";
+
+const mockAllEvents: SessionEvent[] = [
+  { type: "user", uuid: "u1", timestamp: "2026-01-01T00:00:00Z", sessionId: "s1" } as SessionEvent,
+];
 
 function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
   return {
@@ -19,7 +24,6 @@ function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
     cost: 0,
     costBreakdown: { total: 0, tokensIn: 0, tokensOut: 0 },
     agents: [],
-    events: [{ type: "user", uuid: "u1", timestamp: "2026-01-01T00:00:00Z", sessionId: "s1" }] as TurnSnapshot["events"],
     startIndex: 0,
     endIndex: 1,
     durationMs: null,
@@ -30,6 +34,7 @@ function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
 describe("turnCardAreEqual comparator", () => {
   const baseProps = {
     turn: makeTurn(),
+    allEvents: mockAllEvents,
     isHighlighted: false,
     onAgentPillClick: undefined,
     onTurnClick: undefined,
@@ -49,15 +54,10 @@ describe("turnCardAreEqual comparator", () => {
     expect(turnCardAreEqual(baseProps, next)).toBe(false);
   });
 
-  it("returns false when events.length changes", () => {
+  it("returns false when endIndex changes (event count proxy)", () => {
     const next = {
       ...baseProps,
-      turn: makeTurn({
-        events: [
-          { type: "user", uuid: "u1", timestamp: "2026-01-01T00:00:00Z", sessionId: "s1" },
-          { type: "assistant", uuid: "a1", timestamp: "2026-01-01T00:00:01Z", sessionId: "s1" },
-        ] as TurnSnapshot["events"],
-      }),
+      turn: makeTurn({ endIndex: 2 }),
     };
     expect(turnCardAreEqual(baseProps, next)).toBe(false);
   });
@@ -76,7 +76,7 @@ describe("turnCardAreEqual comparator", () => {
 describe("MemoTurnCard renders", () => {
   it("renders TurnCard content via MemoTurnCard", () => {
     const turn = makeTurn({ promptText: "Test prompt for memo" });
-    const { container } = render(<MemoTurnCard turn={turn} />);
+    const { container } = render(<MemoTurnCard turn={turn} allEvents={mockAllEvents} />);
     expect(container.querySelector(".conv-turn")).not.toBeNull();
     expect(container.textContent).toContain("Test prompt for memo");
   });
