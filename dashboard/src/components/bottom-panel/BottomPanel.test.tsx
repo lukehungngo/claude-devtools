@@ -1,14 +1,14 @@
 /**
- * Tests for BottomPanel props extension (TASK-001)
+ * Tests for BottomPanel — 4-tab layout (TASK-002)
  *
- * Verifies that BottomPanel accepts new session data props
- * without crashing, maintaining backward compatibility.
+ * Verifies that BottomPanel renders 4 tabs: Agent Graph, Tool Call, Raw Log, Cost.
+ * Tab switching, auto-open, and backward compatibility are tested.
  */
 
 import { describe, it, expect, afterEach, vi, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { BottomPanel } from "./BottomPanel";
-import type { SessionMetrics, AgentDAG, RepoGroup, SessionEvent, AssistantEvent } from "../../lib/types";
+import type { SessionMetrics, AgentDAG, SessionEvent } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 
 // Mock @xyflow/react for TraceTab's AgentFlowDAG
@@ -28,11 +28,6 @@ vi.mock("@xyflow/react", () => ({
 // Mock AgentFlowDAG so BottomPanel tests stay unit-level
 vi.mock("../../components/AgentFlowDAG", () => ({
   AgentFlowDAG: () => <div data-testid="agent-flow-dag" />,
-}));
-
-// Mock tanstack router for HistoryTab
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
 }));
 
 // Minimal valid SessionMetrics fixture
@@ -85,14 +80,6 @@ const mockTurn: TurnSnapshot = {
   endTime: "2026-01-01T00:00:01Z",
 };
 
-const mockRepoGroup: RepoGroup = {
-  cwd: "/tmp/repo",
-  repoName: "test-repo",
-  sessions: [],
-  lastActive: "2026-01-01T00:00:00Z",
-  hasActiveSessions: false,
-};
-
 // Mock localStorage
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
@@ -114,13 +101,30 @@ describe("BottomPanel", () => {
   });
   afterEach(cleanup);
 
-  it("renders with no props (backward compat)", () => {
+  it("renders 4 tabs with correct labels", () => {
     render(<BottomPanel />);
-    expect(screen.getByText("Trace")).toBeDefined();
+    expect(screen.getByText("Agent Graph")).toBeDefined();
+    expect(screen.getByText("Tool Call")).toBeDefined();
+    expect(screen.getByText("Raw Log")).toBeDefined();
     expect(screen.getByText("Cost")).toBeDefined();
   });
 
-  it("renders with all new session data props without crashing", () => {
+  it("does not render old tabs (Live, History, Raw, Trace, Detail)", () => {
+    render(<BottomPanel />);
+    expect(screen.queryByText("Trace")).toBeNull();
+    expect(screen.queryByText("Detail")).toBeNull();
+    expect(screen.queryByText("Raw")).toBeNull();
+    expect(screen.queryByText("Live")).toBeNull();
+    expect(screen.queryByText("History")).toBeNull();
+  });
+
+  it("renders with no props (backward compat)", () => {
+    render(<BottomPanel />);
+    expect(screen.getByText("Agent Graph")).toBeDefined();
+    expect(screen.getByText("Cost")).toBeDefined();
+  });
+
+  it("renders with all session data props without crashing", () => {
     render(
       <BottomPanel
         detailCount={3}
@@ -132,15 +136,13 @@ describe("BottomPanel", () => {
         activeTurnIndex={0}
         selectedAgent="main"
         onSelectAgent={() => {}}
-        repos={[mockRepoGroup]}
-        projectHash="abc123"
         sessionId="session-1"
         isLive={true}
         hasSubagents={false}
       />,
     );
-    expect(screen.getByText("Trace")).toBeDefined();
-    expect(screen.getByText("History")).toBeDefined();
+    expect(screen.getByText("Agent Graph")).toBeDefined();
+    expect(screen.getByText("Cost")).toBeDefined();
   });
 
   it("renders with partial props (only metrics)", () => {
@@ -148,9 +150,9 @@ describe("BottomPanel", () => {
     expect(screen.getByText("Cost")).toBeDefined();
   });
 
-  it("renders TraceTab with empty state when dag is null", () => {
+  it("defaults to Agent Graph tab showing TraceTab content", () => {
     render(<BottomPanel dag={null} />);
-    // Trace tab is active by default -- should show empty state
+    // Agent Graph tab is active by default -- should show empty state from TraceTab
     expect(screen.getByText("No agent data")).toBeDefined();
   });
 
@@ -158,7 +160,6 @@ describe("BottomPanel", () => {
     localStorageMock.setItem("bottomPanel.collapsed", "true");
     const { container } = render(<BottomPanel />);
     // When collapsed, the panel body should not be rendered
-    // The panel body has overflow-y-auto class and height style
     const panelBody = container.querySelector(".overflow-y-auto");
     expect(panelBody).toBeNull();
   });
@@ -166,21 +167,33 @@ describe("BottomPanel", () => {
   it("renders without crashing when hasSubagents transitions", () => {
     const { rerender } = render(<BottomPanel hasSubagents={false} />);
     rerender(<BottomPanel hasSubagents={true} />);
-    // Should still render fine
-    expect(screen.getByText("Trace")).toBeDefined();
+    // Should still render fine with agent-graph tab
+    expect(screen.getByText("Agent Graph")).toBeDefined();
   });
 
-  it("renders LiveTab when Live tab is clicked", () => {
-    render(<BottomPanel events={[]} liveEvents={[]} isLive={false} />);
-    fireEvent.click(screen.getByText("Live"));
-    // LiveTab shows "Waiting for events..." when empty
-    expect(screen.getByText("Waiting for events...")).toBeDefined();
+  it("auto-opens agent-graph tab when subagents detected", () => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
+
+    const { rerender } = render(<BottomPanel hasSubagents={false} />);
+    // Collapse the panel first
+    const separator = screen.getByRole("separator");
+    fireEvent.doubleClick(separator);
+
+    // Advance past the 5s manual-collapse guard
+    vi.spyOn(Date, "now").mockReturnValue(now + 6000);
+
+    // Now trigger subagent detection
+    rerender(<BottomPanel hasSubagents={true} />);
+    // Panel should auto-expand -- check that Agent Graph tab content is visible
+    expect(screen.getByText("No agent data")).toBeDefined();
+
+    vi.restoreAllMocks();
   });
 
   it("renders CostTab when Cost tab is clicked with metrics", () => {
     render(<BottomPanel metrics={mockMetrics} />);
     fireEvent.click(screen.getByText("Cost"));
-    // CostTab shows "Session Cost" card label
     expect(screen.getByText("Session Cost")).toBeDefined();
   });
 
@@ -190,35 +203,21 @@ describe("BottomPanel", () => {
     expect(screen.getByText("No cost data")).toBeDefined();
   });
 
-  it("renders DetailTab when Detail tab is clicked with no active turn", () => {
+  it("renders DetailTab when Tool Call tab is clicked with no active turn", () => {
     render(<BottomPanel turns={[mockTurn]} activeTurnIndex={null} />);
-    fireEvent.click(screen.getByText("Detail"));
+    fireEvent.click(screen.getByText("Tool Call"));
     expect(screen.getByText("Select a turn to see tool details")).toBeDefined();
   });
 
-  it("renders RawTab when Raw tab is clicked with no active turn", () => {
-    render(<BottomPanel turns={[mockTurn]} activeTurnIndex={null} />);
-    fireEvent.click(screen.getByText("Raw"));
-    expect(screen.getByText("Select a turn to see raw events")).toBeDefined();
+  it("renders RawLogTab when Raw Log tab is clicked", () => {
+    render(<BottomPanel turns={[mockTurn]} events={[]} liveEvents={[]} activeTurnIndex={null} />);
+    fireEvent.click(screen.getByText("Raw Log"));
+    // RawLogTab defaults to Events mode, shows "Waiting for events..." when empty
+    expect(screen.getByText("Waiting for events...")).toBeDefined();
   });
 
-  it("renders HistoryTab when History tab is clicked", () => {
-    render(<BottomPanel repos={[]} sessionId="s1" />);
-    fireEvent.click(screen.getByText("History"));
-    expect(screen.getByText("No session history")).toBeDefined();
-  });
-
-  it("renders LiveTab with events showing event rows", () => {
-    const event: SessionEvent = {
-      type: "system",
-      subtype: "init",
-      timestamp: "2026-01-01T00:00:00.000Z",
-      uuid: "ev-1",
-      sessionId: "s1",
-      message: { role: "system", content: "" },
-    } as SessionEvent;
-    render(<BottomPanel events={[event]} liveEvents={[]} isLive={true} />);
-    fireEvent.click(screen.getByText("Live"));
-    expect(screen.getAllByTestId("event-row").length).toBe(1);
+  it("shows detail count badge on Tool Call tab", () => {
+    render(<BottomPanel detailCount={5} />);
+    expect(screen.getByText("5")).toBeDefined();
   });
 });
