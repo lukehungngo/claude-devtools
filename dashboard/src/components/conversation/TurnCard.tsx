@@ -126,31 +126,33 @@ export function TurnCard({
       onClick={onTurnClick}
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
-      {/* ── User message ── */}
-      <div className="flex items-start" style={{ gap: 10 }}>
-        <div
-          className="flex items-center justify-center shrink-0"
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            fontSize: 11,
-            fontWeight: 600,
-            background: "var(--bg-h)",
-            color: "var(--t2)",
-          }}
-        >
-          U
-        </div>
-        <div className="flex-1 min-w-0">
-          <div style={{ fontSize: 10, color: "var(--t3)", marginBottom: 3, fontWeight: 500 }}>
-            You
+      {/* ── User message (hidden when no prompt) ── */}
+      {turn.promptText.trim() && (
+        <div className="flex items-start" style={{ gap: 10 }}>
+          <div
+            className="flex items-center justify-center shrink-0"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              fontSize: 11,
+              fontWeight: 600,
+              background: "var(--bg-h)",
+              color: "var(--t2)",
+            }}
+          >
+            U
           </div>
-          <div style={{ fontSize: 13, color: "var(--t1)", lineHeight: 1.65 }}>
-            {turn.promptText}
+          <div className="flex-1 min-w-0">
+            <div style={{ fontSize: 10, color: "var(--t3)", marginBottom: 3, fontWeight: 500 }}>
+              You
+            </div>
+            <div style={{ fontSize: 13, color: "var(--t1)", lineHeight: 1.65 }}>
+              {turn.promptText}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── Claude message ── */}
       {(responseContent.length > 0 || turnEvents.length > 0) && (

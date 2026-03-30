@@ -466,7 +466,6 @@
 
 .trace-ticks {
   display: flex;
-  margin-left: 110px;
   margin-bottom: 6px;
 }
 
@@ -485,7 +484,6 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 110px;
   right: 0;
   display: flex;
   pointer-events: none;
@@ -522,13 +520,26 @@
 }
 
 .trace-label {
-  width: 110px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 5px;
   padding-right: 8px;
   overflow: hidden;
+}
+
+.trace-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.trace-resize-handle:hover {
+  background: var(--acc);
+  opacity: 0.4;
 }
 
 .trace-indent {

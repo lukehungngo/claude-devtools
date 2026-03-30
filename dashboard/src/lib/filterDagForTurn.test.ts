@@ -98,4 +98,66 @@ describe("filterDagForTurn", () => {
     expect(second).not.toBe(first);
     expect(second!.nodes.map((n) => n.id)).toEqual(["main", "agent-1", "agent-2"]);
   });
+
+  it("overrides node costs with turn-specific values from AgentSummary", () => {
+    const dagWithCosts: AgentDAG = {
+      nodes: [
+        { ...makeNode("main"), tokenUsage: { inputTokens: 50000, outputTokens: 20000, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 5.0 } },
+        { ...makeNode("agent-1"), tokenUsage: { inputTokens: 10000, outputTokens: 5000, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 1.5 } },
+      ],
+      edges: [{ source: "main", target: "agent-1" }],
+    };
+
+    const turn: TurnSnapshot = {
+      turnNumber: 1,
+      promptText: "test",
+      startIndex: 0,
+      endIndex: 10,
+      agents: [
+        {
+          agentId: "main",
+          agentType: "main",
+          displayName: "Main session",
+          invocationCount: 3,
+          status: "completed",
+          cost: 0.45,       // main agent's own cost from tokens × model pricing
+          tokensIn: 5000,
+          tokensOut: 2000,
+          tools: ["Read", "Write"],
+        },
+        {
+          agentId: "agent-1",
+          agentType: "engineer",
+          displayName: "agent-1",
+          invocationCount: 1,
+          status: "completed",
+          cost: 0.8,
+          tokensIn: 3000,
+          tokensOut: 1000,
+          tools: ["Write", "Edit"],
+        },
+      ],
+      status: "completed",
+      cost: 1.25,
+      costBreakdown: { total: 1.25, tokensIn: 8000, tokensOut: 3000 },
+      durationMs: 5000,
+      startTime: "2026-01-01T00:00:00Z",
+      completedAt: "2026-01-01T00:00:05Z",
+      endTime: "2026-01-01T00:00:05Z",
+    };
+
+    const result = filterDagForTurn(dagWithCosts, turn)!;
+    const mainNode = result.nodes.find((n) => n.id === "main")!;
+    const agentNode = result.nodes.find((n) => n.id === "agent-1")!;
+
+    // Main cost comes directly from AgentSummary (tokens × model pricing)
+    expect(mainNode.tokenUsage.totalCost).toBeCloseTo(0.45);
+    expect(mainNode.tokenUsage.inputTokens).toBe(5000);
+    expect(mainNode.tokenUsage.outputTokens).toBe(2000);
+
+    // Subagent cost also from AgentSummary
+    expect(agentNode.tokenUsage.totalCost).toBeCloseTo(0.8);
+    expect(agentNode.tokenUsage.inputTokens).toBe(3000);
+    expect(agentNode.tokenUsage.outputTokens).toBe(1000);
+  });
 });

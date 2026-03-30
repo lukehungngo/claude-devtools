@@ -37,7 +37,7 @@ interface PromptInputProps {
   /** Callback when a bash command (! prefix) completes */
   onBashOutput?: (result: { command: string; stdout: string; stderr: string; exitCode: number }) => void;
   /** Callback for streaming SSE events (tool calls, thinking, etc.) */
-  onStreamingEvent?: (data: { type: string; [key: string]: unknown }) => void;
+  onStreamingEvent?: (data: { type: string;[key: string]: unknown }) => void;
   /** Reset streaming state (called when starting a new message) */
   onStreamingReset?: () => void;
 }
@@ -564,9 +564,8 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
                 key={cmd.name}
                 role="option"
                 aria-selected={i === selectedCmdIndex}
-                className={`flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-sm border-l-2 border-transparent hover:border-dt-accent transition-colors ${
-                  i === selectedCmdIndex ? "bg-dt-accent-dim" : ""
-                }`}
+                className={`flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-sm border-l-2 border-transparent hover:border-dt-accent transition-colors ${i === selectedCmdIndex ? "bg-dt-accent-dim" : ""
+                  }`}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   selectCommand(cmd);
@@ -585,9 +584,8 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
               <div
                 key={file}
                 data-testid="file-option"
-                className={`flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-sm border-l-2 border-transparent hover:border-dt-accent transition-colors ${
-                  i === selectedFileIndex ? "bg-dt-accent-dim" : ""
-                }`}
+                className={`flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-sm border-l-2 border-transparent hover:border-dt-accent transition-colors ${i === selectedFileIndex ? "bg-dt-accent-dim" : ""
+                  }`}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   selectFile(file);
@@ -624,7 +622,6 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
             onKeyDown={handleKeyDown}
             onInput={handleInput}
             onPaste={handlePaste}
-            placeholder="Type a message..."
             disabled={running}
             className="w-full bg-transparent border-none outline-none resize-none overflow-hidden"
             style={{

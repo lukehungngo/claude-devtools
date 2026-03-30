@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useCallback } from "react";
+import { memo, useMemo, useRef, useState, useCallback } from "react";
 import type { AgentDAG, AgentNode } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { filterDagForTurn } from "../../lib/filterDagForTurn";
@@ -6,6 +6,9 @@ import { formatCost, formatDuration } from "../../lib/cost";
 
 /** Height of the tab bar in pixels */
 const TAB_BAR_HEIGHT = 37;
+const DEFAULT_LABEL_WIDTH = 140;
+const MIN_LABEL_WIDTH = 80;
+const MAX_LABEL_WIDTH = 400;
 
 export interface TraceTabProps {
   dag: AgentDAG | null;
@@ -254,12 +257,14 @@ interface TraceRowComponentProps {
   row: TraceRow;
   selected: boolean;
   onSelect?: (id: string) => void;
+  labelWidth: number;
 }
 
 const TraceRowComponent = memo(function TraceRowComponent({
   row,
   selected,
   onSelect,
+  labelWidth,
 }: TraceRowComponentProps) {
   const { node, depth, icon, color, bar, durationMs } = row;
 
@@ -280,7 +285,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
       className={`trace-row${selected ? " trace-row-selected" : ""}`}
       onClick={handleClick}
     >
-      <div className="trace-label">
+      <div className="trace-label" style={{ width: labelWidth }}>
         {depth > 0 && (
           <div className="trace-indent" style={{ width: depth * 12 }} />
         )}
@@ -330,6 +335,8 @@ function TraceTabInner({
   panelHeight,
 }: TraceTabProps) {
   const prevFilteredRef = useRef<AgentDAG | null>(null);
+  const [labelWidth, setLabelWidth] = useState(DEFAULT_LABEL_WIDTH);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const activeTurn =
     activeTurnIndex !== null && activeTurnIndex >= 0 && activeTurnIndex < turns.length
@@ -354,6 +361,32 @@ function TraceTabInner({
     return { timeline: tl, groups: gr };
   }, [filteredDag]);
 
+  // Drag-to-resize label column
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragRef.current = { startX: e.clientX, startWidth: labelWidth };
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const delta = ev.clientX - dragRef.current.startX;
+      const newWidth = Math.max(MIN_LABEL_WIDTH, Math.min(MAX_LABEL_WIDTH, dragRef.current.startWidth + delta));
+      setLabelWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      dragRef.current = null;
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, [labelWidth]);
+
   if (isEmpty || !timeline) {
     return (
       <div
@@ -371,18 +404,24 @@ function TraceTabInner({
       className="trace-area dt-scrollbar"
     >
       {/* Time axis */}
-      <div className="trace-ticks">
+      <div className="trace-ticks" style={{ marginLeft: labelWidth }}>
         {timeline.ticks.map((tick, i) => (
           <span key={i}>{tick}</span>
         ))}
       </div>
       <div className="trace-body">
         {/* Vertical grid lines */}
-        <div className="trace-grid">
+        <div className="trace-grid" style={{ left: labelWidth }}>
           {timeline.ticks.map((_, i) => (
             <div key={i} />
           ))}
         </div>
+        {/* Resize handle */}
+        <div
+          className="trace-resize-handle"
+          style={{ left: labelWidth - 2 }}
+          onMouseDown={handleResizeStart}
+        />
         {/* Agent rows */}
         {groups.map((group, gi) => {
           if (group.isParallel && group.rows.length > 1) {
@@ -399,6 +438,7 @@ function TraceTabInner({
                     row={row}
                     selected={selectedAgent === row.node.id}
                     onSelect={onSelectAgent}
+                    labelWidth={labelWidth}
                   />
                 ))}
               </div>
@@ -410,6 +450,7 @@ function TraceTabInner({
               row={row}
               selected={selectedAgent === row.node.id}
               onSelect={onSelectAgent}
+              labelWidth={labelWidth}
             />
           ));
         })}
