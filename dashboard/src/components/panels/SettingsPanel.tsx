@@ -47,11 +47,11 @@ interface SettingsData {
 const EFFORT_OPTIONS = ["low", "medium", "high", "max"];
 const PERMISSION_MODE_OPTIONS = [
   "default",
+  "acceptEdits",
   "plan",
+  "auto",
+  "dontAsk",
   "bypassPermissions",
-  "allowEdits",
-  "allowAll",
-  "deny",
 ];
 
 const FALLBACK_MODELS = [
