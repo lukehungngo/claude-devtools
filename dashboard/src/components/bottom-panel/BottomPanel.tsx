@@ -1,21 +1,17 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { SessionMetrics, AgentDAG, SessionEvent, RepoGroup } from "../../lib/types";
+import type { SessionMetrics, AgentDAG, SessionEvent } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { TraceTab } from "./TraceTab";
-import { LiveTab } from "./LiveTab";
 import { CostTab } from "./CostTab";
 import { DetailTab } from "./DetailTab";
-import { RawTab } from "./RawTab";
-import { HistoryTab } from "./HistoryTab";
+import { RawLogTab } from "./RawLogTab";
 
-export type BottomTab = "trace" | "detail" | "raw" | "live" | "history" | "cost";
+export type BottomTab = "agent-graph" | "tool-call" | "raw-log" | "cost";
 
 const TABS: { id: BottomTab; label: string }[] = [
-  { id: "trace", label: "Trace" },
-  { id: "detail", label: "Detail" },
-  { id: "raw", label: "Raw" },
-  { id: "live", label: "Live" },
-  { id: "history", label: "History" },
+  { id: "agent-graph", label: "Agent Graph" },
+  { id: "tool-call", label: "Tool Call" },
+  { id: "raw-log", label: "Raw Log" },
   { id: "cost", label: "Cost" },
 ];
 
@@ -30,8 +26,6 @@ export interface BottomPanelProps {
   activeTurnIndex?: number | null;
   selectedAgent?: string | null;
   onSelectAgent?: (agentId: string) => void;
-  repos?: RepoGroup[];
-  projectHash?: string;
   sessionId?: string;
   isLive?: boolean;
   hasSubagents?: boolean;
@@ -49,13 +43,11 @@ export function BottomPanel({
   activeTurnIndex = null,
   selectedAgent = null,
   onSelectAgent,
-  repos = [],
-  projectHash: _projectHash,
-  sessionId,
+  sessionId: _sessionId,
   isLive,
   hasSubagents,
 }: BottomPanelProps) {
-  const [activeTab, setActiveTab] = useState<BottomTab>("trace");
+  const [activeTab, setActiveTab] = useState<BottomTab>("agent-graph");
   const [panelHeight, setPanelHeight] = useState(220);
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
@@ -89,7 +81,7 @@ export function BottomPanel({
       const timeSinceManual = Date.now() - manualCollapseTimeRef.current;
       if (timeSinceManual > 5000) {
         setIsCollapsed(false);
-        setActiveTab("trace");
+        setActiveTab("agent-graph");
       }
     }
   }, [hasSubagents]);
@@ -180,7 +172,7 @@ export function BottomPanel({
               }}
             >
               {tab.label}
-              {tab.id === "detail" && detailCount !== undefined && detailCount > 0 && (
+              {tab.id === "tool-call" && detailCount !== undefined && detailCount > 0 && (
                 <span
                   className="font-mono"
                   style={{
@@ -200,7 +192,7 @@ export function BottomPanel({
         {/* Panel body */}
         {!isCollapsed && (
           <div className="overflow-y-auto dt-scrollbar" style={{ height: panelHeight }}>
-            {activeTab === "trace" ? (
+            {activeTab === "agent-graph" ? (
               <TraceTab
                 dag={dag}
                 turns={turns}
@@ -210,16 +202,19 @@ export function BottomPanel({
                 isLive={isLive}
                 panelHeight={panelHeight}
               />
-            ) : activeTab === "live" ? (
-              <LiveTab events={events} liveEvents={liveEvents} isLive={isLive} />
+            ) : activeTab === "tool-call" ? (
+              <DetailTab turns={turns} allEvents={events} activeTurnIndex={activeTurnIndex} />
+            ) : activeTab === "raw-log" ? (
+              <RawLogTab
+                turns={turns}
+                allEvents={events}
+                activeTurnIndex={activeTurnIndex}
+                events={events}
+                liveEvents={liveEvents}
+                isLive={isLive}
+              />
             ) : activeTab === "cost" ? (
               <CostTab metrics={metrics} />
-            ) : activeTab === "detail" ? (
-              <DetailTab turns={turns} allEvents={events} activeTurnIndex={activeTurnIndex} />
-            ) : activeTab === "raw" ? (
-              <RawTab turns={turns} allEvents={events} activeTurnIndex={activeTurnIndex} />
-            ) : activeTab === "history" ? (
-              <HistoryTab repos={repos} currentSessionId={sessionId} />
             ) : null}
           </div>
         )}

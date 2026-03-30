@@ -611,6 +611,62 @@
   flex-shrink: 0;
 }
 
+/* ── Raw Log tab ─────────────────────────── */
+.rawlog-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--bd);
+}
+
+.rawlog-toggle {
+  display: flex;
+  border-radius: var(--radius);
+  border: 1px solid var(--bd);
+  overflow: hidden;
+}
+
+.rawlog-btn {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  border: none;
+  background: transparent;
+  color: var(--t2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.rawlog-btn:hover {
+  background: var(--bg-s);
+}
+
+.rawlog-btn.active {
+  background: var(--acc);
+  color: #fff;
+}
+
+.rawlog-mode {
+  flex: 1;
+  overflow: auto;
+}
+
+.row-expand {
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+
+.row-json {
+  padding: 8px 12px;
+  background: var(--bg-s);
+  border-left: 2px solid var(--acc);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

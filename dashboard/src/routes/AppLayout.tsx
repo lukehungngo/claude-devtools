@@ -246,8 +246,6 @@ export function AppLayout() {
               activeTurnIndex={currentActiveTurnIndex}
               selectedAgent={currentSelectedAgent}
               onSelectAgent={setCurrentSelectedAgent}
-              repos={repos}
-              projectHash={selected?.projectHash ?? ""}
               sessionId={selected?.sessionId ?? ""}
               isLive={isLive}
               hasSubagents={hasSubagents}
