@@ -4,7 +4,7 @@ import { useLayoutContext } from "../contexts/LayoutContext";
 import { useSessionMetrics } from "../hooks/useSessionData";
 import { useEventStream } from "../hooks/useEventStream";
 import { resolveSlugToProjectHash } from "../lib/repoSlug";
-import { groupEventsIntoTurns } from "../lib/turnSnapshot";
+import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental } from "../lib/turnSnapshot";
 import { ConversationView } from "../components/conversation/ConversationView";
 import { RightPanel } from "../components/right-panel/RightPanel";
 import type { PrimaryTab } from "../components/right-panel/PrimaryTabs";
@@ -88,16 +88,34 @@ export function SessionPage() {
     };
   }, [projectHash, sessionId, refreshMetrics, clearLiveEvents]);
 
+  // Cache REST event UUIDs separately — only rebuilds when REST data changes, not on every live event
+  const restKeys = useMemo(() => new Set(events.map((e) => e.uuid)), [events]);
+
   // Merge REST + live events, deduplicating by event UUID
   const allEvents = useMemo(() => {
     if (liveEvents.length === 0) return events;
-    const restKeys = new Set(events.map((e) => e.uuid));
     const uniqueLive = liveEvents.filter((e) => !restKeys.has(e.uuid));
     return uniqueLive.length > 0 ? [...events, ...uniqueLive] : events;
-  }, [events, liveEvents]);
+  }, [events, liveEvents, restKeys]);
 
   const agents = metrics?.dag.nodes || [];
-  const turns = useMemo(() => groupEventsIntoTurns(allEvents, subagentMeta), [allEvents, subagentMeta]);
+
+  // Incremental turn grouping: only rebuild the last turn when events are appended
+  const prevEventCountRef = useRef(0);
+  const prevTurnsRef = useRef<ReturnType<typeof groupEventsIntoTurns>>([]);
+  const turns = useMemo(() => {
+    const prevCount = prevEventCountRef.current;
+    const newEventCount = allEvents.length - prevCount;
+    let result;
+    if (newEventCount > 0 && prevCount > 0 && prevTurnsRef.current.length > 0) {
+      result = groupEventsIntoTurnsIncremental(prevTurnsRef.current, allEvents, newEventCount, subagentMeta);
+    } else {
+      result = groupEventsIntoTurns(allEvents, subagentMeta);
+    }
+    prevEventCountRef.current = allEvents.length;
+    prevTurnsRef.current = result;
+    return result;
+  }, [allEvents, subagentMeta]);
 
   // Auto-release turn pin when new turns arrive
   useEffect(() => {

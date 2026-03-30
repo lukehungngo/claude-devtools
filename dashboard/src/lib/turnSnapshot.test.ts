@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groupEventsIntoTurns } from "./turnSnapshot";
+import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental } from "./turnSnapshot";
 import type {
   SessionEvent,
   UserEvent,
@@ -433,5 +433,105 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
 
     const turns = groupEventsIntoTurns(events);
     expect(turns[0].completedAt).toBe("2026-01-01T00:00:10Z");
+  });
+});
+
+describe("groupEventsIntoTurnsIncremental", () => {
+  it("falls back to full rebuild when existingTurns is empty", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+    ];
+    const turns = groupEventsIntoTurnsIncremental([], events, events.length);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].promptText).toBe("Turn 1");
+  });
+
+  it("incrementally rebuilds only the last turn when new events are appended", () => {
+    // Start with turn 1 complete
+    const initialEvents: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+      makeTurnDurationEvent(1000, { timestamp: "2026-01-01T00:00:02Z" }),
+    ];
+    const existingTurns = groupEventsIntoTurns(initialEvents);
+    expect(existingTurns).toHaveLength(1);
+
+    // Append turn 2 events
+    const allEvents: SessionEvent[] = [
+      ...initialEvents,
+      makeUserEvent({ text: "Turn 2", timestamp: "2026-01-01T00:01:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:01:01Z" }),
+    ];
+
+    const newEventCount = 2;
+    const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, newEventCount);
+
+    expect(turns).toHaveLength(2);
+    expect(turns[0].promptText).toBe("Turn 1");
+    expect(turns[0].status).toBe("completed");
+    expect(turns[1].promptText).toBe("Turn 2");
+    expect(turns[1].status).toBe("running");
+  });
+
+  it("correctly updates last turn when events are appended within same turn", () => {
+    // Turn 1 still running (no turn_duration yet)
+    const initialEvents: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+    ];
+    const existingTurns = groupEventsIntoTurns(initialEvents);
+    expect(existingTurns).toHaveLength(1);
+    expect(existingTurns[0].status).toBe("running");
+
+    // More events arrive for the same turn (another assistant response + turn_duration)
+    const allEvents: SessionEvent[] = [
+      ...initialEvents,
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:02Z" }),
+      makeTurnDurationEvent(2500, { timestamp: "2026-01-01T00:00:03Z" }),
+    ];
+
+    const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 2);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].status).toBe("completed");
+    expect(turns[0].durationMs).toBe(2500);
+    expect(turns[0].endIndex).toBe(4);
+  });
+
+  it("produces identical results to full rebuild", () => {
+    // Build a 3-turn session incrementally
+    const events1: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+      makeTurnDurationEvent(1000, { timestamp: "2026-01-01T00:00:02Z" }),
+    ];
+    const turns1 = groupEventsIntoTurns(events1);
+
+    const events2: SessionEvent[] = [
+      ...events1,
+      makeUserEvent({ text: "Turn 2", timestamp: "2026-01-01T00:01:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:01:01Z" }),
+      makeTurnDurationEvent(500, { timestamp: "2026-01-01T00:01:02Z" }),
+    ];
+    const turns2 = groupEventsIntoTurnsIncremental(turns1, events2, 3);
+
+    const events3: SessionEvent[] = [
+      ...events2,
+      makeUserEvent({ text: "Turn 3", timestamp: "2026-01-01T00:02:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:02:01Z" }),
+    ];
+    const turns3 = groupEventsIntoTurnsIncremental(turns2, events3, 2);
+
+    // Full rebuild should match
+    const fullRebuild = groupEventsIntoTurns(events3);
+    expect(turns3).toHaveLength(fullRebuild.length);
+    for (let i = 0; i < fullRebuild.length; i++) {
+      expect(turns3[i].turnNumber).toBe(fullRebuild[i].turnNumber);
+      expect(turns3[i].promptText).toBe(fullRebuild[i].promptText);
+      expect(turns3[i].status).toBe(fullRebuild[i].status);
+      expect(turns3[i].startIndex).toBe(fullRebuild[i].startIndex);
+      expect(turns3[i].endIndex).toBe(fullRebuild[i].endIndex);
+      expect(turns3[i].cost).toBeCloseTo(fullRebuild[i].cost, 6);
+    }
   });
 });

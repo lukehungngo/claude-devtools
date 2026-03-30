@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { AgentNode } from "../lib/types";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
@@ -19,7 +19,7 @@ function computeNodeDuration(node: AgentNode): number | null {
 }
 
 
-export function AgentNodeCard({ data }: NodeProps) {
+export const AgentNodeCard = memo(function AgentNodeCard({ data }: NodeProps) {
   const node = data.agent as AgentNode;
   const borderColor = getAgentColor(node.type);
   const dotColor = statusDotColors[node.status] || "var(--text-2)";
@@ -133,4 +133,14 @@ export function AgentNodeCard({ data }: NodeProps) {
       />
     </div>
   );
-}
+}, (prev, next) => {
+  const prevNode = prev.data.agent as AgentNode;
+  const nextNode = next.data.agent as AgentNode;
+  return (
+    prevNode.status === nextNode.status &&
+    prevNode.type === nextNode.type &&
+    prevNode.tokenUsage.totalCost === nextNode.tokenUsage.totalCost &&
+    prevNode.toolCalls === nextNode.toolCalls &&
+    prev.data.selected === next.data.selected
+  );
+});

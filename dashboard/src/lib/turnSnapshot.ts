@@ -218,6 +218,8 @@ function buildTurn(
   return {
     turnNumber,
     promptText,
+    // TODO(perf): Remove events duplication — consumers should use getEventsForTurn(turn, allEvents).
+    // Blocked on 6 call sites: RightPanel, TurnCard (x3), RewindMenu, searchIndex.
     events,
     startIndex,
     endIndex: startIndex + events.length,
@@ -246,6 +248,45 @@ function finalizeTurn(turn: TurnSnapshot): void {
       agent.status = "completed";
     }
   }
+}
+
+/**
+ * Incremental turn grouping: only rebuilds from the last turn boundary.
+ * When new events are appended, we avoid re-processing all earlier turns.
+ *
+ * @param existingTurns - turns from the previous computation
+ * @param allEvents - the full event array (existing + new)
+ * @param newEventCount - how many new events were appended since last computation
+ * @param subagentMeta - optional agent metadata
+ */
+export function groupEventsIntoTurnsIncremental(
+  existingTurns: TurnSnapshot[],
+  allEvents: SessionEvent[],
+  newEventCount: number,
+  subagentMeta?: SubagentMeta
+): TurnSnapshot[] {
+  // Fall back to full rebuild when there are no existing turns or all events are new
+  if (existingTurns.length === 0 || newEventCount >= allEvents.length) {
+    return groupEventsIntoTurns(allEvents, subagentMeta);
+  }
+
+  // Only re-process from the last turn's start index onward
+  const lastTurnStartIndex = existingTurns[existingTurns.length - 1].startIndex;
+  const eventsToProcess = allEvents.slice(lastTurnStartIndex);
+
+  // Re-group just the tail portion
+  const rebuiltTurns = groupEventsIntoTurns(eventsToProcess, subagentMeta);
+
+  // Fix turn numbers and startIndex/endIndex to be relative to the full array
+  const baseTurnNumber = existingTurns.length; // last existing turn will be replaced
+  for (let i = 0; i < rebuiltTurns.length; i++) {
+    rebuiltTurns[i].turnNumber = baseTurnNumber + i;
+    rebuiltTurns[i].startIndex += lastTurnStartIndex;
+    rebuiltTurns[i].endIndex += lastTurnStartIndex;
+  }
+
+  // Replace last turn with rebuilt turns (may be 1 or more if new turn boundaries appeared)
+  return [...existingTurns.slice(0, -1), ...rebuiltTurns];
 }
 
 export function groupEventsIntoTurns(

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
@@ -8,7 +9,7 @@ interface ResponseBlockProps {
   text: string;
 }
 
-export function ResponseBlock({ text }: ResponseBlockProps) {
+export const ResponseBlock = memo(function ResponseBlock({ text }: ResponseBlockProps) {
   if (!text || !text.trim()) return null;
 
   // Detect success markers
@@ -28,4 +29,4 @@ export function ResponseBlock({ text }: ResponseBlockProps) {
       </ReactMarkdown>
     </div>
   );
-}
+}, (prev, next) => prev.text === next.text);

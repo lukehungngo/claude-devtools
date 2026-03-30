@@ -159,9 +159,11 @@ export function RightPanel({
   // contamination, no transient undefined states, no stableDagRef chain.
   // When a brand-new turn has no agents yet, show the full DAG to prevent
   // graph nodes from disappearing on new prompt (TASK-003).
+  // Gated on activePrimaryTab: skip expensive DAG filtering when the graph/log tabs aren't active.
+  const needsDag = activePrimaryTab === "graph" || activePrimaryTab === "log";
   const turnDag = useMemo(
-    () => filterDagForTurn(dag, activeTurn),
-    [dag, activeTurn],
+    () => needsDag ? filterDagForTurn(dag, activeTurn) : null,
+    [dag, activeTurn, needsDag],
   );
 
   const filteredAgents = turnDag?.nodes ?? [];
