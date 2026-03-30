@@ -20,6 +20,12 @@ export function SessionPage() {
     isLive,
     registerSessionHandlers,
     setCurrentMetrics,
+    setCurrentEvents,
+    setCurrentLiveEvents,
+    setCurrentTurns,
+    setCurrentDag,
+    setCurrentSelectedAgent,
+    setHasSubagents,
     setRightPanelContent,
     toolFilter,
     setToolFilter,
@@ -32,6 +38,7 @@ export function SessionPage() {
     submitAnswer,
     activeSessionId,
     setActiveSessionId,
+    setCurrentActiveTurnIndex,
     setSelected,
     slugMap,
     usage,
@@ -65,6 +72,16 @@ export function SessionPage() {
   useEffect(() => {
     setCurrentMetrics(metrics);
   }, [metrics, setCurrentMetrics]);
+
+  // Push live events to layout context for BottomPanel
+  useEffect(() => {
+    setCurrentLiveEvents(liveEvents);
+  }, [liveEvents, setCurrentLiveEvents]);
+
+  useEffect(() => {
+    setCurrentDag(metrics?.dag ?? null);
+    setHasSubagents((metrics?.dag?.nodes?.length ?? 0) > 1);
+  }, [metrics?.dag, setCurrentDag, setHasSubagents]);
 
   // Cross-panel shared state (local to session)
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
@@ -104,6 +121,11 @@ export function SessionPage() {
     return uniqueLive.length > 0 ? [...events, ...uniqueLive] : events;
   }, [events, liveEvents, restKeys]);
 
+  // Push merged events to layout context for BottomPanel
+  useEffect(() => {
+    setCurrentEvents(allEvents);
+  }, [allEvents, setCurrentEvents]);
+
   const agents = metrics?.dag.nodes || [];
 
   // Incremental turn grouping: only rebuild the last turn when events are appended
@@ -123,6 +145,18 @@ export function SessionPage() {
     return result;
   }, [allEvents, subagentMeta]);
 
+  // Push turns to layout context for BottomPanel
+  useEffect(() => {
+    setCurrentTurns(turns);
+  }, [turns, setCurrentTurns]);
+
+  // Push active turn index to layout context for BottomPanel (Detail/Raw/Trace tabs)
+  // Default to last turn so panels show data immediately without requiring a click
+  useEffect(() => {
+    const effectiveIndex = selectedTurnIndex ?? (turns.length > 0 ? turns.length - 1 : null);
+    setCurrentActiveTurnIndex(effectiveIndex);
+  }, [selectedTurnIndex, turns.length, setCurrentActiveTurnIndex]);
+
   // Auto-release turn pin when new turns arrive
   useEffect(() => {
     setSelectedTurnIndex(null);
@@ -134,6 +168,11 @@ export function SessionPage() {
     setHighlightedTurnIndex(undefined);
     setSelectedTurnIndex(null);
   }, [repoSlug, sessionId]);
+
+  // Sync selectedAgent to layout context for BottomPanel
+  useEffect(() => {
+    setCurrentSelectedAgent(selectedAgent);
+  }, [selectedAgent, setCurrentSelectedAgent]);
 
   const handleAgentPillClick = useCallback((agentId: string) => {
     setSelectedAgent(agentId);
@@ -188,13 +227,20 @@ export function SessionPage() {
     setRightPanelContent(rightPanel);
   }, [rightPanel, setRightPanelContent]);
 
-  // Clean up right panel and metrics on unmount
+  // Clean up right panel and session data on unmount
   useEffect(() => {
     return () => {
       setRightPanelContent(null);
       setCurrentMetrics(null);
+      setCurrentEvents([]);
+      setCurrentLiveEvents([]);
+      setCurrentTurns([]);
+      setCurrentDag(null);
+      setCurrentSelectedAgent(null);
+      setCurrentActiveTurnIndex(null);
+      setHasSubagents(false);
     };
-  }, [setRightPanelContent, setCurrentMetrics]);
+  }, [setRightPanelContent, setCurrentMetrics, setCurrentEvents, setCurrentLiveEvents, setCurrentTurns, setCurrentDag, setCurrentSelectedAgent, setCurrentActiveTurnIndex, setHasSubagents]);
 
   if (metricsLoading && !metrics) {
     return (
