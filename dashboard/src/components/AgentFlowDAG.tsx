@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect } from "react";
+import { useMemo, useCallback, useEffect, useRef } from "react";
 import {
   ReactFlow,
   useReactFlow,
@@ -30,7 +30,7 @@ export const MAX_PER_ROW = 3;
 
 /**
  * Custom tree layout that wraps children into rows of MAX_PER_ROW.
- * Replaces dagre — our DAG is always a simple tree (main -> children),
+ * Replaces dagre -- our DAG is always a simple tree (main -> children),
  * so grid arithmetic is simpler and avoids the horizontal overflow
  * dagre causes when placing all children in one row.
  *
@@ -167,6 +167,13 @@ export function computeTreeLayout(
   return positions;
 }
 
+/** Compute a structure key from node IDs + edge source/target for layout memoization */
+function computeDagStructureKey(dag: AgentDAG): string {
+  const nodeIds = dag.nodes.map((n) => n.id).sort().join(",");
+  const edgeKeys = dag.edges.map((e) => `${e.source}->${e.target}`).sort().join(",");
+  return `${nodeIds}|${edgeKeys}`;
+}
+
 export function getLayoutedElements(
   dag: AgentDAG,
   selectedAgent: string | null,
@@ -231,27 +238,73 @@ interface Props {
 function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewInLog, activeTurnAgentIds }: Props) {
   const { fitView, zoomIn, zoomOut } = useReactFlow();
 
-  // Compute layout + build ReactFlow elements
-  const { nodes, edges } = useMemo(
-    () => getLayoutedElements(dag, selectedAgent, frozen, onViewInLog, activeTurnAgentIds),
-    [dag, selectedAgent, frozen, onViewInLog, activeTurnAgentIds]
+  // Fix 3: Memoize layout positions based on DAG structure (node IDs + edges),
+  // not the full dag reference. This avoids recomputing layout when only
+  // node data (tokens, status) changes.
+  const dagStructureKey = useMemo(() => computeDagStructureKey(dag), [dag]);
+
+  const positions = useMemo(
+    () => computeTreeLayout(dag.nodes, dag.edges),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on structure, not reference
+    [dagStructureKey]
   );
 
-  // Re-fit when node set changes (agents added/removed during session)
+  // Memoize nodes based on positions + selectedAgent + dag.nodes data
+  const nodes: Node[] = useMemo(() => {
+    return dag.nodes.map((n) => {
+      const pos = positions.get(n.id) || { x: 0, y: 0 };
+      const isDimmed = activeTurnAgentIds !== undefined && !activeTurnAgentIds.has(n.id);
+      return {
+        id: n.id,
+        type: "agentCard",
+        position: { x: pos.x, y: pos.y },
+        data: { agent: n, selected: n.id === selectedAgent, frozen, onViewInLog, invocationCount: Math.max(1, Math.ceil(n.toolCalls / 5)) },
+        ...(isDimmed ? { style: { opacity: 0.35 } } : {}),
+      };
+    });
+  }, [dag.nodes, positions, selectedAgent, frozen, onViewInLog, activeTurnAgentIds]);
+
+  // Memoize edges based on positions + dag data
+  const edges: Edge[] = useMemo(() => {
+    return dag.edges.map((e, i) => {
+      const targetNode = dag.nodes.find((n) => n.id === e.target);
+      const isActive = targetNode?.status === "active";
+      const isEdgeDimmed = activeTurnAgentIds !== undefined &&
+        !activeTurnAgentIds.has(e.source) && !activeTurnAgentIds.has(e.target);
+
+      return {
+        id: `e-${i}`,
+        source: e.source,
+        target: e.target,
+        animated: frozen ? false : isActive,
+        style: {
+          stroke: isActive ? "var(--accent)" : "var(--border-active)",
+          strokeWidth: 1.5,
+          strokeDasharray: frozen ? undefined : (isActive ? "5 3" : undefined),
+          ...(isEdgeDimmed ? { opacity: 0.2 } : {}),
+        },
+        markerEnd: {
+          type: "arrowclosed" as const,
+          color: isActive ? "var(--accent)" : "var(--border-active)",
+          width: 16,
+          height: 12,
+        },
+      };
+    });
+  }, [dag.edges, dag.nodes, frozen, activeTurnAgentIds]);
+
+  // Fix 4: Unified fitView effect — single effect handles both selected agent focus and node set changes
   const nodeIds = useMemo(() => dag.nodes.map((n) => n.id).sort().join(","), [dag.nodes]);
   useEffect(() => {
-    const timer = setTimeout(() => fitView({ padding: 0.2, duration: 200 }), 50);
-    return () => clearTimeout(timer);
-  }, [nodeIds, fitView]);
-
-  // Focus on selected agent
-  useEffect(() => {
-    if (!selectedAgent) return;
     const timer = setTimeout(() => {
-      fitView({ padding: 0.3, duration: 200, nodes: [{ id: selectedAgent }] });
-    }, 50);
+      if (selectedAgent) {
+        fitView({ padding: 0.3, duration: 200, nodes: [{ id: selectedAgent }] });
+      } else {
+        fitView({ padding: 0.2, duration: 200 });
+      }
+    }, 0);
     return () => clearTimeout(timer);
-  }, [selectedAgent, fitView]);
+  }, [selectedAgent, nodeIds, fitView]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => onSelectAgent?.(node.id),
@@ -262,15 +315,21 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
     fitView({ padding: 0.2 });
   }, [fitView]);
 
-  // Compute stats
-  const totalAgents = dag.nodes.length;
-  const runningCount = dag.nodes.filter((n) => n.status === "active").length;
-  const completedCount = dag.nodes.filter((n) => n.status === "completed").length;
-  const totalCost = dag.nodes.reduce((sum, n) => sum + n.tokenUsage.totalCost, 0);
-  const totalTokens = dag.nodes.reduce(
-    (sum, n) => sum + n.tokenUsage.inputTokens + n.tokenUsage.outputTokens,
-    0
-  );
+  // Fix 5: Memoize DAG stats
+  const { totalAgents, runningCount, completedCount, totalCost, totalTokens } = useMemo(() => {
+    const total = dag.nodes.length;
+    let running = 0;
+    let completed = 0;
+    let cost = 0;
+    let tokens = 0;
+    for (const n of dag.nodes) {
+      if (n.status === "active") running++;
+      if (n.status === "completed") completed++;
+      cost += n.tokenUsage.totalCost;
+      tokens += n.tokenUsage.inputTokens + n.tokenUsage.outputTokens;
+    }
+    return { totalAgents: total, runningCount: running, completedCount: completed, totalCost: cost, totalTokens: tokens };
+  }, [dag.nodes]);
 
   // Build legend from actual agents in the DAG
   const legendEntries = useMemo(() => {
