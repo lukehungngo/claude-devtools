@@ -1,7 +1,8 @@
 import { createContext, useContext } from "react";
-import type { RepoGroup, PermissionRequest, UsageInfo, CostSummary, SessionEvent, SessionMetrics } from "../lib/types";
+import type { RepoGroup, PermissionRequest, UsageInfo, CostSummary, SessionEvent, SessionMetrics, AgentDAG } from "../lib/types";
 import type { ReactNode } from "react";
 import type { PrimaryTab } from "../components/right-panel/PrimaryTabs";
+import type { TurnSnapshot } from "../lib/turnSnapshot";
 
 /** Maps repoSlug -> projectHash */
 export type SlugMap = Map<string, string>;
@@ -49,6 +50,22 @@ export interface LayoutContextValue {
   setSelected: (s: { projectHash: string; sessionId: string } | null) => void;
   slugMap: SlugMap;
   reverseSlugMap: ReverseSlugMap;
+
+  // Session data bridged to BottomPanel via layout
+  currentEvents: SessionEvent[];
+  setCurrentEvents: (events: SessionEvent[]) => void;
+  currentLiveEvents: SessionEvent[];
+  setCurrentLiveEvents: (events: SessionEvent[]) => void;
+  currentTurns: TurnSnapshot[];
+  setCurrentTurns: (turns: TurnSnapshot[]) => void;
+  currentDag: AgentDAG | null;
+  setCurrentDag: (dag: AgentDAG | null) => void;
+  currentActiveTurnIndex: number | null;
+  setCurrentActiveTurnIndex: (index: number | null) => void;
+  currentSelectedAgent: string | null;
+  setCurrentSelectedAgent: (agentId: string | null) => void;
+  hasSubagents: boolean;
+  setHasSubagents: (v: boolean) => void;
 }
 
 export const LayoutContext = createContext<LayoutContextValue | null>(null);

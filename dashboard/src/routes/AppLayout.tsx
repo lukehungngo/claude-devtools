@@ -14,7 +14,8 @@ import { useCosts } from "../hooks/useCosts";
 import { LayoutContext } from "../contexts/LayoutContext";
 import { buildSlugMap, buildProjectHashToSlugMap } from "../lib/repoSlug";
 import type { SessionWsHandlers, QuestionItem } from "../contexts/LayoutContext";
-import type { SessionMetrics } from "../lib/types";
+import type { SessionMetrics, SessionEvent, AgentDAG } from "../lib/types";
+import type { TurnSnapshot } from "../lib/turnSnapshot";
 import type { ReactNode } from "react";
 
 export function AppLayout() {
@@ -35,6 +36,15 @@ export function AppLayout() {
 
   // Right panel content -- kept for backward compat but not rendered in layout
   const [rightPanelContent, setRightPanelContent] = useState<ReactNode>(null);
+
+  // Session data state bridged to BottomPanel
+  const [currentEvents, setCurrentEvents] = useState<SessionEvent[]>([]);
+  const [currentLiveEvents, setCurrentLiveEvents] = useState<SessionEvent[]>([]);
+  const [currentTurns, setCurrentTurns] = useState<TurnSnapshot[]>([]);
+  const [currentDag, setCurrentDag] = useState<AgentDAG | null>(null);
+  const [currentActiveTurnIndex, setCurrentActiveTurnIndex] = useState<number | null>(null);
+  const [currentSelectedAgent, setCurrentSelectedAgent] = useState<string | null>(null);
+  const [hasSubagents, setHasSubagents] = useState(false);
 
   // Question state for AskUserQuestion
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
@@ -154,6 +164,20 @@ export function AppLayout() {
     setSelected,
     slugMap,
     reverseSlugMap,
+    currentEvents,
+    setCurrentEvents,
+    currentLiveEvents,
+    setCurrentLiveEvents,
+    currentTurns,
+    setCurrentTurns,
+    currentDag,
+    setCurrentDag,
+    currentActiveTurnIndex,
+    setCurrentActiveTurnIndex,
+    currentSelectedAgent,
+    setCurrentSelectedAgent,
+    hasSubagents,
+    setHasSubagents,
   };
 
   return (
@@ -208,7 +232,23 @@ export function AppLayout() {
           />
         }
         center={<Outlet />}
-        bottomPanel={<BottomPanel />}
+        bottomPanel={
+          <BottomPanel
+            metrics={currentMetrics}
+            turns={currentTurns}
+            events={currentEvents}
+            liveEvents={currentLiveEvents}
+            dag={currentDag}
+            activeTurnIndex={currentActiveTurnIndex}
+            selectedAgent={currentSelectedAgent}
+            onSelectAgent={setCurrentSelectedAgent}
+            repos={repos}
+            projectHash={selected?.projectHash ?? ""}
+            sessionId={selected?.sessionId ?? ""}
+            isLive={isLive}
+            hasSubagents={hasSubagents}
+          />
+        }
       />
     </LayoutContext.Provider>
   );

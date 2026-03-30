@@ -1,5 +1,6 @@
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
 import type { SessionMetrics } from "../lib/types";
+import { ThemePicker } from "./ThemePicker";
 
 interface Props {
   metrics: SessionMetrics | null;
@@ -139,10 +140,14 @@ export function TopBar({ metrics, isLive }: Props) {
           </div>
         </>
       ) : (
-        <span style={{ fontSize: 12, color: "var(--t3)" }}>
+        <span className="flex-1" style={{ fontSize: 12, color: "var(--t3)" }}>
           Select a session from the sidebar
         </span>
       )}
+
+      {/* Theme picker (always visible, far right) */}
+      <HudSep />
+      <ThemePicker />
     </div>
   );
 }
