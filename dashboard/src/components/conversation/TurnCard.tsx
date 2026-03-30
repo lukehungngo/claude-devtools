@@ -89,6 +89,8 @@ export function turnCardAreEqual(
     prev.turn.status === next.turn.status &&
     prev.turn.events.length === next.turn.events.length &&
     prev.turn.durationMs === next.turn.durationMs &&
+    prev.turn.cost === next.turn.cost &&
+    prev.turn.agents.length === next.turn.agents.length &&
     prev.isHighlighted === next.isHighlighted &&
     prev.onAgentPillClick === next.onAgentPillClick &&
     prev.onTurnClick === next.onTurnClick
