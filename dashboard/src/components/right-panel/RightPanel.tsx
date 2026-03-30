@@ -21,6 +21,8 @@ import { StatsPanel } from "../panels/StatsPanel";
 import { McpManager } from "../panels/McpManager";
 import { TaskPanel } from "../panels/TaskPanel";
 import { PermissionRulesEditor } from "../panels/PermissionRulesEditor";
+import { AgentManager } from "../panels/AgentManager";
+import { TaskMonitor } from "../panels/TaskMonitor";
 import { filterDagForTurn } from "../../lib/filterDagForTurn";
 
 /** Exported for overflow regression tests (TASK-005) */
@@ -273,6 +275,10 @@ export function RightPanel({
           <PermissionRulesEditor />
         ) : activePrimaryTab === "tasks" ? (
           <TaskPanel events={events} />
+        ) : activePrimaryTab === "agents" ? (
+          <AgentManager />
+        ) : activePrimaryTab === "monitor" ? (
+          <TaskMonitor sessionId={sessionId} />
         ) : null}
       </div>
     </div>

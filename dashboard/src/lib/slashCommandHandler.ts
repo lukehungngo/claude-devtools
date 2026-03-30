@@ -314,7 +314,13 @@ export async function handleSlashCommand(
       `Keyboard Shortcuts:\n` +
       `  ${mod}+L          Clear conversation\n` +
       `  ${mod}+Shift+K    Compact context\n` +
-      `  ${mod}+F          Search turns\n` +
+      `  ${mod}+F          Search transcript\n` +
+      `  ${mod}+B          Toggle task monitor\n` +
+      `  ${mod}+T          Toggle task panel\n` +
+      `  Alt+P             Model picker\n` +
+      `  Alt+T             Toggle thinking visibility\n` +
+      `  Alt+O             Toggle fast mode\n` +
+      `  Esc Esc           Rewind menu\n` +
       `  Escape            Close modal / dismiss\n` +
       `  Shift+Tab         Cycle permission mode\n` +
       `  Enter             Send message\n` +
@@ -413,6 +419,185 @@ export async function handleSlashCommand(
     return true;
   }
 
+  if (command === "/resume") {
+    const parts = trimmed.split(/\s+/);
+    const arg = parts[1]?.toLowerCase();
+
+    if (arg === "last") {
+      // Continue most recent session in cwd
+      const targetId = ctx.activeSessionId || ctx.sessionId;
+      if (!targetId) {
+        showOutput("No active session to resume.");
+        return true;
+      }
+      try {
+        const res = await fetch(`/api/sessions/${targetId}/continue`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        const data = await res.json();
+        if (data.success) {
+          showOutput("Resuming last session...");
+        } else {
+          showOutput(`Failed to resume: ${data.error || "unknown error"}`);
+        }
+      } catch {
+        showOutput("Failed to resume session.");
+      }
+    } else {
+      // Show recent sessions list
+      try {
+        const res = await fetch("/api/sessions");
+        const data = await res.json();
+        const sessions = (data.sessions || []).slice(0, 10);
+        if (sessions.length === 0) {
+          showOutput("No sessions found.");
+        } else {
+          const list = sessions.map((s: { id: string; title?: string; cwd?: string }, i: number) =>
+            `  ${i + 1}. ${s.title || s.id.slice(0, 8)} — ${s.cwd || "unknown"}`
+          ).join("\n");
+          showOutput(`Recent sessions:\n${list}\n\nUse /resume last to continue the most recent session.`);
+        }
+      } catch {
+        showOutput("Failed to list sessions.");
+      }
+    }
+    return true;
+  }
+
+  if (command === "/review") {
+    const parts = trimmed.split(/\s+/);
+    const arg = parts.slice(1).join(" ").trim();
+    // Forward as a prompt to Claude — let it use its built-in review capabilities
+    if (!arg) {
+      // No arg: review current changes
+      return false; // Let it go as "/review" message to SDK
+    }
+    // With PR number/URL: forward as message
+    return false;
+  }
+
+  if (command === "/agents") {
+    ctx.onOpenPanel?.("agents");
+    showOutput("Opening agents panel...");
+    return true;
+  }
+
+  if (command === "/add-dir") {
+    const parts = trimmed.split(/\s+/);
+    const dir = parts.slice(1).join(" ").trim();
+
+    if (!dir) {
+      showOutput("Usage: /add-dir <path> (adds a directory to the session context)");
+      return true;
+    }
+
+    const targetId = ctx.activeSessionId || ctx.sessionId;
+    if (!targetId) {
+      showOutput("No active session. Start or resume a session first.");
+      return true;
+    }
+
+    try {
+      const res = await fetch(`/api/sessions/${targetId}/add-dir`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ directory: dir }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showOutput(`Added directory: ${data.directory}`);
+      } else {
+        showOutput(`Failed: ${data.error || "unknown error"}`);
+      }
+    } catch {
+      showOutput("Failed to add directory.");
+    }
+    return true;
+  }
+
+  if (command === "/login") {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.authUrl) {
+        showOutput(`Open this URL to log in:\n${data.authUrl}`);
+      } else if (data.message) {
+        showOutput(data.message);
+      } else {
+        showOutput("Login initiated. Check terminal for auth flow.");
+      }
+    } catch {
+      showOutput("Failed to initiate login.");
+    }
+    return true;
+  }
+
+  if (command === "/logout") {
+    try {
+      const res = await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      showOutput(data.message || "Logged out.");
+    } catch {
+      showOutput("Failed to log out.");
+    }
+    return true;
+  }
+
+  if (command === "/output-style") {
+    const parts = trimmed.split(/\s+/);
+    const arg = parts.slice(1).join(" ").trim();
+    const targetId = ctx.activeSessionId || ctx.sessionId;
+
+    if (!arg) {
+      // List available styles
+      try {
+        const res = await fetch("/api/output-styles");
+        const data = await res.json();
+        const styles = data.styles || [];
+        if (styles.length === 0) {
+          showOutput("No output styles found. Add styles to ~/.claude/output-styles/");
+        } else {
+          const list = styles.map((s: { name: string; description?: string }) =>
+            `  ${s.name}${s.description ? ` — ${s.description}` : ""}`
+          ).join("\n");
+          showOutput(`Available output styles:\n${list}\n\nUsage: /output-style <name> | /output-style none`);
+        }
+      } catch {
+        showOutput("Failed to list output styles.");
+      }
+      return true;
+    }
+
+    if (!targetId) {
+      showOutput("No active session. Start or resume a session first.");
+      return true;
+    }
+
+    try {
+      const res = await fetch(`/api/sessions/${targetId}/output-style`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ style: arg === "none" ? null : arg }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showOutput(data.style ? `Output style set to "${data.style}"` : "Output style cleared");
+      } else {
+        showOutput(`Failed: ${data.error || "unknown error"}`);
+      }
+    } catch {
+      showOutput("Failed to set output style.");
+    }
+    return true;
+  }
+
   // Unknown command
   showOutput(getCommandOutput(command));
   return true;
@@ -421,7 +606,7 @@ export async function handleSlashCommand(
 function getCommandOutput(command: string): string {
   switch (command) {
     case "/help":
-      return "Available commands: /help, /clear, /compact, /context, /copy, /cost, /diff, /doctor, /effort, /export, /fast, /hooks, /init, /mcp, /memory, /model, /permissions, /plan, /rename, /rewind, /settings, /shortcuts, /stats, /tasks, /analytics, /usage, /exit";
+      return "Available commands: /add-dir, /agents, /analytics, /clear, /compact, /context, /copy, /cost, /diff, /doctor, /effort, /export, /fast, /help, /hooks, /init, /login, /logout, /mcp, /memory, /model, /output-style, /permissions, /plan, /rename, /resume, /review, /rewind, /settings, /shortcuts, /stats, /tasks, /usage, /exit";
     case "/clear":
       return "";
     case "/cost":

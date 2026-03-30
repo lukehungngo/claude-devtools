@@ -496,10 +496,45 @@ export function ConversationView({
     }
   }, [showSearch]);
 
+  const handleToggleSearch = useCallback(() => {
+    setShowSearch((prev) => {
+      if (!prev) {
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+      } else {
+        setSearchQuery("");
+      }
+      return !prev;
+    });
+  }, []);
+
+  const handleToggleMonitor = useCallback(() => {
+    onOpenPanel?.("monitor");
+  }, [onOpenPanel]);
+
+  const handleModelPicker = useCallback(() => {
+    onOpenPanel?.("settings");
+  }, [onOpenPanel]);
+
+  const handleToggleFastMode = useCallback(async () => {
+    const targetId = activeSessionId || sessionId;
+    if (!targetId) return;
+    try {
+      await fetch(`/api/sessions/${targetId}/fast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: true }),
+      });
+    } catch { /* silent */ }
+  }, [activeSessionId, sessionId]);
+
   useKeyboardShortcuts({
     onClear: handleClear,
     onCompact: handleCompactNow,
     onDismiss: handleDismiss,
+    onToggleSearch: handleToggleSearch,
+    onToggleMonitor: handleToggleMonitor,
+    onModelPicker: handleModelPicker,
+    onToggleFastMode: handleToggleFastMode,
   });
 
   return (

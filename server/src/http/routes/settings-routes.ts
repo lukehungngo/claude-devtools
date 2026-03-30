@@ -1,3 +1,7 @@
+import { spawnSync } from "child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { Router } from "express";
 import { logger } from "../../logger.js";
 import { readSettingsJson, writeSettingsJson } from "./route-context.js";
@@ -122,6 +126,108 @@ export function createSettingsRoutes(): Router {
     } catch (err) {
       logger.error({ error: String(err) }, "Failed to write settings");
       res.status(500).json({ error: "Failed to write settings" });
+    }
+  });
+
+  // --- Auth Management (P3-09) ---
+
+  router.get("/auth/status", (_req, res) => {
+    try {
+      const result = spawnSync("claude", ["auth", "status"], { timeout: 5000 });
+      const stdout = result.stdout?.toString() || "";
+      const stderr = result.stderr?.toString() || "";
+      res.json({ authenticated: result.status === 0, message: stdout || stderr });
+    } catch {
+      res.json({ authenticated: false, message: "Unable to check auth status" });
+    }
+  });
+
+  router.post("/auth/login", (_req, res) => {
+    try {
+      const result = spawnSync("claude", ["auth", "login", "--no-open"], { timeout: 10000 });
+      const stdout = result.stdout?.toString() || "";
+      // Try to extract auth URL from output
+      const urlMatch = stdout.match(/https?:\/\/\S+/);
+      if (urlMatch) {
+        res.json({ authUrl: urlMatch[0] });
+      } else {
+        res.json({ message: stdout || "Login initiated. Check terminal." });
+      }
+    } catch {
+      res.status(500).json({ error: "Failed to initiate login" });
+    }
+  });
+
+  router.post("/auth/logout", (_req, res) => {
+    try {
+      const result = spawnSync("claude", ["auth", "logout"], { timeout: 5000 });
+      const stdout = result.stdout?.toString() || "";
+      res.json({ success: result.status === 0, message: stdout || "Logged out" });
+    } catch {
+      res.status(500).json({ error: "Failed to log out" });
+    }
+  });
+
+  // --- Output Styles (P3-02) ---
+
+  router.get("/output-styles", (_req, res) => {
+    try {
+      const dirs = [
+        join(homedir(), ".claude", "output-styles"),
+        join(process.cwd(), ".claude", "output-styles"),
+      ];
+      const styles: { name: string; description?: string; path: string }[] = [];
+      const seen = new Set<string>();
+
+      for (const dir of dirs) {
+        if (!existsSync(dir)) continue;
+        for (const file of readdirSync(dir)) {
+          if (seen.has(file)) continue;
+          seen.add(file);
+          const filePath = join(dir, file);
+          let description: string | undefined;
+          try {
+            const content = readFileSync(filePath, "utf-8");
+            const firstLine = content.split("\n")[0]?.trim();
+            if (firstLine?.startsWith("#") || firstLine?.startsWith("//")) {
+              description = firstLine.replace(/^[#/]+\s*/, "");
+            }
+          } catch { /* ignore */ }
+          styles.push({ name: file.replace(/\.[^.]+$/, ""), description, path: filePath });
+        }
+      }
+
+      res.json({ styles });
+    } catch {
+      res.json({ styles: [] });
+    }
+  });
+
+  // --- Agent Definitions (P3-07) ---
+
+  router.get("/agents/definitions", (_req, res) => {
+    try {
+      const agentDir = join(process.cwd(), ".claude", "agents");
+      if (!existsSync(agentDir)) {
+        return res.json({ agents: [] });
+      }
+      const agents: { name: string; description?: string; path: string }[] = [];
+      for (const entry of readdirSync(agentDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const claudeMdPath = join(agentDir, entry.name, "CLAUDE.md");
+        let description: string | undefined;
+        if (existsSync(claudeMdPath)) {
+          try {
+            const content = readFileSync(claudeMdPath, "utf-8");
+            const firstPara = content.split("\n\n")[0]?.replace(/^#.*\n?/, "").trim();
+            description = firstPara?.slice(0, 200);
+          } catch { /* ignore */ }
+        }
+        agents.push({ name: entry.name, description, path: join(agentDir, entry.name) });
+      }
+      res.json({ agents });
+    } catch {
+      res.json({ agents: [] });
     }
   });
 
