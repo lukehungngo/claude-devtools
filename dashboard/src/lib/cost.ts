@@ -1,24 +1,26 @@
 /**
  * Per-model pricing table (per million tokens). March 2026.
  * Must be manually updated when Anthropic changes rates.
- * Mirrors server/src/analyzer/metrics.ts MODEL_PRICING (input/output only).
+ * Mirrors server/src/analyzer/metrics.ts MODEL_PRICING.
  */
-const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "claude-opus-4-6": { input: 15, output: 75 },
-  "claude-sonnet-4-6": { input: 3, output: 15 },
-  "claude-haiku-4-5-20251001": { input: 0.8, output: 4 },
+const MODEL_PRICING: Record<string, { input: number; output: number; cacheWrite: number; cacheRead: number }> = {
+  "claude-opus-4-6": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
+  "claude-sonnet-4-6": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
+  "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheWrite: 1, cacheRead: 0.08 },
 };
 
 const DEFAULT_PRICING = MODEL_PRICING["claude-sonnet-4-6"];
 
 /**
- * Calculate turn cost using per-model pricing.
+ * Calculate turn cost using per-model pricing (including cache tokens).
  * Falls back to sonnet pricing for unknown models.
  */
 export function calculateTurnCost(
   model: string,
   inputTokens: number,
-  outputTokens: number
+  outputTokens: number,
+  cacheWriteTokens = 0,
+  cacheReadTokens = 0,
 ): number {
   const pricing =
     Object.entries(MODEL_PRICING).find(
@@ -29,7 +31,9 @@ export function calculateTurnCost(
 
   return (
     (inputTokens * pricing.input) / 1_000_000 +
-    (outputTokens * pricing.output) / 1_000_000
+    (outputTokens * pricing.output) / 1_000_000 +
+    (cacheWriteTokens * pricing.cacheWrite) / 1_000_000 +
+    (cacheReadTokens * pricing.cacheRead) / 1_000_000
   );
 }
 
