@@ -6,8 +6,7 @@ import type {
   ContentItem,
 } from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
-import { formatCost, formatDuration } from "../../lib/cost";
-import { formatTime } from "../../lib/formatTime";
+import { formatDuration } from "../../lib/cost";
 import { AgentPills } from "./AgentPills";
 import { ThinkingBlock } from "../viewer/ThinkingBlock";
 import { ResponseBlock } from "../viewer/ResponseBlock";
@@ -55,17 +54,28 @@ function TurnFooter({ turn }: { turn: TurnSnapshot }) {
   return (
     <div
       data-testid="turn-completion-indicator"
-      className="mt-3 pt-2 border-t border-dt-border/50 flex items-center gap-1.5 text-dt-text2 text-xs font-mono"
+      className="flex items-center gap-1.5 font-mono"
+      style={{ marginTop: 10, fontSize: 10, color: "var(--t3)" }}
     >
       {isStreaming ? (
         <>
-          <span className="w-1.5 h-1.5 rounded-full bg-dt-accent animate-pulse-opacity" />
+          <span
+            className="shrink-0"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "var(--amb)",
+              animation: "pulse 1.5s infinite",
+              display: "inline-block",
+            }}
+          />
           <span>Generating...</span>
-          <span className="text-dt-text2">{formatDuration(elapsed)}</span>
+          <span>{formatDuration(elapsed)}</span>
         </>
       ) : (
         <>
-          <span className="text-dt-green">&#10003;</span>
+          <span style={{ color: "var(--grn)" }}>&#10003;</span>
           <span data-testid="turn-completion-timestamp">
             {turn.durationMs != null
               ? `Completed in ${formatDuration(turn.durationMs)}`
@@ -103,113 +113,108 @@ export function TurnCard({
   onAgentPillClick,
   onTurnClick,
 }: TurnCardProps) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [promptExpanded, setPromptExpanded] = useState(false);
   const isRunning = turn.status === "running";
   const responseContent = extractResponseContent(turn.events);
-  const canExpandPrompt = turn.promptText.length > 100;
 
   return (
     <div
-      className={`conv-turn ${collapsed ? "collapsed" : ""} ${isHighlighted ? "highlighted" : ""} rounded-dt-lg border border-dt-border mb-3 overflow-hidden transition-all duration-dt-normal ease-dt-expo shadow-dt-sm ${
-        isHighlighted ? "bg-dt-accent-dim border-l-4 border-l-dt-accent shadow-dt-glow" : "bg-dt-bg2"
-      }`}
+      className={`conv-turn ${isHighlighted ? "highlighted" : ""}`}
       onClick={onTurnClick}
+      style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
-      {/* Header */}
-      <div
-        role="button"
-        tabIndex={0}
-        aria-expanded={!collapsed}
-        aria-label={`Turn ${turn.turnNumber}: ${collapsed ? "expand" : "collapse"}`}
-        onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setCollapsed(!collapsed); } }}
-        className="flex items-center gap-3 px-5 py-3.5 cursor-pointer select-none"
-      >
-        {/* Expand icon */}
-        <span
-          className="text-sm text-dt-text2 transition-transform shrink-0"
-          style={{ transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 150ms var(--ease-out-expo)" }}
-        >
-          {"\u25BC"}
-        </span>
-
-        {/* Turn label */}
-        <span className="text-sm font-semibold text-dt-accent/80 uppercase tracking-[0.6px] shrink-0">
-          PROMPT {"\u00B7"} TURN {turn.turnNumber}
-        </span>
-
-        <div className="flex-1" />
-
-        {/* Status dot */}
-        <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRunning ? "bg-dt-accent animate-pulse-opacity" : "bg-dt-green"}`}
-        />
-
-        {/* Time */}
-        <span className="text-sm text-dt-text2 font-mono shrink-0">
-          {formatTime(turn.startTime)}
-        </span>
-
-        {/* Cost */}
-        {turn.cost > 0 && (
-          <span className="text-sm text-dt-text2 font-mono shrink-0">
-            {formatCost(turn.cost)}
-          </span>
-        )}
-      </div>
-
-      {/* User prompt */}
-      <div
-        className={`flex gap-2 pr-5 pb-3 pl-10 ${promptExpanded ? "items-start" : "items-center"}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <span className="text-sm font-semibold text-dt-accent/80 uppercase tracking-[0.5px] shrink-0">
-          USER PROMPT
-        </span>
-        <span
-          className="flex-1 min-w-0 text-lg text-dt-text1"
+      {/* ── User message ── */}
+      <div className="flex items-start" style={{ gap: 10 }}>
+        <div
+          className="flex items-center justify-center shrink-0"
           style={{
-            overflow: "hidden",
-            textOverflow: promptExpanded ? "clip" : "ellipsis",
-            whiteSpace: promptExpanded ? "normal" : "nowrap",
-            wordBreak: promptExpanded ? "break-word" : "normal",
-            lineHeight: promptExpanded ? 1.35 : 1.2,
+            width: 28,
+            height: 28,
+            borderRadius: 7,
+            fontSize: 11,
+            fontWeight: 600,
+            background: "var(--bg-h)",
+            color: "var(--t2)",
           }}
         >
-          {turn.promptText}
-        </span>
-        {canExpandPrompt && (
-          <button
-            type="button"
-            onClick={() => setPromptExpanded((prev) => !prev)}
-            className="shrink-0 text-xs font-semibold text-dt-accent bg-transparent border-none cursor-pointer p-0 leading-none"
-          >
-            {promptExpanded ? "less" : "more"}
-          </button>
-        )}
+          U
+        </div>
+        <div className="flex-1 min-w-0">
+          <div style={{ fontSize: 10, color: "var(--t3)", marginBottom: 3, fontWeight: 500 }}>
+            You
+          </div>
+          <div style={{ fontSize: 13, color: "var(--t1)", lineHeight: 1.65 }}>
+            {turn.promptText}
+          </div>
+        </div>
       </div>
 
-      {/* Body */}
-      {!collapsed && (
-        <div className="conv-turn-body pr-5 pb-4 pl-10">
-          {/* Agent pills */}
-          <AgentPills agents={turn.agents} onPillClick={onAgentPillClick} />
+      {/* ── Claude message ── */}
+      {(responseContent.length > 0 || turn.events.length > 0) && (
+        <div className="flex items-start" style={{ gap: 10 }}>
+          <div
+            className="flex items-center justify-center shrink-0"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              fontSize: 11,
+              fontWeight: 600,
+              background: "var(--acc-bg)",
+              color: "var(--acc)",
+            }}
+          >
+            C
+          </div>
+          <div className="flex-1 min-w-0">
+            <div style={{ fontSize: 10, color: "var(--t3)", marginBottom: 3, fontWeight: 500 }}>
+              Claude
+            </div>
 
-          {/* Tool entries */}
-          <ToolEntries events={turn.events} />
+            {/* Agent pills */}
+            <AgentPills agents={turn.agents} onPillClick={onAgentPillClick} />
 
-          {/* Response content */}
-          {responseContent.map((item, i) =>
-            item.type === "thinking" && "thinking" in item ? (
-              <ThinkingBlock key={`thinking-${i}`} content={item} />
-            ) : item.type === "text" && "text" in item ? (
-              <ResponseBlock key={`text-${i}`} text={item.text} />
-            ) : null,
-          )}
+            {/* Response text + tool groups interleaved */}
+            {responseContent.map((item, i) =>
+              item.type === "thinking" && "thinking" in item ? (
+                <ThinkingBlock key={`thinking-${i}`} content={item} />
+              ) : item.type === "text" && "text" in item ? (
+                <div
+                  key={`text-${i}`}
+                  className="msg-text"
+                  style={{ fontSize: 13, color: "var(--t1)", lineHeight: 1.65, marginTop: i > 0 ? 10 : 0 }}
+                >
+                  <ResponseBlock text={item.text} />
+                </div>
+              ) : null,
+            )}
 
-          {/* Completion indicator */}
-          <TurnFooter turn={turn} />
+            {/* Tool entries (grouped card) */}
+            <ToolEntries events={turn.events} />
+
+            {/* Running indicator */}
+            {isRunning && (
+              <div
+                className="flex items-center"
+                style={{ marginTop: 8, fontSize: 13, color: "var(--t2)", gap: 6 }}
+              >
+                <span
+                  className="shrink-0"
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "var(--amb)",
+                    animation: "pulse 1.5s infinite",
+                    display: "inline-block",
+                  }}
+                />
+                <span>Working...</span>
+              </div>
+            )}
+
+            {/* Completion indicator */}
+            <TurnFooter turn={turn} />
+          </div>
         </div>
       )}
     </div>

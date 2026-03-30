@@ -12,7 +12,7 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "dark",
+  theme: "light",
   setTheme: () => {},
 });
 
@@ -25,7 +25,7 @@ function getInitialTheme(): ThemeName {
   } catch {
     // localStorage may be unavailable
   }
-  return "dark";
+  return "light";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

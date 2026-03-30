@@ -176,7 +176,8 @@ export function computeMetrics(
     ...Array.from(subagentEvents.values()).flat(),
   ];
 
-  // Aggregate tokens
+  // Aggregate tokens from MAIN events only (matches CLI behavior).
+  // Subagent tokens are tracked in the DAG nodes, not in the top-level totals.
   const tokensByModel: Record<string, AggregatedTokens> = {};
   const tokensByTurn: TurnTokens[] = [];
   const totalTokens: AggregatedTokens = {
@@ -192,7 +193,7 @@ export function computeMetrics(
   const models = new Set<string>();
   let lastInputTokens = 0; // last assistant event's input_tokens = current context usage
 
-  for (const event of allEvents) {
+  for (const event of mainEvents) {
     if (event.type !== "assistant") continue;
     const usage = event.message.usage;
     const model = event.message.model || "unknown";

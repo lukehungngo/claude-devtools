@@ -1,321 +1,153 @@
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
-import type { UsageInfo, CostSummary, SessionMetrics } from "../lib/types";
+import type { SessionMetrics } from "../lib/types";
 
 interface Props {
-  usage: UsageInfo | null;
-  costs: CostSummary | null;
   metrics: SessionMetrics | null;
   isLive?: boolean;
-  onToolFilter?: (toolName: string) => void;
 }
 
-function formatModelName(model: string): string {
-  const stripped = model.replace("claude-", "");
-  for (const family of ["opus", "sonnet", "haiku"]) {
-    if (stripped.startsWith(family)) {
-      const rest = stripped.slice(family.length + 1);
-      const ver = rest
-        .split("-")
-        .filter((p) => /^\d+$/.test(p))
-        .slice(0, 2)
-        .join(".");
-      return `${family} ${ver}`;
-    }
-  }
-  return stripped;
-}
-
-function formatResetTime(resetsAt: string | null): string {
-  if (!resetsAt) return "";
-  const ms = new Date(resetsAt).getTime() - Date.now();
-  if (ms <= 0) return "now";
-  const mins = Math.floor(ms / 60_000);
-  if (mins < 60) return `${mins}m`;
-
-  const hoursTotal = Math.floor(mins / 60);
-  const remainingMins = mins % 60;
-  if (hoursTotal < 24) {
-    return remainingMins > 0
-      ? `${hoursTotal}h ${remainingMins}m`
-      : `${hoursTotal}h`;
-  }
-
-  const days = Math.floor(hoursTotal / 24);
-  const remainingHours = hoursTotal % 24;
-  if (days < 7) {
-    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
-  }
-
-  const weeks = Math.floor(days / 7);
-  const remainingDays = days % 7;
-  return remainingDays > 0 ? `${weeks}w ${remainingDays}d` : `${weeks}w`;
-}
-
-const toolColorMap: Record<string, string> = {
-  Read: "var(--cyan)",
-  Bash: "var(--yellow)",
-  Write: "var(--green)",
-  Edit: "var(--orange)",
-  TaskUpdate: "var(--purple)",
-  Grep: "var(--cyan)",
-  Glob: "var(--cyan)",
-  Agent: "var(--accent)",
-  WebFetch: "var(--green)",
-};
-
-export function TopBar({ usage, costs, metrics, isLive, onToolFilter }: Props) {
+export function TopBar({ metrics, isLive }: Props) {
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
+  const agentCount = metrics?.totalAgents ?? 0;
 
-  const mcpCount = metrics
-    ? new Set(metrics.tools.filter((t) => t.isMcp).map((t) => t.mcpServer)).size
-    : 0;
-
+  const contextPct = metrics?.contextPercent ?? 0;
   const contextColor =
-    (metrics?.contextPercent ?? 0) > 80
-      ? "var(--red)"
-      : (metrics?.contextPercent ?? 0) > 50
-        ? "var(--yellow)"
-        : "var(--green)";
+    contextPct > 80 ? "var(--red)" : contextPct > 50 ? "var(--amb)" : "var(--grn)";
+
+  const modelName = metrics?.models[0]
+    ? formatModelShort(metrics.models[0])
+    : "\u2014";
 
   return (
     <div
-      className="topbar bg-dt-bg1 flex flex-col border-b border-dt-border z-10 font-mono text-lg"
-      style={{ gridArea: "topbar" }}
+      className="flex items-center shrink-0"
+      style={{
+        padding: "0 18px",
+        height: 40,
+        background: "var(--bg-s)",
+        borderBottom: "1px solid var(--bd)",
+        gap: 14,
+      }}
     >
-      {/* Row 1: Title | Tokens | Mode | Model | Branch || Right: 24h/7d + Subscription */}
-      <div className="topbar-row flex items-center px-5 min-h-8 flex-nowrap overflow-hidden border-b border-dt-border">
-        <div className="flex items-center gap-0 flex-1 flex-nowrap overflow-hidden">
-          {/* Title */}
-          <div className="flex items-center gap-2 font-sans font-semibold text-2xl text-dt-text0 mr-5 tracking-[-0.5px] shrink-0">
-            <span
-              className={`inline-block w-2 h-2 rounded-full shrink-0 ${isLive
-                ? "bg-dt-green animate-pulse-opacity shadow-[0_0_8px_var(--green)]"
-                : "bg-dt-red"
-                }`}
-              title={isLive ? "Connected" : "Disconnected"}
-            />
-            Claude DevTools
-          </div>
-
-          {metrics ? (
-            <>
-              <div className="flex items-center gap-3 whitespace-nowrap">
-                <TbStat label="Token In" value={formatTokens(tIn)} />
-                <TbStat label="Out" value={formatTokens(tOut)} />
-                <InfoIcon
-                  tooltip={`Estimated API key usage: ~${formatCost(sCost)}`}
-                />
-              </div>
-              <TbSep />
-              <TbStat
-                label="Mode"
-                value={
-                  metrics.session.permissionMode === "default"
-                    ? "defaultPermissions"
-                    : metrics.session.permissionMode || "\u2014"
-                }
-                valueColor="var(--yellow)"
-              />
-              <TbSep />
-              <TbStat
-                label="Model"
-                value={
-                  metrics.models[0]
-                    ? formatModelName(metrics.models[0])
-                    : "\u2014"
-                }
-                valueColor="var(--accent)"
-              />
-              <TbSep />
-              <TbStat
-                label="Branch"
-                value={
-                  metrics.session.gitBranch
-                    ? `git:${metrics.session.gitBranch}`
-                    : "\u2014"
-                }
-                valueColor="var(--green)"
-              />
-            </>
-          ) : (
-            <span className="text-dt-text2 text-sm">
-              Select a session from the sidebar
-            </span>
-          )}
-        </div>
-
-        {/* Right: Subscription box */}
-        <div className="tb-sub-box flex flex-col gap-0.75 py-1.5 pl-5 border-l border-dt-border ml-4 text-md shrink-0">
-          <SubRow label="24h" costs={costs} period="24h" />
-          <SubRow label="7d" costs={costs} period="7d" />
-          {usage && (
-            <div className="tb-sub-row flex items-center gap-2">
-              {usage.planName && (
-                <span className="tb-sub-badge px-2 py-0.5 rounded-full text-xxs font-bold uppercase bg-dt-accent text-white shadow-dt-sm">
-                  {usage.planName}
-                </span>
-              )}
-              {usage.fiveHour.utilization !== null ||
-                usage.sevenDay.utilization !== null ? (
-                <>
-                  <UsageBar
-                    label="Session"
-                    value={usage.fiveHour.utilization}
-                    resetsAt={usage.fiveHour.resetsAt}
-                  />
-                  <span className="text-dt-border">|</span>
-                  <UsageBar
-                    label="Week"
-                    value={usage.sevenDay.utilization}
-                    resetsAt={usage.sevenDay.resetsAt}
-                  />
-                </>
-              ) : (
-                <span className="text-dt-text2 text-xxs">
-                  Usage data unavailable
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+      {/* Live status */}
+      <div
+        className="flex items-center gap-[5px] shrink-0"
+        style={{ paddingRight: 12, borderRight: "1px solid var(--bd)" }}
+      >
+        <div
+          className="rounded-full shrink-0"
+          style={{
+            width: 7,
+            height: 7,
+            background: isLive ? "var(--grn)" : "var(--t3)",
+            animation: isLive ? "pulse 2s infinite" : "none",
+          }}
+        />
+        <span
+          className="font-semibold"
+          style={{
+            fontSize: 10,
+            letterSpacing: ".5px",
+            color: isLive ? "var(--grn)" : "var(--t3)",
+          }}
+        >
+          {isLive ? "LIVE" : "DONE"}
+        </span>
       </div>
 
-      {/* Row 2: Duration | Context bar | MCP count | Tasks */}
-      <div className="topbar-row flex items-center px-5 min-h-8 flex-nowrap overflow-hidden border-b border-dt-border">
-        {metrics ? (
-          <>
-            <TbStat label="Duration" value={formatDuration(metrics.duration)} />
-            <TbSep />
-            <div className="tb-stat flex items-center gap-1 whitespace-nowrap text-lg">
-              <span className="text-dt-text2">Context</span>
-              <div className="flex items-center gap-1">
+      {metrics ? (
+        <>
+          <HudMetric label="Model" value={modelName} />
+          <HudSep />
+          <HudMetric label="Duration" value={formatDuration(metrics.duration)} />
+          <HudSep />
+
+          {/* Context with mini bar */}
+          <div className="flex flex-col items-center gap-[2px]">
+            <span
+              className="uppercase"
+              style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
+            >
+              Context
+            </span>
+            <div className="flex items-center gap-1">
+              <span
+                className="font-mono font-medium"
+                style={{ fontSize: 12, color: "var(--t1)" }}
+              >
+                {contextPct}%
+              </span>
+              <div
+                style={{
+                  width: 42,
+                  height: 4,
+                  borderRadius: 2,
+                  background: "var(--bd)",
+                  overflow: "hidden",
+                }}
+              >
                 <div
                   style={{
-                    width: 70,
-                    height: 5,
-                    background: "var(--bg-4)",
+                    height: "100%",
+                    width: `${contextPct}%`,
                     borderRadius: 2,
-                    overflow: "hidden",
-                    position: "relative",
+                    background: contextColor,
+                    transition: "width .3s, background .3s",
                   }}
-                >
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${metrics.contextPercent}%`,
-                      background: contextColor,
-                      borderRadius: 2,
-                      position: "absolute",
-                      left: 0,
-                      top: 0,
-                    }}
-                  />
-                </div>
-                <span className="text-dt-text0 font-semibold">
-                  {metrics.contextPercent}%
-                </span>
+                />
               </div>
             </div>
-            <TbSep />
-            <TbStat
-              label="MCP"
-              value={`${mcpCount}`}
-              valueColor="var(--cyan)"
-            />
-            {metrics.repoConfig && (
-              <>
-                <TbSep />
-                <TbStat
-                  label="Hooks"
-                  value={`${metrics.repoConfig.hooks}`}
-                  valueColor="var(--yellow)"
-                />
-                <TbSep />
-                <TbStat
-                  label="Rules"
-                  value={`${metrics.repoConfig.rules}`}
-                  valueColor="var(--purple)"
-                />
-                <TbSep />
-                <TbStat
-                  label="Agents"
-                  value={`${metrics.repoConfig.agents}`}
-                  valueColor="var(--accent)"
-                />
-                <TbSep />
-                <TbStat
-                  label="CLAUDE.md"
-                  value={`${metrics.repoConfig.claudeMdFiles}`}
-                  valueColor="var(--green)"
-                />
-              </>
-            )}
-            {metrics.tasks.total > 0 && (
-              <>
-                <TbSep />
-                <TbStat
-                  label="Tasks"
-                  value={`${metrics.tasks.completed}/${metrics.tasks.total}`}
-                  valueColor={
-                    metrics.tasks.completed === metrics.tasks.total
-                      ? "var(--green)"
-                      : "var(--text-0)"
-                  }
-                />
-              </>
-            )}
-          </>
-        ) : (
-          <span className="text-dt-text2 text-sm">&mdash;</span>
-        )}
-      </div>
+          </div>
 
-      {/* Row 3: Tool usage badges */}
-      <div className="topbar-row flex items-center px-5 min-h-7 flex-nowrap overflow-hidden">
-        {metrics ? (
-          metrics.tools.slice(0, 10).map((t) => {
-            const shortName = t.name.startsWith("mcp__")
-              ? t.name.split("__").pop() || t.name
-              : t.name;
-            const checkColor = toolColorMap[shortName] || "var(--text-1)";
-            return (
+          <HudSep />
+          <HudMetric label="Cost" value={formatCost(sCost)} valueColor="var(--amb)" />
+          <HudSep />
+          <HudMetric label="Agents" value={String(agentCount)} />
+
+          {/* Tokens (right-aligned) */}
+          <div className="flex gap-2 ml-auto">
+            <div className="flex flex-col items-center gap-[2px]">
               <span
-                key={t.name}
-                role="button"
-                tabIndex={0}
-                aria-label={`Filter by ${shortName}: ${t.count} calls, ${t.errors} errors`}
-                onClick={() => onToolFilter?.(shortName)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToolFilter?.(shortName); } }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-dt-sm text-md text-dt-text1 whitespace-nowrap mr-1.5 cursor-pointer hover:bg-dt-bg3 transition-colors duration-dt-fast"
-                title={`${shortName}: ${t.count} calls, ${t.errors} errors — click to filter log`}
+                className="uppercase"
+                style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
               >
-                <span style={{ color: checkColor, marginRight: "1px" }}>
-                  &#10003;
-                </span>
-                <span>{shortName}</span>
-                <span className="text-dt-text2 font-mono">
-                  &times;{t.count}
-                </span>
+                In
               </span>
-            );
-          })
-        ) : (
-          <span className="text-dt-text2 text-sm">&mdash;</span>
-        )}
-      </div>
+              <span
+                className="font-mono font-medium"
+                style={{ fontSize: 11, color: "var(--teal)" }}
+              >
+                {formatTokens(tIn)}
+              </span>
+            </div>
+            <div className="flex flex-col items-center gap-[2px]">
+              <span
+                className="uppercase"
+                style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
+              >
+                Out
+              </span>
+              <span
+                className="font-mono font-medium"
+                style={{ fontSize: 11, color: "var(--pur)" }}
+              >
+                {formatTokens(tOut)}
+              </span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <span style={{ fontSize: 12, color: "var(--t3)" }}>
+          Select a session from the sidebar
+        </span>
+      )}
     </div>
   );
 }
 
-/* --- Reusable pieces --- */
-
-function TbSep() {
-  return <div className="tb-sep w-px h-3.5 bg-dt-border/40 mx-3 shrink-0" />;
-}
-
-function TbStat({
+function HudMetric({
   label,
   value,
   valueColor,
@@ -325,14 +157,16 @@ function TbStat({
   valueColor?: string;
 }) {
   return (
-    <div className="tb-stat flex items-center gap-1 whitespace-nowrap text-lg text-dt-text2">
-      <span className="label text-dt-text2">{label}</span>
+    <div className="flex flex-col items-center gap-[2px]">
       <span
-        className="val"
-        style={{
-          color: valueColor || "var(--text-0)",
-          fontWeight: 600,
-        }}
+        className="uppercase"
+        style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
+      >
+        {label}
+      </span>
+      <span
+        className="font-mono font-medium"
+        style={{ fontSize: 12, color: valueColor || "var(--t1)" }}
       >
         {value}
       </span>
@@ -340,93 +174,27 @@ function TbStat({
   );
 }
 
-function InfoIcon({ tooltip }: { tooltip: string }) {
-  return (
-    <span
-      className="w-3.5 h-3.5 rounded-full border border-dt-text2 inline-flex items-center justify-center text-xs text-dt-text2 cursor-help ml-0.5"
-      title={tooltip}
-    >
-      i
-    </span>
-  );
-}
-
-function SubRow({
-  label,
-  costs,
-  period,
-}: {
-  label: string;
-  costs: CostSummary | null;
-  period: "24h" | "7d";
-}) {
-  const tIn = period === "24h" ? costs?.tokenIn24h : costs?.tokenIn7d;
-  const tOut = period === "24h" ? costs?.tokenOut24h : costs?.tokenOut7d;
-
-  return (
-    <div className="tb-sub-row flex items-center gap-2">
-      <span className="tb-sub-label text-dt-text2 min-w-6">{label}</span>
-      {costs ? (
-        <span className="tb-sub-val text-dt-text0 flex gap-2">
-          <span>In: {formatTokens(tIn ?? 0)}</span>
-          <span>Out: {formatTokens(tOut ?? 0)}</span>
-        </span>
-      ) : (
-        <span className="text-dt-text2">...</span>
-      )}
-    </div>
-  );
-}
-
-function UsageBar({
-  label,
-  value,
-  resetsAt,
-}: {
-  label: string;
-  value: number | null;
-  resetsAt: string | null;
-}) {
-  const pct = value ?? 0;
-  const barColor =
-    pct > 80 ? "var(--red)" : pct > 50 ? "var(--yellow)" : "var(--green)";
-  const resetStr = resetsAt ? formatResetTime(resetsAt) : "";
-  const resetLabel = resetStr ? `reset ${resetStr}` : "reset unknown";
-
+function HudSep() {
   return (
     <div
-      className="flex items-center gap-1.5 text-md text-dt-text2 whitespace-nowrap"
-      title={resetStr ? `Resets in ${resetStr}` : undefined}
-    >
-      <span className="font-semibold text-dt-text1">{label}</span>
-      <div
-        style={{
-          width: 56,
-          height: 6,
-          background: "var(--bg-4)",
-          borderRadius: 3,
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
-        {value !== null && (
-          <div
-            style={{
-              height: "100%",
-              width: `${pct}%`,
-              background: barColor,
-              borderRadius: 3,
-              position: "absolute",
-              left: 0,
-              top: 0,
-            }}
-          />
-        )}
-      </div>
-      <span className="font-mono text-xs font-semibold" style={{ color: barColor }}>
-        {value !== null ? `${pct.toFixed(0)}%` : "--"}
-      </span>
-      <span className="font-mono text-xxs text-dt-text2">{resetLabel}</span>
-    </div>
+      className="shrink-0"
+      style={{ width: 1, height: 22, background: "var(--bd)" }}
+    />
   );
+}
+
+function formatModelShort(model: string): string {
+  const stripped = model.replace("claude-", "");
+  for (const family of ["opus", "sonnet", "haiku"]) {
+    if (stripped.startsWith(family)) {
+      const rest = stripped.slice(family.length + 1);
+      const ver = rest
+        .split("-")
+        .filter((p) => /^\d+$/.test(p))
+        .slice(0, 2)
+        .join(".");
+      return `${family.charAt(0).toUpperCase() + family.slice(1)} ${ver}`;
+    }
+  }
+  return stripped;
 }

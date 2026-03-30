@@ -24,7 +24,9 @@ cd server && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit  # type che
 5. **WS broadcasts only new events** — REST for full session, WS for deltas.
 6. **SDK events via SSE** — active sessions stream from `query()` iterator directly.
 7. **Promise-based permissions** — `canUseTool` returns Promise, 10min timeout.
-8. **Low latency, high performance** — this is a developer tool replacing the CLI. If it's slow, it's useless. Every feature must meet performance budgets. No O(n) on every event. No full re-reads. No unnecessary re-renders.
+8. **Low latency, high performance** — if it's slower than the terminal, no one uses it. O(1) per event, cached reads, memoized renders. Performance regressions are P0.
+9. **Data integrity** — numbers must be correct. Token counts, costs, status must match JSONL source. Wrong data is worse than no data.
+10. **Smooth UI/UX** — 60fps scrolling, instant feedback, no jank. Virtualized lists, batched updates, stable refs. Visual quality is not optional.
 
 ## Key References
 

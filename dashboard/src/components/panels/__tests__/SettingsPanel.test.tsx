@@ -135,6 +135,40 @@ describe("SettingsPanel - Editable Settings", () => {
     cleanup();
   });
 
+  it("renders canonical SDK permission mode options", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      if (typeof url === "string" && url === "/api/settings") {
+        return mockFetchResponse({}) as Promise<Response>;
+      }
+      return mockFetchResponse({ models: [] }) as Promise<Response>;
+    });
+
+    render(<SettingsPanel metrics={makeMetrics()} usage={null} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Effort")).toBeTruthy();
+    });
+
+    const permSelect = screen.getAllByLabelText("Permission Mode").find(
+      (el): el is HTMLSelectElement => el.tagName === "SELECT",
+    )!;
+    const options = Array.from(permSelect.options).map((o) => o.value);
+
+    // First option is the placeholder
+    expect(options[0]).toBe("");
+
+    // Remaining options must be exactly the canonical SDK modes
+    const CANONICAL_MODES = [
+      "default",
+      "acceptEdits",
+      "plan",
+      "auto",
+      "dontAsk",
+      "bypassPermissions",
+    ];
+    expect(options.slice(1)).toEqual(CANONICAL_MODES);
+  });
+
   it("renders model, effort, and permission mode dropdowns", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
       if (typeof url === "string" && url === "/api/settings") {

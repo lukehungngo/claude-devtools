@@ -539,8 +539,19 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
   }
 
   return (
-    <div className="conv-input-wrap px-5 pt-3 pb-4 border-t border-dt-border bg-dt-bg1 shrink-0">
-      <div className="conv-input-box relative flex items-center gap-2.5 bg-dt-bg2 border border-dt-border rounded-dt-xl px-4 py-3.5 transition-shadow duration-dt-normal focus-within:border-dt-accent/50 focus-within:shadow-[0_0_0_1px_var(--accent-glow),0_0_20px_var(--accent-glow)]">
+    <div className="conv-input-wrap shrink-0" style={{ padding: "10px 24px 16px" }}>
+      <div
+        className="conv-input-box relative flex items-center"
+        style={{
+          background: "var(--bg-e)",
+          border: "1px solid var(--bd)",
+          borderRadius: "var(--radius-lg)",
+          padding: "10px 14px",
+          gap: 10,
+          boxShadow: "var(--shadow)",
+          transition: "border-color .15s",
+        }}
+      >
         {/* Slash command dropdown */}
         {dropdownVisible && (
           <div
@@ -592,7 +603,8 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
           {ghostSuggestion && prompt.length === 0 && !running && (
             <span
               aria-hidden="true"
-              className="absolute left-0 top-0 text-dt-text2 opacity-50 font-mono text-lg pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis w-full"
+              className="absolute left-0 top-0 pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis w-full"
+              style={{ color: "var(--t4)", fontSize: 13, fontFamily: "var(--font-sans, inherit)" }}
               data-testid="ghost-suggestion"
             >
               {ghostSuggestion}
@@ -612,9 +624,15 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
             onKeyDown={handleKeyDown}
             onInput={handleInput}
             onPaste={handlePaste}
-            placeholder=""
+            placeholder="Type a message..."
             disabled={running}
-            className="w-full bg-transparent border-none outline-none text-dt-text0 font-mono text-lg caret-dt-accent resize-none overflow-hidden"
+            className="w-full bg-transparent border-none outline-none resize-none overflow-hidden"
+            style={{
+              color: "var(--t1)",
+              fontSize: 13,
+              fontFamily: "var(--font-sans, inherit)",
+              caretColor: "var(--acc)",
+            }}
           />
         </div>
         {/* SSE status indicator */}
@@ -632,7 +650,18 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         {running ? (
           <button
             onClick={handleStop}
-            className="px-3 py-1.5 rounded-dt-md bg-dt-red-dim border-none text-dt-red shadow-[0_0_12px_var(--red-dim)] hover:bg-dt-red/20 transition-all duration-dt-fast text-base font-semibold cursor-pointer"
+            className="cursor-pointer"
+            style={{
+              background: "var(--red-bg)",
+              color: "var(--red)",
+              border: "none",
+              padding: "6px 18px",
+              borderRadius: "var(--radius)",
+              fontSize: 12,
+              fontWeight: 500,
+              fontFamily: "var(--font-sans, inherit)",
+              transition: "background .12s",
+            }}
           >
             {"\u25A0"} Stop
           </button>
@@ -640,11 +669,19 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
           <button
             onClick={submitPrompt}
             disabled={!prompt.trim()}
-            className={`px-2.5 py-1 rounded-dt border-none text-base font-semibold transition-all duration-dt-fast ${
-              prompt.trim()
-                ? "bg-dt-accent text-white cursor-pointer shadow-dt-sm hover:bg-dt-accent-hover hover:shadow-dt-glow active:scale-[0.97]"
-                : "bg-dt-bg3/80 text-dt-text2/60 cursor-default"
-            }`}
+            className="cursor-pointer"
+            style={{
+              background: prompt.trim() ? "var(--acc)" : "var(--bg-h)",
+              color: prompt.trim() ? "#fff" : "var(--t3)",
+              border: "none",
+              padding: "6px 18px",
+              borderRadius: "var(--radius)",
+              fontSize: 12,
+              fontWeight: 500,
+              fontFamily: "var(--font-sans, inherit)",
+              transition: "background .12s",
+              cursor: prompt.trim() ? "pointer" : "default",
+            }}
           >
             Send
           </button>

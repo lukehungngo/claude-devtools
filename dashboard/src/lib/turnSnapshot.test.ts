@@ -37,9 +37,21 @@ function makeAssistantEvent(
   overrides: Partial<AssistantEvent> & {
     inputTokens?: number;
     outputTokens?: number;
+    cacheWriteTokens?: number;
+    cacheReadTokens?: number;
     stopReason?: "end_turn" | "tool_use" | null;
   } = {}
 ): AssistantEvent {
+  const usage = {
+    input_tokens: overrides.inputTokens ?? 100,
+    output_tokens: overrides.outputTokens ?? 50,
+    ...(overrides.cacheWriteTokens !== undefined && {
+      cache_creation_input_tokens: overrides.cacheWriteTokens,
+    }),
+    ...(overrides.cacheReadTokens !== undefined && {
+      cache_read_input_tokens: overrides.cacheReadTokens,
+    }),
+  };
   return {
     type: "assistant",
     uuid:
@@ -57,10 +69,7 @@ function makeAssistantEvent(
       id: "msg-1",
       type: "message",
       stop_reason: overrides.stopReason ?? "end_turn",
-      usage: {
-        input_tokens: overrides.inputTokens ?? 100,
-        output_tokens: overrides.outputTokens ?? 50,
-      },
+      usage,
     },
   } as AssistantEvent;
 }
@@ -272,6 +281,52 @@ describe("groupEventsIntoTurns", () => {
     const turns = groupEventsIntoTurns(events);
     expect(turns[0].startTime).toBe("2026-01-01T00:00:00Z");
     expect(turns[0].endTime).toBe("2026-01-01T00:00:05Z");
+  });
+});
+
+describe("groupEventsIntoTurns — cache token cost calculation", () => {
+  it("includes cache write and cache read tokens in turn cost", () => {
+    // sonnet pricing: input $3/M, output $15/M, cacheWrite $3.75/M, cacheRead $0.3/M
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        inputTokens: 1000,
+        outputTokens: 500,
+        cacheWriteTokens: 2000,
+        cacheReadTokens: 3000,
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+
+    // Expected: (1000*3 + 500*15 + 2000*3.75 + 3000*0.3) / 1_000_000
+    //         = (3000 + 7500 + 7500 + 900) / 1_000_000 = 0.018900
+    expect(turns[0].cost).toBeCloseTo(0.0189, 6);
+    expect(turns[0].costBreakdown.total).toBeCloseTo(0.0189, 6);
+
+    // Input cost should include cache write and cache read (both are input-side costs)
+    // (1000*3 + 2000*3.75 + 3000*0.3) / 1_000_000 = (3000+7500+900)/1M = 0.0114
+    expect(turns[0].costBreakdown.tokensIn).toBeCloseTo(0.0114, 6);
+
+    // Output cost: (500*15) / 1_000_000 = 0.0075
+    expect(turns[0].costBreakdown.tokensOut).toBeCloseTo(0.0075, 6);
+  });
+
+  it("defaults cache tokens to zero when not present in usage", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        inputTokens: 1000,
+        outputTokens: 500,
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    // No cache tokens: (1000*3 + 500*15) / 1_000_000 = 0.0105
+    expect(turns[0].cost).toBeCloseTo(0.0105, 6);
   });
 });
 

@@ -112,7 +112,7 @@ describe("calculateTokenCost", () => {
 });
 
 describe("computeMetrics", () => {
-  it("aggregates tokens across main and subagent events", () => {
+  it("aggregates tokens from main events only (subagent tokens tracked in DAG)", () => {
     const mainEvents: SessionEvent[] = [
       makeAssistantEvent({
         usage: { input_tokens: 100, output_tokens: 50 },
@@ -139,8 +139,9 @@ describe("computeMetrics", () => {
       subagentMeta
     );
 
-    expect(metrics.tokens.inputTokens).toBe(300);
-    expect(metrics.tokens.outputTokens).toBe(150);
+    // Only main events count toward top-level totals (matches CLI behavior)
+    expect(metrics.tokens.inputTokens).toBe(100);
+    expect(metrics.tokens.outputTokens).toBe(50);
   });
 
   it("calculates totalAgents as 1 + subagentEvents.size", () => {

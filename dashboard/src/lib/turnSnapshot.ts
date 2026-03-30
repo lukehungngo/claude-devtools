@@ -129,12 +129,14 @@ function buildTurn(
       if (usage) {
         eventTokensIn = usage.input_tokens ?? 0;
         eventTokensOut = usage.output_tokens ?? 0;
+        const cacheWrite = usage.cache_creation_input_tokens ?? 0;
+        const cacheRead = usage.cache_read_input_tokens ?? 0;
         const model = asst.message?.model || "";
-        eventCost = calculateTurnCost(model, eventTokensIn, eventTokensOut);
+        eventCost = calculateTurnCost(model, eventTokensIn, eventTokensOut, cacheWrite, cacheRead);
         cost += eventCost;
         totalTokensIn += eventTokensIn;
         totalTokensOut += eventTokensOut;
-        totalInputCost += calculateTurnCost(model, eventTokensIn, 0);
+        totalInputCost += calculateTurnCost(model, eventTokensIn, 0, cacheWrite, cacheRead);
         totalOutputCost += calculateTurnCost(model, 0, eventTokensOut);
       }
       // Collect tool names from content

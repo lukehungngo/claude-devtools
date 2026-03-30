@@ -242,7 +242,9 @@ export function eventsToLogEntries(
         ? calculateTurnCost(
             model,
             usage.input_tokens ?? 0,
-            usage.output_tokens ?? 0
+            usage.output_tokens ?? 0,
+            usage.cache_creation_input_tokens ?? 0,
+            usage.cache_read_input_tokens ?? 0
           )
         : 0;
       const contentItems = normalizeContent(assistantEvent.message?.content);

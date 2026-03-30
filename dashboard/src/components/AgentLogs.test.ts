@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { eventsToLogEntries } from "./AgentLogs";
+import { calculateTurnCost } from "../lib/cost";
 import type { SessionEvent, AgentNode } from "../lib/types";
 
 describe("eventsToLogEntries handles string content (bug fix)", () => {
@@ -130,5 +131,48 @@ describe("eventsToLogEntries handles string content (bug fix)", () => {
     const entries = eventsToLogEntries(events, agents);
     expect(entries.length).toBe(1);
     expect(typeof entries[0].message).toBe("string");
+  });
+});
+
+describe("eventsToLogEntries includes cache tokens in cost", () => {
+  const agents: AgentNode[] = [];
+
+  it("passes cache_creation and cache_read tokens to calculateTurnCost", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "assistant",
+        uuid: "cache1",
+        timestamp: "2026-03-30T00:00:00Z",
+        sessionId: "s1",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "t1", name: "Read", input: { file_path: "/foo.ts" } },
+          ],
+          model: "claude-sonnet-4-6",
+          id: "msg_cache1",
+          type: "message",
+          stop_reason: "tool_use",
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+            cache_creation_input_tokens: 2000,
+            cache_read_input_tokens: 3000,
+          },
+        },
+      },
+    ];
+
+    const entries = eventsToLogEntries(events, agents);
+    expect(entries.length).toBe(1);
+
+    // Expected cost includes cache tokens
+    const expectedCost = calculateTurnCost("claude-sonnet-4-6", 1000, 500, 2000, 3000);
+    // Cost without cache tokens (the bug)
+    const costWithoutCache = calculateTurnCost("claude-sonnet-4-6", 1000, 500, 0, 0);
+    // Sanity: cache tokens should make a difference
+    expect(expectedCost).toBeGreaterThan(costWithoutCache);
+    // The actual entry cost should match the full calculation
+    expect(entries[0].cost).toBeCloseTo(expectedCost, 10);
   });
 });

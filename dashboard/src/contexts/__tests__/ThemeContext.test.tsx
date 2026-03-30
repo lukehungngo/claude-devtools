@@ -25,13 +25,13 @@ describe("ThemeContext", () => {
     cleanup();
   });
 
-  it("defaults to dark theme when no localStorage value", () => {
+  it("defaults to light theme when no localStorage value", () => {
     render(
       <ThemeProvider>
         <ThemeDisplay />
       </ThemeProvider>
     );
-    expect(screen.getByTestId("theme").textContent).toBe("dark");
+    expect(screen.getByTestId("theme").textContent).toBe("light");
   });
 
   it("reads initial theme from localStorage", () => {
@@ -44,14 +44,14 @@ describe("ThemeContext", () => {
     expect(screen.getByTestId("theme").textContent).toBe("light");
   });
 
-  it("falls back to dark for invalid localStorage value", () => {
+  it("falls back to light for invalid localStorage value", () => {
     localStorage.setItem("claude-devtools-theme", "neon-pink");
     render(
       <ThemeProvider>
         <ThemeDisplay />
       </ThemeProvider>
     );
-    expect(screen.getByTestId("theme").textContent).toBe("dark");
+    expect(screen.getByTestId("theme").textContent).toBe("light");
   });
 
   it("sets data-theme attribute on document element", () => {
@@ -80,12 +80,12 @@ describe("ThemeContext", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
   });
 
-  it("sets data-theme to dark on document element for default theme", () => {
+  it("sets data-theme to light on document element for default theme", () => {
     render(
       <ThemeProvider>
         <ThemeDisplay />
       </ThemeProvider>
     );
-    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
   });
 });

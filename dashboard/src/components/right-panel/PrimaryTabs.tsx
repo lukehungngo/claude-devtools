@@ -1,4 +1,4 @@
-export type PrimaryTab = "graph" | "log" | "settings" | "hooks" | "memory" | "doctor" | "stats" | "mcp" | "permissions" | "tasks";
+export type PrimaryTab = "graph" | "log" | "settings" | "hooks" | "memory" | "doctor" | "stats" | "mcp" | "permissions" | "tasks" | "agents" | "monitor";
 
 interface PrimaryTabsProps {
   activeTab: PrimaryTab;
@@ -24,6 +24,8 @@ export function PrimaryTabs({
     { id: "mcp", icon: "\u2B55", label: "MCP", badge: 0 },
     { id: "permissions", icon: "\uD83D\uDD12", label: "Perms", badge: 0 },
     { id: "tasks", icon: "\u2611", label: "Tasks", badge: 0 },
+    { id: "agents", icon: "\uD83E\uDD16", label: "Agents", badge: 0 },
+    { id: "monitor", icon: "\u23F1", label: "Monitor", badge: 0 },
   ];
 
   return (

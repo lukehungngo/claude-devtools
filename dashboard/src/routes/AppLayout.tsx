@@ -1,8 +1,10 @@
 import { useRef, useCallback, useState, useMemo } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import { Layout } from "../components/Layout";
+import { Titlebar } from "../components/Titlebar";
 import { RepoList } from "../components/RepoList";
 import { TopBar } from "../components/TopBar";
+import { BottomPanel } from "../components/bottom-panel/BottomPanel";
 import type { PrimaryTab } from "../components/right-panel/PrimaryTabs";
 import { useRepos } from "../hooks/useRepos";
 import { useUnifiedWebSocket } from "../hooks/useUnifiedWebSocket";
@@ -31,7 +33,7 @@ export function AppLayout() {
   const [toolFilter, setToolFilter] = useState<string | null>(null);
   const [requestedRightTab, setRequestedRightTab] = useState<PrimaryTab | undefined>(undefined);
 
-  // Right panel content -- set by session page, rendered in layout slot
+  // Right panel content -- kept for backward compat but not rendered in layout
   const [rightPanelContent, setRightPanelContent] = useState<ReactNode>(null);
 
   // Question state for AskUserQuestion
@@ -115,6 +117,16 @@ export function AppLayout() {
     navigate({ to: "/session/$repoSlug/$sessionId", params: { repoSlug, sessionId: s.sessionId } });
   }, [navigate, reverseSlugMap]);
 
+  // Get current repo info for titlebar
+  const currentRepo = useMemo(() => {
+    if (!selected) return null;
+    return repos.find((r) =>
+      r.sessions.some(
+        (s) => s.projectHash === selected.projectHash && s.id === selected.sessionId,
+      ),
+    );
+  }, [repos, selected]);
+
   const contextValue = {
     repos,
     reposLoading,
@@ -149,16 +161,16 @@ export function AppLayout() {
       <Layout
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+        titlebar={
+          <Titlebar
+            repoName={currentRepo?.repoName}
+            branch={currentMetrics?.session.gitBranch ?? currentRepo?.gitBranch}
+          />
+        }
         topBar={
           <TopBar
-            usage={usage}
-            costs={costs}
             metrics={currentMetrics}
             isLive={isLive}
-            onToolFilter={(tool) => {
-              setToolFilter((prev) => (prev === tool ? null : tool));
-              setRequestedRightTab("log");
-            }}
           />
         }
         sidebar={
@@ -191,16 +203,12 @@ export function AppLayout() {
                 console.error("Failed to resume session:", err);
               }
             }}
+            usage={usage}
+            isConnected={isLive}
           />
         }
         center={<Outlet />}
-        rightPanel={
-          rightPanelContent ?? (
-            <div className="flex items-center justify-center h-full text-sm text-dt-text2">
-              Agent Panel
-            </div>
-          )
-        }
+        bottomPanel={<BottomPanel />}
       />
     </LayoutContext.Provider>
   );

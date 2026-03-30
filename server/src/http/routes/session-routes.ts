@@ -908,5 +908,82 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     }
   });
 
+  // P3: Stop background task
+  router.post("/sessions/:sessionId/stop-task", (req, res) => {
+    try {
+      const { taskId } = req.body;
+      if (!taskId || typeof taskId !== "string") {
+        return res.status(400).json({ error: "taskId is required (string)" });
+      }
+      const sessionManager = state?.sessionManager;
+      if (!sessionManager) {
+        return res.status(500).json({ error: "Session manager not available" });
+      }
+      const session = sessionManager.getStatus(req.params.sessionId);
+      if (!session?.activeQuery) {
+        return res.status(404).json({ error: "No active query for session" });
+      }
+      const query = session.activeQuery as Record<string, unknown>;
+      if (typeof query.stopTask === "function") {
+        (query.stopTask as (id: string) => void)(taskId);
+        res.json({ success: true });
+      } else {
+        res.status(501).json({ error: "stopTask not available on this SDK version" });
+      }
+    } catch (err) {
+      res.status(500).json({ error: "Failed to stop task" });
+    }
+  });
+
+  // P3: Continue/resume session
+  router.post("/sessions/:sessionId/continue", (req, res) => {
+    try {
+      const sessionManager = state?.sessionManager;
+      if (!sessionManager) {
+        return res.status(500).json({ error: "Session manager not available" });
+      }
+      const session = sessionManager.getStatus(req.params.sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      res.json({ success: true, message: "Session will continue on next message" });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to set continue mode" });
+    }
+  });
+
+  // Track additional directories per session (not on ActiveSession type — ephemeral)
+  const sessionAdditionalDirs = new Map<string, string[]>();
+
+  // P3: Add additional directory to session
+  router.post("/sessions/:sessionId/add-dir", (req, res) => {
+    try {
+      const { directory } = req.body;
+      if (!directory || typeof directory !== "string") {
+        return res.status(400).json({ error: "directory is required (string)" });
+      }
+      const resolved = resolve(directory);
+      if (!existsSync(resolved) || !statSync(resolved).isDirectory()) {
+        return res.status(400).json({ error: `Directory not found: ${resolved}` });
+      }
+      const sessionManager = state?.sessionManager;
+      if (!sessionManager) {
+        return res.status(500).json({ error: "Session manager not available" });
+      }
+      const session = sessionManager.getStatus(req.params.sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      const dirs = sessionAdditionalDirs.get(req.params.sessionId) || [];
+      if (!dirs.includes(resolved)) {
+        dirs.push(resolved);
+        sessionAdditionalDirs.set(req.params.sessionId, dirs);
+      }
+      res.json({ success: true, directory: resolved, total: dirs.length });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to add directory" });
+    }
+  });
+
   return router;
 }
