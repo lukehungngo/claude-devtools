@@ -67,11 +67,11 @@ describe("ThemePicker", () => {
       trigger.click();
     });
 
-    const darkOption = screen.getByText("Dark").closest("[role='option']");
-    expect(darkOption?.getAttribute("aria-selected")).toBe("true");
-
     const lightOption = screen.getByText("Light").closest("[role='option']");
-    expect(lightOption?.getAttribute("aria-selected")).toBe("false");
+    expect(lightOption?.getAttribute("aria-selected")).toBe("true");
+
+    const darkOption = screen.getByText("Dark").closest("[role='option']");
+    expect(darkOption?.getAttribute("aria-selected")).toBe("false");
   });
 
   it("closes dropdown on Escape key", () => {

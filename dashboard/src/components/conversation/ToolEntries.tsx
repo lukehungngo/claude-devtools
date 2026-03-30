@@ -67,10 +67,10 @@ function extractToolEntries(events: SessionEvent[]): ToolEntry[] {
   return entries;
 }
 
-const STATUS_ICONS: Record<string, { char: string; color: string }> = {
-  success: { char: "\u2713", color: "var(--green)" },
-  running: { char: "\u25CF", color: "var(--accent)" },
-  error: { char: "\u2717", color: "var(--red)" },
+const STATUS_ICONS: Record<string, { char: string; className: string }> = {
+  success: { char: "\u2713", className: "tool-ok" },
+  running: { char: "\u25B6", className: "tool-run" },
+  error: { char: "\u2717", className: "tool-err" },
 };
 
 export function ToolEntries({ events }: ToolEntriesProps) {
@@ -79,42 +79,58 @@ export function ToolEntries({ events }: ToolEntriesProps) {
   if (entries.length === 0) return null;
 
   return (
-    <div className="conv-tool-entries flex flex-col gap-0.5 py-1">
-      {entries.map((entry) => {
+    <div
+      className="conv-tool-entries"
+      style={{
+        background: "var(--bg-s)",
+        border: "1px solid var(--bd)",
+        borderRadius: "var(--radius)",
+        marginTop: 10,
+        overflow: "hidden",
+      }}
+    >
+      {entries.map((entry, i) => {
         const icon = STATUS_ICONS[entry.status];
 
         return (
           <div key={entry.id}>
             <div
-              className="flex items-center gap-2 py-0.75 text-base font-mono"
+              className="flex items-center cursor-pointer"
+              style={{
+                padding: "8px 12px",
+                gap: 8,
+                fontSize: 11,
+                borderBottom: i < entries.length - 1 ? "1px solid var(--bd)" : "none",
+                transition: "background .1s",
+              }}
             >
               {/* Status icon */}
               <span
+                className={`shrink-0 ${icon.className}`}
                 style={{
-                  color: icon.color,
-                  width: "14px",
-                  textAlign: "center",
+                  fontSize: 11,
+                  color: icon.className === "tool-ok" ? "var(--grn)"
+                    : icon.className === "tool-err" ? "var(--red)"
+                    : "var(--amb)",
                 }}
-                className="text-xxs w-3.5 text-center shrink-0"
               >
                 {icon.char}
               </span>
-              {/* Tool name badge */}
+              {/* Tool name + target */}
               <span
-                className="px-1.5 py-px rounded-dt-xs bg-dt-orange text-black text-sm font-semibold whitespace-nowrap shrink-0"
+                className="flex-1 font-mono overflow-hidden text-ellipsis whitespace-nowrap"
+                style={{ fontSize: 11, color: "var(--t2)" }}
               >
-                {entry.name}
+                {entry.name}{entry.target ? ` ${entry.target}` : ""}
               </span>
-              {/* File path / command */}
-              {entry.target && (
-                <span
-                  className="text-dt-text2 overflow-hidden text-ellipsis whitespace-nowrap text-sm"
-                >
-                  {entry.target}
+              {/* Duration placeholder */}
+              {entry.status === "success" && (
+                <span className="font-mono" style={{ fontSize: 10, color: "var(--t3)" }}>
+                  {"\u2713"}
                 </span>
               )}
             </div>
-            {/* Tool result */}
+            {/* Tool result (expandable) */}
             {entry.resultContent != null && (
               <ToolResultBlock
                 content={entry.resultContent}

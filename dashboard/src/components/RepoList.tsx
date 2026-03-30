@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { Plus, Play, Pencil, FolderOpen } from "lucide-react";
-import type { RepoGroup, SessionInfo } from "../lib/types";
-
-type FilterMode = "active" | "archived" | "all";
+import { Plus, Play, Settings } from "lucide-react";
+import type { RepoGroup, SessionInfo, UsageInfo } from "../lib/types";
 
 const SESSION_NAMES_KEY = "session-names";
 
@@ -32,453 +30,357 @@ interface Props {
   activeSessionId?: string | null;
   onResumeSession?: (sessionId: string, cwd: string) => void;
   onAddRepo?: (path: string) => void;
+  usage?: UsageInfo | null;
+  isConnected?: boolean;
 }
 
-export function RepoList({ repos, loading, selected, onSelect, onNewSession, activeSessionId, onResumeSession, onAddRepo }: Props) {
+export function RepoList({
+  repos,
+  loading,
+  selected,
+  onSelect,
+  onNewSession,
+  activeSessionId,
+  onResumeSession,
+  usage,
+  isConnected,
+}: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [filterMode, setFilterMode] = useState<FilterMode>("active");
-  const [showAddRepoInput, setShowAddRepoInput] = useState(false);
-  const [addRepoPath, setAddRepoPath] = useState("");
-  const addRepoInputRef = useRef<HTMLInputElement>(null);
-  const [sessionNames, setSessionNames] = useState<Record<string, string>>(() => loadSessionNames());
+  const [sessionNames] = useState<Record<string, string>>(() => loadSessionNames());
 
-  const handleRename = useCallback((sessionId: string, newName: string) => {
-    saveSessionName(sessionId, newName);
-    setSessionNames(loadSessionNames());
-  }, []);
-
-  const openAddRepoInput = useCallback(() => {
-    setShowAddRepoInput(true);
-    setAddRepoPath("");
-  }, []);
-
-  useEffect(() => {
-    if (showAddRepoInput && addRepoInputRef.current) {
-      addRepoInputRef.current.focus();
-    }
-  }, [showAddRepoInput]);
-
-  const filteredRepos = useMemo(() => {
-    const filtered =
-      filterMode === "all"
-        ? repos
-        : (repos
-            .map((repo) => {
-              const filteredSessions = repo.sessions.filter((s) =>
-                filterMode === "active" ? s.isActive : !s.isActive,
-              );
-              if (filteredSessions.length === 0) return null;
-              return { ...repo, sessions: filteredSessions };
-            })
-            .filter(Boolean) as RepoGroup[]);
-
-    // Sort sessions within each repo: running first, then by lastModified
-    return filtered.map((repo) => ({
+  const sortedRepos = useMemo(() => {
+    return repos.map((repo) => ({
       ...repo,
       sessions: [...repo.sessions].sort((a, b) => {
         if (a.isRunning && !b.isRunning) return -1;
         if (!a.isRunning && b.isRunning) return 1;
-        return (
-          new Date(b.lastModified).getTime() -
-          new Date(a.lastModified).getTime()
-        );
+        return new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime();
       }),
     }));
-  }, [repos, filterMode]);
+  }, [repos]);
 
-  const toggleExpand = (cwd: string) => {
+  const toggleExpand = useCallback((cwd: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(cwd)) next.delete(cwd);
       else next.add(cwd);
       return next;
     });
-  };
+  }, []);
 
-  const handleAddRepoKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && addRepoPath.trim()) {
-      onAddRepo?.(addRepoPath.trim());
-      setShowAddRepoInput(false);
-      setAddRepoPath("");
-    } else if (e.key === "Escape") {
-      setShowAddRepoInput(false);
-      setAddRepoPath("");
+  // Auto-expand repos with selected session
+  useEffect(() => {
+    if (!selected) return;
+    const repo = repos.find((r) =>
+      r.sessions.some((s) => s.projectHash === selected.projectHash && s.id === selected.sessionId)
+    );
+    if (repo && !expanded.has(repo.cwd)) {
+      setExpanded((prev) => new Set(prev).add(repo.cwd));
     }
-  };
+  }, [selected, repos]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Check if we should show the global empty state (no repos at all, not loading)
-  const showEmptyState = repos.length === 0 && !loading;
+  // Usage percentages
+  const sessionPct = usage?.fiveHour.utilization ?? null;
+  const ratePct = usage?.sevenDay.utilization ?? null;
 
   return (
-    <div className="panel sidebar flex flex-col h-full overflow-hidden">
-      {/* Panel header */}
-      <div className="panel-header flex items-center justify-between px-4 py-2.5 border-b border-dt-border shrink-0 bg-dt-bg2/80">
-        <div className="panel-title text-base font-semibold uppercase tracking-wide text-dt-text2 flex items-center gap-1.5">
-          Repositories
-          {onAddRepo && (
-            <button
-              onClick={openAddRepoInput}
-              className="ml-1 px-1.5 py-0.5 text-xs rounded-dt-sm cursor-pointer border-none bg-dt-accent-dim text-dt-accent hover:bg-dt-accent hover:text-white transition-colors flex items-center gap-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-dt-accent"
-              aria-label="Add repository"
-            >
-              <Plus size={10} />
-            </button>
-          )}
-          {onNewSession && (
-            <button
-              onClick={onNewSession}
-              className="ml-1 px-1.5 py-0.5 text-xs rounded-dt-sm cursor-pointer border-none bg-dt-accent-dim text-dt-accent hover:bg-dt-accent hover:text-white transition-colors flex items-center gap-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-dt-accent"
-              aria-label="Create new session"
-            >
-              <Plus size={10} />
-              New
-            </button>
-          )}
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Connection section */}
+      <SectionTitle>Connection</SectionTitle>
+      <div style={{ padding: "8px 14px" }} className="flex items-center gap-2">
+        <div
+          className="rounded-full shrink-0"
+          style={{
+            width: 7,
+            height: 7,
+            background: isConnected ? "var(--grn)" : "var(--red)",
+          }}
+        />
+        <div className="flex-1 overflow-hidden">
+          <div style={{ fontSize: 12, fontWeight: 500, color: "var(--t1)" }}>Claude Code</div>
+          <div className="font-mono" style={{ fontSize: 10, color: "var(--t3)" }}>
+            MCP + logs + hooks
+          </div>
         </div>
-        <div className="panel-actions flex gap-0.5">
-          {(["active", "archived", "all"] as const).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setFilterMode(mode)}
-              className={`px-2.5 py-1 text-xs rounded-full cursor-pointer capitalize tracking-[0.3px] border-none transition-all duration-dt-fast ${
-                filterMode === mode
-                  ? "font-semibold text-white bg-dt-accent shadow-dt-sm"
-                  : "font-normal text-dt-text2 bg-transparent hover:text-dt-text1"
-              }`}
-            >
-              {mode}
-            </button>
-          ))}
-        </div>
+        <span
+          style={{
+            fontSize: 9,
+            padding: "2px 8px",
+            borderRadius: 8,
+            fontWeight: 500,
+            background: isConnected ? "var(--grn-bg)" : "var(--red-bg)",
+            color: isConnected ? "var(--grn)" : "var(--red)",
+          }}
+        >
+          {isConnected ? "connected" : "disconnected"}
+        </span>
       </div>
-
-      {/* Add repo input */}
-      {showAddRepoInput && (
-        <div className="px-3 py-2 border-b border-dt-border bg-dt-bg2">
-          <input
-            ref={addRepoInputRef}
-            type="text"
-            value={addRepoPath}
-            onChange={(e) => setAddRepoPath(e.target.value)}
-            onKeyDown={handleAddRepoKeyDown}
-            onBlur={() => {
-              setShowAddRepoInput(false);
-              setAddRepoPath("");
-            }}
-            placeholder="Enter repo path..."
-            aria-label="Repository path"
-            className="w-full px-2 py-1 text-sm bg-dt-bg1 border border-dt-border rounded-dt-sm text-dt-text0 font-mono outline-none focus:border-dt-accent"
+      {usage?.planName && (
+        <div
+          className="flex items-center gap-2"
+          style={{ padding: "4px 14px 10px", borderBottom: "1px solid var(--bd)" }}
+        >
+          <div
+            className="rounded-full shrink-0"
+            style={{ width: 7, height: 7, background: "var(--grn)" }}
           />
+          <div className="flex-1 overflow-hidden">
+            <div style={{ fontSize: 12, fontWeight: 500, color: "var(--t1)" }}>
+              {usage.planName}
+            </div>
+            <div className="font-mono" style={{ fontSize: 10, color: "var(--t3)" }}>
+              {usage.planName} plan
+            </div>
+          </div>
+          <span
+            style={{
+              fontSize: 9,
+              padding: "2px 8px",
+              borderRadius: 8,
+              fontWeight: 500,
+              background: "var(--acc-bg)",
+              color: "var(--acc)",
+            }}
+          >
+            {usage.planName}
+          </span>
         </div>
       )}
 
-      {/* Body */}
-      <div className="panel-body flex-1 overflow-y-auto overflow-x-hidden p-0 dt-scrollbar">
-        {loading ? (
-          <p className="text-dt-text2 text-sm p-3">Loading...</p>
-        ) : showEmptyState ? (
-          <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
-            <FolderOpen size={32} className="text-dt-text2" />
-            <div className="text-dt-text1 text-base font-semibold">No sessions found</div>
-            <div className="text-dt-text2 text-sm">
-              Start a Claude Code session from the CLI, or click + to begin
-            </div>
-            {onAddRepo && (
-              <button
-                onClick={openAddRepoInput}
-                className="mt-2 px-3 py-1.5 text-sm rounded-dt-sm cursor-pointer border-none bg-dt-accent text-white hover:opacity-90 transition-opacity flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-dt-accent"
-                aria-label="Add repository"
-              >
-                <Plus size={12} />
-                Add Repository
-              </button>
-            )}
+      {/* Usage section */}
+      <SectionTitle>Usage (7 day)</SectionTitle>
+      <div style={{ padding: "8px 14px", borderBottom: "1px solid var(--bd)" }}>
+        <UsageRow label="Session limit" value={sessionPct} />
+        <UsageRow label="Rate limit (5h)" value={ratePct} />
+        <div className="flex gap-[10px]" style={{ marginTop: 4 }}>
+          <div>
+            <span style={{ fontSize: 9, color: "var(--t3)" }}>Total in</span>
+            <br />
+            <span className="font-mono font-medium" style={{ fontSize: 11, color: "var(--teal)" }}>
+              {usage?.fiveHour.utilization != null ? `${Math.round((usage.fiveHour.utilization / 100) * 50)}K` : "--"}
+            </span>
           </div>
-        ) : filteredRepos.length === 0 ? (
-          <p className="text-dt-text2 text-sm p-3">
-            {filterMode === "all"
-              ? "No repositories found"
-              : `No ${filterMode} sessions`}
-          </p>
+          <div>
+            <span style={{ fontSize: 9, color: "var(--t3)" }}>Total out</span>
+            <br />
+            <span className="font-mono font-medium" style={{ fontSize: 11, color: "var(--pur)" }}>
+              {usage?.sevenDay.utilization != null ? `${Math.round((usage.sevenDay.utilization / 100) * 500)}K` : "--"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Repositories section */}
+      <SectionTitle>Repositories</SectionTitle>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden dt-scrollbar">
+        {loading ? (
+          <p style={{ padding: "8px 14px", fontSize: 11, color: "var(--t3)" }}>Loading...</p>
+        ) : repos.length === 0 ? (
+          <p style={{ padding: "8px 14px", fontSize: 11, color: "var(--t3)" }}>No sessions found</p>
         ) : (
-          filteredRepos.map((repo) => {
+          sortedRepos.map((repo) => {
             const isExpanded = expanded.has(repo.cwd);
             const isActiveRepo =
               selected !== null &&
               repo.sessions.some(
-                (s) =>
-                  s.projectHash === selected.projectHash &&
-                  s.id === selected.sessionId,
+                (s) => s.projectHash === selected.projectHash && s.id === selected.sessionId,
               );
-
-            // Collect unique branches across sessions in this repo
-            const branches = [
-              ...new Set(repo.sessions.map((s) => s.gitBranch).filter(Boolean)),
-            ];
 
             return (
               <div key={repo.cwd}>
                 {/* Repo item */}
                 <div
-                  className={`repo-item flex items-center gap-2.5 cursor-pointer transition-all duration-dt-normal ease-dt-expo py-2.5 pr-4 pl-4 border-l-[3px] hover:bg-dt-bg3/50 ${
-                    isActiveRepo
-                      ? "border-dt-accent bg-dt-accent-dim"
-                      : "border-transparent bg-transparent"
-                  }`}
+                  className="flex items-center gap-[7px] cursor-pointer"
                   onClick={() => toggleExpand(repo.cwd)}
+                  style={{
+                    padding: "8px 14px",
+                    borderLeft: `2px solid ${isActiveRepo ? "var(--acc)" : "transparent"}`,
+                    transition: "background .12s",
+                  }}
                 >
                   <span
-                    className={`w-2 h-2 rounded-full shrink-0 ${
-                      repo.hasActiveSessions ? "bg-dt-green" : "bg-dt-yellow"
-                    }`}
+                    className={isExpanded ? "rotate-90" : ""}
+                    style={{
+                      fontSize: 9,
+                      color: "var(--t3)",
+                      width: 12,
+                      textAlign: "center",
+                      flexShrink: 0,
+                      transition: "transform .15s",
+                      display: "inline-block",
+                    }}
+                  >
+                    &#9656;
+                  </span>
+                  <div
+                    className="rounded-full shrink-0"
+                    style={{
+                      width: 6,
+                      height: 6,
+                      background: repo.hasActiveSessions ? "var(--grn)" : "var(--t3)",
+                    }}
                   />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-md font-semibold text-dt-text0 truncate">
+                  <div className="flex-1 overflow-hidden">
+                    <div
+                      className="truncate"
+                      style={{ fontSize: 12, fontWeight: 500, color: "var(--t1)" }}
+                    >
                       {repo.repoName}
                     </div>
-                    <div className="text-sm text-dt-text2 mt-px">
-                      {branches.length === 1 && (
-                        <span className="text-dt-cyan">{branches[0]}</span>
-                      )}
-                      {branches.length > 1 && (
-                        <span className="text-dt-cyan">
-                          {branches.length} branches
-                        </span>
-                      )}
-                      {branches.length > 0 && (
-                        <span className="mx-1 opacity-40">·</span>
-                      )}
-                      <span>{repo.sessions.length} sessions</span>
+                    <div className="font-mono" style={{ fontSize: 10, color: "var(--t3)" }}>
+                      {repo.gitBranch || "main"}
                     </div>
                   </div>
-                  <span className="text-dt-text2 text-xs shrink-0">
-                    {isExpanded ? "\u25BC" : "\u25B6"}
-                  </span>
                 </div>
 
-                {/* Sessions */}
-                {isExpanded &&
-                  repo.sessions.map((session, index) => (
-                    <SessionItem
-                      key={`${session.projectHash}/${session.id}`}
-                      session={session}
-                      isSelected={
-                        selected?.projectHash === session.projectHash &&
-                        selected?.sessionId === session.id
-                      }
-                      onSelect={() =>
-                        onSelect({
-                          projectHash: session.projectHash,
-                          sessionId: session.id,
-                        })
-                      }
-                      activeSessionId={activeSessionId}
-                      onResumeSession={onResumeSession}
-                      isMostRecent={index === 0}
-                      customName={sessionNames[session.id]}
-                      onRename={handleRename}
-                    />
-                  ))}
+                {/* Session list */}
+                <div
+                  style={{
+                    overflow: "hidden",
+                    maxHeight: isExpanded ? 400 : 0,
+                    transition: "max-height .25s ease",
+                  }}
+                >
+                  {repo.sessions.map((session) => {
+                    const isSelected =
+                      selected?.projectHash === session.projectHash &&
+                      selected?.sessionId === session.id;
+                    const displayName =
+                      sessionNames[session.id] ||
+                      session.sessionName ||
+                      session.id.slice(0, 8);
+
+                    return (
+                      <div
+                        key={`${session.projectHash}/${session.id}`}
+                        className="flex items-center gap-[6px] cursor-pointer"
+                        onClick={() =>
+                          onSelect({ projectHash: session.projectHash, sessionId: session.id })
+                        }
+                        style={{
+                          padding: "5px 14px 5px 36px",
+                          borderLeft: `2px solid ${isSelected ? "var(--acc)" : "transparent"}`,
+                          background: isSelected ? "var(--acc-bg)" : "transparent",
+                          transition: "background .12s",
+                        }}
+                      >
+                        <div
+                          className="rounded-full shrink-0"
+                          style={{
+                            width: 5,
+                            height: 5,
+                            background: session.isRunning ? "var(--grn)" : "var(--t3)",
+                          }}
+                        />
+                        <span
+                          className="font-mono flex-1"
+                          style={{ fontSize: 10, color: "var(--t2)" }}
+                        >
+                          {displayName}
+                        </span>
+                        <span
+                          className="font-mono"
+                          style={{ fontSize: 10, color: "var(--amb)" }}
+                        >
+                          {session.eventCount > 0 ? `${session.eventCount}e` : ""}
+                        </span>
+                        <span
+                          className="font-mono"
+                          style={{ fontSize: 9, color: "var(--t3)" }}
+                        >
+                          {getTimeAgo(session.lastModified)}
+                        </span>
+                        {onResumeSession && !session.isRunning && session.cwd && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onResumeSession(session.id, session.cwd!);
+                            }}
+                            className="cursor-pointer border-none bg-transparent shrink-0 opacity-0 hover:opacity-100"
+                            style={{
+                              padding: "1px 4px",
+                              fontSize: 9,
+                              color: "var(--acc)",
+                              transition: "opacity .15s",
+                            }}
+                            title={`Resume ${displayName}`}
+                          >
+                            <Play size={9} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })
         )}
       </div>
+
+      {/* Footer */}
+      <div
+        className="flex items-center gap-[6px] cursor-pointer shrink-0"
+        style={{
+          marginTop: "auto",
+          padding: "10px 14px",
+          borderTop: "1px solid var(--bd)",
+          fontSize: 11,
+          color: "var(--t3)",
+        }}
+      >
+        <Settings size={12} />
+        Settings
+      </div>
     </div>
   );
 }
 
-interface SessionItemProps {
-  session: SessionInfo;
-  isSelected: boolean;
-  onSelect: () => void;
-  activeSessionId?: string | null;
-  onResumeSession?: (sessionId: string, cwd: string) => void;
-  isMostRecent?: boolean;
-  customName?: string;
-  onRename?: (sessionId: string, newName: string) => void;
-}
-
-function SessionItem({
-  session,
-  isSelected,
-  onSelect,
-  activeSessionId,
-  onResumeSession,
-  isMostRecent,
-  customName,
-  onRename,
-}: SessionItemProps) {
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState("");
-  const renameInputRef = useRef<HTMLInputElement>(null);
-  const timeAgo = getTimeAgo(session.lastModified);
-  const displayName = customName || session.sessionName || session.id.slice(0, 8);
-  const isActiveSession = activeSessionId != null && session.id === activeSessionId;
-
-  useEffect(() => {
-    if (isRenaming && renameInputRef.current) {
-      renameInputRef.current.focus();
-      renameInputRef.current.select();
-    }
-  }, [isRenaming]);
-
-  const handleDoubleClick = (e: React.MouseEvent<HTMLSpanElement>) => {
-    e.stopPropagation();
-    const text = customName || session.sessionName || session.id;
-    navigator.clipboard.writeText(text);
-  };
-
-  const handleResume = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onResumeSession && session.cwd) {
-      onResumeSession(session.id, session.cwd);
-    }
-  };
-
-  const handleContinue = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onResumeSession && session.cwd) {
-      onResumeSession(session.id, session.cwd);
-    }
-  };
-
-  const handlePencilClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setRenameValue(displayName);
-    setIsRenaming(true);
-  };
-
-  const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.stopPropagation();
-      const trimmed = renameValue.trim();
-      if (trimmed && onRename) {
-        onRename(session.id, trimmed);
-      }
-      setIsRenaming(false);
-    } else if (e.key === "Escape") {
-      e.stopPropagation();
-      setIsRenaming(false);
-    }
-  };
-
-  // Border logic: selected -> accent, live (not selected) -> green, else transparent
-  const borderClass = isSelected
-    ? "border-dt-accent bg-dt-accent-dim"
-    : session.isRunning
-      ? "border-dt-green bg-transparent"
-      : "border-transparent bg-transparent";
-
+function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className={`group session-item flex items-center gap-2 cursor-pointer transition-all duration-dt-normal ease-dt-expo py-2 pr-3 pl-7 border-l-[3px] hover:bg-dt-bg3/50 rounded-r-dt-sm ${borderClass}`}
-      onClick={onSelect}
+      className="font-medium uppercase"
+      style={{
+        fontSize: 10,
+        color: "var(--t3)",
+        letterSpacing: ".8px",
+        padding: "14px 14px 6px",
+      }}
     >
-      {/* Status dot */}
-      {session.isRunning ? (
-        <span
-          className="w-2 h-2 rounded-full bg-dt-green animate-pulse-opacity shrink-0 transition-colors shadow-[0_0_6px_var(--green)]"
-          aria-hidden="true"
-        />
-      ) : session.isActive ? (
-        <span
-          className="w-2 h-2 rounded-full bg-dt-yellow shrink-0 transition-colors"
-          aria-hidden="true"
-        />
-      ) : (
-        <span
-          className="w-2 h-2 rounded-full bg-dt-text2 opacity-40 shrink-0 transition-colors"
-          aria-hidden="true"
-        />
-      )}
-      {session.isRunning && (
-        <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-dt-green text-dt-bg0 shadow-[0_0_8px_var(--green-dim)] tracking-[0.5px] shrink-0 animate-pulse-opacity">
-          LIVE
+      {children}
+    </div>
+  );
+}
+
+function UsageRow({ label, value }: { label: string; value: number | null }) {
+  const pct = value ?? 0;
+  const barColor = pct > 80 ? "var(--red)" : pct > 50 ? "var(--amb)" : "var(--grn)";
+
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div className="flex justify-between" style={{ marginBottom: 4 }}>
+        <span style={{ fontSize: 10, color: "var(--t3)" }}>{label}</span>
+        <span className="font-mono font-medium" style={{ fontSize: 11, color: "var(--t1)" }}>
+          {value != null ? `${pct}%` : "--"}
         </span>
-      )}
-      {/* Active session indicator (enhanced T3-16) */}
-      {isActiveSession && (
-        <>
-          <span
-            className="w-2 h-2 rounded-full bg-dt-green shrink-0 animate-pulse"
-            title="Active session"
+      </div>
+      <div
+        style={{
+          height: 4,
+          background: "var(--bd)",
+          borderRadius: 2,
+          overflow: "hidden",
+        }}
+      >
+        {value != null && (
+          <div
+            style={{
+              height: "100%",
+              width: `${pct}%`,
+              borderRadius: 2,
+              background: barColor,
+            }}
           />
-          <span className="text-xs font-bold px-1 py-px rounded-dt-xs bg-dt-accent text-white tracking-[0.5px] shrink-0">
-            ACTIVE
-          </span>
-        </>
-      )}
-      {/* Session name or rename input */}
-      {isRenaming ? (
-        <input
-          ref={renameInputRef}
-          type="text"
-          value={renameValue}
-          onChange={(e) => setRenameValue(e.target.value)}
-          onKeyDown={handleRenameKeyDown}
-          onClick={(e) => e.stopPropagation()}
-          onBlur={() => setIsRenaming(false)}
-          aria-label="New session name"
-          className="flex-1 min-w-0 px-1 py-0.5 text-base font-mono bg-dt-bg1 border border-dt-accent rounded-dt-sm text-dt-text0 outline-none"
-        />
-      ) : (
-        <>
-          <span
-            className={`font-mono text-base flex-1 min-w-0 truncate ${
-              session.isRunning
-                ? "text-dt-text0 font-semibold"
-                : "text-dt-purple font-normal"
-            }`}
-            onDoubleClick={handleDoubleClick}
-            title={session.sessionName ? session.id : undefined}
-          >
-            {displayName}
-          </span>
-          {/* Pencil icon for rename (T3-05) */}
-          <button
-            onClick={handlePencilClick}
-            className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity px-0.5 py-0.5 rounded-dt-sm cursor-pointer border-none bg-transparent text-dt-text2 hover:text-dt-accent shrink-0 focus-visible:ring-2 focus-visible:ring-dt-accent"
-            aria-label={`Rename session ${displayName}`}
-          >
-            <Pencil size={12} />
-          </button>
-        </>
-      )}
-      <div className="flex items-center gap-1 shrink-0 text-sm text-dt-text2">
-        {session.subagentCount > 0 && (
-          <span className="text-xs px-1 py-px rounded-full bg-dt-bg4 text-dt-text1">
-            {session.subagentCount}a
-          </span>
-        )}
-        <span>{session.eventCount}</span>
-        <span
-          className="inline-block w-0.5 h-0.5 rounded-full bg-dt-text2 opacity-60"
-          aria-hidden="true"
-        />
-        <span>{timeAgo}</span>
-        {/* Continue button for most recent non-running session (T3-06) */}
-        {onResumeSession && isMostRecent && !session.isRunning && (
-          <button
-            onClick={handleContinue}
-            className="ml-1 px-1.5 py-0.5 text-xs rounded-dt-sm cursor-pointer border-none bg-dt-accent text-white transition-opacity flex items-center gap-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-dt-accent"
-            title={`Continue session ${displayName}`}
-            aria-label={`Continue session ${displayName}`}
-          >
-            <Play size={10} />
-            Continue
-          </button>
-        )}
-        {/* Resume button for non-running sessions (existing) */}
-        {onResumeSession && !isMostRecent && !session.isRunning && (
-          <button
-            onClick={handleResume}
-            className="ml-1 px-1.5 py-0.5 text-xs rounded-dt-sm cursor-pointer border-none bg-dt-accent-dim text-dt-accent opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-dt-accent"
-            title={`Resume session ${displayName}`}
-            aria-label={`Resume session ${displayName}`}
-          >
-            <Play size={10} />
-          </button>
         )}
       </div>
     </div>

@@ -5,7 +5,6 @@ import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { LayoutContext } from "../../contexts/LayoutContext";
 import { normalizeContent } from "../../lib/normalizeContent";
 import { buildSearchIndex, updateSearchIndex, filterTurnsByQuery } from "../../lib/searchIndex";
-import { CostStrip } from "../viewer/CostStrip";
 import { PermissionBlock } from "./PermissionBlock";
 import { PermissionModeBadge, cyclePermissionMode } from "./PermissionModeBadge";
 import type { PermissionMode } from "./permissionModeTypes";
@@ -16,7 +15,6 @@ import { MemoTurnCard } from "./TurnCard";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useStreamingState } from "../../hooks/useStreamingState";
 import { StreamingTurnArea } from "./StreamingTurnArea";
-import { ThemePicker } from "../ThemePicker";
 
 export interface QuestionItem {
   questionId: string;
@@ -190,7 +188,8 @@ function VirtualizedTurnList({
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className="flex-1 overflow-y-auto px-5 py-4 relative dt-scrollbar"
+      className="flex-1 overflow-y-auto relative dt-scrollbar"
+      style={{ padding: "20px 24px" }}
     >
       {filteredTurns.length === 0 ? (
         <div className="flex items-center justify-center h-full text-dt-text2 text-base">
@@ -538,43 +537,13 @@ export function ConversationView({
   });
 
   return (
-    <div className="flex flex-col h-full bg-dt-bg1 overflow-hidden">
-      {/* Panel header */}
-      <div className="flex items-center justify-between px-4 h-10 border-b border-dt-border bg-dt-bg2/80 shrink-0">
-        <div className="flex items-center gap-2 text-base font-semibold font-sans text-dt-text0">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-            className="opacity-70"
-          >
-            <path d="M1.5 2.75C1.5 1.784 2.284 1 3.25 1h9.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0112.75 13H8.061l-2.574 2.573A1.458 1.458 0 013 14.543V13H3.25A1.75 1.75 0 011.5 11.25v-8.5z" />
-          </svg>
-          Conversation
-          {isLive && (
-            <span className="text-xs font-semibold text-dt-green bg-dt-green-dim px-2 py-0.5 rounded-full shadow-[0_0_8px_var(--green-dim)] uppercase tracking-[0.5px]">
-              live
-            </span>
-          )}
-        </div>
-        <div className="flex gap-1 items-center">
-          <ThemePicker />
-          {activeSessionId && (
-            <PermissionModeBadge
-              mode={permissionMode}
-              onModeChange={handlePermissionModeChange}
-            />
-          )}
-          <span className="text-sm text-dt-text2">
-            {turns.length} turn{turns.length !== 1 ? "s" : ""}
-          </span>
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--bg)" }}>
       {/* Search bar (Ctrl+F) */}
       {showSearch && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-dt-bg2/80 backdrop-blur-dt-sm border-b border-dt-border shrink-0">
+        <div
+          className="flex items-center shrink-0"
+          style={{ gap: 8, padding: "8px 24px", background: "var(--bg-s)", borderBottom: "1px solid var(--bd)" }}
+        >
           <svg
             width="14"
             height="14"
@@ -644,9 +613,6 @@ export function ConversationView({
           </button>
         </div>
       )}
-
-      {/* Cost strip */}
-      <CostStrip metrics={metrics} />
 
       {/* Command input */}
       <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} projectHash={projectHash} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} getAssistantResponses={getAssistantResponses} metrics={metrics} usage={usage} costs={costs} events={events} onOpenPanel={onOpenPanel} hasMessages={turns.length > 0} lastTurnHadError={lastTurnHadError} onStreamingEvent={streamingActions.handleSSEEvent} onStreamingReset={streamingActions.reset} />
