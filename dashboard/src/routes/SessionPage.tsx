@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useLayoutContext } from "../contexts/LayoutContext";
 import { useSessionMetrics } from "../hooks/useSessionData";
@@ -6,7 +6,10 @@ import { useEventStream } from "../hooks/useEventStream";
 import { resolveSlugToProjectHash } from "../lib/repoSlug";
 import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental } from "../lib/turnSnapshot";
 import { ConversationView } from "../components/conversation/ConversationView";
-import { RightPanel } from "../components/right-panel/RightPanel";
+
+const RightPanel = lazy(() =>
+  import("../components/right-panel/RightPanel").then(m => ({ default: m.RightPanel }))
+);
 import type { PrimaryTab } from "../components/right-panel/PrimaryTabs";
 
 export function SessionPage() {
@@ -199,23 +202,29 @@ export function SessionPage() {
     }
     if (!metrics) return null;
     return (
-      <RightPanel
-        turns={turns}
-        dag={metrics.dag}
-        events={allEvents}
-        agents={agents}
-        subagentMeta={subagentMeta}
-        selectedAgent={selectedAgent}
-        toolFilter={toolFilter}
-        onSelectAgent={setSelectedAgent}
-        onSnapshotSelect={setHighlightedTurnIndex}
-        requestedTab={requestedRightTab}
-        externalActiveIndex={selectedTurnIndex}
-        metrics={metrics}
-        usage={usage}
-        projectHash={projectHash}
-        sessionId={sessionId}
-      />
+      <Suspense fallback={
+        <div className="flex items-center justify-center h-full text-sm text-dt-text2">
+          Loading...
+        </div>
+      }>
+        <RightPanel
+          turns={turns}
+          dag={metrics.dag}
+          events={allEvents}
+          agents={agents}
+          subagentMeta={subagentMeta}
+          selectedAgent={selectedAgent}
+          toolFilter={toolFilter}
+          onSelectAgent={setSelectedAgent}
+          onSnapshotSelect={setHighlightedTurnIndex}
+          requestedTab={requestedRightTab}
+          externalActiveIndex={selectedTurnIndex}
+          metrics={metrics}
+          usage={usage}
+          projectHash={projectHash}
+          sessionId={sessionId}
+        />
+      </Suspense>
     );
   }, [
     metricsLoading, metrics, turns, allEvents, agents, subagentMeta,

@@ -35,7 +35,6 @@ function makeTurn(n: number): TurnSnapshot {
     completedAt: `2026-01-01T00:00:0${n}Z`,
     status: "completed",
     promptText: `Prompt ${n}`,
-    events: [] as SessionEvent[],
     startIndex: 0,
     endIndex: 0,
     agents: [],

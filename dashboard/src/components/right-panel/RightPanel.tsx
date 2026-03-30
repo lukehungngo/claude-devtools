@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
+import { getEventsForTurn } from "../../lib/turnSnapshot";
 import type {
   AgentDAG,
   AgentNode,
@@ -153,7 +154,7 @@ export function RightPanel({
 
   const filteredEvents = useMemo(() => {
     if (!activeTurn) return events;
-    return activeTurn.events;
+    return getEventsForTurn(activeTurn, events);
   }, [activeTurn, events]);
 
   // Filter DAG to only agents used in the active turn (+ main always).

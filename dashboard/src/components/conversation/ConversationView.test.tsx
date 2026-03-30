@@ -98,6 +98,51 @@ describe("ConversationView onTurnClick", () => {
   });
 });
 
+describe("ConversationView scroll-to-bottom button positioning", () => {
+  it("renders the new-turns button inside a relatively-positioned container", () => {
+    const events = [
+      makeUserEvent("First prompt", 0),
+      makeAssistantEvent(1),
+    ];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+
+    const { container } = render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={null}
+      />
+    );
+
+    // Force showScrollDown state: simulate scrolling away from bottom
+    // The button only renders when showScrollDown is true.
+    // We can trigger it by simulating the scroll container not being at bottom.
+    const scrollContainer = container.querySelector(".overflow-y-auto");
+    expect(scrollContainer).not.toBeNull();
+
+    // Define scrollHeight > scrollTop + clientHeight to trigger showScrollDown
+    Object.defineProperty(scrollContainer!, "scrollHeight", { value: 2000, configurable: true });
+    Object.defineProperty(scrollContainer!, "scrollTop", { value: 0, configurable: true });
+    Object.defineProperty(scrollContainer!, "clientHeight", { value: 500, configurable: true });
+    fireEvent.scroll(scrollContainer!);
+
+    // Now the "New turns" button should appear
+    const newTurnsButton = screen.getByText(/new turns/i);
+    expect(newTurnsButton).toBeTruthy();
+
+    // The button's parent with "absolute" class should be inside a container with "relative"
+    const absoluteDiv = newTurnsButton.closest(".absolute");
+    expect(absoluteDiv).not.toBeNull();
+
+    // The conversation panel (outermost div) must have position: relative
+    // so absolute children are scoped to it, not the whole page
+    const conversationPanel = absoluteDiv!.parentElement;
+    expect(conversationPanel).not.toBeNull();
+    const panelClasses = conversationPanel!.className;
+    expect(panelClasses).toContain("relative");
+  });
+});
+
 describe("ConversationView onDecideSession", () => {
   function makePermission(overrides?: Partial<PermissionRequest>): PermissionRequest {
     return {

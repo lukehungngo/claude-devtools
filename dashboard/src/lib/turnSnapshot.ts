@@ -35,7 +35,6 @@ export interface CostBreakdown {
 export interface TurnSnapshot {
   turnNumber: number;
   promptText: string;
-  events: SessionEvent[];
   /** Start index (inclusive) into the shared allEvents array */
   startIndex: number;
   /** End index (exclusive) into the shared allEvents array */
@@ -220,9 +219,6 @@ function buildTurn(
   return {
     turnNumber,
     promptText,
-    // TODO(perf): Remove events duplication — consumers should use getEventsForTurn(turn, allEvents).
-    // Blocked on 6 call sites: RightPanel, TurnCard (x3), RewindMenu, searchIndex.
-    events,
     startIndex,
     endIndex: startIndex + events.length,
     agents,

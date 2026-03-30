@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental } from "./turnSnapshot";
+import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental, getEventsForTurn } from "./turnSnapshot";
 import type {
   SessionEvent,
   UserEvent,
@@ -118,7 +118,7 @@ describe("groupEventsIntoTurns", () => {
     expect(turns).toHaveLength(1);
     expect(turns[0].turnNumber).toBe(1);
     expect(turns[0].promptText).toBe("What is 2+2?");
-    expect(turns[0].events).toHaveLength(1);
+    expect(getEventsForTurn(turns[0], events)).toHaveLength(1);
   });
 
   it("splits events into multiple turns at external user events with text", () => {
@@ -138,10 +138,10 @@ describe("groupEventsIntoTurns", () => {
     expect(turns).toHaveLength(2);
     expect(turns[0].turnNumber).toBe(1);
     expect(turns[0].promptText).toBe("Turn 1 prompt");
-    expect(turns[0].events).toHaveLength(2);
+    expect(getEventsForTurn(turns[0], events)).toHaveLength(2);
     expect(turns[1].turnNumber).toBe(2);
     expect(turns[1].promptText).toBe("Turn 2 prompt");
-    expect(turns[1].events).toHaveLength(2);
+    expect(getEventsForTurn(turns[1], events)).toHaveLength(2);
   });
 
   it("does NOT split at internal user events", () => {
@@ -161,7 +161,7 @@ describe("groupEventsIntoTurns", () => {
     ];
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(1);
-    expect(turns[0].events).toHaveLength(4);
+    expect(getEventsForTurn(turns[0], events)).toHaveLength(4);
   });
 
   it("does NOT split at user events with only tool_result content", () => {
@@ -181,7 +181,7 @@ describe("groupEventsIntoTurns", () => {
     ];
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(1);
-    expect(turns[0].events).toHaveLength(4);
+    expect(getEventsForTurn(turns[0], events)).toHaveLength(4);
   });
 
   it("computes agent summaries with unique agents and invocation counts", () => {
@@ -267,7 +267,7 @@ describe("groupEventsIntoTurns", () => {
     expect(turns).toHaveLength(1);
     expect(turns[0].turnNumber).toBe(1);
     expect(turns[0].promptText).toBe("");
-    expect(turns[0].events).toHaveLength(2);
+    expect(getEventsForTurn(turns[0], events)).toHaveLength(2);
   });
 
   it("sets startTime and endTime from first and last event timestamps", () => {
@@ -475,8 +475,9 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
     ];
 
     const turns = groupEventsIntoTurns(events);
-    expect(turns[0].events).toHaveLength(3);
-    expect(turns[0].events[2].type).toBe("system");
+    const turnEvents = getEventsForTurn(turns[0], events);
+    expect(turnEvents).toHaveLength(3);
+    expect(turnEvents[2].type).toBe("system");
   });
 
   it("completedAt is set when turn is completed via turn_duration", () => {

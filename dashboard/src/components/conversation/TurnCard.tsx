@@ -1,5 +1,6 @@
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
+import { getEventsForTurn } from "../../lib/turnSnapshot";
 import type {
   SessionEvent,
   AssistantEvent,
@@ -14,6 +15,7 @@ import { ToolEntries } from "./ToolEntries";
 
 interface TurnCardProps {
   turn: TurnSnapshot;
+  allEvents: SessionEvent[];
   isHighlighted?: boolean;
   onAgentPillClick?: (agentId: string) => void;
   onTurnClick?: () => void;
@@ -97,7 +99,7 @@ export function turnCardAreEqual(
   return (
     prev.turn.turnNumber === next.turn.turnNumber &&
     prev.turn.status === next.turn.status &&
-    prev.turn.events.length === next.turn.events.length &&
+    prev.turn.endIndex === next.turn.endIndex &&
     prev.turn.durationMs === next.turn.durationMs &&
     prev.turn.cost === next.turn.cost &&
     prev.turn.agents.length === next.turn.agents.length &&
@@ -109,12 +111,14 @@ export function turnCardAreEqual(
 
 export function TurnCard({
   turn,
+  allEvents,
   isHighlighted = false,
   onAgentPillClick,
   onTurnClick,
 }: TurnCardProps) {
   const isRunning = turn.status === "running";
-  const responseContent = extractResponseContent(turn.events);
+  const turnEvents = useMemo(() => getEventsForTurn(turn, allEvents), [turn, allEvents]);
+  const responseContent = extractResponseContent(turnEvents);
 
   return (
     <div
@@ -149,7 +153,7 @@ export function TurnCard({
       </div>
 
       {/* ── Claude message ── */}
-      {(responseContent.length > 0 || turn.events.length > 0) && (
+      {(responseContent.length > 0 || turnEvents.length > 0) && (
         <div className="flex items-start" style={{ gap: 10 }}>
           <div
             className="flex items-center justify-center shrink-0"
@@ -189,7 +193,7 @@ export function TurnCard({
             )}
 
             {/* Tool entries (grouped card) */}
-            <ToolEntries events={turn.events} />
+            <ToolEntries events={turnEvents} />
 
             {/* Running indicator */}
             {isRunning && (

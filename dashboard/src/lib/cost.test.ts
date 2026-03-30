@@ -84,8 +84,19 @@ describe("formatDuration", () => {
     expect(formatDuration(90000)).toBe("1m 30s");
   });
 
-  it("formats large durations in minutes", () => {
-    expect(formatDuration(3600000)).toBe("60m 0s");
+  it("formats hours and minutes (>= 1 hour)", () => {
+    expect(formatDuration(3_600_000)).toBe("1h 0m");
+    expect(formatDuration(5_400_000)).toBe("1h 30m");
+  });
+
+  it("formats days and hours (>= 1 day)", () => {
+    expect(formatDuration(86_400_000)).toBe("1d 0h");
+    expect(formatDuration(90_000_000)).toBe("1d 1h");
+  });
+
+  it("formats minutes and seconds correctly", () => {
+    expect(formatDuration(45_000)).toBe("45.0s");
+    expect(formatDuration(120_000)).toBe("2m 0s");
   });
 });
 

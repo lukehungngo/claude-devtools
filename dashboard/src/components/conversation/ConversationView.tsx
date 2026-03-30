@@ -5,6 +5,7 @@ import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { LayoutContext } from "../../contexts/LayoutContext";
 import { normalizeContent } from "../../lib/normalizeContent";
 import { buildSearchIndex, updateSearchIndex, filterTurnsByQuery } from "../../lib/searchIndex";
+import { getEventsForTurn } from "../../lib/turnSnapshot";
 import { PermissionBlock } from "./PermissionBlock";
 import { PermissionModeBadge, cyclePermissionMode } from "./PermissionModeBadge";
 import type { PermissionMode } from "./permissionModeTypes";
@@ -57,6 +58,7 @@ interface VirtualizedTurnListProps {
   handleScroll: () => void;
   filteredTurns: TurnSnapshot[];
   turns: TurnSnapshot[];
+  allEvents: SessionEvent[];
   autoScroll: boolean;
   highlightedTurnIndex?: number;
   onAgentPillClick?: (agentId: string) => void;
@@ -75,6 +77,7 @@ function TurnRow({
   filteredIndex,
   filteredTurns,
   turns,
+  allEvents,
   highlightedTurnIndex,
   onAgentPillClick,
   onTurnClick,
@@ -88,6 +91,7 @@ function TurnRow({
   filteredIndex: number;
   filteredTurns: TurnSnapshot[];
   turns: TurnSnapshot[];
+  allEvents: SessionEvent[];
   highlightedTurnIndex?: number;
   onAgentPillClick?: (agentId: string) => void;
   onTurnClick?: (turnIndex: number) => void;
@@ -121,6 +125,7 @@ function TurnRow({
     <>
       <MemoTurnCard
         turn={turn}
+        allEvents={allEvents}
         isHighlighted={highlightedTurnIndex === unfilteredIndex}
         onAgentPillClick={onAgentPillClick}
         onTurnClick={onTurnClick ? () => onTurnClick(unfilteredIndex) : undefined}
@@ -152,6 +157,7 @@ function VirtualizedTurnList({
   handleScroll,
   filteredTurns,
   turns,
+  allEvents,
   autoScroll,
   highlightedTurnIndex,
   onAgentPillClick,
@@ -219,6 +225,7 @@ function VirtualizedTurnList({
                   filteredIndex={virtualItem.index}
                   filteredTurns={filteredTurns}
                   turns={turns}
+                  allEvents={allEvents}
                   highlightedTurnIndex={highlightedTurnIndex}
                   onAgentPillClick={onAgentPillClick}
                   onTurnClick={onTurnClick}
@@ -241,6 +248,7 @@ function VirtualizedTurnList({
               filteredIndex={filteredIndex}
               filteredTurns={filteredTurns}
               turns={turns}
+              allEvents={allEvents}
               highlightedTurnIndex={highlightedTurnIndex}
               onAgentPillClick={onAgentPillClick}
               onTurnClick={onTurnClick}
@@ -331,21 +339,22 @@ export function ConversationView({
     }
     if (prevTurnsLengthRef.current === 0) {
       // Full rebuild on first load
-      searchIndexRef.current = buildSearchIndex(turns);
+      searchIndexRef.current = buildSearchIndex(turns, events);
     } else {
       // Incremental: update only new + last turn (last may have grown)
       const changedTurns = turns.slice(Math.max(0, prevTurnsLengthRef.current - 1));
-      searchIndexRef.current = updateSearchIndex(searchIndexRef.current, changedTurns);
+      searchIndexRef.current = updateSearchIndex(searchIndexRef.current, changedTurns, events);
     }
     prevTurnsLengthRef.current = turns.length;
     return searchIndexRef.current;
-  }, [turns]);
+  }, [turns, events]);
 
   // Check if the last turn had a tool_result with is_error
   const lastTurnHadError = useMemo(() => {
     if (turns.length === 0) return false;
     const lastTurn = turns[turns.length - 1];
-    return lastTurn.events.some((evt) => {
+    const lastTurnEvents = getEventsForTurn(lastTurn, events);
+    return lastTurnEvents.some((evt) => {
       if (evt.type !== "user") return false;
       const msg = (evt as { message?: { content?: unknown[] } }).message;
       if (!Array.isArray(msg?.content)) return false;
@@ -359,7 +368,7 @@ export function ConversationView({
           (item as { is_error: boolean }).is_error === true,
       );
     });
-  }, [turns]);
+  }, [turns, events]);
 
   // Scroll to highlighted turn (works with virtualization via DOM query)
   useEffect(() => {
@@ -537,7 +546,7 @@ export function ConversationView({
   });
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--bg)" }}>
+    <div className="flex flex-col h-full overflow-hidden relative" style={{ background: "var(--bg)" }}>
       {/* Search bar (Ctrl+F) */}
       {showSearch && (
         <div
@@ -590,6 +599,7 @@ export function ConversationView({
         handleScroll={handleScroll}
         filteredTurns={filteredTurns}
         turns={turns}
+        allEvents={events}
         autoScroll={autoScroll}
         highlightedTurnIndex={highlightedTurnIndex}
         onAgentPillClick={onAgentPillClick}

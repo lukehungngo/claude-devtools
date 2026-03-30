@@ -1,6 +1,5 @@
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
 import type { SessionMetrics } from "../lib/types";
-import { ThemePicker } from "./ThemePicker";
 
 interface Props {
   metrics: SessionMetrics | null;
@@ -145,9 +144,6 @@ export function TopBar({ metrics, isLive }: Props) {
         </span>
       )}
 
-      {/* Theme picker (always visible, far right) */}
-      <HudSep />
-      <ThemePicker />
     </div>
   );
 }

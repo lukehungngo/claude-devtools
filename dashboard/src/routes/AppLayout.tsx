@@ -1,10 +1,13 @@
-import { useRef, useCallback, useState, useMemo } from "react";
+import { useRef, useCallback, useState, useMemo, lazy, Suspense } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import { Layout } from "../components/Layout";
 import { Titlebar } from "../components/Titlebar";
 import { RepoList } from "../components/RepoList";
 import { TopBar } from "../components/TopBar";
-import { BottomPanel } from "../components/bottom-panel/BottomPanel";
+
+const BottomPanel = lazy(() =>
+  import("../components/bottom-panel/BottomPanel").then(m => ({ default: m.BottomPanel }))
+);
 import type { PrimaryTab } from "../components/right-panel/PrimaryTabs";
 import { useRepos } from "../hooks/useRepos";
 import { useUnifiedWebSocket } from "../hooks/useUnifiedWebSocket";
@@ -233,21 +236,23 @@ export function AppLayout() {
         }
         center={<Outlet />}
         bottomPanel={
-          <BottomPanel
-            metrics={currentMetrics}
-            turns={currentTurns}
-            events={currentEvents}
-            liveEvents={currentLiveEvents}
-            dag={currentDag}
-            activeTurnIndex={currentActiveTurnIndex}
-            selectedAgent={currentSelectedAgent}
-            onSelectAgent={setCurrentSelectedAgent}
-            repos={repos}
-            projectHash={selected?.projectHash ?? ""}
-            sessionId={selected?.sessionId ?? ""}
-            isLive={isLive}
-            hasSubagents={hasSubagents}
-          />
+          <Suspense fallback={null}>
+            <BottomPanel
+              metrics={currentMetrics}
+              turns={currentTurns}
+              events={currentEvents}
+              liveEvents={currentLiveEvents}
+              dag={currentDag}
+              activeTurnIndex={currentActiveTurnIndex}
+              selectedAgent={currentSelectedAgent}
+              onSelectAgent={setCurrentSelectedAgent}
+              repos={repos}
+              projectHash={selected?.projectHash ?? ""}
+              sessionId={selected?.sessionId ?? ""}
+              isLive={isLive}
+              hasSubagents={hasSubagents}
+            />
+          </Suspense>
         }
       />
     </LayoutContext.Provider>

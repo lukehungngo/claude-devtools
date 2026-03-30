@@ -33,13 +33,12 @@ function makeAssistantEvent(text: string): AssistantEvent {
   } as AssistantEvent;
 }
 
-function makeTurn(turnNumber: number, promptText: string, events: SessionEvent[]): TurnSnapshot {
+function makeTurn(turnNumber: number, promptText: string, startIndex: number, endIndex: number): TurnSnapshot {
   return {
     turnNumber,
     promptText,
-    events,
-    startIndex: 0,
-    endIndex: events.length,
+    startIndex,
+    endIndex,
     agents: [],
     status: "completed",
     durationMs: null,
@@ -53,11 +52,17 @@ function makeTurn(turnNumber: number, promptText: string, events: SessionEvent[]
 
 describe("buildSearchIndex", () => {
   it("builds a Map from turnNumber to lowercase searchable text", () => {
-    const turns: TurnSnapshot[] = [
-      makeTurn(1, "Hello World", [makeUserEvent("Hello World"), makeAssistantEvent("Goodbye Moon")]),
-      makeTurn(2, "Foo Bar", [makeUserEvent("Foo Bar"), makeAssistantEvent("Baz Qux")]),
+    const allEvents: SessionEvent[] = [
+      makeUserEvent("Hello World"),
+      makeAssistantEvent("Goodbye Moon"),
+      makeUserEvent("Foo Bar"),
+      makeAssistantEvent("Baz Qux"),
     ];
-    const index = buildSearchIndex(turns);
+    const turns: TurnSnapshot[] = [
+      makeTurn(1, "Hello World", 0, 2),
+      makeTurn(2, "Foo Bar", 2, 4),
+    ];
+    const index = buildSearchIndex(turns, allEvents);
     expect(index.size).toBe(2);
     expect(index.get(1)).toContain("hello world");
     expect(index.get(1)).toContain("goodbye moon");
@@ -70,10 +75,16 @@ describe("updateSearchIndex", () => {
   it("adds new turns to existing index without rebuilding old entries", () => {
     const existingIndex = new Map<number, string>();
     existingIndex.set(1, "hello world goodbye moon");
-    const newTurns: TurnSnapshot[] = [
-      makeTurn(2, "New Turn", [makeUserEvent("New Turn"), makeAssistantEvent("New Response")]),
+    const allEvents: SessionEvent[] = [
+      makeUserEvent("Hello World"),
+      makeAssistantEvent("Goodbye Moon"),
+      makeUserEvent("New Turn"),
+      makeAssistantEvent("New Response"),
     ];
-    const updated = updateSearchIndex(existingIndex, newTurns);
+    const newTurns: TurnSnapshot[] = [
+      makeTurn(2, "New Turn", 2, 4),
+    ];
+    const updated = updateSearchIndex(existingIndex, newTurns, allEvents);
     expect(updated.size).toBe(2);
     expect(updated.get(1)).toBe("hello world goodbye moon"); // unchanged
     expect(updated.get(2)).toContain("new turn");
@@ -83,10 +94,14 @@ describe("updateSearchIndex", () => {
   it("updates existing turn entry when events change", () => {
     const existingIndex = new Map<number, string>();
     existingIndex.set(1, "old text");
-    const updatedTurns: TurnSnapshot[] = [
-      makeTurn(1, "Updated Prompt", [makeUserEvent("Updated Prompt"), makeAssistantEvent("Updated Response")]),
+    const allEvents: SessionEvent[] = [
+      makeUserEvent("Updated Prompt"),
+      makeAssistantEvent("Updated Response"),
     ];
-    const updated = updateSearchIndex(existingIndex, updatedTurns);
+    const updatedTurns: TurnSnapshot[] = [
+      makeTurn(1, "Updated Prompt", 0, 2),
+    ];
+    const updated = updateSearchIndex(existingIndex, updatedTurns, allEvents);
     expect(updated.get(1)).toContain("updated prompt");
     expect(updated.get(1)).toContain("updated response");
   });
@@ -95,8 +110,8 @@ describe("updateSearchIndex", () => {
 describe("filterTurnsByQuery", () => {
   it("returns all turns when query is empty", () => {
     const turns: TurnSnapshot[] = [
-      makeTurn(1, "Hello", []),
-      makeTurn(2, "World", []),
+      makeTurn(1, "Hello", 0, 0),
+      makeTurn(2, "World", 0, 0),
     ];
     const index = new Map<number, string>();
     index.set(1, "hello");
@@ -106,8 +121,8 @@ describe("filterTurnsByQuery", () => {
   });
 
   it("filters turns by query match in search index", () => {
-    const turn1 = makeTurn(1, "Hello", []);
-    const turn2 = makeTurn(2, "World", []);
+    const turn1 = makeTurn(1, "Hello", 0, 0);
+    const turn2 = makeTurn(2, "World", 0, 0);
     const turns = [turn1, turn2];
     const index = new Map<number, string>();
     index.set(1, "hello greeting");
@@ -117,7 +132,7 @@ describe("filterTurnsByQuery", () => {
   });
 
   it("is case-insensitive", () => {
-    const turn1 = makeTurn(1, "Hello", []);
+    const turn1 = makeTurn(1, "Hello", 0, 0);
     const turns = [turn1];
     const index = new Map<number, string>();
     index.set(1, "hello world");

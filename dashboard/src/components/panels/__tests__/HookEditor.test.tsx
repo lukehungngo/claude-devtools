@@ -159,6 +159,106 @@ describe("HookEditor", () => {
     });
   });
 
+  it("renders directory hooks section when directoryHooks are present", async () => {
+    const hooks = {};
+    const directoryHooks = [
+      {
+        filename: "my-hooks.json",
+        hooks: {
+          PreToolUse: [
+            { matcher: "Bash", hooks: [{ type: "command", command: "dir-check.sh" }] },
+          ],
+        },
+      },
+    ];
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ hooks, directoryHooks }),
+    } as Response);
+
+    render(<HookEditor />);
+    await waitFor(() => {
+      expect(screen.getByText("Directory Hooks")).toBeTruthy();
+    });
+    expect(screen.getByText("my-hooks.json")).toBeTruthy();
+    expect(screen.getByText("dir-check.sh")).toBeTruthy();
+  });
+
+  it("does not render directory hooks section when directoryHooks is empty", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ hooks: {}, directoryHooks: [] }),
+    } as Response);
+
+    render(<HookEditor />);
+    await waitFor(() => {
+      expect(screen.getByText("PreToolUse")).toBeTruthy();
+    });
+    expect(screen.queryByText("Directory Hooks")).toBeNull();
+  });
+
+  it("renders multiple directory hook files", async () => {
+    const directoryHooks = [
+      {
+        filename: "security.json",
+        hooks: {
+          PreToolUse: [
+            { matcher: "*", hooks: [{ type: "command", command: "security-check.sh" }] },
+          ],
+        },
+      },
+      {
+        filename: "logging.json",
+        hooks: {
+          PostToolUse: [
+            { matcher: "*", hooks: [{ type: "command", command: "log.sh" }] },
+          ],
+        },
+      },
+    ];
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ hooks: {}, directoryHooks }),
+    } as Response);
+
+    render(<HookEditor />);
+    await waitFor(() => {
+      expect(screen.getByText("Directory Hooks")).toBeTruthy();
+    });
+    expect(screen.getByText("security.json")).toBeTruthy();
+    expect(screen.getByText("logging.json")).toBeTruthy();
+  });
+
+  it("directory hooks are read-only (no delete or add buttons)", async () => {
+    const directoryHooks = [
+      {
+        filename: "my-hooks.json",
+        hooks: {
+          PreToolUse: [
+            { matcher: "Bash", hooks: [{ type: "command", command: "dir-check.sh" }] },
+          ],
+        },
+      },
+    ];
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ hooks: {}, directoryHooks }),
+    } as Response);
+
+    render(<HookEditor />);
+    await waitFor(() => {
+      expect(screen.getByText("Directory Hooks")).toBeTruthy();
+    });
+
+    // The directory hooks section should not have any delete or add buttons
+    const dirSection = screen.getByTestId("directory-hooks-section");
+    expect(dirSection.querySelector("[aria-label='Delete hook matcher']")).toBeNull();
+    expect(dirSection.querySelector("[aria-label*='Add hook']")).toBeNull();
+  });
+
   it("collapses and expands hook groups on click", async () => {
     const hooks = {
       PreToolUse: [

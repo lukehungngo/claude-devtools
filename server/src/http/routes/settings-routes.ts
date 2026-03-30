@@ -1,5 +1,6 @@
 import { spawnSync } from "child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { Router } from "express";
@@ -9,13 +10,39 @@ import { readSettingsJson, writeSettingsJson } from "./route-context.js";
 export function createSettingsRoutes(): Router {
   const router = Router();
 
-  // Get hooks from ~/.claude/settings.json
+  // Get hooks from ~/.claude/settings.json and ~/.claude/hooks/ directory
   router.get("/settings/hooks", async (_req, res) => {
     try {
       const settings = await readSettingsJson();
-      res.json({ hooks: settings.hooks ?? {} });
+      const hooks = settings.hooks ?? {};
+
+      // Read hook files from ~/.claude/hooks/ directory
+      const hooksDir = join(homedir(), ".claude", "hooks");
+      const directoryHooks: { filename: string; hooks: unknown }[] = [];
+
+      try {
+        const entries = await readdir(hooksDir);
+        for (const entry of entries) {
+          if (!entry.endsWith(".json")) continue;
+          try {
+            const content = await readFile(join(hooksDir, entry), "utf-8");
+            const parsed = JSON.parse(content);
+            directoryHooks.push({ filename: entry, hooks: parsed });
+          } catch (fileErr) {
+            logger.warn({ file: entry, error: String(fileErr) }, "Skipping malformed hook file");
+          }
+        }
+      } catch (dirErr) {
+        // Directory may not exist — that's fine
+        const code = (dirErr as NodeJS.ErrnoException).code;
+        if (code !== "ENOENT") {
+          logger.warn({ error: String(dirErr) }, "Failed to read hooks directory");
+        }
+      }
+
+      res.json({ hooks, directoryHooks });
     } catch {
-      res.json({ hooks: {} });
+      res.json({ hooks: {}, directoryHooks: [] });
     }
   });
 

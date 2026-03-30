@@ -215,9 +215,9 @@ export function BottomPanel({
             ) : activeTab === "cost" ? (
               <CostTab metrics={metrics} />
             ) : activeTab === "detail" ? (
-              <DetailTab turns={turns} activeTurnIndex={activeTurnIndex} />
+              <DetailTab turns={turns} allEvents={events} activeTurnIndex={activeTurnIndex} />
             ) : activeTab === "raw" ? (
-              <RawTab turns={turns} activeTurnIndex={activeTurnIndex} />
+              <RawTab turns={turns} allEvents={events} activeTurnIndex={activeTurnIndex} />
             ) : activeTab === "history" ? (
               <HistoryTab repos={repos} currentSessionId={sessionId} />
             ) : null}

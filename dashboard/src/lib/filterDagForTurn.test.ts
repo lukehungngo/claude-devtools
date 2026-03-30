@@ -24,7 +24,6 @@ function makeTurn(agents: { agentId: string }[]): TurnSnapshot {
   return {
     turnNumber: 1,
     promptText: "test",
-    events: [],
     startIndex: 0,
     endIndex: 0,
     agents: agents.map((a) => ({
