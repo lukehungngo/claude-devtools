@@ -221,31 +221,20 @@ describe("phaseGrouping", () => {
       expect(phases[0].status).toBe("running");
     });
 
-    it("splits phases at assistant text boundaries when files differ", () => {
+    it("ignores assistant text boundaries — only file disjunction and agent dispatch split", () => {
+      // Assistant text between tool blocks is NOT a split signal.
+      // Claude writes brief text between almost every tool block during streaming.
+      // Only file disjunction and agent dispatch should create phase boundaries.
       const groups: ToolGroup[] = [
         group("Read", [entry({ name: "Read", target: "src/a.ts" })]),
         group("Edit", [entry({ name: "Edit", target: "src/a.ts" })]),
-        // boundary at index 2 — different files on other side
-        group("Read", [entry({ name: "Read", target: "lib/x.ts" })]),
-        group("Edit", [entry({ name: "Edit", target: "lib/x.ts" })]),
-      ];
-
-      const phases = groupIntoPhases(groups, [2]);
-      expect(phases).toHaveLength(2);
-      expect(phases[0].groups).toHaveLength(2);
-      expect(phases[1].groups).toHaveLength(2);
-    });
-
-    it("merges phases across assistant text boundary when same files overlap", () => {
-      const groups: ToolGroup[] = [
-        group("Read", [entry({ name: "Read", target: "src/a.ts" })]),
-        group("Edit", [entry({ name: "Edit", target: "src/a.ts" })]),
-        // boundary at index 2 — but same files → should merge
+        // assistant text boundary at index 2 — should be ignored
         group("Read", [entry({ name: "Read", target: "src/a.ts" })]),
         group("Edit", [entry({ name: "Edit", target: "src/a.ts" })]),
       ];
 
       const phases = groupIntoPhases(groups, [2]);
+      // All same files → 1 phase regardless of text boundary
       expect(phases).toHaveLength(1);
       expect(phases[0].groups).toHaveLength(4);
     });

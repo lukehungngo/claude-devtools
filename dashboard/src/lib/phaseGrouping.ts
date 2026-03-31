@@ -223,14 +223,11 @@ export function groupIntoPhases(
 
   if (nonAgentGroups.length === 0) return [];
 
-  // Step 2: Build boundary sets — agent dispatch (hard) vs assistant text (soft)
-  const hardBoundarySet = new Set<number>(); // Agent dispatch — never merge across
-  const softBoundarySet = new Set<number>(); // Assistant text — mergeable if files overlap
-  if (assistantTextBoundaries) {
-    for (const idx of assistantTextBoundaries) {
-      softBoundarySet.add(idx);
-    }
-  }
+  // Step 2: Build boundary set — only agent dispatch creates hard splits.
+  // Assistant text boundaries are NOT split points — Claude writes brief text between
+  // almost every tool block during streaming. Splitting on those creates too many
+  // tiny phases. File disjunction (Jaccard) handles real topic changes.
+  const hardBoundarySet = new Set<number>();
   for (let i = 0; i < groups.length; i++) {
     if (isAgentDispatchGroup(groups[i])) {
       hardBoundarySet.add(i);
@@ -252,25 +249,15 @@ export function groupIntoPhases(
     // Check if a hard boundary (agent dispatch) exists at or between groups
     if (currentPhase.length > 0) {
       let isHard = hardBoundarySet.has(originalIndex);
-      let isSoft = softBoundarySet.has(originalIndex);
-      if (!isHard && !isSoft && ni > 0) {
+      if (!isHard && ni > 0) {
         const prevOrigIndex = nonAgentGroups[ni - 1].originalIndex;
         for (let bi = prevOrigIndex + 1; bi < originalIndex; bi++) {
           if (hardBoundarySet.has(bi)) { isHard = true; break; }
-          if (softBoundarySet.has(bi)) isSoft = true;
         }
       }
       if (isHard) {
         rawPhases.push(currentPhase);
         hardBoundaryAfter.push(true);
-        currentPhase = [g];
-        phasePaths = new Set<string>();
-        addGroupPaths(g, phasePaths);
-        continue;
-      }
-      if (isSoft) {
-        rawPhases.push(currentPhase);
-        hardBoundaryAfter.push(false); // soft — can merge back if files overlap
         currentPhase = [g];
         phasePaths = new Set<string>();
         addGroupPaths(g, phasePaths);
