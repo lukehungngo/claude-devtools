@@ -24,8 +24,8 @@ export function ToolResultBlock({ content, isError, toolName }: ToolResultBlockP
   const totalLines = lines.length;
   const isLong = totalLines > 5;
 
-  const [collapsed, setCollapsed] = useState(isLong);
-  const [truncated, setTruncated] = useState(totalLines > TRUNCATE_LINES);
+  const [collapsed, setCollapsed] = useState(isLong && !isError);
+  const [truncated, setTruncated] = useState(totalLines > TRUNCATE_LINES && !isError);
 
   const borderColor = isError ? "border-dt-red" : "border-dt-border";
 
@@ -54,7 +54,7 @@ export function ToolResultBlock({ content, isError, toolName }: ToolResultBlockP
           onClick={() => setCollapsed(false)}
           className="text-xs text-dt-text2 hover:text-dt-accent bg-transparent border-none cursor-pointer px-2 py-0.5 font-mono"
         >
-          {hiddenCount} more lines...
+          +{hiddenCount} lines (click to expand)
         </button>
       )}
       {!collapsed && truncated && (
@@ -63,7 +63,16 @@ export function ToolResultBlock({ content, isError, toolName }: ToolResultBlockP
           onClick={() => setTruncated(false)}
           className="text-xs text-dt-text2 hover:text-dt-accent bg-transparent border-none cursor-pointer px-2 py-0.5 font-mono"
         >
-          Show more ({totalLines - TRUNCATE_LINES} lines hidden)
+          Show all ({totalLines} lines)
+        </button>
+      )}
+      {!collapsed && !truncated && isLong && (
+        <button
+          type="button"
+          onClick={() => { setCollapsed(true); setTruncated(totalLines > TRUNCATE_LINES); }}
+          className="text-xs text-dt-text2 hover:text-dt-accent bg-transparent border-none cursor-pointer px-2 py-0.5 font-mono"
+        >
+          Collapse
         </button>
       )}
     </div>

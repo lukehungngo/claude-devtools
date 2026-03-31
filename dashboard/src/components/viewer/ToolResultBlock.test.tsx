@@ -41,8 +41,8 @@ describe("ToolResultBlock", () => {
     expect(pre!.textContent).toContain("line 2");
     expect(pre!.textContent).toContain("line 3");
     expect(pre!.textContent).not.toContain("line 4");
-    // Should show "more lines" indicator
-    expect(container.textContent).toContain("7 more lines");
+    // Should show expand indicator
+    expect(container.textContent).toContain("+7 lines (click to expand)");
   });
 
   it("expands collapsed content on click", () => {
@@ -50,7 +50,7 @@ describe("ToolResultBlock", () => {
     const { container, getByText } = render(
       <ToolResultBlock content={longContent} isError={false} toolName="Bash" />
     );
-    const expandBtn = getByText(/7 more lines/);
+    const expandBtn = getByText(/\+7 lines/);
     fireEvent.click(expandBtn);
     const pre = container.querySelector("pre");
     expect(pre!.textContent).toContain("line 10");
@@ -62,10 +62,10 @@ describe("ToolResultBlock", () => {
       <ToolResultBlock content={veryLongContent} isError={false} toolName="Bash" />
     );
     // First expand the collapsed view
-    const expandBtn = getByText(/77 more lines/);
+    const expandBtn = getByText(/\+77 lines/);
     fireEvent.click(expandBtn);
-    // Now should be truncated at 50 lines with "Show more"
-    expect(container.textContent).toContain("Show more");
+    // Now should be truncated at 50 lines with "Show all"
+    expect(container.textContent).toContain("Show all");
     expect(container.querySelector("pre")!.textContent).toContain("line 50");
     expect(container.querySelector("pre")!.textContent).not.toContain("line 51");
   });
@@ -76,7 +76,7 @@ describe("ToolResultBlock", () => {
       <ToolResultBlock content={arrayContent} isError={false} toolName="Read" />
     );
     // JSON.stringify produces 7 lines, so it's collapsed. Expand it.
-    const expandBtn = getByText(/more lines/);
+    const expandBtn = getByText(/lines \(click to expand\)/);
     fireEvent.click(expandBtn);
     const pre = container.querySelector("pre");
     expect(pre!.textContent).toContain('"hello"');
@@ -87,7 +87,7 @@ describe("ToolResultBlock", () => {
     const { container } = render(
       <ToolResultBlock content={shortContent} isError={false} toolName="Read" />
     );
-    expect(container.textContent).not.toContain("more lines");
+    expect(container.textContent).not.toContain("click to expand");
     expect(container.querySelector("pre")!.textContent).toContain("line 3");
   });
 });

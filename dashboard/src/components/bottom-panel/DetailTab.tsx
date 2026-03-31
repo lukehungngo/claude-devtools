@@ -2,6 +2,8 @@ import { memo, useMemo } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { getEventsForTurn } from "../../lib/turnSnapshot";
 import type { SessionEvent, AssistantEvent, UserEvent, ToolUseContent, ToolResultContent, ContentItem } from "../../lib/types";
+import { getSpanColor, getSpanIcon } from "./TraceTab";
+import { formatDuration, formatCost } from "../../lib/cost";
 
 export interface DetailTabProps {
   turns: TurnSnapshot[];
@@ -114,6 +116,27 @@ function DetailTabInner({ turns, allEvents, activeTurnIndex }: DetailTabProps) {
     return extractToolCalls(getEventsForTurn(activeTurn, allEvents));
   }, [activeTurn, allEvents]);
 
+  // Compute primary tool (most common) from groups
+  const primaryTool = useMemo(() => {
+    if (groups.length === 0) return null;
+    let best = groups[0];
+    for (let i = 1; i < groups.length; i++) {
+      if (groups[i].calls.length > best.calls.length) {
+        best = groups[i];
+      }
+    }
+    return best;
+  }, [groups]);
+
+  // Agent badge info from the first agent
+  const agentBadge = useMemo(() => {
+    if (!activeTurn || activeTurn.agents.length === 0) return null;
+    const agent = activeTurn.agents[0];
+    const color = getSpanColor(agent.agentType);
+    const icon = getSpanIcon(agent.agentType, 0);
+    return { icon, color };
+  }, [activeTurn]);
+
   if (!activeTurn) {
     return (
       <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -122,16 +145,79 @@ function DetailTabInner({ turns, allEvents, activeTurnIndex }: DetailTabProps) {
     );
   }
 
+  const headerBar = (
+    <div
+      data-testid="detail-header"
+      style={{
+        height: 32,
+        background: "var(--bg-s)",
+        borderBottom: "1px solid var(--bd)",
+        fontSize: 11,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        paddingLeft: 12,
+        paddingRight: 12,
+        flexShrink: 0,
+      }}
+    >
+      {agentBadge && (
+        <span
+          data-testid="detail-header-badge"
+          style={{
+            background: agentBadge.color.bg,
+            color: agentBadge.color.text,
+            borderRadius: 3,
+            padding: "1px 4px",
+            fontWeight: 600,
+            fontSize: 10,
+            lineHeight: "16px",
+          }}
+        >
+          {agentBadge.icon}
+        </span>
+      )}
+      <span data-testid="detail-header-turn" style={{ color: "var(--t3)" }}>
+        T{activeTurn.turnNumber}
+      </span>
+      {primaryTool && (
+        <>
+          <span style={{ color: "var(--t3)" }}>&middot;</span>
+          <span data-testid="detail-header-tool" style={{ color: "var(--t2)" }}>
+            {primaryTool.name} x{primaryTool.calls.length}
+          </span>
+        </>
+      )}
+      {activeTurn.durationMs !== null && (
+        <>
+          <span style={{ color: "var(--t3)" }}>&middot;</span>
+          <span data-testid="detail-header-duration" style={{ color: "var(--t2)" }}>
+            {formatDuration(activeTurn.durationMs)}
+          </span>
+        </>
+      )}
+      <span style={{ color: "var(--t3)" }}>&middot;</span>
+      <span data-testid="detail-header-cost" style={{ color: "var(--t2)" }}>
+        {formatCost(activeTurn.cost)}
+      </span>
+    </div>
+  );
+
   if (groups.length === 0) {
     return (
-      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "var(--t3)", fontSize: 13 }}>No tool calls in this turn</span>
+      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        {headerBar}
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ color: "var(--t3)", fontSize: 13 }}>No tool calls in this turn</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ height: "100%", overflowY: "auto" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      {headerBar}
+      <div style={{ flex: 1, overflowY: "auto" }}>
       {groups.map((group) => (
         <div key={group.name}>
           <div
@@ -184,6 +270,7 @@ function DetailTabInner({ turns, allEvents, activeTurnIndex }: DetailTabProps) {
           })}
         </div>
       ))}
+      </div>
     </div>
   );
 }

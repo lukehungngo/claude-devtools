@@ -58,6 +58,7 @@ function makeLayoutCtx(overrides?: Partial<LayoutContextValue>): LayoutContextVa
     viewingTurnNumber: undefined,
     setViewingTurnNumber: () => {},
     onClearViewingTurnRef: { current: null },
+    openBottomTabRef: { current: null },
     ...overrides,
   };
 }

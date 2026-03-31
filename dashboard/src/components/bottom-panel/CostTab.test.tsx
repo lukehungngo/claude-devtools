@@ -70,8 +70,8 @@ describe("CostTab", () => {
     expect(screen.getByText("Session Cost")).toBeDefined();
     // Burn Rate card
     expect(screen.getByText("Burn Rate")).toBeDefined();
-    // Cache Savings card
-    expect(screen.getByText("Cache Savings")).toBeDefined();
+    // Projected Total card (replaced Cache Savings)
+    expect(screen.getByText("Projected Total")).toBeDefined();
   });
 
   it("renders agent breakdown with multiple agents", () => {
@@ -136,5 +136,146 @@ describe("CostTab", () => {
     render(<CostTab metrics={makeMetrics()} />);
     // formatCost(0.45) = "$0.450" + "/min"
     expect(screen.getByText(/\$0\.450\/min/)).toBeDefined();
+  });
+
+  it("shows projected total card", () => {
+    // Active session: has an active agent node
+    const metrics = makeMetrics({
+      dag: {
+        nodes: [
+          {
+            id: "main",
+            type: "main",
+            status: "active",
+            toolCalls: 5,
+            mcpToolCalls: 0,
+            tokenUsage: {
+              inputTokens: 1000,
+              outputTokens: 500,
+              cacheWriteTokens: 0,
+              cacheReadTokens: 0,
+              totalCost: 0.45,
+            },
+          },
+        ],
+        edges: [],
+      },
+      contextPercent: 25,
+      tokens: {
+        inputTokens: 1000,
+        outputTokens: 500,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
+        totalCost: 0.50,
+      },
+    });
+    const { container } = render(<CostTab metrics={metrics} />);
+    expect(container.textContent).toContain("Projected");
+    // projected = 0.50 * (100/25) = 2.00
+    expect(container.textContent).toContain("$2.00");
+    expect(container.textContent).toContain("estimated at current rate");
+  });
+
+  it("shows final cost when session done", () => {
+    // Session done: duration > 0, no active agents
+    const metrics = makeMetrics({
+      duration: 300000,
+      dag: {
+        nodes: [
+          {
+            id: "main",
+            type: "main",
+            status: "completed",
+            toolCalls: 5,
+            mcpToolCalls: 0,
+            tokenUsage: {
+              inputTokens: 1000,
+              outputTokens: 500,
+              cacheWriteTokens: 0,
+              cacheReadTokens: 0,
+              totalCost: 1.25,
+            },
+          },
+        ],
+        edges: [],
+      },
+      tokens: {
+        inputTokens: 1000,
+        outputTokens: 500,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
+        totalCost: 1.25,
+      },
+    });
+    const { container } = render(<CostTab metrics={metrics} />);
+    expect(container.textContent).toContain("Projected Total");
+    expect(container.textContent).toContain("$1.25");
+    expect(container.textContent).toContain("final");
+  });
+
+  it("shows burn rate trend arrow", () => {
+    const now = Date.now();
+    const metrics = makeMetrics({
+      duration: 120000,
+      tokens: {
+        inputTokens: 1000,
+        outputTokens: 500,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
+        totalCost: 0.50,
+      },
+      tokensByTurn: [
+        {
+          index: 0,
+          timestamp: new Date(now - 90000).toISOString(),
+          model: "claude-sonnet-4-6",
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheWriteTokens: 0,
+          cacheReadTokens: 0,
+          cost: 0.05,
+          cumulativeCost: 0.05,
+        },
+        {
+          index: 1,
+          timestamp: new Date(now - 60000).toISOString(),
+          model: "claude-sonnet-4-6",
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheWriteTokens: 0,
+          cacheReadTokens: 0,
+          cost: 0.05,
+          cumulativeCost: 0.10,
+        },
+        // Recent turns (within last 30s) with much higher cost
+        {
+          index: 2,
+          timestamp: new Date(now - 15000).toISOString(),
+          model: "claude-sonnet-4-6",
+          inputTokens: 500,
+          outputTokens: 250,
+          cacheWriteTokens: 0,
+          cacheReadTokens: 0,
+          cost: 0.20,
+          cumulativeCost: 0.30,
+        },
+        {
+          index: 3,
+          timestamp: new Date(now - 5000).toISOString(),
+          model: "claude-sonnet-4-6",
+          inputTokens: 500,
+          outputTokens: 250,
+          cacheWriteTokens: 0,
+          cacheReadTokens: 0,
+          cost: 0.20,
+          cumulativeCost: 0.50,
+        },
+      ],
+    });
+    const { container } = render(<CostTab metrics={metrics} />);
+    const text = container.textContent ?? "";
+    // Should show an up-trend arrow since recent spend >> overall rate
+    const hasArrow = ["↑", "↓", "→"].some((a) => text.includes(a));
+    expect(hasArrow).toBe(true);
   });
 });

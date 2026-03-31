@@ -5,11 +5,12 @@ import type { SessionMetrics } from "../lib/types";
 interface Props {
   metrics: SessionMetrics | null;
   isLive?: boolean;
+  hasPermissionPending?: boolean;
   viewingTurnNumber?: number;
   onClearViewingTurn?: () => void;
 }
 
-export function TopBar({ metrics, isLive, viewingTurnNumber, onClearViewingTurn }: Props) {
+export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn }: Props) {
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
@@ -18,6 +19,14 @@ export function TopBar({ metrics, isLive, viewingTurnNumber, onClearViewingTurn 
   const contextPct = metrics?.contextPercent ?? 0;
   const contextColor =
     contextPct > 80 ? "var(--red)" : contextPct > 50 ? "var(--amb)" : "var(--grn)";
+
+  // Status: WAIT > LIVE > DONE
+  const isWaiting = isLive === true && hasPermissionPending === true;
+  const statusLabel = isWaiting ? "WAIT" : isLive ? "LIVE" : "DONE";
+  const statusColor = isWaiting ? "var(--amb)" : isLive ? "var(--grn)" : "var(--t3)";
+
+  // Red border when context is at danger level
+  const contextDanger = contextPct >= 80;
 
   const modelName = metrics?.models[0]
     ? formatModelShort(metrics.models[0])
@@ -32,6 +41,8 @@ export function TopBar({ metrics, isLive, viewingTurnNumber, onClearViewingTurn 
         background: "var(--bg-s)",
         borderBottom: "1px solid var(--bd)",
         gap: 14,
+        outline: contextDanger ? "2px solid var(--red)" : "none",
+        outlineOffset: -2,
       }}
     >
       {/* Live status */}
@@ -40,11 +51,12 @@ export function TopBar({ metrics, isLive, viewingTurnNumber, onClearViewingTurn 
         style={{ paddingRight: 12, borderRight: "1px solid var(--bd)" }}
       >
         <div
+          data-testid="status-dot"
           className="rounded-full shrink-0"
           style={{
             width: 7,
             height: 7,
-            background: isLive ? "var(--grn)" : "var(--t3)",
+            background: statusColor,
             animation: isLive ? "pulse 2s infinite" : "none",
           }}
         />
@@ -53,10 +65,10 @@ export function TopBar({ metrics, isLive, viewingTurnNumber, onClearViewingTurn 
           style={{
             fontSize: 10,
             letterSpacing: ".5px",
-            color: isLive ? "var(--grn)" : "var(--t3)",
+            color: statusColor,
           }}
         >
-          {isLive ? "LIVE" : "DONE"}
+          {statusLabel}
         </span>
       </div>
 

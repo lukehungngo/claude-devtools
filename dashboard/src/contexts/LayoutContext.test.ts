@@ -47,6 +47,7 @@ function createMockContextValue(overrides?: Partial<LayoutContextValue>): Layout
     viewingTurnNumber: undefined,
     setViewingTurnNumber: () => {},
     onClearViewingTurnRef: { current: null },
+    openBottomTabRef: { current: null },
     ...overrides,
   };
 }

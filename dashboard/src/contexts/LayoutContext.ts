@@ -67,6 +67,8 @@ export interface LayoutContextValue {
   setViewingTurnNumber: (n: number | undefined) => void;
   /** Registered by SessionPage to clear selectedTurnIndex when TopBar dismiss is clicked */
   onClearViewingTurnRef: MutableRefObject<(() => void) | null>;
+  /** Registered by BottomPanel to switch active tab programmatically */
+  openBottomTabRef: MutableRefObject<((tab: string) => void) | null>;
 }
 
 export const LayoutContext = createContext<LayoutContextValue | null>(null);

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import type { MutableRefObject } from "react";
 import type { SessionMetrics, AgentDAG, SessionEvent } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { TraceTab } from "./TraceTab";
@@ -29,9 +30,12 @@ export interface BottomPanelProps {
   sessionId?: string;
   isLive?: boolean;
   hasSubagents?: boolean;
+  /** Ref-based callback to switch tab programmatically without re-renders */
+  openBottomTabRef?: MutableRefObject<((tab: string) => void) | null>;
 }
 
 const COLLAPSED_KEY = "bottomPanel.collapsed";
+const HEIGHT_KEY = "bottomPanel.height";
 
 export function BottomPanel({
   detailCount,
@@ -46,14 +50,29 @@ export function BottomPanel({
   sessionId: _sessionId,
   isLive,
   hasSubagents,
+  openBottomTabRef,
 }: BottomPanelProps) {
   const [activeTab, setActiveTab] = useState<BottomTab>("agent-graph");
-  const [panelHeight, setPanelHeight] = useState(220);
+  const [panelHeight, setPanelHeight] = useState(() => {
+    try {
+      const stored = localStorage.getItem(HEIGHT_KEY);
+      if (stored !== null) {
+        const parsed = Number(stored);
+        if (!Number.isNaN(parsed) && parsed >= 80 && parsed <= 600) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return 220;
+  });
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
-      return localStorage.getItem(COLLAPSED_KEY) === "true";
+      const stored = localStorage.getItem(COLLAPSED_KEY);
+      // When no stored value (first visit), default to collapsed (true).
+      // When explicitly "false", respect that.
+      return stored !== "false";
     } catch {
-      return false;
+      return true;
     }
   });
   const dragStartRef = useRef<{ y: number; height: number } | null>(null);
@@ -71,6 +90,15 @@ export function BottomPanel({
     }
   }, [isCollapsed]);
 
+  // Persist panel height to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(HEIGHT_KEY, String(panelHeight));
+    } catch {
+      // ignore storage errors
+    }
+  }, [panelHeight]);
+
   // TASK-010: auto-expand when subagents are first detected
   useEffect(() => {
     const prev = prevHasSubagentsRef.current;
@@ -85,6 +113,19 @@ export function BottomPanel({
       }
     }
   }, [hasSubagents]);
+
+  // Register ref-based callback for programmatic tab switching (TASK-006)
+  useEffect(() => {
+    if (openBottomTabRef) {
+      openBottomTabRef.current = (tab: string) => {
+        setActiveTab(tab as BottomTab);
+        setIsCollapsed(false);
+      };
+      return () => {
+        openBottomTabRef.current = null;
+      };
+    }
+  }, [openBottomTabRef]);
 
   const handleDividerMouseDown = useCallback(
     (e: React.MouseEvent) => {

@@ -521,13 +521,17 @@
 .trace-row {
   display: flex;
   align-items: center;
-  height: 40px;
+  height: 48px;
   position: relative;
   z-index: 1;
   cursor: pointer;
   border-radius: 6px;
   transition: background 0.1s;
   margin-bottom: 2px;
+}
+
+.trace-row-tool {
+  height: 26px;
 }
 
 .trace-row:hover {

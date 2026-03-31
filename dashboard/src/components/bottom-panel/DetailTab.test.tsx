@@ -78,9 +78,9 @@ describe("DetailTab", () => {
   it("renders tool groups with mock turn containing tool_use events", () => {
     const { turn, allEvents } = makeToolUseTurnData();
     render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
-    // Should show tool group headers
-    expect(screen.getByText(/Read/)).toBeDefined();
-    expect(screen.getByText(/Bash/)).toBeDefined();
+    // Should show tool group headers (use getAllByText since header also mentions tools)
+    expect(screen.getAllByText(/Read/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Bash/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows correct status icons", () => {
@@ -101,5 +101,121 @@ describe("DetailTab", () => {
     expect(screen.getByText(/\/src\/utils\.ts/)).toBeDefined();
     // Should show command from Bash tool input
     expect(screen.getByText(/pnpm test/)).toBeDefined();
+  });
+
+  // ── Header bar tests (TASK-007) ──
+
+  it("renders header with agent icon and turn number", () => {
+    const { allEvents } = makeToolUseTurnData();
+    const turn: TurnSnapshot = {
+      turnNumber: 5,
+      promptText: "Fix the bug",
+      startIndex: 0,
+      endIndex: allEvents.length,
+      agents: [
+        {
+          agentId: "s1",
+          agentType: "engineer",
+          displayName: "Engineer S1",
+          invocationCount: 3,
+          status: "completed",
+          cost: 0.42,
+          tokensIn: 5000,
+          tokensOut: 2000,
+          tools: ["Read", "Write"],
+        },
+      ],
+      status: "completed",
+      durationMs: 134000,
+      cost: 0.42,
+      costBreakdown: { total: 0.42, tokensIn: 0.15, tokensOut: 0.27 },
+      startTime: "2026-03-30T10:00:00Z",
+      completedAt: "2026-03-30T10:02:14Z",
+      endTime: "2026-03-30T10:02:14Z",
+    };
+    render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
+
+    // Agent badge: engineer -> S1 (via getSpanIcon)
+    expect(screen.getByTestId("detail-header-badge").textContent).toContain("S1");
+    // Turn number
+    expect(screen.getByTestId("detail-header-turn").textContent).toContain("T5");
+  });
+
+  it("renders duration and cost in header", () => {
+    const { allEvents } = makeToolUseTurnData();
+    const turn: TurnSnapshot = {
+      turnNumber: 3,
+      promptText: "test",
+      startIndex: 0,
+      endIndex: allEvents.length,
+      agents: [
+        {
+          agentId: "main",
+          agentType: "main",
+          displayName: "Main",
+          invocationCount: 1,
+          status: "completed",
+          cost: 0.42,
+          tokensIn: 5000,
+          tokensOut: 2000,
+          tools: [],
+        },
+      ],
+      status: "completed",
+      durationMs: 134000,
+      cost: 0.42,
+      costBreakdown: { total: 0.42, tokensIn: 0.15, tokensOut: 0.27 },
+      startTime: "2026-03-30T10:00:00Z",
+      completedAt: "2026-03-30T10:02:14Z",
+      endTime: "2026-03-30T10:02:14Z",
+    };
+    render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
+
+    // 134000ms = 2m 14s
+    expect(screen.getByTestId("detail-header-duration").textContent).toContain("2m 14s");
+    // $0.42 -> $0.420
+    expect(screen.getByTestId("detail-header-cost").textContent).toContain("$0.420");
+  });
+
+  it("shows primary tool name and count", () => {
+    const { allEvents } = makeToolUseTurnData();
+    // The makeToolUseTurnData has Read x2, Bash x1 -> primary = Read x2
+    const turn: TurnSnapshot = {
+      turnNumber: 1,
+      promptText: "test",
+      startIndex: 0,
+      endIndex: allEvents.length,
+      agents: [
+        {
+          agentId: "main",
+          agentType: "main",
+          displayName: "Main",
+          invocationCount: 1,
+          status: "completed",
+          cost: 0.1,
+          tokensIn: 100,
+          tokensOut: 50,
+          tools: ["Read", "Bash"],
+        },
+      ],
+      status: "completed",
+      durationMs: 5000,
+      cost: 0.1,
+      costBreakdown: { total: 0.1, tokensIn: 0.06, tokensOut: 0.04 },
+      startTime: "2026-01-01T10:00:00Z",
+      completedAt: "2026-01-01T10:00:05Z",
+      endTime: "2026-01-01T10:00:05Z",
+    };
+    render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
+
+    // Read x2 is the most common tool
+    expect(screen.getByTestId("detail-header-tool").textContent).toContain("Read x2");
+  });
+
+  it("renders empty state when no active turn (header absent)", () => {
+    render(<DetailTab turns={[]} allEvents={[]} activeTurnIndex={null} />);
+
+    expect(screen.getByText("Select a turn to see tool details")).toBeDefined();
+    expect(screen.queryByTestId("detail-header")).toBeNull();
   });
 });

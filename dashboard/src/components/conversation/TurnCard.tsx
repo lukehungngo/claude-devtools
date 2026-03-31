@@ -19,6 +19,7 @@ interface TurnCardProps {
   isHighlighted?: boolean;
   onAgentPillClick?: (agentId: string) => void;
   onTurnClick?: () => void;
+  onToolClick?: (toolName: string) => void;
 }
 
 // ─── Content renderers ───────────────────────────────────────────────
@@ -105,7 +106,8 @@ export function turnCardAreEqual(
     prev.turn.agents.length === next.turn.agents.length &&
     prev.isHighlighted === next.isHighlighted &&
     prev.onAgentPillClick === next.onAgentPillClick &&
-    prev.onTurnClick === next.onTurnClick
+    prev.onTurnClick === next.onTurnClick &&
+    prev.onToolClick === next.onToolClick
   );
 }
 
@@ -115,6 +117,7 @@ export function TurnCard({
   isHighlighted = false,
   onAgentPillClick,
   onTurnClick,
+  onToolClick,
 }: TurnCardProps) {
   const isRunning = turn.status === "running";
   const turnEvents = useMemo(() => getEventsForTurn(turn, allEvents), [turn, allEvents]);
@@ -194,8 +197,8 @@ export function TurnCard({
               ) : null,
             )}
 
-            {/* Tool entries (grouped card) */}
-            <ToolEntries events={turnEvents} />
+            {/* Tool entries (grouped card) -- click opens bottom panel tool-call tab */}
+            <ToolEntries events={turnEvents} onToolClick={onToolClick} />
 
             {/* Running indicator */}
             {isRunning && (

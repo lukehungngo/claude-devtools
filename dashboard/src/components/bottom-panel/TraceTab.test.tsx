@@ -338,6 +338,20 @@ describe("computeBarPosition", () => {
     expect(pos.leftPct).toBe(0);
     expect(pos.widthPct).toBe(100);
   });
+
+  it("uses 0.3% minimum width for very short completed spans", () => {
+    const start = new Date("2026-01-01T00:00:00Z").getTime();
+    const total = 10 * 60 * 1000; // 10 min
+    // Node starts at 9m59.4s and ends at 9m59.46s — 60ms duration
+    // Raw width = 60 / 600000 * 100 = 0.01%
+    const node = makeNode({
+      id: "tiny",
+      startTime: "2026-01-01T00:09:59.400Z",
+      endTime: "2026-01-01T00:09:59.460Z",
+    });
+    const pos = computeBarPosition(node, start, total);
+    expect(pos.widthPct).toBeCloseTo(0.3);
+  });
 });
 
 describe("getSpanColor", () => {
@@ -351,6 +365,64 @@ describe("getSpanColor", () => {
     const c = getSpanColor("unknown-type");
     expect(c.bg).toBeTruthy();
     expect(c.text).toBeTruthy();
+  });
+});
+
+describe("TraceTab row heights", () => {
+  afterEach(cleanup);
+
+  it("renders tool call rows with trace-row-tool class for depth > 1 nodes", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "root",
+          type: "orchestrator",
+          description: "Root",
+          startTime: "2026-01-01T00:00:00Z",
+          endTime: "2026-01-01T00:10:00Z",
+        }),
+        makeNode({
+          id: "agent-1",
+          type: "engineer",
+          description: "Agent1",
+          parentId: "root",
+          startTime: "2026-01-01T00:01:00Z",
+          endTime: "2026-01-01T00:05:00Z",
+        }),
+        makeNode({
+          id: "tool-1",
+          type: "engineer",
+          description: "ToolCall1",
+          parentId: "agent-1",
+          startTime: "2026-01-01T00:02:00Z",
+          endTime: "2026-01-01T00:03:00Z",
+        }),
+      ],
+      edges: [
+        { source: "root", target: "agent-1" },
+        { source: "agent-1", target: "tool-1" },
+      ],
+    };
+    const { container } = render(
+      <TraceTab
+        dag={dag}
+        turns={[mockTurn]}
+        activeTurnIndex={null}
+        selectedAgent={null}
+        panelHeight={400}
+      />,
+    );
+    const rows = container.querySelectorAll(".trace-row");
+    // root (depth 0) and agent-1 (depth 1) should NOT have trace-row-tool
+    // tool-1 (depth 2) SHOULD have trace-row-tool
+    const toolRows = container.querySelectorAll(".trace-row-tool");
+    expect(toolRows.length).toBe(1);
+    // The tool row should contain "ToolCall1"
+    expect(toolRows[0].textContent).toContain("ToolCall1");
+    // Agent rows should not have the class
+    expect(rows.length).toBe(3);
+    const nonToolRows = container.querySelectorAll(".trace-row:not(.trace-row-tool)");
+    expect(nonToolRows.length).toBe(2);
   });
 });
 

@@ -44,6 +44,7 @@ export function AppLayout() {
   const [hasSubagents, setHasSubagents] = useState(false);
   const [viewingTurnNumber, setViewingTurnNumber] = useState<number | undefined>(undefined);
   const onClearViewingTurnRef = useRef<(() => void) | null>(null);
+  const openBottomTabRef = useRef<((tab: string) => void) | null>(null);
 
   const handleClearViewingTurn = useCallback(() => {
     setViewingTurnNumber(undefined);
@@ -180,6 +181,7 @@ export function AppLayout() {
     viewingTurnNumber,
     setViewingTurnNumber,
     onClearViewingTurnRef,
+    openBottomTabRef,
   };
 
   return (
@@ -197,6 +199,7 @@ export function AppLayout() {
           <TopBar
             metrics={currentMetrics}
             isLive={isLive}
+            hasPermissionPending={permissions.length > 0}
             viewingTurnNumber={viewingTurnNumber}
             onClearViewingTurn={handleClearViewingTurn}
           />
@@ -250,6 +253,7 @@ export function AppLayout() {
               sessionId={selected?.sessionId ?? ""}
               isLive={isLive}
               hasSubagents={hasSubagents}
+              openBottomTabRef={openBottomTabRef}
             />
           </Suspense>
         }

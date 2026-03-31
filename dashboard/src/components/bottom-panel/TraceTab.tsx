@@ -6,6 +6,9 @@ import { formatCost, formatDuration } from "../../lib/cost";
 
 /** Height of the tab bar in pixels */
 const TAB_BAR_HEIGHT = 37;
+const AGENT_ROW_HEIGHT = 48;
+const TOOL_ROW_HEIGHT = 26;
+const ROW_MARGIN = 2;
 const DEFAULT_LABEL_WIDTH = 140;
 const MIN_LABEL_WIDTH = 80;
 const MAX_LABEL_WIDTH = 400;
@@ -137,11 +140,11 @@ export function computeBarPosition(
   const leftPct = ((nodeStartMs - sessionStartMs) / totalMs) * 100;
 
   if (node.status === "active" || !node.endTime) {
-    return { leftPct, widthPct: Math.max(1, 100 - leftPct) };
+    return { leftPct, widthPct: Math.max(0.3, 100 - leftPct) };
   }
 
   const nodeEndMs = new Date(node.endTime).getTime();
-  const widthPct = Math.max(1, ((nodeEndMs - nodeStartMs) / totalMs) * 100);
+  const widthPct = Math.max(0.3, ((nodeEndMs - nodeStartMs) / totalMs) * 100);
 
   return { leftPct, widthPct };
 }
@@ -151,6 +154,7 @@ export function computeBarPosition(
 interface TraceRow {
   node: AgentNode;
   depth: number;
+  isToolCall: boolean;
   icon: string;
   color: { bg: string; text: string };
   bar: BarPosition;
@@ -222,7 +226,8 @@ function buildTraceGroups(
     // Root node: sum all descendants' cost; leaf: own cost
     const totalCost = isRoot ? aggregateCost(node.id) : node.tokenUsage.totalCost;
 
-    return { node, depth, icon, color, bar, durationMs, totalCost };
+    const isToolCall = depth > 1;
+    return { node, depth, isToolCall, icon, color, bar, durationMs, totalCost };
   }
 
   function collectChildren(parentId: string, depth: number): TraceGroup[] {
@@ -292,7 +297,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
   durationWidth,
   costWidth,
 }: TraceRowComponentProps) {
-  const { node, depth, icon, color, bar, durationMs, totalCost } = row;
+  const { node, depth, isToolCall, icon, color, bar, durationMs, totalCost } = row;
 
   const handleClick = useCallback(() => {
     onSelect?.(node.id);
@@ -303,9 +308,11 @@ const TraceRowComponent = memo(function TraceRowComponent({
   const durationStr = durationMs > 0 ? formatDuration(durationMs) : "";
   const costStr = formatCost(totalCost);
 
+  const rowClass = `trace-row${isToolCall ? " trace-row-tool" : ""}${selected ? " trace-row-selected" : ""}`;
+
   return (
     <div
-      className={`trace-row${selected ? " trace-row-selected" : ""}`}
+      className={rowClass}
       onClick={handleClick}
     >
       <div className="trace-label" style={{ width: labelWidth }}>
@@ -482,7 +489,10 @@ function TraceTabInner({
         {/* Agent rows */}
         {groups.map((group, gi) => {
           if (group.isParallel && group.rows.length > 1) {
-            const bracketHeight = group.rows.length * 42 - 10;
+            let bracketHeight = -10; // subtract bracket padding
+            for (const r of group.rows) {
+              bracketHeight += (r.isToolCall ? TOOL_ROW_HEIGHT : AGENT_ROW_HEIGHT) + ROW_MARGIN;
+            }
             return (
               <div key={gi} style={{ position: "relative" }}>
                 <div

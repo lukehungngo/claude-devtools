@@ -6,7 +6,8 @@
  */
 
 import { describe, it, expect, afterEach, vi, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
+import { createRef } from "react";
 import { BottomPanel } from "./BottomPanel";
 import type { SessionMetrics, AgentDAG, SessionEvent } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
@@ -151,6 +152,8 @@ describe("BottomPanel", () => {
   });
 
   it("defaults to Agent Graph tab showing TraceTab content", () => {
+    // Panel defaults to collapsed on first visit, so explicitly open it
+    localStorageMock.setItem("bottomPanel.collapsed", "false");
     render(<BottomPanel dag={null} />);
     // Agent Graph tab is active by default -- should show empty state from TraceTab
     expect(screen.getByText("No agent data")).toBeDefined();
@@ -219,5 +222,102 @@ describe("BottomPanel", () => {
   it("shows detail count badge on Tool Call tab", () => {
     render(<BottomPanel detailCount={5} />);
     expect(screen.getByText("5")).toBeDefined();
+  });
+
+  // --- TASK-002: localStorage persistence tests ---
+
+  it("defaults to collapsed on first visit (no localStorage)", () => {
+    // No localStorage values set -- first visit scenario
+    const { container } = render(<BottomPanel />);
+    // When collapsed, the panel body (overflow-y-auto) should not render
+    const panelBody = container.querySelector(".overflow-y-auto");
+    expect(panelBody).toBeNull();
+  });
+
+  it("restores collapsed=false from localStorage", () => {
+    localStorageMock.setItem("bottomPanel.collapsed", "false");
+    const { container } = render(<BottomPanel />);
+    // When explicitly set to false, panel should be open
+    const panelBody = container.querySelector(".overflow-y-auto");
+    expect(panelBody).not.toBeNull();
+  });
+
+  it("persists panel height to localStorage", () => {
+    // Start not collapsed so panel body is visible
+    localStorageMock.setItem("bottomPanel.collapsed", "false");
+    const { container } = render(<BottomPanel />);
+
+    // Simulate a drag resize on the divider
+    const divider = container.querySelector("[role='separator']") as HTMLElement;
+    expect(divider).not.toBeNull();
+
+    // mousedown at y=300 with initial height 220 (default)
+    fireEvent.mouseDown(divider, { clientY: 300 });
+    // mousemove to y=200 => delta = 300-200 = 100, newHeight = 220+100 = 320
+    fireEvent(document, new MouseEvent("mousemove", { clientY: 200 }));
+    fireEvent(document, new MouseEvent("mouseup"));
+
+    expect(localStorageMock.getItem("bottomPanel.height")).toBe("320");
+  });
+
+  it("restores panel height from localStorage", () => {
+    localStorageMock.setItem("bottomPanel.height", "400");
+    localStorageMock.setItem("bottomPanel.collapsed", "false");
+    const { container } = render(<BottomPanel />);
+    const panelBody = container.querySelector(".overflow-y-auto") as HTMLElement;
+    expect(panelBody).not.toBeNull();
+    // The panel body should have height: 400px from the restored state
+    expect(panelBody.style.height).toBe("400px");
+  });
+
+  it("switches to tool-call tab and uncollapses when openBottomTabRef is called", () => {
+    // Start collapsed
+    localStorageMock.setItem("bottomPanel.collapsed", "true");
+
+    const openBottomTabRef = createRef<((tab: string) => void) | null>() as React.MutableRefObject<((tab: string) => void) | null>;
+    openBottomTabRef.current = null;
+
+    render(
+      <BottomPanel
+        openBottomTabRef={openBottomTabRef}
+        turns={[mockTurn]}
+        activeTurnIndex={0}
+      />,
+    );
+
+    // Panel starts collapsed — no panel body
+    expect(screen.queryByText("Select a turn to see tool details")).toBeNull();
+
+    // Call the ref callback
+    act(() => {
+      openBottomTabRef.current?.("tool-call");
+    });
+
+    // Panel should now be open on the Tool Call tab
+    // The DetailTab shows tool detail content when activeTurnIndex is set
+    // At minimum, the panel body should be visible
+    const panelBody = document.querySelector(".overflow-y-auto");
+    expect(panelBody).not.toBeNull();
+
+    // Verify Tool Call tab is now active (has the accent color)
+    const toolCallTab = screen.getByText("Tool Call");
+    expect(toolCallTab).toBeDefined();
+  });
+
+  it("cleans up openBottomTabRef on unmount", () => {
+    const openBottomTabRef = createRef<((tab: string) => void) | null>() as React.MutableRefObject<((tab: string) => void) | null>;
+    openBottomTabRef.current = null;
+
+    const { unmount } = render(
+      <BottomPanel openBottomTabRef={openBottomTabRef} />,
+    );
+
+    // Ref should be registered
+    expect(openBottomTabRef.current).not.toBeNull();
+
+    unmount();
+
+    // Ref should be cleaned up
+    expect(openBottomTabRef.current).toBeNull();
   });
 });

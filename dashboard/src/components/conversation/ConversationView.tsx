@@ -64,6 +64,7 @@ interface VirtualizedTurnListProps {
   highlightedTurnIndex?: number;
   onAgentPillClick?: (agentId: string) => void;
   onTurnClick?: (turnIndex: number) => void;
+  onToolClick?: (toolName: string) => void;
   permissions?: PermissionRequest[];
   onPermissionDecide?: (id: string, decision: "approved" | "denied") => void;
   onDecideSession?: (id: string) => void;
@@ -82,6 +83,7 @@ function TurnRow({
   highlightedTurnIndex,
   onAgentPillClick,
   onTurnClick,
+  onToolClick,
   permissions,
   onPermissionDecide,
   onDecideSession,
@@ -96,6 +98,7 @@ function TurnRow({
   highlightedTurnIndex?: number;
   onAgentPillClick?: (agentId: string) => void;
   onTurnClick?: (turnIndex: number) => void;
+  onToolClick?: (toolName: string) => void;
   permissions?: PermissionRequest[];
   onPermissionDecide?: (id: string, decision: "approved" | "denied") => void;
   onDecideSession?: (id: string) => void;
@@ -137,6 +140,7 @@ function TurnRow({
         isHighlighted={highlightedTurnIndex === unfilteredIndex}
         onAgentPillClick={onAgentPillClick}
         onTurnClick={onTurnClick ? () => onTurnClick(unfilteredIndex) : undefined}
+        onToolClick={onToolClick}
       />
       {turnPerms.map((perm) => (
         <PermissionBlock
@@ -170,6 +174,7 @@ function VirtualizedTurnList({
   highlightedTurnIndex,
   onAgentPillClick,
   onTurnClick,
+  onToolClick,
   permissions,
   onPermissionDecide,
   onDecideSession,
@@ -237,6 +242,7 @@ function VirtualizedTurnList({
                   highlightedTurnIndex={highlightedTurnIndex}
                   onAgentPillClick={onAgentPillClick}
                   onTurnClick={onTurnClick}
+                  onToolClick={onToolClick}
                   permissions={permissions}
                   onPermissionDecide={onPermissionDecide}
                   onDecideSession={onDecideSession}
@@ -260,6 +266,7 @@ function VirtualizedTurnList({
               highlightedTurnIndex={highlightedTurnIndex}
               onAgentPillClick={onAgentPillClick}
               onTurnClick={onTurnClick}
+              onToolClick={onToolClick}
               permissions={permissions}
               onPermissionDecide={onPermissionDecide}
               onDecideSession={onDecideSession}
@@ -324,6 +331,7 @@ export function ConversationView({
   const layoutCtx = useContext(LayoutContext);
   const usage = layoutCtx?.usage ?? null;
   const costs = layoutCtx?.costs ?? null;
+  const openBottomTabRef = layoutCtx?.openBottomTabRef ?? null;
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -479,6 +487,11 @@ export function ConversationView({
     }).filter((text) => text.length > 0);
   }, [events]);
 
+  // TASK-006: click-to-detail handler for tool entries -> bottom panel
+  const handleToolClick = useCallback(() => {
+    openBottomTabRef?.current?.("tool-call");
+  }, [openBottomTabRef]);
+
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -612,6 +625,7 @@ export function ConversationView({
         highlightedTurnIndex={highlightedTurnIndex}
         onAgentPillClick={onAgentPillClick}
         onTurnClick={onTurnClick}
+        onToolClick={handleToolClick}
         permissions={permissions}
         onPermissionDecide={onPermissionDecide}
         onDecideSession={onDecideSession}
