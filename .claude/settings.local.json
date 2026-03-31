@@ -100,7 +100,12 @@
       "Bash(npx vitest:*)",
       "Bash(mv /Users/soh/working/ai/claude-devtools/.claude/rules/meta-rules-guide.md /Users/soh/working/ai/claude-devtools/docs/meta-rules-guide.md)",
       "Bash(rm /Users/soh/working/ai/claude-devtools/.claude/rules/severity-discipline.md)",
-      "Bash(npx node-gyp:*)"
+      "Bash(npx node-gyp:*)",
+      "Bash(NODE_ENV=development npx tsx -e \":*)",
+      "Bash(lsof -ti:3142)",
+      "Bash(xargs kill:*)",
+      "Bash(curl -s http://localhost:3142/api/debug/sessions)",
+      "Bash(npx tsx:*)"
     ],
     "deny": [
       "Read:.env*",
