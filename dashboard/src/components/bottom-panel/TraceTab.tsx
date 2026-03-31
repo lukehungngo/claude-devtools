@@ -277,9 +277,8 @@ const TraceRowComponent = memo(function TraceRowComponent({
   const durationStr = durationMs > 0 ? formatDuration(durationMs) : "";
   const costStr = formatCost(node.tokenUsage.totalCost);
 
-  // Build label text for completed bars: "3t · 1m 30s · $0.05"
+  // Build label text for completed bars: "1m 30s · $0.05"
   const labelParts: string[] = [];
-  if (node.toolCalls > 0) labelParts.push(`${node.toolCalls}t`);
   if (durationStr) labelParts.push(durationStr);
   if (costStr) labelParts.push(costStr);
   const labelText = labelParts.join(" \u00b7 ");
@@ -421,11 +420,16 @@ function TraceTabInner({
       style={{ height: contentHeight }}
       className="trace-area dt-scrollbar"
     >
-      {/* Time axis */}
-      <div className="trace-ticks" style={{ marginLeft: labelWidth }}>
-        {timeline.ticks.map((tick, i) => (
-          <span key={i}>{tick}</span>
-        ))}
+      {/* Time axis header */}
+      <div className="trace-header">
+        <div className="trace-header-label" style={{ width: labelWidth }}>
+          Agent
+        </div>
+        <div className="trace-ticks">
+          {timeline.ticks.map((tick, i) => (
+            <span key={i}>{tick}</span>
+          ))}
+        </div>
       </div>
       <div className="trace-body">
         {/* Vertical grid lines */}

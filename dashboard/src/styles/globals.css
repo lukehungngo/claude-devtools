@@ -464,9 +464,28 @@
   overflow-y: auto;
 }
 
+.trace-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--bd);
+  padding-bottom: 4px;
+}
+
+.trace-header-label {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--t3);
+  font-family: var(--font);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-right: 8px;
+}
+
 .trace-ticks {
   display: flex;
-  margin-bottom: 6px;
+  flex: 1;
 }
 
 .trace-ticks span {
