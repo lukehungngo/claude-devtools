@@ -399,7 +399,8 @@ The v4 master plan had "UI Revamp → NEXT" as vague. This phase is the concrete
 | UI-15 | "Viewing T170" indicator in topbar | **DONE** | — | — |
 | UI-16 | Absorb A-05 (code splitting) during rewrite | **DONE** | Route-level + vendor chunks + lazy BottomPanel | A-05 |
 | UI-17 | Absorb A-06 (conversation memory) | **DONE** | TurnSnapshot uses startIndex/endIndex, no duplication | A-06 |
-| UI-18 | Enhance conversation response rendering | **TODO** | Collapsed-by-default tool calls, semantic summaries, progress states, colored borders, agent cards | — |
+| UI-18 | Enhance conversation response rendering | **PARTIAL** | See UI-18 sub-status below | — |
+| UI-19 | Raw Log time-descending sort | **DONE** | — | — |
 
 ### What was DROPPED
 
@@ -550,7 +551,7 @@ Save orchestration patterns, reusable workflows, custom agent configs per step, 
 | Proportional trace bars, text outside | `computeBarPosition()` proportional bars; Duration/Cost in separate columns, not inside bars |
 | Turn dividers in conversation | `TurnDivider.tsx` — T{n} badge, clickable, visual selected state |
 | Turn selection cross-component sync | LayoutContext propagates to TraceTab, RawLogTab, TopBar indicator; back-to-live on new turns |
-| Raw Log grouped by turn | `RawLogTab.tsx` EventsMode — collapsible turn groups, init group, active turn auto-expand |
+| Raw Log grouped by turn + time-descending | `RawLogTab.tsx` — collapsible turn groups, latest-first sort in both Events and JSON modes |
 | "Viewing T170" indicator | `ViewingTurnPill` in TopBar — accent pill + dismiss button |
 | Tool call grouping | `ToolEntries.tsx` — consecutive same-type collapsed, errors individual |
 | Auto-open on SubagentStart | `BottomPanel.tsx` — 5s debounce, localStorage persistence, switches to agent-graph tab |
@@ -560,6 +561,22 @@ Save orchestration patterns, reusable workflows, custom agent configs per step, 
 | Sidebar with repos + sessions | `RepoList.tsx` — connection, usage, repos with nested sessions |
 | Virtualized turn list | `@tanstack/react-virtual` in ConversationView |
 | Root node aggregate cost | `aggregateCost()` recursive sum of all descendant costs |
+
+### UI-18 Sub-Status (Conversation Response Rendering)
+
+Reflect evaluation (2026-03-31) — verdict: **REVISE**
+
+| Principle | Status | Detail |
+|-----------|--------|--------|
+| P1: Collapsed-by-default + semantic summary | **DONE** | `ToolEntryRow` collapsed unless error, `buildSemanticSummary()` matches spec |
+| P2: Two-state progress (verb-ing → past tense) | **DONE** | `PROGRESS_MAP` + pulsing animation |
+| P3: Consecutive same-type grouping | **DONE** (minor gap) | Groups work; count badge colors are generic, not tool-specific |
+| P4: "+N lines (click to expand)" | **DONE** | `ToolResultBlock` collapses at 3 lines |
+| P5: Colored left border = message type | **PARTIAL** | Tool borders correct; **ResponseBlock uses green border, mockup says purple** |
+| P6: Agent dispatch = subagent card | **PARTIAL** | Card exists but **missing tool stat badges (Read x11, Grep x6), cost, nested tool rows** |
+| P7: Verdict first, details last | **DONE** | `VerdictBanner` renders before tool entries |
+
+Additional components: VerdictBanner ✓, FindingBanner ✓, ProgressBar ✓, CostFooter ✓, ExpandHint ✓, TaskGrid (dead code — no data source)
 
 ### What's PARTIAL (gaps remain)
 
@@ -572,10 +589,11 @@ Save orchestration patterns, reusable workflows, custom agent configs per step, 
 | **UI-07: Topbar** | Missing WAITING state (amber dot); missing red border on 80%+ context danger |
 | **UI-10: Trace bars** | `Math.max(1, ...)` enforces 1% min-width (spec says no min-width) |
 | **UI-14: Tool grouping** | Click-to-open-in-bottom-panel not wired from conversation |
+| **UI-18: Response rendering** | ResponseBlock green→purple border; AgentCard missing tool stats/cost/nested tools; TaskGrid dead code |
 
 ### Honest Assessment
 
-**Phase 4 (UI Revamp) is ~85% complete.** 10 of 17 tasks fully DONE. 7 tasks PARTIAL with well-defined gaps. No tasks remain at TODO/0%.
+**Phase 4 (UI Revamp) is ~87% complete.** 11 of 19 tasks fully DONE. 8 tasks PARTIAL with well-defined gaps. No tasks at TODO/0%.
 
 | Area | Completion | Confidence |
 |------|------------|------------|
@@ -585,17 +603,21 @@ Save orchestration patterns, reusable workflows, custom agent configs per step, 
 | Memory optimization | 100% | High — index-based TurnSnapshot, no duplication |
 | Theme system | 98% | High — light/dark/high-contrast, all tokens, bonus a11y theme |
 | Bottom panel infrastructure | 85% | High — 4 tabs, resize, collapse, auto-open. Missing: height persistence |
+| Conversation response (UI-18) | 75% | Medium — 5/7 principles done, 2 partial (borders, agent cards) |
 | Topbar / HUD | 80% | Medium — 7 metrics live, turn indicator. Missing: WAITING state, danger border |
 | Trace chart | 75% | Medium — proportional bars, 3-column Chrome DevTools layout. Missing: tool toggle, row sizing |
 | Tool Call / Cost tabs | 70% | Medium — functional but headers incomplete, missing projected total |
 
-### Remaining gaps (9 items, ordered by impact)
+### Remaining gaps (ordered by impact)
 
 ```
-Phase 4 Finish ──── ~85% → 100%
-  ├─ UI-18: Enhanced conversation response rendering (HIGHEST IMPACT — biggest UX lift)
-  │         Collapsed tool blocks, semantic summaries, progress states,
-  │         colored borders, agent cards, +N lines expand
+Phase 4 Finish ──── ~87% → 100%
+  ├─ UI-18 gaps (HIGHEST IMPACT):
+  │   ├─ Fix ResponseBlock border green → purple/accent (1-line fix)
+  │   ├─ Wire tool stat badges + cost to AgentCard (Read x11, Grep x6, $6.67)
+  │   ├─ Add per-tool-type badge colors to CollapsedGroupRow
+  │   ├─ Wire TaskGrid data source from session events
+  │   └─ Optional: colored dots on individual tool rows
   ├─ UI-04: Enrich Tool Call header (agent icon, turn#, duration, cost)
   ├─ UI-06: Replace cache savings → projected total; add burn rate trend
   ├─ UI-07: Add WAITING state + red border on context danger
