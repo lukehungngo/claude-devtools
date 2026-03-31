@@ -64,23 +64,11 @@ function extractDirs(paths: Set<string>): Set<string> {
   return dirs;
 }
 
-/**
- * Build a rolling set of file paths from the last N groups that have file paths.
- * Groups without file paths (e.g. Bash commands) are skipped so they don't
- * occupy useful window slots.
- */
-function buildRollingSet(groups: ToolGroup[], endIndex: number, windowSize: number): Set<string> {
-  const result = new Set<string>();
-  let collected = 0;
-  for (let i = endIndex - 1; i >= 0 && collected < windowSize; i--) {
-    const paths = extractFilePaths(groups[i]);
-    if (paths.size === 0) continue; // Skip path-free groups (Fix 1)
-    for (const p of paths) {
-      result.add(p);
-    }
-    collected++;
+/** Add all file paths from a group into an existing set. Returns paths added. */
+function addGroupPaths(group: ToolGroup, target: Set<string>): void {
+  for (const p of extractFilePaths(group)) {
+    target.add(p);
   }
-  return result;
 }
 
 /** Compute phase status from groups. */
@@ -256,6 +244,7 @@ export function groupIntoPhases(
   // assistant text gaps / agent dispatch. Soft boundaries come from Jaccard splits.
   const hardBoundaryAfter: boolean[] = [];
   let currentPhase: ToolGroup[] = [];
+  let phasePaths = new Set<string>(); // Maintained incrementally — O(1) per group
 
   for (let ni = 0; ni < nonAgentGroups.length; ni++) {
     const { group: g, originalIndex } = nonAgentGroups[ni];
@@ -265,6 +254,8 @@ export function groupIntoPhases(
       rawPhases.push(currentPhase);
       hardBoundaryAfter.push(true);
       currentPhase = [g];
+      phasePaths = new Set<string>();
+      addGroupPaths(g, phasePaths);
       continue;
     }
 
@@ -282,27 +273,30 @@ export function groupIntoPhases(
         rawPhases.push(currentPhase);
         hardBoundaryAfter.push(true);
         currentPhase = [g];
+        phasePaths = new Set<string>();
+        addGroupPaths(g, phasePaths);
         continue;
       }
     }
 
     // Check file-set disjunction via Jaccard similarity
     if (currentPhase.length > 0) {
-      const rollingSet = buildRollingSet(currentPhase, currentPhase.length, 3);
       const newPaths = extractFilePaths(g);
 
       // Only split on disjunction if both sides have file paths
-      if (rollingSet.size > 0 && newPaths.size > 0) {
-        const similarity = jaccardSimilarity(rollingSet, newPaths);
+      if (phasePaths.size > 0 && newPaths.size > 0) {
+        const similarity = jaccardSimilarity(phasePaths, newPaths);
         if (similarity < 0.1) {
-          // Fix 2: Fall back to directory-level similarity before splitting
-          const rollingDirs = extractDirs(rollingSet);
+          // Fall back to directory-level similarity before splitting
+          const phaseDirs = extractDirs(phasePaths);
           const newDirs = extractDirs(newPaths);
-          const dirSimilarity = jaccardSimilarity(rollingDirs, newDirs);
+          const dirSimilarity = jaccardSimilarity(phaseDirs, newDirs);
           if (dirSimilarity < 0.3) {
             rawPhases.push(currentPhase);
             hardBoundaryAfter.push(false); // soft boundary
             currentPhase = [g];
+            phasePaths = new Set<string>();
+            addGroupPaths(g, phasePaths);
             continue;
           }
         }
@@ -310,6 +304,7 @@ export function groupIntoPhases(
     }
 
     currentPhase.push(g);
+    addGroupPaths(g, phasePaths);
   }
   if (currentPhase.length > 0) {
     rawPhases.push(currentPhase);

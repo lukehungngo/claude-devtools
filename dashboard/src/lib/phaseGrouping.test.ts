@@ -361,6 +361,94 @@ describe("phaseGrouping", () => {
       expect(phases).toHaveLength(1);
     });
 
+    it("keeps all groups in one phase when files overlap across 5+ path-bearing groups", () => {
+      // Bug: rolling window of 3 forgets early file paths.
+      // Chain: each group overlaps with the previous, forming a connected chain.
+      // Files are in DIFFERENT directories so directory fallback doesn't save it.
+      // The split point produces a second "phase" with >3 entries so small-phase
+      // absorption doesn't mask the bug either.
+      const groups: ToolGroup[] = [
+        group("Read", [
+          entry({ name: "Read", target: "src/components/App.tsx" }),
+          entry({ name: "Read", target: "src/hooks/useData.ts" }),
+        ]),
+        group("Edit", [
+          entry({ name: "Edit", target: "src/hooks/useData.ts" }),
+          entry({ name: "Edit", target: "src/utils/format.ts" }),
+        ]),
+        group("Edit", [
+          entry({ name: "Edit", target: "src/utils/format.ts" }),
+          entry({ name: "Edit", target: "src/api/client.ts" }),
+        ]),
+        group("Edit", [
+          entry({ name: "Edit", target: "src/api/client.ts" }),
+          entry({ name: "Edit", target: "src/store/actions.ts" }),
+        ]),
+        // Groups 4-6: overlap with group 0 (App.tsx) but NOT groups 1-3 in the window.
+        // Rolling window=3 sees groups 1,2,3 = {hooks, utils, api, store}.
+        // New group dirs = {src/components} -> Jaccard 0 -> SPLIT!
+        // This produces a second phase with 3 groups (>1) and >3 entries,
+        // so it won't be absorbed by small-phase absorption.
+        group("Edit", [
+          entry({ name: "Edit", target: "src/components/App.tsx" }),
+          entry({ name: "Edit", target: "src/components/Header.tsx" }),
+        ]),
+        group("Edit", [
+          entry({ name: "Edit", target: "src/components/Header.tsx" }),
+          entry({ name: "Edit", target: "src/components/Footer.tsx" }),
+        ]),
+        group("Edit", [
+          entry({ name: "Edit", target: "src/components/Footer.tsx" }),
+          entry({ name: "Edit", target: "src/components/Sidebar.tsx" }),
+        ]),
+      ];
+
+      const phases = groupIntoPhases(groups);
+      // ALL groups should be in 1 phase - connected chain via overlapping files
+      expect(phases).toHaveLength(1);
+      expect(phases[0].groups).toHaveLength(7);
+    });
+
+    it("still splits truly disjoint file domains into separate phases", () => {
+      // Phase 1: VerdictBanner work
+      // Phase 2: ContentItem work (completely different files)
+      const groups: ToolGroup[] = [
+        group("Grep", [entry({ name: "Grep", target: "VerdictBanner", toolInput: { pattern: "VerdictBanner" } })]),
+        group("Read", [
+          entry({ name: "Read", target: "src/VerdictBanner.tsx" }),
+          entry({ name: "Read", target: "src/FindingBanner.tsx" }),
+          entry({ name: "Read", target: "src/ConversationView.tsx" }),
+        ]),
+        group("Edit", [
+          entry({ name: "Edit", target: "src/VerdictBanner.tsx" }),
+          entry({ name: "Edit", target: "src/FindingBanner.tsx" }),
+          entry({ name: "Edit", target: "src/ConversationView.tsx" }),
+        ]),
+        group("Bash", [entry({ name: "Bash", target: "rm src/VerdictBanner.tsx", toolInput: { command: "rm src/VerdictBanner.tsx" } })]),
+        group("Grep", [entry({ name: "Grep", target: "VerdictBanner", toolInput: { pattern: "VerdictBanner" } })]),
+        group("Read", [
+          entry({ name: "Read", target: "src/ConversationView.tsx" }),
+        ]),
+        group("Edit", [
+          entry({ name: "Edit", target: "src/ConversationView.tsx" }),
+          entry({ name: "Edit", target: "src/TurnCard.tsx" }),
+        ]),
+        // Now different domain: ContentItem work in completely different directory
+        group("Grep", [entry({ name: "Grep", target: "ContentItem", toolInput: { pattern: "ContentItem" } })]),
+        group("Read", [
+          entry({ name: "Read", target: "lib/content/ContentItem.tsx" }),
+          entry({ name: "Read", target: "lib/content/TurnDivider.tsx" }),
+        ]),
+        group("Edit", [
+          entry({ name: "Edit", target: "lib/content/ContentItem.tsx" }),
+          entry({ name: "Edit", target: "lib/content/TurnDivider.tsx" }),
+        ]),
+      ];
+
+      const phases = groupIntoPhases(groups);
+      expect(phases).toHaveLength(2);
+    });
+
     it("truncates thinking context label to 60 chars", () => {
       const groups: ToolGroup[] = [
         group("Read", [entry({ name: "Read", target: "src/a.ts" })]),
