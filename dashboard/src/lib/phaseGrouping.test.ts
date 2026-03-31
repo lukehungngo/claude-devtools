@@ -221,19 +221,33 @@ describe("phaseGrouping", () => {
       expect(phases[0].status).toBe("running");
     });
 
-    it("splits phases at assistant text boundaries", () => {
+    it("splits phases at assistant text boundaries when files differ", () => {
       const groups: ToolGroup[] = [
         group("Read", [entry({ name: "Read", target: "src/a.ts" })]),
         group("Edit", [entry({ name: "Edit", target: "src/a.ts" })]),
-        // boundary at index 2
-        group("Read", [entry({ name: "Read", target: "src/a.ts" })]),
-        group("Edit", [entry({ name: "Edit", target: "src/a.ts" })]),
+        // boundary at index 2 — different files on other side
+        group("Read", [entry({ name: "Read", target: "lib/x.ts" })]),
+        group("Edit", [entry({ name: "Edit", target: "lib/x.ts" })]),
       ];
 
       const phases = groupIntoPhases(groups, [2]);
       expect(phases).toHaveLength(2);
       expect(phases[0].groups).toHaveLength(2);
       expect(phases[1].groups).toHaveLength(2);
+    });
+
+    it("merges phases across assistant text boundary when same files overlap", () => {
+      const groups: ToolGroup[] = [
+        group("Read", [entry({ name: "Read", target: "src/a.ts" })]),
+        group("Edit", [entry({ name: "Edit", target: "src/a.ts" })]),
+        // boundary at index 2 — but same files → should merge
+        group("Read", [entry({ name: "Read", target: "src/a.ts" })]),
+        group("Edit", [entry({ name: "Edit", target: "src/a.ts" })]),
+      ];
+
+      const phases = groupIntoPhases(groups, [2]);
+      expect(phases).toHaveLength(1);
+      expect(phases[0].groups).toHaveLength(4);
     });
 
     it("infers label from thinking context when provided", () => {

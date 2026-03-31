@@ -223,17 +223,17 @@ export function groupIntoPhases(
 
   if (nonAgentGroups.length === 0) return [];
 
-  // Step 2: Build boundary set from assistant text boundaries and agent dispatch positions
-  const boundaryIndices = new Set<number>();
+  // Step 2: Build boundary sets — agent dispatch (hard) vs assistant text (soft)
+  const hardBoundarySet = new Set<number>(); // Agent dispatch — never merge across
+  const softBoundarySet = new Set<number>(); // Assistant text — mergeable if files overlap
   if (assistantTextBoundaries) {
     for (const idx of assistantTextBoundaries) {
-      boundaryIndices.add(idx);
+      softBoundarySet.add(idx);
     }
   }
-  // Agent dispatch groups also create boundaries
   for (let i = 0; i < groups.length; i++) {
     if (isAgentDispatchGroup(groups[i])) {
-      boundaryIndices.add(i);
+      hardBoundarySet.add(i);
     }
   }
 
@@ -249,29 +249,28 @@ export function groupIntoPhases(
   for (let ni = 0; ni < nonAgentGroups.length; ni++) {
     const { group: g, originalIndex } = nonAgentGroups[ni];
 
-    // Check if this group's original index crosses a boundary
-    if (currentPhase.length > 0 && boundaryIndices.has(originalIndex)) {
-      rawPhases.push(currentPhase);
-      hardBoundaryAfter.push(true);
-      currentPhase = [g];
-      phasePaths = new Set<string>();
-      addGroupPaths(g, phasePaths);
-      continue;
-    }
-
-    // Check if any boundary exists between previous group and this one
-    if (currentPhase.length > 0 && ni > 0) {
-      const prevOrigIndex = nonAgentGroups[ni - 1].originalIndex;
-      let hasBoundaryBetween = false;
-      for (let bi = prevOrigIndex + 1; bi < originalIndex; bi++) {
-        if (boundaryIndices.has(bi)) {
-          hasBoundaryBetween = true;
-          break;
+    // Check if a hard boundary (agent dispatch) exists at or between groups
+    if (currentPhase.length > 0) {
+      let isHard = hardBoundarySet.has(originalIndex);
+      let isSoft = softBoundarySet.has(originalIndex);
+      if (!isHard && !isSoft && ni > 0) {
+        const prevOrigIndex = nonAgentGroups[ni - 1].originalIndex;
+        for (let bi = prevOrigIndex + 1; bi < originalIndex; bi++) {
+          if (hardBoundarySet.has(bi)) { isHard = true; break; }
+          if (softBoundarySet.has(bi)) isSoft = true;
         }
       }
-      if (hasBoundaryBetween) {
+      if (isHard) {
         rawPhases.push(currentPhase);
         hardBoundaryAfter.push(true);
+        currentPhase = [g];
+        phasePaths = new Set<string>();
+        addGroupPaths(g, phasePaths);
+        continue;
+      }
+      if (isSoft) {
+        rawPhases.push(currentPhase);
+        hardBoundaryAfter.push(false); // soft — can merge back if files overlap
         currentPhase = [g];
         phasePaths = new Set<string>();
         addGroupPaths(g, phasePaths);
