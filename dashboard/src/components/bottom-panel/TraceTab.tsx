@@ -9,6 +9,9 @@ const TAB_BAR_HEIGHT = 37;
 const DEFAULT_LABEL_WIDTH = 140;
 const MIN_LABEL_WIDTH = 80;
 const MAX_LABEL_WIDTH = 400;
+const DURATION_COL_WIDTH = 72;
+const COST_COL_WIDTH = 64;
+const DATA_COLS_WIDTH = DURATION_COL_WIDTH + COST_COL_WIDTH;
 
 export interface TraceTabProps {
   dag: AgentDAG | null;
@@ -294,6 +297,8 @@ const TraceRowComponent = memo(function TraceRowComponent({
         </div>
         <div className="trace-name">{label}</div>
       </div>
+      <div className="trace-col-duration">{isActive ? "running" : durationStr}</div>
+      <div className="trace-col-cost">{costStr}</div>
       <div className="trace-track">
         <div
           className="trace-bar"
@@ -312,8 +317,6 @@ const TraceRowComponent = memo(function TraceRowComponent({
           )}
         </div>
       </div>
-      <div className="trace-col-duration">{isActive ? "running" : durationStr}</div>
-      <div className="trace-col-cost">{costStr}</div>
     </div>
   );
 });
@@ -401,17 +404,17 @@ function TraceTabInner({
         <div className="trace-header-label" style={{ width: labelWidth }}>
           Agent
         </div>
+        <div className="trace-col-duration trace-col-header">Duration</div>
+        <div className="trace-col-cost trace-col-header">Cost</div>
         <div className="trace-ticks">
           {timeline.ticks.map((tick, i) => (
             <span key={i}>{tick}</span>
           ))}
         </div>
-        <div className="trace-col-duration trace-col-header">Duration</div>
-        <div className="trace-col-cost trace-col-header">Cost</div>
       </div>
       <div className="trace-body">
         {/* Vertical grid lines */}
-        <div className="trace-grid" style={{ left: labelWidth }}>
+        <div className="trace-grid" style={{ left: labelWidth + DATA_COLS_WIDTH }}>
           {timeline.ticks.map((_, i) => (
             <div key={i} />
           ))}
@@ -419,7 +422,7 @@ function TraceTabInner({
         {/* Resize handle */}
         <div
           className="trace-resize-handle"
-          style={{ left: labelWidth - 2 }}
+          style={{ left: labelWidth + DATA_COLS_WIDTH - 2 }}
           onMouseDown={handleResizeStart}
         />
         {/* Agent rows */}
