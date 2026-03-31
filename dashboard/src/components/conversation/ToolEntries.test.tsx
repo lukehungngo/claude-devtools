@@ -93,7 +93,7 @@ function makeToolPairEvents(
 describe("ToolEntries — onToolClick", () => {
   afterEach(cleanup);
 
-  it("calls onToolClick when a tool entry row is clicked", () => {
+  it("toggles expand on click when tool entry has result content (collapsed by default)", () => {
     const onToolClick = vi.fn();
     const events = makeToolPairEvents("Bash", "tool-1");
     const { container } = render(
@@ -106,8 +106,8 @@ describe("ToolEntries — onToolClick", () => {
     expect(entryRow).not.toBeNull();
     fireEvent.click(entryRow!);
 
-    expect(onToolClick).toHaveBeenCalledTimes(1);
-    expect(onToolClick).toHaveBeenCalledWith("Bash");
+    // Click expands the result instead of calling onToolClick when there's result content
+    expect(onToolClick).not.toHaveBeenCalled();
   });
 
   it("does not call onToolClick when a collapsed group row is clicked (toggles expand instead)", () => {
@@ -209,9 +209,13 @@ describe("ToolEntries — colored borders and semantic summaries", () => {
 });
 
 describe("ToolEntries with DiffBlock", () => {
-  it("renders DiffBlock for Edit tool calls", () => {
+  it("renders DiffBlock for Edit tool calls after expanding the row", () => {
     const events = makeEditEvents("old code", "new code", "src/foo.ts");
     const { container } = render(<ToolEntries events={events} />);
+    // Collapsed by default — expand the entry row first
+    const entryRow = container.querySelector(".conv-tool-entries .group");
+    expect(entryRow).not.toBeNull();
+    fireEvent.click(entryRow!);
     const diffBlock = container.querySelector("[data-testid='diff-block']");
     expect(diffBlock).not.toBeNull();
     expect(diffBlock!.textContent).toContain("src/foo.ts");
@@ -221,6 +225,9 @@ describe("ToolEntries with DiffBlock", () => {
   it("shows removed and added lines when Edit diff is expanded", () => {
     const events = makeEditEvents("old line", "new line", "src/bar.ts");
     const { container, getByText } = render(<ToolEntries events={events} />);
+    // Expand the entry row first
+    const entryRow = container.querySelector(".conv-tool-entries .group");
+    fireEvent.click(entryRow!);
     fireEvent.click(getByText("Show diff"));
     const removed = container.querySelector("[data-testid='diff-removed']");
     const added = container.querySelector("[data-testid='diff-added']");
@@ -230,9 +237,12 @@ describe("ToolEntries with DiffBlock", () => {
     expect(added!.textContent).toContain("new line");
   });
 
-  it("renders DiffBlock for Write tool calls (all added lines)", () => {
+  it("renders DiffBlock for Write tool calls after expanding the row", () => {
     const events = makeWriteEvents("written content\nline 2", "src/new.ts");
     const { container, getByText } = render(<ToolEntries events={events} />);
+    // Expand the entry row first
+    const entryRow = container.querySelector(".conv-tool-entries .group");
+    fireEvent.click(entryRow!);
     const diffBlock = container.querySelector("[data-testid='diff-block']");
     expect(diffBlock).not.toBeNull();
     fireEvent.click(getByText("Show diff"));
@@ -577,7 +587,7 @@ describe("ToolEntries - agent dispatch children wiring", () => {
 describe("ToolEntries - expand/collapse long output", () => {
   afterEach(cleanup);
 
-  it("shows '+N lines' button for long output", () => {
+  it("shows '+N lines' button for long output after expanding the entry row", () => {
     const longContent = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n");
     const events: SessionEvent[] = [
       makeAssistantEvent({ id: "tu-exp-1", name: "Read", input: { file_path: "src/big.ts" } }),
@@ -600,6 +610,9 @@ describe("ToolEntries - expand/collapse long output", () => {
       } as UserEvent,
     ];
     const { container } = render(<ToolEntries events={events} />);
+    // Result is collapsed by default — expand the entry row first
+    const entryRow = container.querySelector(".conv-tool-entries .group");
+    fireEvent.click(entryRow!);
     const btnText = container.textContent;
     // ToolResultBlock should show "+7 lines (click to expand)"
     expect(btnText).toContain("+7 lines");
@@ -628,7 +641,10 @@ describe("ToolEntries - expand/collapse long output", () => {
       } as UserEvent,
     ];
     const { container } = render(<ToolEntries events={events} />);
-    // Find the expand button
+    // Expand entry row first
+    const entryRow = container.querySelector(".conv-tool-entries .group");
+    fireEvent.click(entryRow!);
+    // Find the expand button inside ToolResultBlock
     const buttons = container.querySelectorAll("button");
     const expandBtn = Array.from(buttons).find((b) => b.textContent?.includes("+7 lines"));
     expect(expandBtn).not.toBeUndefined();

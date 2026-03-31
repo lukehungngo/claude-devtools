@@ -262,26 +262,43 @@ const ToolEntryRow = memo(function ToolEntryRow({ entry, isLast, onToolClick }: 
     );
   }
 
+  // Collapsed by default — only show one-line summary. Expand on click to reveal result.
+  const [isExpanded, setIsExpanded] = useState(entry.status === "error");
+
   const icon = STATUS_ICONS[entry.status];
   const borderColor = getToolBorderColor(entry.name, entry.status);
   const summary = buildSemanticSummary(entry);
   const progressText = getProgressText(entry.name, entry.status);
   const isRunning = entry.status === "running";
+  const hasDetail = entry.resultContent != null || (entry.name === "Edit" && entry.toolInput) || (entry.name === "Write" && entry.toolInput);
 
   return (
     <div key={entry.id}>
       <div
-        onClick={() => onToolClick?.(entry.name)}
-        className="flex items-center cursor-pointer"
+        onClick={() => {
+          if (hasDetail) {
+            setIsExpanded((prev) => !prev);
+          } else {
+            onToolClick?.(entry.name);
+          }
+        }}
+        className="group flex items-center cursor-pointer"
         style={{
-          padding: "8px 12px",
+          padding: "4px 12px",
           gap: 8,
           fontSize: 11,
           borderLeft: `3px solid ${borderColor}`,
-          borderBottom: isLast ? "none" : "1px solid var(--bd)",
+          borderBottom: isLast && !isExpanded ? "none" : "1px solid var(--bd)",
           transition: "background .1s",
         }}
       >
+        {hasDetail && !isRunning ? (
+          isExpanded ? (
+            <ChevronDown size={10} style={{ color: "var(--t3)" }} className="shrink-0" />
+          ) : (
+            <ChevronRight size={10} style={{ color: "var(--t3)" }} className="shrink-0" />
+          )
+        ) : null}
         {isRunning ? (
           <span
             className="running-dot shrink-0"
@@ -314,22 +331,23 @@ const ToolEntryRow = memo(function ToolEntryRow({ entry, isLast, onToolClick }: 
             ? `${progressText}${entry.target ? ` ${entry.target}` : ""}`
             : summary}
         </span>
+        {hasDetail && !isRunning && <ExpandHint text={isExpanded ? "click to collapse" : undefined} />}
       </div>
-      {entry.resultContent != null && (
+      {isExpanded && entry.resultContent != null && (
         <ToolResultBlock
           content={entry.resultContent}
           isError={entry.resultIsError ?? false}
           toolName={entry.name}
         />
       )}
-      {entry.name === "Edit" && entry.toolInput && (
+      {isExpanded && entry.name === "Edit" && entry.toolInput && (
         <DiffBlock
           oldContent={String(entry.toolInput.old_string ?? "")}
           newContent={String(entry.toolInput.new_string ?? "")}
           filePath={String(entry.toolInput.file_path ?? "")}
         />
       )}
-      {entry.name === "Write" && entry.toolInput && (
+      {isExpanded && entry.name === "Write" && entry.toolInput && (
         <DiffBlock
           oldContent=""
           newContent={String(entry.toolInput.content ?? "")}
@@ -358,7 +376,7 @@ function CollapsedGroupRowInner({ group, isLast }: { group: ToolGroup; isLast: b
         onClick={() => setIsExpanded((prev) => !prev)}
         className="group flex items-center cursor-pointer"
         style={{
-          padding: "8px 12px",
+          padding: "4px 12px",
           gap: 8,
           fontSize: 11,
           borderLeft: `3px solid ${borderColor}`,
