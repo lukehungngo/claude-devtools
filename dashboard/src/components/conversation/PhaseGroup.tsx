@@ -22,7 +22,7 @@ function shallowEqualToolCounts(
 }
 
 function PhaseGroupInner({ phase, children }: PhaseGroupProps) {
-  const [isExpanded, setIsExpanded] = useState(phase.status === "error");
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const toolEntries = Object.entries(phase.toolCounts);
 
