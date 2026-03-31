@@ -164,6 +164,89 @@ describe("TraceTab", () => {
     expect(screen.getByText("running")).toBeDefined();
   });
 
+  it("renders duration and cost as a label outside the bar", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "main",
+          type: "orchestrator",
+          description: "Orchestrator",
+          startTime: "2026-01-01T00:00:00Z",
+          endTime: "2026-01-01T00:01:00Z",
+          toolCalls: 3,
+          tokenUsage: {
+            inputTokens: 100,
+            outputTokens: 50,
+            cacheWriteTokens: 0,
+            cacheReadTokens: 0,
+            totalCost: 0.05,
+          },
+        }),
+        makeNode({
+          id: "agent-1",
+          type: "engineer",
+          description: "SWE",
+          parentId: "main",
+          startTime: "2026-01-01T00:00:30Z",
+          endTime: "2026-01-01T00:01:00Z",
+          toolCalls: 2,
+        }),
+      ],
+      edges: [{ source: "main", target: "agent-1" }],
+    };
+    const { container } = render(
+      <TraceTab
+        dag={dag}
+        turns={[mockTurn]}
+        activeTurnIndex={null}
+        selectedAgent={null}
+        panelHeight={300}
+      />,
+    );
+    // Label should be a sibling element with class trace-bar-label
+    const labels = container.querySelectorAll(".trace-bar-label");
+    expect(labels.length).toBeGreaterThanOrEqual(1);
+    // Bar should NOT contain text (pure colored rectangle for completed bars)
+    const bars = container.querySelectorAll(".trace-bar");
+    for (const bar of bars) {
+      // Completed bars should have no direct text content
+      const directText = Array.from(bar.childNodes)
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent?.trim())
+        .filter(Boolean);
+      expect(directText).toEqual([]);
+    }
+  });
+
+  it("does not render external label for active/running bars", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "main",
+          type: "orchestrator",
+          description: "Orchestrator",
+          status: "active",
+          startTime: "2026-01-01T00:00:00Z",
+        }),
+      ],
+      edges: [],
+    };
+    const { container } = render(
+      <TraceTab
+        dag={dag}
+        turns={[mockTurn]}
+        activeTurnIndex={null}
+        selectedAgent={null}
+        panelHeight={300}
+      />,
+    );
+    // Running bars should NOT have an external label
+    const labels = container.querySelectorAll(".trace-bar-label");
+    expect(labels.length).toBe(0);
+    // But should still have "running" text inside the bar
+    expect(screen.getByText("running")).toBeDefined();
+  });
+
   it("sets container height to panelHeight - 37", () => {
     const dag: AgentDAG = {
       nodes: [
