@@ -7,7 +7,7 @@ export interface AgentCardProps {
   agentName: string;
   description: string;
   status: "running" | "success" | "error";
-  toolCount?: number;
+  toolStats?: Array<{ name: string; count: number }>;
   durationMs?: number;
   cost?: number;
   children?: React.ReactNode;
@@ -85,20 +85,13 @@ function AgentCardInner({
   agentName,
   description,
   status,
-  toolCount,
+  toolStats,
   durationMs,
   cost,
   children,
 }: AgentCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const hasStats =
-    toolCount != null || durationMs != null || cost != null;
   const hasChildren = !!children;
-
-  const statParts: string[] = [];
-  if (toolCount != null) statParts.push(`${toolCount} tools`);
-  if (durationMs != null) statParts.push(formatDuration(durationMs));
-  if (cost != null) statParts.push(formatCost(cost));
 
   return (
     <div
@@ -154,11 +147,41 @@ function AgentCardInner({
         >
           {"\u201C"}{truncate(description, 60)}{"\u201D"}
         </span>
+        {toolStats != null && toolStats.length > 0 && toolStats.map((stat) => (
+          <span
+            key={stat.name}
+            data-testid="agent-stat-badge"
+            style={{
+              background: "var(--bg-h)",
+              fontSize: 10,
+              fontFamily: "var(--font-mono)",
+              padding: "2px 6px",
+              borderRadius: "var(--radius)",
+              color: "var(--t2)",
+              flexShrink: 0,
+            }}
+          >
+            {stat.name} {"\u00d7"}{stat.count}
+          </span>
+        ))}
+        {cost != null && (
+          <span
+            data-testid="agent-cost"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              color: "var(--amb)",
+              flexShrink: 0,
+            }}
+          >
+            {formatCost(cost)}
+          </span>
+        )}
         {hasChildren && !isExpanded && <ExpandHint />}
       </div>
 
       {/* Stats line */}
-      {hasStats && (
+      {durationMs != null && (
         <div
           data-testid="agent-card-stats"
           className="font-mono"
@@ -169,7 +192,7 @@ function AgentCardInner({
             paddingLeft: hasChildren ? 44 : 34,
           }}
         >
-          {statParts.join(" \u00B7 ")}
+          {formatDuration(durationMs)}
         </div>
       )}
 

@@ -288,70 +288,145 @@ describe("ConversationView ProgressBar", () => {
   });
 });
 
-describe("ConversationView TaskGrid", () => {
-  it("renders TaskGrid when taskItems are provided", () => {
-    const events = [
+function makeAssistantWithToolUse(
+  index: number,
+  toolName: string,
+  input: Record<string, unknown>,
+): AssistantEvent {
+  return {
+    type: "assistant",
+    uuid: `asst-tool-${index}`,
+    timestamp: `2026-01-01T00:00:0${index}Z`,
+    sessionId: "sess-1",
+    agentId: "main",
+    message: {
+      role: "assistant",
+      content: [
+        { type: "tool_use", id: `tu-${index}`, name: toolName, input },
+      ],
+      model: "claude-sonnet-4-5",
+      usage: { input_tokens: 10, output_tokens: 20 },
+      stop_reason: "tool_use",
+    },
+  } as AssistantEvent;
+}
+
+describe("ConversationView TaskGrid derived from events", () => {
+  it("derives tasks from TodoWrite tool_use events", () => {
+    const events: SessionEvent[] = [
       makeUserEvent("Prompt", 0),
-      makeAssistantEvent(1),
+      makeAssistantWithToolUse(1, "TodoWrite", {
+        todos: [
+          { content: "Setup database", status: "completed" },
+          { content: "Write tests", status: "in_progress" },
+          { content: "Deploy", status: "pending" },
+        ],
+      }),
     ];
-    const turns = groupEventsIntoTurns(events as SessionEvent[]);
-    const taskItems = [
-      { id: "T-001", name: "Setup database", status: "done" as const },
-      { id: "T-002", name: "Write tests", status: "in_progress" as const },
-      { id: "T-003", name: "Deploy", status: "pending" as const },
-    ];
+    const turns = groupEventsIntoTurns(events);
 
     render(
-      <ConversationView
-        events={events}
-        turns={turns}
-        metrics={null}
-        taskItems={taskItems}
-      />
+      <ConversationView events={events} turns={turns} metrics={null} />
     );
 
-    // TaskGrid renders an expand button with task count
     const expandButton = screen.getByRole("button", { name: /3 tasks/i });
     expect(expandButton).toBeTruthy();
   });
 
-  it("does not render TaskGrid when taskItems is not provided", () => {
-    const events = [
+  it("does not render TaskGrid when no task-related events exist", () => {
+    const events: SessionEvent[] = [
       makeUserEvent("Prompt", 0),
       makeAssistantEvent(1),
     ];
-    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+    const turns = groupEventsIntoTurns(events);
 
     render(
-      <ConversationView
-        events={events}
-        turns={turns}
-        metrics={null}
-      />
+      <ConversationView events={events} turns={turns} metrics={null} />
     );
 
-    // No expand button for tasks
     expect(screen.queryByRole("button", { name: /tasks.*click to expand/i })).toBeNull();
   });
 
-  it("does not render TaskGrid when taskItems is empty", () => {
-    const events = [
+  it("maps completed and done statuses to done", () => {
+    const events: SessionEvent[] = [
       makeUserEvent("Prompt", 0),
-      makeAssistantEvent(1),
+      makeAssistantWithToolUse(1, "TodoWrite", {
+        todos: [
+          { content: "Task A", status: "completed" },
+          { content: "Task B", status: "done" },
+        ],
+      }),
     ];
-    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+    const turns = groupEventsIntoTurns(events);
 
-    render(
-      <ConversationView
-        events={events}
-        turns={turns}
-        metrics={null}
-        taskItems={[]}
-      />
+    const { container } = render(
+      <ConversationView events={events} turns={turns} metrics={null} />
     );
 
-    // TaskGrid returns null for empty array
-    expect(screen.queryByRole("button", { name: /tasks.*click to expand/i })).toBeNull();
+    // Expand the task grid to verify status rendering
+    const expandButton = screen.getByRole("button", { name: /2 tasks/i });
+    fireEvent.click(expandButton);
+
+    // Both should show the done checkmark
+    const cells = container.querySelectorAll("td");
+    // Status cells are at indices 2, 5 (every 3rd cell starting from index 2)
+    const statusCells = Array.from(cells).filter((_, i) => i % 3 === 2);
+    expect(statusCells).toHaveLength(2);
+    // Both should have the checkmark character
+    statusCells.forEach((cell) => {
+      expect(cell.textContent).toBe("\u2713");
+    });
+  });
+
+  it("uses the last TodoWrite event when multiple exist", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent("Prompt", 0),
+      makeAssistantWithToolUse(1, "TodoWrite", {
+        todos: [
+          { content: "Old task", status: "pending" },
+        ],
+      }),
+      makeUserEvent("Continue", 2),
+      makeAssistantWithToolUse(3, "TodoWrite", {
+        todos: [
+          { content: "New task A", status: "done" },
+          { content: "New task B", status: "in_progress" },
+        ],
+      }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+
+    render(
+      <ConversationView events={events} turns={turns} metrics={null} />
+    );
+
+    // Should show 2 tasks from the latest TodoWrite, not 1 from the first
+    const expandButton = screen.getByRole("button", { name: /2 tasks/i });
+    expect(expandButton).toBeTruthy();
+  });
+
+  it("maps unknown statuses to pending", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent("Prompt", 0),
+      makeAssistantWithToolUse(1, "TodoWrite", {
+        todos: [
+          { content: "Mystery task", status: "unknown_status" },
+        ],
+      }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+
+    const { container } = render(
+      <ConversationView events={events} turns={turns} metrics={null} />
+    );
+
+    const expandButton = screen.getByRole("button", { name: /1 tasks/i });
+    fireEvent.click(expandButton);
+
+    // Unknown status should map to pending (-- indicator)
+    const cells = container.querySelectorAll("td");
+    const statusCells = Array.from(cells).filter((_, i) => i % 3 === 2);
+    expect(statusCells[0].textContent).toBe("--");
   });
 });
 

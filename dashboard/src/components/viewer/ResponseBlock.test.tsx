@@ -112,12 +112,12 @@ describe("ResponseBlock", () => {
     expect(container.textContent).toContain("\u2713");
   });
 
-  it("preserves the green left border container", () => {
+  it("preserves the accent left border container", () => {
     const { container } = render(<ResponseBlock text="Hello world" />);
     const wrapper = container.firstElementChild as HTMLElement;
     expect(wrapper).not.toBeNull();
     expect(wrapper.className).toContain("border-l-2");
-    expect(wrapper.className).toContain("border-dt-green");
+    expect(wrapper.className).toContain("border-dt-accent");
     expect(wrapper.className).toContain("pl-2");
   });
 

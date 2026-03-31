@@ -19,8 +19,6 @@ import { useStreamingState } from "../../hooks/useStreamingState";
 import { StreamingTurnArea } from "./StreamingTurnArea";
 import { ProgressBar } from "./ProgressBar";
 import { TaskGrid } from "./TaskGrid";
-import type { TaskGridProps } from "./TaskGrid";
-
 export interface QuestionItem {
   questionId: string;
   questionText: string;
@@ -53,8 +51,6 @@ interface ConversationViewProps {
   onSessionStarted?: (sessionId: string) => void;
   /** Called when slash commands request opening a panel */
   onOpenPanel?: (panel: string) => void;
-  /** Individual task items to render in a TaskGrid below the ProgressBar */
-  taskItems?: TaskGridProps["tasks"];
 }
 
 // ─── Virtualized turn list ──────────────────────────────────────────
@@ -332,7 +328,6 @@ export function ConversationView({
   onSubmitAnswer,
   onSessionStarted,
   onOpenPanel,
-  taskItems,
 }: ConversationViewProps) {
   const layoutCtx = useContext(LayoutContext);
   const usage = layoutCtx?.usage ?? null;
@@ -391,6 +386,63 @@ export function ConversationView({
       );
     });
   }, [turns, events]);
+
+  // Derive task items from tool_use events (TodoWrite, TaskCreate, TaskUpdate)
+  const derivedTasks = useMemo(() => {
+    type TaskItem = { id: string; name: string; status: "done" | "pending" | "in_progress" | "error" };
+    const TASK_TOOLS = new Set(["TodoWrite", "TaskCreate", "TaskUpdate"]);
+
+    const normalizeStatus = (s: unknown): TaskItem["status"] => {
+      if (s === "completed" || s === "done") return "done";
+      if (s === "in_progress") return "in_progress";
+      if (s === "error") return "error";
+      return "pending";
+    };
+
+    let tasks: TaskItem[] = [];
+
+    for (const evt of events) {
+      if (evt.type !== "assistant") continue;
+      const msg = (evt as AssistantEvent).message;
+      if (!Array.isArray(msg?.content)) continue;
+
+      for (const item of msg.content) {
+        if (
+          typeof item !== "object" ||
+          item === null ||
+          !("type" in item) ||
+          (item as { type: string }).type !== "tool_use"
+        ) continue;
+
+        const toolUse = item as { type: "tool_use"; name: string; input: Record<string, unknown> };
+        if (!TASK_TOOLS.has(toolUse.name)) continue;
+
+        if (toolUse.name === "TodoWrite") {
+          const todos = toolUse.input.todos;
+          if (!Array.isArray(todos)) continue;
+          // TodoWrite replaces the full task list each time
+          tasks = todos.map((todo: unknown, idx: number) => {
+            const t = todo as { content?: string; status?: string };
+            return {
+              id: `T-${String(idx + 1).padStart(3, "0")}`,
+              name: t.content ?? `Task ${idx + 1}`,
+              status: normalizeStatus(t.status),
+            };
+          });
+        } else if (toolUse.name === "TaskCreate") {
+          const desc = toolUse.input.description;
+          tasks.push({
+            id: `T-${String(tasks.length + 1).padStart(3, "0")}`,
+            name: typeof desc === "string" ? desc : `Task ${tasks.length + 1}`,
+            status: "pending",
+          });
+        }
+        // TaskUpdate could update status of existing tasks -- skip for now as spec is thin
+      }
+    }
+
+    return tasks;
+  }, [events]);
 
   // Scroll to highlighted turn (works with virtualization via DOM query)
   useEffect(() => {
@@ -629,10 +681,10 @@ export function ConversationView({
         />
       )}
 
-      {/* Task grid (individual task items) */}
-      {taskItems && taskItems.length > 0 && (
+      {/* Task grid (derived from tool_use events) */}
+      {derivedTasks.length > 0 && (
         <div style={{ padding: "0 24px 8px" }}>
-          <TaskGrid tasks={taskItems} />
+          <TaskGrid tasks={derivedTasks} />
         </div>
       )}
 

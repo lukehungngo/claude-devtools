@@ -213,6 +213,63 @@ function formatAgentResult(content: string | unknown[]): string {
   return String(content);
 }
 
+/**
+ * Extract tool usage stats from agent result content.
+ * Parses patterns like "Read ×11", "Grep x6", "Edit ×3" from the text.
+ */
+export function extractToolStatsFromResult(content: string | unknown[]): Array<{ name: string; count: number }> {
+  let text: string;
+  if (typeof content === "string") {
+    text = content;
+  } else if (Array.isArray(content)) {
+    const parts: string[] = [];
+    for (const item of content) {
+      if (
+        item != null &&
+        typeof item === "object" &&
+        "type" in item &&
+        (item as Record<string, unknown>).type === "text" &&
+        "text" in item
+      ) {
+        parts.push(String((item as Record<string, unknown>).text));
+      }
+    }
+    text = parts.join("\n");
+  } else {
+    return [];
+  }
+
+  if (!text) return [];
+
+  const stats: Array<{ name: string; count: number }> = [];
+  // Match patterns: "ToolName ×N" or "ToolName xN" (unicode × or lowercase x)
+  const pattern = /([A-Z][a-zA-Z]*)\s*[×x](\d+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) {
+    stats.push({ name: match[1], count: parseInt(match[2], 10) });
+  }
+
+  return stats;
+}
+
+/** Map tool name to badge background/text color pair for collapsed group count badges. */
+export function getToolBadgeColors(toolName: string): { bg: string; text: string } {
+  const name = toolName.toLowerCase();
+  if (name === "read" || name === "glob" || name === "listdir" || name === "ls" || name === "tree") {
+    return { bg: "var(--teal-dim)", text: "var(--teal)" };
+  }
+  if (name === "grep" || name === "websearch" || name === "webfetch") {
+    return { bg: "var(--accent-dim)", text: "var(--accent)" };
+  }
+  if (name === "bash" || name === "execute") {
+    return { bg: "var(--yellow-dim)", text: "var(--yellow)" };
+  }
+  if (name === "edit" || name === "write") {
+    return { bg: "var(--green-dim)", text: "var(--green)" };
+  }
+  return { bg: "var(--bg-h)", text: "var(--t3)" };
+}
+
 /** Map tool name + status to a human-readable progress verb. */
 const PROGRESS_MAP: Record<string, { running: string; completed: string }> = {
   read: { running: "Reading...", completed: "Read" },
@@ -250,6 +307,7 @@ const ToolEntryRow = memo(function ToolEntryRow({ entry, isLast, onToolClick }: 
         agentName={extractAgentName(entry)}
         description={extractAgentDescription(entry)}
         status={entry.status}
+        toolStats={extractToolStatsFromResult(entry.resultContent ?? [])}
       >
         {entry.resultContent != null && (
           <div className="font-mono" style={{ fontSize: 10, color: "var(--t3)", lineHeight: 1.5 }}>
@@ -366,6 +424,7 @@ function CollapsedGroupRowInner({ group, isLast }: { group: ToolGroup; isLast: b
   const groupStatus = anyRunning ? "running" : allSuccess ? "success" : "running";
   const icon = STATUS_ICONS[groupStatus];
   const borderColor = getToolBorderColor(group.name, groupStatus);
+  const badgeColors = getToolBadgeColors(group.name);
   const summary = buildGroupSummary(group);
 
   return (
@@ -409,8 +468,8 @@ function CollapsedGroupRowInner({ group, isLast }: { group: ToolGroup; isLast: b
           className="font-mono"
           style={{
             fontSize: 9,
-            color: "var(--t3)",
-            background: "var(--bg-h)",
+            color: badgeColors.text,
+            background: badgeColors.bg,
             padding: "1px 5px",
             borderRadius: "var(--radius)",
           }}

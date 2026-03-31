@@ -21,21 +21,51 @@ describe("AgentCard", () => {
     expect(getByLabelText("engineer subagent")).toBeTruthy();
   });
 
-  it("shows stats line with tool count, duration, cost", () => {
+  it("shows stats line with duration when provided", () => {
     const { getByText } = render(
       <AgentCard
         agentName="researcher"
         description="Analyze codebase patterns"
         status="success"
-        toolCount={12}
         durationMs={134000}
-        cost={0.42}
       />,
     );
 
-    expect(getByText(/12 tools/)).toBeTruthy();
     expect(getByText(/2m 14s/)).toBeTruthy();
-    expect(getByText(/\$0\.420/)).toBeTruthy();
+  });
+
+  it("renders toolStats as pill badges with correct text", () => {
+    const { container } = render(
+      <AgentCard
+        agentName="researcher"
+        description="Analyze codebase patterns"
+        status="success"
+        toolStats={[
+          { name: "Read", count: 11 },
+          { name: "Grep", count: 6 },
+        ]}
+      />,
+    );
+
+    const badges = container.querySelectorAll("[data-testid='agent-stat-badge']");
+    expect(badges.length).toBe(2);
+    expect(badges[0].textContent).toBe("Read \u00d711");
+    expect(badges[1].textContent).toBe("Grep \u00d76");
+  });
+
+  it("renders cost badge with formatted value", () => {
+    const { container } = render(
+      <AgentCard
+        agentName="researcher"
+        description="Analyze codebase patterns"
+        status="success"
+        cost={6.67}
+      />,
+    );
+
+    const costBadge = container.querySelector("[data-testid='agent-cost']");
+    expect(costBadge).not.toBeNull();
+    expect(costBadge!.textContent).toContain("$6.67");
   });
 
   it("shows running status with amber indicator", () => {

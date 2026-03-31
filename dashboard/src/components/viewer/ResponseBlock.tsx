@@ -22,7 +22,7 @@ export const ResponseBlock = memo(function ResponseBlock({ text }: ResponseBlock
   const displayText = isSuccess ? text.replace(/^\u2713\s*/, "") : text;
 
   return (
-    <div className="text-dt-text0 font-mono text-md leading-[1.6] mb-1.5 break-words border-l-2 border-dt-green pl-2">
+    <div className="text-dt-text0 font-mono text-md leading-[1.6] mb-1.5 break-words border-l-2 border-dt-accent pl-2">
       {isSuccess && <span className="text-dt-green mr-1">{"\u2713"}</span>}
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
         {displayText}

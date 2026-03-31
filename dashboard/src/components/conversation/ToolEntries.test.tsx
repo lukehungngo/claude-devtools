@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup, fireEvent, screen } from "@testing-library/react";
-import { ToolEntries, getProgressText } from "./ToolEntries";
+import { ToolEntries, getProgressText, getToolBadgeColors, extractToolStatsFromResult } from "./ToolEntries";
 import type { SessionEvent, AssistantEvent, UserEvent } from "../../lib/types";
 
 afterEach(cleanup);
@@ -581,6 +581,215 @@ describe("ToolEntries - agent dispatch children wiring", () => {
     // Should be truncated: 500 chars + ellipsis
     const text = detail!.textContent || "";
     expect(text.length).toBeLessThanOrEqual(510); // 500 + ellipsis + minor markup
+  });
+});
+
+describe("getToolBadgeColors", () => {
+  it("returns teal colors for Read", () => {
+    expect(getToolBadgeColors("Read")).toEqual({ bg: "var(--teal-dim)", text: "var(--teal)" });
+  });
+
+  it("returns teal colors for glob", () => {
+    expect(getToolBadgeColors("glob")).toEqual({ bg: "var(--teal-dim)", text: "var(--teal)" });
+  });
+
+  it("returns teal colors for listdir", () => {
+    expect(getToolBadgeColors("listdir")).toEqual({ bg: "var(--teal-dim)", text: "var(--teal)" });
+  });
+
+  it("returns accent colors for grep", () => {
+    expect(getToolBadgeColors("grep")).toEqual({ bg: "var(--accent-dim)", text: "var(--accent)" });
+  });
+
+  it("returns accent colors for websearch", () => {
+    expect(getToolBadgeColors("websearch")).toEqual({ bg: "var(--accent-dim)", text: "var(--accent)" });
+  });
+
+  it("returns yellow colors for bash", () => {
+    expect(getToolBadgeColors("bash")).toEqual({ bg: "var(--yellow-dim)", text: "var(--yellow)" });
+  });
+
+  it("returns green colors for edit", () => {
+    expect(getToolBadgeColors("edit")).toEqual({ bg: "var(--green-dim)", text: "var(--green)" });
+  });
+
+  it("returns green colors for Write", () => {
+    expect(getToolBadgeColors("Write")).toEqual({ bg: "var(--green-dim)", text: "var(--green)" });
+  });
+
+  it("returns default colors for unknown tool", () => {
+    expect(getToolBadgeColors("CustomTool")).toEqual({ bg: "var(--bg-h)", text: "var(--t3)" });
+  });
+});
+
+describe("ToolEntries - CollapsedGroupRow badge colors", () => {
+  afterEach(cleanup);
+
+  function makeReadGroupEvents(files: string[]): SessionEvent[] {
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const toolId = `tu-badge-read-${i}`;
+      events.push(
+        makeAssistantEvent({ id: toolId, name: "Read", input: { file_path: files[i] } }),
+      );
+      events.push(makeUserEvent(toolId, `content of ${files[i]}`));
+    }
+    return events;
+  }
+
+  it("renders teal badge colors for a Read collapsed group", () => {
+    const events = makeReadGroupEvents(["a.ts", "b.ts", "c.ts"]);
+    const { container } = render(<ToolEntries events={events} />);
+
+    const groupRow = container.querySelector("[role='button']");
+    expect(groupRow).not.toBeNull();
+
+    // The count badge is the span with font-size 9px containing "3"
+    const spans = groupRow!.querySelectorAll("span.font-mono");
+    const badge = Array.from(spans).find((s) => s.textContent === "3") as HTMLElement | undefined;
+    expect(badge).not.toBeUndefined();
+    expect(badge!.style.background).toBe("var(--teal-dim)");
+    expect(badge!.style.color).toBe("var(--teal)");
+  });
+
+  it("renders accent badge colors for a Grep collapsed group", () => {
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < 3; i++) {
+      const toolId = `tu-badge-grep-${i}`;
+      events.push(
+        makeAssistantEvent({ id: toolId, name: "Grep", input: { pattern: `pattern${i}` } }),
+      );
+      events.push(makeUserEvent(toolId, "matches"));
+    }
+    const { container } = render(<ToolEntries events={events} />);
+
+    const groupRow = container.querySelector("[role='button']");
+    const spans = groupRow!.querySelectorAll("span.font-mono");
+    const badge = Array.from(spans).find((s) => s.textContent === "3") as HTMLElement | undefined;
+    expect(badge).not.toBeUndefined();
+    expect(badge!.style.background).toBe("var(--accent-dim)");
+    expect(badge!.style.color).toBe("var(--accent)");
+  });
+});
+
+describe("extractToolStatsFromResult", () => {
+  it("parses 'Read ×11\\nGrep ×6' format", () => {
+    const result = extractToolStatsFromResult("Read ×11\nGrep ×6");
+    expect(result).toEqual([
+      { name: "Read", count: 11 },
+      { name: "Grep", count: 6 },
+    ]);
+  });
+
+  it("parses 'Read x11\\nGrep x6' format (lowercase x)", () => {
+    const result = extractToolStatsFromResult("Read x11\nGrep x6");
+    expect(result).toEqual([
+      { name: "Read", count: 11 },
+      { name: "Grep", count: 6 },
+    ]);
+  });
+
+  it("parses 'Edit ×3' from array of content blocks", () => {
+    const content = [
+      { type: "text", text: "Edit ×3\nBash ×2" },
+    ];
+    const result = extractToolStatsFromResult(content as unknown[]);
+    expect(result).toEqual([
+      { name: "Edit", count: 3 },
+      { name: "Bash", count: 2 },
+    ]);
+  });
+
+  it("returns empty array for unparseable content", () => {
+    const result = extractToolStatsFromResult("No tool stats here, just a normal response.");
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty array for empty string", () => {
+    expect(extractToolStatsFromResult("")).toEqual([]);
+  });
+
+  it("returns empty array for empty array", () => {
+    expect(extractToolStatsFromResult([])).toEqual([]);
+  });
+
+  it("handles mixed content blocks extracting text only", () => {
+    const content = [
+      { type: "image", source: {} },
+      { type: "text", text: "Write ×5" },
+    ];
+    const result = extractToolStatsFromResult(content as unknown[]);
+    expect(result).toEqual([{ name: "Write", count: 5 }]);
+  });
+});
+
+describe("ToolEntries - agent dispatch with toolStats wiring", () => {
+  afterEach(cleanup);
+
+  it("renders AgentCard with tool stat badges when resultContent has parseable stats", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        id: "tu-agent-stats",
+        name: "Task",
+        input: { prompt: "Refactor utils", description: "Refactor utils" },
+      }),
+      {
+        type: "user",
+        uuid: "uuid-user-agent-stats",
+        sessionId: "sess-1",
+        timestamp: "2026-01-01T00:00:01Z",
+        userType: "external",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tu-agent-stats",
+              content: "Read ×11\nGrep ×6\nEdit ×3",
+            },
+          ],
+        },
+      } as UserEvent,
+    ];
+    const { container } = render(<ToolEntries events={events} />);
+    const badges = container.querySelectorAll("[data-testid='agent-stat-badge']");
+    expect(badges.length).toBe(3);
+    expect(badges[0].textContent).toContain("Read");
+    expect(badges[0].textContent).toContain("11");
+    expect(badges[1].textContent).toContain("Grep");
+    expect(badges[1].textContent).toContain("6");
+    expect(badges[2].textContent).toContain("Edit");
+    expect(badges[2].textContent).toContain("3");
+  });
+
+  it("renders AgentCard without stat badges when resultContent has no parseable stats", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        id: "tu-agent-nostats",
+        name: "Task",
+        input: { prompt: "Simple task", description: "Simple task" },
+      }),
+      {
+        type: "user",
+        uuid: "uuid-user-agent-nostats",
+        sessionId: "sess-1",
+        timestamp: "2026-01-01T00:00:01Z",
+        userType: "external",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tu-agent-nostats",
+              content: "Task completed successfully. All changes applied.",
+            },
+          ],
+        },
+      } as UserEvent,
+    ];
+    const { container } = render(<ToolEntries events={events} />);
+    const badges = container.querySelectorAll("[data-testid='agent-stat-badge']");
+    expect(badges.length).toBe(0);
   });
 });
 
