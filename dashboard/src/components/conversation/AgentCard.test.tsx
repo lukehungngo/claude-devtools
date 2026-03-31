@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { render, cleanup, fireEvent } from "@testing-library/react";
 import { AgentCard } from "./AgentCard";
 import { ToolEntries } from "./ToolEntries";
 import type { AssistantEvent, UserEvent, SessionEvent } from "../../lib/types";
@@ -110,6 +110,99 @@ describe("AgentCard", () => {
   });
 });
 
+describe("AgentCard expand/collapse", () => {
+  afterEach(cleanup);
+
+  it("does not show chevron when no children provided", () => {
+    const { container } = render(
+      <AgentCard agentName="engineer" description="Some task" status="success" />,
+    );
+    const chevron = container.querySelector("[data-testid='agent-card-chevron']");
+    expect(chevron).toBeNull();
+  });
+
+  it("shows chevron when children are provided", () => {
+    const { container } = render(
+      <AgentCard agentName="engineer" description="Some task" status="success">
+        <div>Nested tool</div>
+      </AgentCard>,
+    );
+    const chevron = container.querySelector("[data-testid='agent-card-chevron']");
+    expect(chevron).not.toBeNull();
+  });
+
+  it("expands children and rotates chevron on click", () => {
+    const { container, getByText, queryByText } = render(
+      <AgentCard agentName="engineer" description="Some task" status="success">
+        <div>Nested tool content</div>
+      </AgentCard>,
+    );
+
+    // Children should not be visible initially
+    expect(queryByText("Nested tool content")).toBeNull();
+
+    // Click the header to expand
+    const header = container.querySelector("[data-testid='agent-card-header']")!;
+    fireEvent.click(header);
+
+    // Children should now be visible
+    expect(getByText("Nested tool content")).toBeTruthy();
+
+    // Chevron should be rotated
+    const chevron = container.querySelector("[data-testid='agent-card-chevron']") as HTMLElement;
+    expect(chevron.style.transform).toBe("rotate(90deg)");
+  });
+
+  it("collapses children on second click", () => {
+    const { container, queryByText } = render(
+      <AgentCard agentName="engineer" description="Some task" status="success">
+        <div>Nested tool content</div>
+      </AgentCard>,
+    );
+
+    const header = container.querySelector("[data-testid='agent-card-header']")!;
+
+    // Expand
+    fireEvent.click(header);
+    expect(queryByText("Nested tool content")).not.toBeNull();
+
+    // Collapse
+    fireEvent.click(header);
+    expect(queryByText("Nested tool content")).toBeNull();
+
+    // Chevron should be back to default rotation
+    const chevron = container.querySelector("[data-testid='agent-card-chevron']") as HTMLElement;
+    expect(chevron.style.transform).toBe("rotate(0deg)");
+  });
+
+  it("toggles aria-expanded attribute when children present", () => {
+    const { container } = render(
+      <AgentCard agentName="engineer" description="Some task" status="success">
+        <div>Child</div>
+      </AgentCard>,
+    );
+
+    const card = container.querySelector("[aria-label='engineer subagent']")!;
+    expect(card.getAttribute("aria-expanded")).toBe("false");
+
+    const header = container.querySelector("[data-testid='agent-card-header']")!;
+    fireEvent.click(header);
+    expect(card.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("still shows running status pulsing dot correctly with children", () => {
+    const { getByLabelText } = render(
+      <AgentCard agentName="bugfixer" description="Fix the test" status="running">
+        <div>Child content</div>
+      </AgentCard>,
+    );
+
+    const indicator = getByLabelText("Running");
+    expect(indicator).toBeTruthy();
+    expect(indicator.style.background).toBe("var(--amb)");
+  });
+});
+
 // --- Integration: AgentCard rendered inside ToolEntries for agent dispatch ---
 
 function makeAssistantEvent(toolUse: {
@@ -151,6 +244,34 @@ function makeUserEvent(toolUseId: string, resultContent: string): UserEvent {
     },
   };
 }
+
+describe("AgentCard group-hover hint visibility (P1 bug)", () => {
+  afterEach(cleanup);
+
+  it("has 'group' class on an ancestor of the expand hint so group-hover works", () => {
+    const { container } = render(
+      <AgentCard agentName="engineer" description="Some task" status="success">
+        <div>Child</div>
+      </AgentCard>,
+    );
+
+    const allHints = container.querySelectorAll("span[aria-hidden='true']");
+    const hint = Array.from(allHints).find((el) => el.textContent === "click to expand") as HTMLElement | undefined;
+    expect(hint).not.toBeUndefined();
+
+    // Walk up from the hint to find a parent with 'group' class
+    let el: HTMLElement | null = hint!.parentElement;
+    let foundGroup = false;
+    while (el) {
+      if (el.classList.contains("group")) {
+        foundGroup = true;
+        break;
+      }
+      el = el.parentElement;
+    }
+    expect(foundGroup).toBe(true);
+  });
+});
 
 describe("AgentCard integration in ToolEntries", () => {
   afterEach(cleanup);

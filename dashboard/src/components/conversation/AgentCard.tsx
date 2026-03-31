@@ -1,5 +1,7 @@
-import { memo } from "react";
+import { memo, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { formatCost, formatDuration } from "../../lib/cost";
+import { ExpandHint } from "./ExpandHint";
 
 export interface AgentCardProps {
   agentName: string;
@@ -8,6 +10,7 @@ export interface AgentCardProps {
   toolCount?: number;
   durationMs?: number;
   cost?: number;
+  children?: React.ReactNode;
 }
 
 /** Truncate a string to maxLen characters, appending ellipsis if needed. */
@@ -85,9 +88,12 @@ function AgentCardInner({
   toolCount,
   durationMs,
   cost,
+  children,
 }: AgentCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const hasStats =
     toolCount != null || durationMs != null || cost != null;
+  const hasChildren = !!children;
 
   const statParts: string[] = [];
   if (toolCount != null) statParts.push(`${toolCount} tools`);
@@ -97,6 +103,7 @@ function AgentCardInner({
   return (
     <div
       aria-label={`${agentName} subagent`}
+      {...(hasChildren ? { role: "button", "aria-expanded": isExpanded } : {})}
       style={{
         borderLeft: "3px solid var(--acc)",
         background: "var(--bg-s)",
@@ -106,7 +113,24 @@ function AgentCardInner({
       }}
     >
       {/* Header line */}
-      <div className="flex items-center" style={{ gap: 8 }}>
+      <div
+        data-testid="agent-card-header"
+        className={`flex items-center${hasChildren ? " group" : ""}`}
+        style={{ gap: 8, cursor: hasChildren ? "pointer" : undefined }}
+        onClick={hasChildren ? () => setIsExpanded((v) => !v) : undefined}
+      >
+        {hasChildren && (
+          <ChevronRight
+            data-testid="agent-card-chevron"
+            size={10}
+            style={{
+              color: "var(--t3)",
+              flexShrink: 0,
+              transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+              transition: "transform 150ms ease",
+            }}
+          />
+        )}
         <StatusIndicator status={status} />
         <AgentBadge name={agentName} />
         <span
@@ -130,6 +154,7 @@ function AgentCardInner({
         >
           {"\u201C"}{truncate(description, 60)}{"\u201D"}
         </span>
+        {hasChildren && !isExpanded && <ExpandHint />}
       </div>
 
       {/* Stats line */}
@@ -141,10 +166,25 @@ function AgentCardInner({
             fontSize: 10,
             color: "var(--t3)",
             marginTop: 4,
-            paddingLeft: 34,
+            paddingLeft: hasChildren ? 44 : 34,
           }}
         >
           {statParts.join(" \u00B7 ")}
+        </div>
+      )}
+
+      {/* Expanded detail panel */}
+      {hasChildren && isExpanded && (
+        <div
+          data-testid="agent-card-detail"
+          style={{
+            background: "var(--bg-s)",
+            padding: "8px 10px",
+            marginTop: 4,
+            borderRadius: "var(--radius-xs)",
+          }}
+        >
+          {children}
         </div>
       )}
     </div>
