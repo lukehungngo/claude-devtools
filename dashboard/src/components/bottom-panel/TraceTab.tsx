@@ -155,6 +155,7 @@ interface TraceRow {
   color: { bg: string; text: string };
   bar: BarPosition;
   durationMs: number;
+  totalCost: number;
 }
 
 interface TraceGroup {
@@ -189,13 +190,28 @@ function buildTraceGroups(
 
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
-  function buildRow(node: AgentNode, depth: number): TraceRow {
+  // Compute aggregate cost for a node + all its descendants
+  function aggregateCost(nodeId: string): number {
+    const node = nodeMap.get(nodeId);
+    if (!node) return 0;
+    let cost = node.tokenUsage.totalCost;
+    const children = childrenOf.get(nodeId) ?? [];
+    for (const childId of children) {
+      cost += aggregateCost(childId);
+    }
+    return cost;
+  }
+
+  function buildRow(node: AgentNode, depth: number, isRoot: boolean): TraceRow {
     const icon = getSpanIcon(node.type, node.type === "engineer" ? engineerIdx++ : 0);
     const color = getSpanColor(node.type);
     const bar = computeBarPosition(node, sessionStartMs, totalMs);
 
     let durationMs = 0;
-    if (node.startTime) {
+    if (isRoot) {
+      // Root node: use full timeline duration
+      durationMs = totalMs;
+    } else if (node.startTime) {
       const start = new Date(node.startTime).getTime();
       const end = node.endTime
         ? new Date(node.endTime).getTime()
@@ -203,7 +219,10 @@ function buildTraceGroups(
       durationMs = end - start;
     }
 
-    return { node, depth, icon, color, bar, durationMs };
+    // Root node: sum all descendants' cost; leaf: own cost
+    const totalCost = isRoot ? aggregateCost(node.id) : node.tokenUsage.totalCost;
+
+    return { node, depth, icon, color, bar, durationMs, totalCost };
   }
 
   function collectChildren(parentId: string, depth: number): TraceGroup[] {
@@ -221,7 +240,7 @@ function buildTraceGroups(
     const nestedGroups: TraceGroup[] = [];
 
     for (const child of children) {
-      rows.push(buildRow(child, depth));
+      rows.push(buildRow(child, depth, false));
       nestedGroups.push(...collectChildren(child.id, depth + 1));
     }
 
@@ -231,7 +250,7 @@ function buildTraceGroups(
   const groups: TraceGroup[] = [];
 
   for (const root of rootNodes) {
-    groups.push({ rows: [buildRow(root, 0)], isParallel: false });
+    groups.push({ rows: [buildRow(root, 0, true)], isParallel: false });
     groups.push(...collectChildren(root.id, 1));
   }
 
@@ -261,6 +280,8 @@ interface TraceRowComponentProps {
   selected: boolean;
   onSelect?: (id: string) => void;
   labelWidth: number;
+  durationWidth: number;
+  costWidth: number;
 }
 
 const TraceRowComponent = memo(function TraceRowComponent({
@@ -268,8 +289,10 @@ const TraceRowComponent = memo(function TraceRowComponent({
   selected,
   onSelect,
   labelWidth,
+  durationWidth,
+  costWidth,
 }: TraceRowComponentProps) {
-  const { node, depth, icon, color, bar, durationMs } = row;
+  const { node, depth, icon, color, bar, durationMs, totalCost } = row;
 
   const handleClick = useCallback(() => {
     onSelect?.(node.id);
@@ -278,7 +301,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
   const isActive = node.status === "active";
   const label = node.description || node.type;
   const durationStr = durationMs > 0 ? formatDuration(durationMs) : "";
-  const costStr = formatCost(node.tokenUsage.totalCost);
+  const costStr = formatCost(totalCost);
 
   return (
     <div
@@ -297,8 +320,8 @@ const TraceRowComponent = memo(function TraceRowComponent({
         </div>
         <div className="trace-name">{label}</div>
       </div>
-      <div className="trace-col-duration">{isActive ? "running" : durationStr}</div>
-      <div className="trace-col-cost">{costStr}</div>
+      <div className="trace-col-duration" style={{ width: durationWidth }}>{isActive ? "running" : durationStr}</div>
+      <div className="trace-col-cost" style={{ width: costWidth }}>{costStr}</div>
       <div className="trace-track">
         <div
           className="trace-bar"
@@ -332,7 +355,9 @@ function TraceTabInner({
 }: TraceTabProps) {
   const prevFilteredRef = useRef<AgentDAG | null>(null);
   const [labelWidth, setLabelWidth] = useState(DEFAULT_LABEL_WIDTH);
-  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const [durationWidth, setDurationWidth] = useState(DURATION_COL_WIDTH);
+  const [costWidth, setCostWidth] = useState(COST_COL_WIDTH);
+  const dragRef = useRef<{ startX: number; startWidth: number; setter: (w: number) => void } | null>(null);
 
   const activeTurn =
     activeTurnIndex !== null && activeTurnIndex >= 0 && activeTurnIndex < turns.length
@@ -357,31 +382,50 @@ function TraceTabInner({
     return { timeline: tl, groups: gr };
   }, [filteredDag]);
 
-  // Drag-to-resize label column
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    dragRef.current = { startX: e.clientX, startWidth: labelWidth };
+  // Generic drag-to-resize for any column
+  const makeResizeHandler = useCallback(
+    (currentWidth: number, setter: (w: number) => void) =>
+      (e: React.MouseEvent) => {
+        e.preventDefault();
+        dragRef.current = { startX: e.clientX, startWidth: currentWidth, setter };
 
-    const handleMouseMove = (ev: MouseEvent) => {
-      if (!dragRef.current) return;
-      const delta = ev.clientX - dragRef.current.startX;
-      const newWidth = Math.max(MIN_LABEL_WIDTH, Math.min(MAX_LABEL_WIDTH, dragRef.current.startWidth + delta));
-      setLabelWidth(newWidth);
-    };
+        const handleMouseMove = (ev: MouseEvent) => {
+          if (!dragRef.current) return;
+          const delta = ev.clientX - dragRef.current.startX;
+          const newWidth = Math.max(MIN_LABEL_WIDTH, Math.min(MAX_LABEL_WIDTH, dragRef.current.startWidth + delta));
+          dragRef.current.setter(newWidth);
+        };
 
-    const handleMouseUp = () => {
-      dragRef.current = null;
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
+        const handleMouseUp = () => {
+          dragRef.current = null;
+          document.removeEventListener("mousemove", handleMouseMove);
+          document.removeEventListener("mouseup", handleMouseUp);
+          document.body.style.cursor = "";
+          document.body.style.userSelect = "";
+        };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  }, [labelWidth]);
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+      },
+    [],
+  );
+
+  const handleLabelResize = useCallback(
+    (e: React.MouseEvent) => makeResizeHandler(labelWidth, setLabelWidth)(e),
+    [labelWidth, makeResizeHandler],
+  );
+  const handleDurationResize = useCallback(
+    (e: React.MouseEvent) => makeResizeHandler(durationWidth, setDurationWidth)(e),
+    [durationWidth, makeResizeHandler],
+  );
+  const handleCostResize = useCallback(
+    (e: React.MouseEvent) => makeResizeHandler(costWidth, setCostWidth)(e),
+    [costWidth, makeResizeHandler],
+  );
+
+  const dataCols = durationWidth + costWidth;
 
   if (isEmpty || !timeline) {
     return (
@@ -404,8 +448,8 @@ function TraceTabInner({
         <div className="trace-header-label" style={{ width: labelWidth }}>
           Agent
         </div>
-        <div className="trace-col-duration trace-col-header">Duration</div>
-        <div className="trace-col-cost trace-col-header">Cost</div>
+        <div className="trace-col-duration trace-col-header" style={{ width: durationWidth }}>Duration</div>
+        <div className="trace-col-cost trace-col-header" style={{ width: costWidth }}>Cost</div>
         <div className="trace-ticks">
           {timeline.ticks.map((tick, i) => (
             <span key={i}>{tick}</span>
@@ -414,16 +458,26 @@ function TraceTabInner({
       </div>
       <div className="trace-body">
         {/* Vertical grid lines */}
-        <div className="trace-grid" style={{ left: labelWidth + DATA_COLS_WIDTH }}>
+        <div className="trace-grid" style={{ left: labelWidth + dataCols }}>
           {timeline.ticks.map((_, i) => (
             <div key={i} />
           ))}
         </div>
-        {/* Resize handle */}
+        {/* Resize handles between columns */}
         <div
           className="trace-resize-handle"
-          style={{ left: labelWidth + DATA_COLS_WIDTH - 2 }}
-          onMouseDown={handleResizeStart}
+          style={{ left: labelWidth - 2 }}
+          onMouseDown={handleLabelResize}
+        />
+        <div
+          className="trace-resize-handle"
+          style={{ left: labelWidth + durationWidth - 2 }}
+          onMouseDown={handleDurationResize}
+        />
+        <div
+          className="trace-resize-handle"
+          style={{ left: labelWidth + dataCols - 2 }}
+          onMouseDown={handleCostResize}
         />
         {/* Agent rows */}
         {groups.map((group, gi) => {
@@ -442,6 +496,8 @@ function TraceTabInner({
                     selected={selectedAgent === row.node.id}
                     onSelect={onSelectAgent}
                     labelWidth={labelWidth}
+                    durationWidth={durationWidth}
+                    costWidth={costWidth}
                   />
                 ))}
               </div>
@@ -454,6 +510,8 @@ function TraceTabInner({
               selected={selectedAgent === row.node.id}
               onSelect={onSelectAgent}
               labelWidth={labelWidth}
+              durationWidth={durationWidth}
+              costWidth={costWidth}
             />
           ));
         })}

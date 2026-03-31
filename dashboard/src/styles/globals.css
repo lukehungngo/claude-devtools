@@ -629,12 +629,10 @@
 }
 
 .trace-col-duration {
-  width: 72px;
   border-left: 1px solid var(--bd);
 }
 
 .trace-col-cost {
-  width: 64px;
   border-left: 1px solid var(--bd);
 }
 
