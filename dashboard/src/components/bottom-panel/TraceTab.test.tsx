@@ -139,7 +139,7 @@ describe("TraceTab", () => {
     expect(screen.getByText("CR")).toBeDefined();
   });
 
-  it("shows 'running' text for active agents", () => {
+  it("shows 'running' in duration column for active agents", () => {
     const dag: AgentDAG = {
       nodes: [
         makeNode({
@@ -152,7 +152,7 @@ describe("TraceTab", () => {
       ],
       edges: [],
     };
-    render(
+    const { container } = render(
       <TraceTab
         dag={dag}
         turns={[mockTurn]}
@@ -161,10 +161,11 @@ describe("TraceTab", () => {
         panelHeight={300}
       />,
     );
-    expect(screen.getByText("running")).toBeDefined();
+    // "running" shows in the duration column and as bar internal indicator
+    expect(screen.getAllByText("running").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders duration and cost as a label outside the bar", () => {
+  it("renders duration and cost in separate columns", () => {
     const dag: AgentDAG = {
       nodes: [
         makeNode({
@@ -182,17 +183,8 @@ describe("TraceTab", () => {
             totalCost: 0.05,
           },
         }),
-        makeNode({
-          id: "agent-1",
-          type: "engineer",
-          description: "SWE",
-          parentId: "main",
-          startTime: "2026-01-01T00:00:30Z",
-          endTime: "2026-01-01T00:01:00Z",
-          toolCalls: 2,
-        }),
       ],
-      edges: [{ source: "main", target: "agent-1" }],
+      edges: [],
     };
     const { container } = render(
       <TraceTab
@@ -203,13 +195,15 @@ describe("TraceTab", () => {
         panelHeight={300}
       />,
     );
-    // Label should be a sibling element with class trace-bar-label
-    const labels = container.querySelectorAll(".trace-bar-label");
-    expect(labels.length).toBeGreaterThanOrEqual(1);
-    // Bar should NOT contain text (pure colored rectangle for completed bars)
+    // Duration and cost in their own columns
+    const durationCols = container.querySelectorAll(".trace-col-duration");
+    const costCols = container.querySelectorAll(".trace-col-cost");
+    // Header + 1 data row = 2 each
+    expect(durationCols.length).toBeGreaterThanOrEqual(2);
+    expect(costCols.length).toBeGreaterThanOrEqual(2);
+    // Bar should be a pure colored rectangle (no text for completed bars)
     const bars = container.querySelectorAll(".trace-bar");
     for (const bar of bars) {
-      // Completed bars should have no direct text content
       const directText = Array.from(bar.childNodes)
         .filter((n) => n.nodeType === Node.TEXT_NODE)
         .map((n) => n.textContent?.trim())
@@ -218,7 +212,7 @@ describe("TraceTab", () => {
     }
   });
 
-  it("does not render external label for active/running bars", () => {
+  it("shows 'running' in duration column for active bars", () => {
     const dag: AgentDAG = {
       nodes: [
         makeNode({
@@ -240,11 +234,12 @@ describe("TraceTab", () => {
         panelHeight={300}
       />,
     );
-    // Running bars should NOT have an external label
-    const labels = container.querySelectorAll(".trace-bar-label");
-    expect(labels.length).toBe(0);
-    // But should still have "running" text inside the bar
-    expect(screen.getByText("running")).toBeDefined();
+    // Duration column shows "running" for active agents
+    const durationCols = container.querySelectorAll(".trace-col-duration");
+    const dataCol = Array.from(durationCols).find(
+      (el) => !el.classList.contains("trace-col-header"),
+    );
+    expect(dataCol?.textContent).toBe("running");
   });
 
   it("sets container height to panelHeight - 37", () => {

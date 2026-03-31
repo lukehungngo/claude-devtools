@@ -616,27 +616,34 @@
   white-space: nowrap;
 }
 
-/* Label outside (or inside for wide bars) */
-.trace-bar-label {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+/* Duration & Cost columns (fixed-width, right of track) */
+.trace-col-duration,
+.trace-col-cost {
+  flex-shrink: 0;
   font-size: 10px;
   font-family: var(--font);
   color: var(--t2);
   white-space: nowrap;
-  pointer-events: none;
+  text-align: right;
+  padding: 0 8px;
 }
 
-.trace-bar-label-outside {
-  /* Positioned relative to trace-track, after bar right edge */
-  padding-left: 6px;
+.trace-col-duration {
+  width: 72px;
+  border-left: 1px solid var(--bd);
 }
 
-.trace-bar-label-inside {
-  right: 8px;
-  font-size: 10px;
-  font-weight: 500;
+.trace-col-cost {
+  width: 64px;
+  border-left: 1px solid var(--bd);
+}
+
+.trace-col-header {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--t3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .trace-spacer {

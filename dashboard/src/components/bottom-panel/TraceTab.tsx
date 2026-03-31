@@ -277,16 +277,6 @@ const TraceRowComponent = memo(function TraceRowComponent({
   const durationStr = durationMs > 0 ? formatDuration(durationMs) : "";
   const costStr = formatCost(node.tokenUsage.totalCost);
 
-  // Build label text for completed bars: "1m 30s · $0.05"
-  const labelParts: string[] = [];
-  if (durationStr) labelParts.push(durationStr);
-  if (costStr) labelParts.push(costStr);
-  const labelText = labelParts.join(" \u00b7 ");
-
-  // Wide bars (right edge > 85%) show label inside
-  const barRightEdge = bar.leftPct + bar.widthPct;
-  const labelInside = barRightEdge > 85;
-
   return (
     <div
       className={`trace-row${selected ? " trace-row-selected" : ""}`}
@@ -320,24 +310,10 @@ const TraceRowComponent = memo(function TraceRowComponent({
               <span>running</span>
             </span>
           )}
-          {!isActive && labelInside && labelText && (
-            <span
-              className="trace-bar-label trace-bar-label-inside"
-              style={{ color: color.text }}
-            >
-              {labelText}
-            </span>
-          )}
         </div>
-        {!isActive && !labelInside && labelText && (
-          <span
-            className="trace-bar-label trace-bar-label-outside"
-            style={{ left: `${barRightEdge}%` }}
-          >
-            {labelText}
-          </span>
-        )}
       </div>
+      <div className="trace-col-duration">{isActive ? "running" : durationStr}</div>
+      <div className="trace-col-cost">{costStr}</div>
     </div>
   );
 });
@@ -420,7 +396,7 @@ function TraceTabInner({
       style={{ height: contentHeight }}
       className="trace-area dt-scrollbar"
     >
-      {/* Time axis header */}
+      {/* Column headers */}
       <div className="trace-header">
         <div className="trace-header-label" style={{ width: labelWidth }}>
           Agent
@@ -430,6 +406,8 @@ function TraceTabInner({
             <span key={i}>{tick}</span>
           ))}
         </div>
+        <div className="trace-col-duration trace-col-header">Duration</div>
+        <div className="trace-col-cost trace-col-header">Cost</div>
       </div>
       <div className="trace-body">
         {/* Vertical grid lines */}
