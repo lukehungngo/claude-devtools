@@ -278,6 +278,73 @@ describe("phaseGrouping", () => {
       expect(phases).toHaveLength(0);
     });
 
+    // === Bug reproduction tests: phase splitting too aggressively ===
+
+    it("keeps Edit -> Bash -> Edit in same phase when files overlap", () => {
+      const groups: ToolGroup[] = [
+        group("Edit", [
+          entry({ name: "Edit", target: "src/a.ts" }),
+          entry({ name: "Edit", target: "src/b.ts" }),
+        ]),
+        group("Bash", [
+          entry({ name: "Bash", target: "pnpm test", toolInput: { command: "pnpm test" } }),
+          entry({ name: "Bash", target: "pnpm test", toolInput: { command: "pnpm test" } }),
+        ]),
+        group("Edit", [
+          entry({ name: "Edit", target: "src/a.ts" }),
+          entry({ name: "Edit", target: "src/c.ts" }),
+        ]),
+      ];
+      const phases = groupIntoPhases(groups);
+      expect(phases).toHaveLength(1);
+      expect(phases[0].groups).toHaveLength(3);
+    });
+
+    it("keeps Edit -> Bash -> Write (new file, same dir) in same phase", () => {
+      const groups: ToolGroup[] = [
+        group("Edit", [
+          entry({ name: "Edit", target: "src/components/Button.tsx" }),
+          entry({ name: "Edit", target: "src/components/Modal.tsx" }),
+        ]),
+        group("Bash", [
+          entry({ name: "Bash", target: "pnpm test", toolInput: { command: "pnpm test" } }),
+        ]),
+        group("Write", [
+          entry({ name: "Write", target: "src/components/NewComponent.tsx" }),
+        ]),
+        group("Bash", [
+          entry({ name: "Bash", target: "pnpm test", toolInput: { command: "pnpm test" } }),
+        ]),
+      ];
+      const phases = groupIntoPhases(groups);
+      expect(phases).toHaveLength(1);
+    });
+
+    it("absorbs small 2-3 entry phases into adjacent phases when files overlap", () => {
+      const groups: ToolGroup[] = [
+        group("Read", [
+          entry({ name: "Read", target: "src/a.ts" }),
+          entry({ name: "Read", target: "src/b.ts" }),
+        ]),
+        // Small phase that should be absorbed
+        group("Edit", [
+          entry({ name: "Edit", target: "src/a.ts" }),
+        ]),
+        group("Bash", [
+          entry({ name: "Bash", target: "test", toolInput: { command: "test" } }),
+          entry({ name: "Bash", target: "test", toolInput: { command: "test" } }),
+        ]),
+        group("Edit", [
+          entry({ name: "Edit", target: "src/a.ts" }),
+          entry({ name: "Edit", target: "src/b.ts" }),
+          entry({ name: "Edit", target: "src/c.ts" }),
+        ]),
+      ];
+      const phases = groupIntoPhases(groups);
+      // Should all be 1 phase (overlapping files + same dir)
+      expect(phases).toHaveLength(1);
+    });
+
     it("truncates thinking context label to 60 chars", () => {
       const groups: ToolGroup[] = [
         group("Read", [entry({ name: "Read", target: "src/a.ts" })]),
