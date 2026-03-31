@@ -153,21 +153,20 @@ function inferLabel(groups: ToolGroup[], thinkingContext?: string): string {
     }
   }
 
-  // 2. From first Grep/Glob pattern
+  // 2. From first Grep/Glob pattern in any group
   for (const g of groups) {
-    if (g.name === "Grep" || g.name === "Glob") {
-      for (const e of g.entries) {
-        const pattern = e.toolInput?.pattern as string | undefined;
-        if (pattern) {
-          const label = `${g.name} "${pattern}"`;
-          return label.length <= 60 ? label : label.slice(0, 60) + "...";
-        }
+    for (const e of g.entries) {
+      if ((e.name === "Grep" || e.name === "Glob") && e.toolInput?.pattern) {
+        const pattern = e.toolInput.pattern as string;
+        const label = `Searched "${pattern}"`;
+        return label.length <= 60 ? label : label.slice(0, 57) + "...";
       }
     }
   }
 
   // 3. From dominant file path (most common directory prefix)
   const dirCounts = new Map<string, number>();
+  const filenames: string[] = [];
   for (const g of groups) {
     for (const e of g.entries) {
       const fp = (e.toolInput?.file_path as string) || (e.toolInput?.path as string) || "";
@@ -175,6 +174,9 @@ function inferLabel(groups: ToolGroup[], thinkingContext?: string): string {
         const lastSlash = fp.lastIndexOf("/");
         const dir = lastSlash > 0 ? fp.slice(0, lastSlash) : fp;
         dirCounts.set(dir, (dirCounts.get(dir) || 0) + 1);
+        // Collect unique basenames for label
+        const basename = lastSlash > 0 ? fp.slice(lastSlash + 1) : fp;
+        if (basename && !filenames.includes(basename)) filenames.push(basename);
       }
     }
   }
@@ -190,7 +192,17 @@ function inferLabel(groups: ToolGroup[], thinkingContext?: string): string {
     // Only use dir label if it covers majority of entries
     const total = totalEntries(groups);
     if (maxCount > total / 2 && maxDir) {
-      return maxDir;
+      // Show top filenames instead of raw directory path
+      if (filenames.length > 0) {
+        const shown = filenames.slice(0, 3).join(", ");
+        const extra = filenames.length > 3 ? ` +${filenames.length - 3} more` : "";
+        const label = shown + extra;
+        return label.length <= 60 ? label : label.slice(0, 57) + "...";
+      }
+      // Fallback: truncate to last 2 path segments
+      const segments = maxDir.split("/").filter(Boolean);
+      const shortDir = segments.slice(-2).join("/");
+      return shortDir;
     }
   }
 

@@ -194,6 +194,22 @@ describe("phaseGrouping", () => {
       expect(phases[0].toolCounts).toEqual({ Read: 2, Edit: 1 });
     });
 
+    it("infers label from filenames instead of full absolute paths", () => {
+      const groups: ToolGroup[] = [
+        group("Read", [
+          entry({ name: "Read", target: "/Users/soh/project/src/components/Button.tsx" }),
+          entry({ name: "Read", target: "/Users/soh/project/src/components/Modal.tsx" }),
+        ]),
+        group("Edit", [
+          entry({ name: "Edit", target: "/Users/soh/project/src/components/Button.tsx" }),
+        ]),
+      ];
+
+      const phases = groupIntoPhases(groups);
+      expect(phases).toHaveLength(1);
+      expect(phases[0].label).toBe("Button.tsx, Modal.tsx");
+    });
+
     it("sets status to running if any entry is running", () => {
       const groups: ToolGroup[] = [
         group("Read", [entry({ name: "Read", target: "src/a.ts" })]),
@@ -239,7 +255,7 @@ describe("phaseGrouping", () => {
 
       const phases = groupIntoPhases(groups);
       expect(phases).toHaveLength(1);
-      expect(phases[0].label).toContain("VerdictBanner");
+      expect(phases[0].label).toBe('Searched "VerdictBanner"');
     });
 
     it("falls back to tool count label when no context available", () => {
