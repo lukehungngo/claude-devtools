@@ -19,7 +19,7 @@ export function computeSuggestion(
   }
 
   if (context.lastTurnHadError) {
-    return "Fix the error above";
+    return "What's next?";
   }
 
   return "Continue with next steps...";

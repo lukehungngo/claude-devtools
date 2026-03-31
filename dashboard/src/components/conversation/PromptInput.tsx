@@ -502,7 +502,10 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
   function handleInput(e: React.FormEvent<HTMLTextAreaElement>) {
     const el = e.currentTarget;
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+    const maxH = 120;
+    const clamped = Math.min(el.scrollHeight, maxH);
+    el.style.height = clamped + "px";
+    el.style.overflowY = el.scrollHeight > maxH ? "auto" : "hidden";
   }
 
   function handleStop() {

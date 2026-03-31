@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI-18b Component Design — Compaction Levels</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0: #111113; --bg1: #18181b; --bg2: #1e1e22; --bg3: #27272b; --bg4: #303036;
+  --t0: #fafaf9; --t1: #d4d4d1; --t2: #8a8a86; --t3: #5a5a58;
+  --bd: rgba(255,255,255,0.06); --bd2: rgba(255,255,255,0.1);
+  --acc: #c0785a; --acc-dim: rgba(192,120,90,0.12);
+  --teal: #3db88c; --teal-dim: rgba(61,184,140,0.1); --teal-border: rgba(61,184,140,0.3);
+  --pur: #8b7dd8; --pur-dim: rgba(139,125,216,0.1); --pur-border: rgba(139,125,216,0.3);
+  --amb: #d4a040; --amb-dim: rgba(212,160,64,0.1); --amb-border: rgba(212,160,64,0.3);
+  --grn: #5cb85c; --grn-dim: rgba(92,184,92,0.1); --grn-border: rgba(92,184,92,0.3);
+  --red: #e05252; --red-dim: rgba(224,82,82,0.12); --red-border: rgba(224,82,82,0.3);
+  --blue: #5b9bd5; --blue-dim: rgba(91,155,213,0.1); --blue-border: rgba(91,155,213,0.3);
+  --radius: 8px; --radius-sm: 5px;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'DM Sans', -apple-system, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg0); color: var(--t0); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+
+/* Layout */
+.page { max-width: 920px; margin: 0 auto; padding: 32px 24px 80px; }
+.page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
+.page-sub { font-size: 13px; color: var(--t2); margin-bottom: 32px; }
+
+/* Level tabs */
+.level-tabs { display: flex; gap: 2px; background: var(--bg2); border-radius: var(--radius); padding: 3px; margin-bottom: 24px; position: sticky; top: 12px; z-index: 10; border: 1px solid var(--bd); }
+.level-tab { flex: 1; text-align: center; padding: 8px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; cursor: pointer; color: var(--t2); transition: all 0.15s; user-select: none; }
+.level-tab:hover { color: var(--t1); background: var(--bg3); }
+.level-tab.active { background: var(--bg4); color: var(--t0); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+.level-tab .tab-count { display: inline-block; font-family: var(--mono); font-size: 10px; background: var(--bg3); padding: 1px 6px; border-radius: 10px; margin-left: 4px; color: var(--t3); }
+.level-tab.active .tab-count { background: var(--acc-dim); color: var(--acc); }
+
+/* Panels */
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* Section label */
+.section { margin-bottom: 28px; }
+.section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--t3); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.section-label::after { content: ""; flex: 1; height: 1px; background: var(--bd); }
+
+/* Conversation container */
+.conv { background: var(--bg1); border: 1px solid var(--bd); border-radius: var(--radius); overflow: hidden; }
+
+/* User message bubble */
+.user-msg { padding: 12px 16px; background: var(--bg2); border-bottom: 1px solid var(--bd); display: flex; gap: 10px; align-items: flex-start; }
+.user-avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--acc); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; margin-top: 1px; }
+.user-text { font-size: 13px; color: var(--t1); flex: 1; }
+.user-text .cmd-pill { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-right: 4px; }
+.user-text .cmd-slash { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue-border); }
+.user-text .cmd-nav { background: var(--amb-dim); color: var(--amb); border: 1px solid var(--amb-border); }
+.user-text .collapsed-blob { font-family: var(--mono); font-size: 11px; color: var(--blue); cursor: pointer; display: block; margin-top: 4px; }
+.user-text .collapsed-blob:hover { text-decoration: underline; }
+.user-text .blob-content { display: none; margin-top: 6px; padding: 8px 10px; background: var(--bg3); border-radius: var(--radius-sm); font-family: var(--mono); font-size: 11px; color: var(--t3); white-space: pre-wrap; max-height: 160px; overflow-y: auto; border: 1px solid var(--bd); }
+.user-text .blob-content.open { display: block; }
+.user-text .task-items { margin-top: 6px; }
+.user-text .task-item { font-size: 12px; color: var(--t1); padding: 1px 0; display: flex; gap: 6px; }
+.user-text .task-num { color: var(--t3); font-family: var(--mono); font-size: 11px; min-width: 18px; }
+
+/* Assistant container */
+.asst { padding: 14px 16px; }
+.asst-text { font-size: 13px; color: var(--t1); line-height: 1.6; margin-bottom: 10px; }
+.asst-text strong { color: var(--t0); font-weight: 600; }
+
+/* Tool entries container */
+.tools { background: var(--bg2); border: 1px solid var(--bd); border-radius: var(--radius); overflow: hidden; }
+
+/* Individual tool row */
+.tool-row { display: flex; align-items: center; gap: 8px; padding: 7px 12px; font-family: var(--mono); font-size: 11px; border-bottom: 1px solid var(--bd); cursor: pointer; transition: background 0.1s; border-left: 3px solid transparent; }
+.tool-row:last-child { border-bottom: none; }
+.tool-row:hover { background: var(--bg3); }
+.tool-row .chev { font-size: 8px; color: var(--t3); transition: transform 0.15s; flex-shrink: 0; width: 10px; }
+.tool-row .chev.open { transform: rotate(90deg); }
+.tool-row .status { font-size: 10px; flex-shrink: 0; }
+.tool-row .status.ok { color: var(--grn); }
+.tool-row .status.err { color: var(--red); }
+.tool-row .status.run { color: var(--amb); }
+.tool-row .tool-name { color: var(--t1); white-space: nowrap; }
+.tool-row .tool-detail { color: var(--t3); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-row .tool-badge { font-size: 9px; padding: 1px 6px; border-radius: 10px; font-weight: 600; flex-shrink: 0; }
+.tool-row .tool-dur { font-size: 10px; color: var(--t3); flex-shrink: 0; }
+
+/* Border colors by type */
+.tool-row.b-read { border-left-color: var(--teal); }
+.tool-row.b-grep { border-left-color: var(--pur); }
+.tool-row.b-edit { border-left-color: var(--grn); }
+.tool-row.b-bash { border-left-color: var(--amb); }
+.tool-row.b-err  { border-left-color: var(--red); }
+.tool-row.b-agent { border-left-color: var(--acc); }
+
+/* Badge colors */
+.badge-read { background: var(--teal-dim); color: var(--teal); border: 1px solid var(--teal-border); }
+.badge-grep { background: var(--pur-dim); color: var(--pur); border: 1px solid var(--pur-border); }
+.badge-edit { background: var(--grn-dim); color: var(--grn); border: 1px solid var(--grn-border); }
+.badge-bash { background: var(--amb-dim); color: var(--amb); border: 1px solid var(--amb-border); }
+
+/* Tool expand content */
+.tool-expand { display: none; padding: 6px 12px 8px 33px; font-family: var(--mono); font-size: 10px; color: var(--t3); border-bottom: 1px solid var(--bd); background: var(--bg1); white-space: pre-wrap; }
+.tool-expand.open { display: block; }
+.tool-expand .file-line { padding: 1px 0; display: flex; align-items: center; gap: 6px; }
+.tool-expand .file-dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
+
+/* Phase group (Level 2) */
+.phase { border: 1px solid var(--bd); border-radius: var(--radius); overflow: hidden; margin-bottom: 2px; }
+.phase:last-child { margin-bottom: 0; }
+.phase-head { display: flex; align-items: center; gap: 8px; padding: 9px 14px; cursor: pointer; user-select: none; transition: background 0.1s; background: var(--bg2); }
+.phase-head:hover { background: var(--bg3); }
+.phase-chev { font-size: 9px; color: var(--t3); transition: transform 0.15s; width: 10px; flex-shrink: 0; }
+.phase-chev.open { transform: rotate(90deg); }
+.phase-status { font-size: 11px; flex-shrink: 0; }
+.phase-status.ok { color: var(--grn); }
+.phase-label { font-size: 13px; font-weight: 600; color: var(--t0); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phase-pills { display: flex; gap: 4px; flex-shrink: 0; }
+.phase-pill { font-family: var(--mono); font-size: 9px; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+.phase-body { display: none; border-top: 1px solid var(--bd); }
+.phase-body.open { display: block; }
+
+/* Prompt section labels */
+.prompt-type-label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; padding: 2px 7px; border-radius: 3px; margin-left: auto; flex-shrink: 0; }
+.ptl-cmd { background: var(--blue-dim); color: var(--blue); }
+.ptl-short { background: var(--grn-dim); color: var(--grn); }
+.ptl-list { background: var(--pur-dim); color: var(--pur); }
+.ptl-blob { background: var(--amb-dim); color: var(--amb); }
+.ptl-prose { background: var(--bg3); color: var(--t2); }
+
+/* Annotation callouts */
+.anno { display: flex; gap: 8px; padding: 10px 14px; margin: 8px 0; border-radius: var(--radius-sm); font-size: 12px; line-height: 1.5; border: 1px dashed var(--bd2); }
+.anno-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+.anno-text { color: var(--t2); }
+.anno-text b { color: var(--t1); font-weight: 600; }
+.anno.green { border-color: var(--grn-border); background: var(--grn-dim); }
+.anno.green .anno-text { color: var(--teal); }
+.anno.red { border-color: var(--red-border); background: var(--red-dim); }
+.anno.red .anno-text { color: var(--red); }
+.anno.blue { border-color: var(--blue-border); background: var(--blue-dim); }
+.anno.blue .anno-text { color: var(--blue); }
+
+/* Row count indicator */
+.row-count { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; font-family: var(--mono); font-size: 11px; color: var(--t3); border-top: 1px solid var(--bd); background: var(--bg1); }
+.row-count .num { font-weight: 700; font-size: 18px; }
+.row-count .num.good { color: var(--grn); }
+.row-count .num.ok { color: var(--amb); }
+.row-count .num.bad { color: var(--red); }
+
+/* Divider */
+.vs-line { display: flex; align-items: center; gap: 12px; margin: 20px 0; font-size: 10px; color: var(--t3); text-transform: uppercase; letter-spacing: 1px; }
+.vs-line::before, .vs-line::after { content: ""; flex: 1; height: 1px; background: var(--bd); }
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="page-title">UI-18b Component Design</div>
+<div class="page-sub">Phase-level tool grouping + prompt collapse — interactive mockup</div>
+
+<div class="level-tabs">
+  <div class="level-tab active" onclick="showPanel(0)">Level 0 — Raw<span class="tab-count">19 rows</span></div>
+  <div class="level-tab" onclick="showPanel(1)">Level 1 — Type Group<span class="tab-count">10 rows</span></div>
+  <div class="level-tab" onclick="showPanel(2)">Level 2 — Phase Group<span class="tab-count">2 rows</span></div>
+</div>
+
+<!-- ==================== LEVEL 0: RAW ==================== -->
+<div class="panel active" id="panel-0">
+<div class="section">
+  <div class="section-label">Every tool call as its own row</div>
+  <div class="conv">
+    <div class="user-msg">
+      <div class="user-avatar">S</div>
+      <div class="user-text">inline the VerdictBanner and FindingBanner components into ConversationView, remove the separate files</div>
+    </div>
+    <div class="asst">
+      <div class="tools" id="raw-tools">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+    <div class="row-count"><span class="num bad">19</span> rows visible</div>
+  </div>
+</div>
+
+<div class="anno red">
+  <span class="anno-icon">&#9888;</span>
+  <span class="anno-text"><b>Every tool call gets its own row.</b> The user must scroll through 19 identical-looking lines to find the assistant's conclusion. 3 Reads of related files are 3 separate rows. The lone <code>rm</code> command looks as important as the 5-file edit.</span>
+</div>
+</div>
+
+<!-- ==================== LEVEL 1: TYPE GROUP ==================== -->
+<div class="panel" id="panel-1">
+<div class="section">
+  <div class="section-label">Consecutive same-type grouping (current)</div>
+  <div class="conv">
+    <div class="user-msg">
+      <div class="user-avatar">S</div>
+      <div class="user-text">inline the VerdictBanner and FindingBanner components into ConversationView, remove the separate files</div>
+    </div>
+    <div class="asst">
+      <div class="tools">
+        <div class="tool-row b-grep" onclick="togExp(this)">
+          <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+          <span class="tool-name">Grep</span>
+          <span class="tool-detail">"VerdictBanner|extractVerdict|FindingBanner|extractFindings"</span>
+        </div>
+
+        <div class="tool-row b-read" onclick="togExp(this)">
+          <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+          <span class="tool-name">Read 3 files</span>
+          <span class="tool-badge badge-read">3</span>
+        </div>
+        <div class="tool-expand">
+          <div class="file-line"><div class="file-dot" style="background:var(--teal)"></div>ConversationView.tsx</div>
+          <div class="file-line"><div class="file-dot" style="background:var(--teal)"></div>VerdictBanner.tsx</div>
+          <div class="file-line"><div class="file-dot" style="background:var(--teal)"></div>FindingBanner.tsx</div>
+        </div>
+
+        <div class="tool-row b-edit" onclick="togExp(this)">
+          <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+          <span class="tool-name">Edit 5 files</span>
+          <span class="tool-badge badge-edit">5</span>
+        </div>
+
+        <div class="tool-row b-bash">
+          <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+          <span class="tool-name">Bash</span>
+          <span class="tool-detail">rm dashboard/src/components/conversation/VerdictBanner.tsx d...</span>
+        </div>
+
+        <div class="tool-row b-grep">
+          <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+          <span class="tool-name">Grep 2 patterns</span>
+          <span class="tool-badge badge-grep">2</span>
+        </div>
+
+        <div class="tool-row b-read">
+          <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+          <span class="tool-name">Read 2 files</span>
+          <span class="tool-badge badge-read">2</span>
+        </div>
+
+        <div class="tool-row b-edit">
+          <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+          <span class="tool-name">Edit 3 files</span>
+          <span class="tool-badge badge-edit">3</span>
+        </div>
+
+        <div class="tool-row b-grep">
+          <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+          <span class="tool-name">Grep</span>
+          <span class="tool-detail">"ContentItem"</span>
+        </div>
+
+        <div class="tool-row b-edit">
+          <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+          <span class="tool-name">Edit</span>
+          <span class="tool-detail">/Users/soh/.../conversation/TurnDivider.tsx</span>
+        </div>
+
+        <div class="tool-row b-bash">
+          <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+          <span class="tool-name">Ran 3 commands</span>
+          <span class="tool-badge badge-bash">3</span>
+        </div>
+      </div>
+    </div>
+    <div class="row-count"><span class="num ok">10</span> rows visible</div>
+  </div>
+</div>
+
+<div class="anno">
+  <span class="anno-icon">&#9888;</span>
+  <span class="anno-text"><b>3 problems remain:</b> Singletons (<code>Bash rm</code>, <code>Grep "ContentItem"</code>, <code>Edit TurnDivider</code>) escape grouping. The Grep→Read→Edit cycle repeats twice for the same refactor. No label explains <em>why</em> these tools ran.</span>
+</div>
+</div>
+
+<!-- ==================== LEVEL 2: PHASE GROUP ==================== -->
+<div class="panel" id="panel-2">
+<div class="section">
+  <div class="section-label">Phase-level grouping (proposed)</div>
+  <div class="conv">
+    <div class="user-msg">
+      <div class="user-avatar">S</div>
+      <div class="user-text">inline the VerdictBanner and FindingBanner components into ConversationView, remove the separate files</div>
+    </div>
+    <div class="asst">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+
+        <!-- Phase 1 -->
+        <div class="phase">
+          <div class="phase-head" onclick="togPhase(this)">
+            <span class="phase-chev">&#9654;</span>
+            <span class="phase-status ok">&#10004;</span>
+            <span class="phase-label">Inlined VerdictBanner + FindingBanner</span>
+            <div class="phase-pills">
+              <span class="phase-pill badge-grep">Grep 3</span>
+              <span class="phase-pill badge-read">Read 5</span>
+              <span class="phase-pill badge-edit">Edit 8</span>
+              <span class="phase-pill badge-bash">Bash 1</span>
+            </div>
+          </div>
+          <div class="phase-body">
+            <div class="tools">
+              <div class="tool-row b-grep" onclick="togExp(this)">
+                <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+                <span class="tool-name">Grep</span>
+                <span class="tool-detail">"VerdictBanner|extractVerdict|FindingBanner"</span>
+              </div>
+              <div class="tool-row b-read" onclick="togExp(this)">
+                <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+                <span class="tool-name">Read 3 files</span>
+                <span class="tool-badge badge-read">3</span>
+              </div>
+              <div class="tool-expand">
+                <div class="file-line"><div class="file-dot" style="background:var(--teal)"></div>ConversationView.tsx</div>
+                <div class="file-line"><div class="file-dot" style="background:var(--teal)"></div>VerdictBanner.tsx</div>
+                <div class="file-line"><div class="file-dot" style="background:var(--teal)"></div>FindingBanner.tsx</div>
+              </div>
+              <div class="tool-row b-edit">
+                <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+                <span class="tool-name">Edit 5 files</span>
+                <span class="tool-badge badge-edit">5</span>
+              </div>
+              <div class="tool-row b-bash">
+                <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+                <span class="tool-name">Bash</span>
+                <span class="tool-detail">rm VerdictBanner.tsx FindingBanner.tsx</span>
+              </div>
+              <div class="tool-row b-grep">
+                <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+                <span class="tool-name">Grep 2 patterns</span>
+                <span class="tool-badge badge-grep">2</span>
+                <span class="tool-dur">verify imports</span>
+              </div>
+              <div class="tool-row b-read">
+                <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+                <span class="tool-name">Read 2 files</span>
+                <span class="tool-badge badge-read">2</span>
+              </div>
+              <div class="tool-row b-edit">
+                <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+                <span class="tool-name">Edit 3 files</span>
+                <span class="tool-badge badge-edit">3</span>
+                <span class="tool-dur">fix stale refs</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase 2 -->
+        <div class="phase">
+          <div class="phase-head" onclick="togPhase(this)">
+            <span class="phase-chev">&#9654;</span>
+            <span class="phase-status ok">&#10004;</span>
+            <span class="phase-label">Updated ContentItem + TurnDivider</span>
+            <div class="phase-pills">
+              <span class="phase-pill badge-grep">Grep 1</span>
+              <span class="phase-pill badge-edit">Edit 1</span>
+              <span class="phase-pill badge-bash">Bash 3</span>
+            </div>
+          </div>
+          <div class="phase-body">
+            <div class="tools">
+              <div class="tool-row b-grep">
+                <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+                <span class="tool-name">Grep</span>
+                <span class="tool-detail">"ContentItem"</span>
+              </div>
+              <div class="tool-row b-edit">
+                <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+                <span class="tool-name">Edit</span>
+                <span class="tool-detail">TurnDivider.tsx</span>
+              </div>
+              <div class="tool-row b-bash" onclick="togExp(this)">
+                <span class="chev">&#9654;</span><span class="status ok">&#10004;</span>
+                <span class="tool-name">Ran 3 commands</span>
+                <span class="tool-badge badge-bash">3</span>
+              </div>
+              <div class="tool-expand">
+                <div class="file-line"><div class="file-dot" style="background:var(--amb)"></div>tsc --noEmit &#10004;</div>
+                <div class="file-line"><div class="file-dot" style="background:var(--amb)"></div>vitest run &#10004;</div>
+                <div class="file-line"><div class="file-dot" style="background:var(--amb)"></div>eslint . &#10004;</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="row-count"><span class="num good">2</span> rows visible</div>
+  </div>
+</div>
+
+<div class="anno green">
+  <span class="anno-icon">&#10003;</span>
+  <span class="anno-text"><b>19 → 10 → 2.</b> User sees two phase labels explaining what happened. Expand any phase to see Level 1 groups inside. Expand further to see individual files. Three levels of progressive disclosure, all collapsible.</span>
+</div>
+
+<!-- Prompt collapse section -->
+<div class="vs-line">prompt collapse</div>
+
+<div class="section">
+  <div class="section-label">5 prompt types — each with its own collapse rule</div>
+
+  <!-- Type 1: Command -->
+  <div class="conv" style="margin-bottom:8px;">
+    <div class="user-msg">
+      <div class="user-avatar">S</div>
+      <div class="user-text">
+        <span class="cmd-pill cmd-slash">/dev-loop</span> implement auth flow --auto
+        <span class="prompt-type-label ptl-cmd">command</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="conv" style="margin-bottom:8px;">
+    <div class="user-msg">
+      <div class="user-avatar">S</div>
+      <div class="user-text">
+        <span class="cmd-pill cmd-nav">&lt;next&gt;</span>
+        <span class="prompt-type-label ptl-cmd">nav token</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Type 2: Short intent -->
+  <div class="conv" style="margin-bottom:8px;">
+    <div class="user-msg">
+      <div class="user-avatar">S</div>
+      <div class="user-text">
+        now cross check with v5 spec to see progress, use reflector agent
+        <span class="prompt-type-label ptl-short">short intent</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Type 3: Task list -->
+  <div class="conv" style="margin-bottom:8px;">
+    <div class="user-msg">
+      <div class="user-avatar">S</div>
+      <div class="user-text">
+        implement these tasks:
+        <div class="task-items">
+          <div class="task-item"><span class="task-num">1.</span> Add JWT auth middleware</div>
+          <div class="task-item"><span class="task-num">2.</span> Create /api/login endpoint</div>
+          <div class="task-item"><span class="task-num">3.</span> Add refresh token rotation</div>
+        </div>
+        <span class="collapsed-blob" onclick="togBlob(this)">+4 more tasks (click to expand)</span>
+        <div class="blob-content">4. Write integration tests
+5. Update API docs
+6. Add rate limiting
+7. Implement logout endpoint</div>
+        <span class="prompt-type-label ptl-list">task list</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Type 4: Intent + blob -->
+  <div class="conv" style="margin-bottom:8px;">
+    <div class="user-msg">
+      <div class="user-avatar">S</div>
+      <div class="user-text">
+        fix this bug:
+        <span class="collapsed-blob" onclick="togBlob(this)">+47 lines of error log (click to expand)</span>
+        <div class="blob-content">TypeError: Cannot read property 'id' of undefined
+    at SessionManager.getSession (/src/lib/session.ts:42:18)
+    at Router.handleRequest (/src/routes/api.ts:118:25)
+    at Layer.handle (/node_modules/express/lib/router/layer.js:95:5)
+    at next (/node_modules/express/lib/router/route.js:144:13)
+    at Route.dispatch (/node_modules/express/lib/router/route.js:114:3)
+    at Layer.handle (/node_modules/express/lib/router/layer.js:95:5)
+    at /node_modules/express/lib/router/index.js:284:15
+    at Function.process_params (/node_modules/express/lib/router/index.js:346:12)
+    at next (/node_modules/express/lib/router/index.js:280:10)
+    at authMiddleware (/src/middleware/auth.ts:23:5)
+    ...</div>
+        <span class="prompt-type-label ptl-blob">intent + blob</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Type 5: Long conversation paste -->
+  <div class="conv" style="margin-bottom:8px;">
+    <div class="user-msg">
+      <div class="user-avatar">S</div>
+      <div class="user-text">
+        this is the current conversation, so we need to compact this by grouping...
+        <span class="collapsed-blob" onclick="togBlob(this)">+215 lines of conversation context (click to expand)</span>
+        <div class="blob-content">You: now cross check with v5 spec...
+Claude: I'll perform a thorough analysis...
+[Main x6 $2.96]
+[reflect-agent x44 $6.67]
+✓ Read v5-plan.md
+✓ Bash git log --oneline -20
+✓ Glob dashboard/src/components/**
+...</div>
+        <span class="prompt-type-label ptl-prose">context dump</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="anno blue">
+  <span class="anno-icon">&#8505;</span>
+  <span class="anno-text"><b>Rules:</b> Commands and nav tokens → never collapse (render as pill). Short intents → never collapse. Task lists → show first 3, collapse rest. Intent + blob → show intent, collapse payload with semantic label. All expand on click.</span>
+</div>
+
+</div>
+
+</div>
+
+<script>
+const RAW_TOOLS = [
+  { type: 'grep', name: 'Grep', detail: '"VerdictBanner|extractVerdict|FindingBanner|extractFindings"' },
+  { type: 'read', name: 'Read', detail: 'ConversationView.tsx' },
+  { type: 'read', name: 'Read', detail: 'VerdictBanner.tsx' },
+  { type: 'read', name: 'Read', detail: 'FindingBanner.tsx' },
+  { type: 'edit', name: 'Edit', detail: 'ConversationView.tsx' },
+  { type: 'edit', name: 'Edit', detail: 'ToolEntries.tsx' },
+  { type: 'edit', name: 'Edit', detail: 'types.ts' },
+  { type: 'edit', name: 'Edit', detail: 'index.ts (exports)' },
+  { type: 'edit', name: 'Edit', detail: 'AgentCard.tsx' },
+  { type: 'bash', name: 'Bash', detail: 'rm VerdictBanner.tsx FindingBanner.tsx' },
+  { type: 'grep', name: 'Grep', detail: '"VerdictBanner"' },
+  { type: 'grep', name: 'Grep', detail: '"FindingBanner"' },
+  { type: 'read', name: 'Read', detail: 'ConversationView.tsx' },
+  { type: 'read', name: 'Read', detail: 'ToolEntries.tsx' },
+  { type: 'edit', name: 'Edit', detail: 'ConversationView.tsx' },
+  { type: 'edit', name: 'Edit', detail: 'ToolEntries.tsx' },
+  { type: 'edit', name: 'Edit', detail: 'AgentCard.tsx' },
+  { type: 'grep', name: 'Grep', detail: '"ContentItem"' },
+  { type: 'edit', name: 'Edit', detail: 'TurnDivider.tsx' },
+  { type: 'bash', name: 'Bash', detail: 'tsc --noEmit' },
+  { type: 'bash', name: 'Bash', detail: 'vitest run' },
+  { type: 'bash', name: 'Bash', detail: 'eslint .' },
+];
+
+const borderMap = { read: 'b-read', grep: 'b-grep', edit: 'b-edit', bash: 'b-bash' };
+const rawContainer = document.getElementById('raw-tools');
+RAW_TOOLS.forEach((t, i) => {
+  const row = document.createElement('div');
+  row.className = `tool-row ${borderMap[t.type] || ''}`;
+  row.innerHTML = `<span class="chev">&#9654;</span><span class="status ok">&#10004;</span><span class="tool-name">${t.name}</span><span class="tool-detail">${t.detail}</span>`;
+  rawContainer.appendChild(row);
+});
+
+function showPanel(n) {
+  document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === n));
+  document.querySelectorAll('.level-tab').forEach((t, i) => t.classList.toggle('active', i === n));
+}
+
+function togPhase(head) {
+  head.querySelector('.phase-chev').classList.toggle('open');
+  head.parentElement.querySelector('.phase-body').classList.toggle('open');
+}
+
+function togExp(row) {
+  const chev = row.querySelector('.chev');
+  const exp = row.nextElementSibling;
+  if (exp && exp.classList.contains('tool-expand')) {
+    chev.classList.toggle('open');
+    exp.classList.toggle('open');
+  }
+}
+
+function togBlob(el) {
+  const blob = el.nextElementSibling;
+  if (blob && blob.classList.contains('blob-content')) {
+    blob.classList.toggle('open');
+    el.textContent = blob.classList.contains('open') ? 'Collapse' : el.dataset.orig || el.textContent;
+    if (!el.dataset.orig) el.dataset.orig = el.textContent;
+    if (blob.classList.contains('open')) el.textContent = 'Collapse';
+    else el.textContent = el.dataset.orig;
+  }
+}
+document.querySelectorAll('.collapsed-blob').forEach(el => el.dataset.orig = el.textContent);
+</script>
+</body>
+</html>
