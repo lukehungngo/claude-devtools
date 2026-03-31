@@ -110,7 +110,7 @@ describe("ToolEntries — onToolClick", () => {
     expect(onToolClick).toHaveBeenCalledWith("Bash");
   });
 
-  it("calls onToolClick when a collapsed group row is clicked", () => {
+  it("does not call onToolClick when a collapsed group row is clicked (toggles expand instead)", () => {
     const onToolClick = vi.fn();
     const events: SessionEvent[] = [
       ...makeToolPairEvents("Read", "tool-a"),
@@ -121,15 +121,13 @@ describe("ToolEntries — onToolClick", () => {
       <ToolEntries events={events} onToolClick={onToolClick} />,
     );
 
-    // Collapsed group row: the first .flex.items-center in conv-tool-entries
-    const groupRow = container.querySelector(
-      ".conv-tool-entries .flex.items-center",
-    );
+    // Collapsed group row has role="button"
+    const groupRow = container.querySelector("[role='button']");
     expect(groupRow).not.toBeNull();
     fireEvent.click(groupRow!);
 
-    expect(onToolClick).toHaveBeenCalledTimes(1);
-    expect(onToolClick).toHaveBeenCalledWith("Read");
+    // Click now toggles expand, does NOT fire onToolClick
+    expect(onToolClick).not.toHaveBeenCalled();
   });
 
   it("does not error when onToolClick is not provided", () => {
@@ -342,6 +340,237 @@ describe("ToolEntries - progress text in rendered output", () => {
     // Progress text "Read" appears alongside the semantic summary
     expect(text).toContain("Read");
     expect(text).toContain("src/index.ts");
+  });
+});
+
+describe("ToolEntries CollapsedGroupRow expand/collapse", () => {
+  function makeReadGroupEvents(files: string[]): SessionEvent[] {
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const toolId = `tu-read-grp-${i}`;
+      events.push(
+        makeAssistantEvent({ id: toolId, name: "Read", input: { file_path: files[i] } }),
+      );
+      events.push(makeUserEvent(toolId, `content of ${files[i]}`));
+    }
+    return events;
+  }
+
+  const files = ["src/foo.ts", "src/bar.ts", "src/baz.ts"];
+
+  it("shows sub-rows when collapsed group is clicked", () => {
+    const events = makeReadGroupEvents(files);
+    const { container } = render(<ToolEntries events={events} />);
+
+    const groupRow = container.querySelector("[role='button']");
+    expect(groupRow).not.toBeNull();
+
+    // No sub-rows initially
+    expect(container.querySelector("[role='list']")).toBeNull();
+
+    fireEvent.click(groupRow!);
+
+    const list = container.querySelector("[role='list']");
+    expect(list).not.toBeNull();
+    const items = list!.querySelectorAll("[role='listitem']");
+    expect(items.length).toBe(3);
+  });
+
+  it("collapses sub-rows when clicked again", () => {
+    const events = makeReadGroupEvents(files);
+    const { container } = render(<ToolEntries events={events} />);
+
+    const groupRow = container.querySelector("[role='button']");
+
+    fireEvent.click(groupRow!);
+    expect(container.querySelector("[role='list']")).not.toBeNull();
+
+    fireEvent.click(groupRow!);
+    expect(container.querySelector("[role='list']")).toBeNull();
+  });
+
+  it("shows ChevronRight when collapsed and ChevronDown when expanded", () => {
+    const events = makeReadGroupEvents(files);
+    const { container } = render(<ToolEntries events={events} />);
+
+    const groupRow = container.querySelector("[role='button']");
+
+    expect(groupRow!.querySelector("[data-testid='chevron-right']")).not.toBeNull();
+    expect(groupRow!.querySelector("[data-testid='chevron-down']")).toBeNull();
+
+    fireEvent.click(groupRow!);
+
+    expect(groupRow!.querySelector("[data-testid='chevron-down']")).not.toBeNull();
+    expect(groupRow!.querySelector("[data-testid='chevron-right']")).toBeNull();
+  });
+
+  it("sub-rows have colored dots matching tool type", () => {
+    const events = makeReadGroupEvents(files);
+    const { container } = render(<ToolEntries events={events} />);
+
+    const groupRow = container.querySelector("[role='button']");
+    fireEvent.click(groupRow!);
+
+    const dots = container.querySelectorAll("[data-testid='sub-row-dot']");
+    expect(dots.length).toBe(3);
+    for (const dot of dots) {
+      expect((dot as HTMLElement).style.backgroundColor).toBe("var(--teal)");
+    }
+  });
+
+  it("toggles aria-expanded attribute", () => {
+    const events = makeReadGroupEvents(files);
+    const { container } = render(<ToolEntries events={events} />);
+
+    const groupRow = container.querySelector("[role='button']");
+    expect(groupRow!.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(groupRow!);
+    expect(groupRow!.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.click(groupRow!);
+    expect(groupRow!.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("expand hint has aria-hidden='true'", () => {
+    const events = makeReadGroupEvents(files);
+    const { container } = render(<ToolEntries events={events} />);
+
+    const groupRow = container.querySelector("[role='button']");
+    // Find the span hint (not the SVG which also has aria-hidden)
+    const hints = groupRow!.querySelectorAll("span[aria-hidden='true']");
+    const hint = Array.from(hints).find((el) => el.textContent === "click to expand");
+    expect(hint).not.toBeUndefined();
+    expect(hint!.textContent).toBe("click to expand");
+  });
+});
+
+describe("ToolEntries - CollapsedGroupRow dead onToolClick prop (P2 bug)", () => {
+  afterEach(cleanup);
+
+  it("CollapsedGroupRow type does not accept onToolClick prop", async () => {
+    // This is a static analysis check - we verify the component's interface
+    // by ensuring it does not pass onToolClick down to CollapsedGroupRow.
+    // The real test: CollapsedGroupRow ignores onToolClick (covered above).
+    // We verify the function signature has no onToolClick by checking TS exports.
+    // Since this is runtime, we verify the collapsed group row never calls onToolClick.
+    const onToolClick = vi.fn();
+    const events: SessionEvent[] = [
+      ...makeToolPairEvents("Read", "tool-x1"),
+      ...makeToolPairEvents("Read", "tool-x2"),
+      ...makeToolPairEvents("Read", "tool-x3"),
+    ];
+    const { container } = render(
+      <ToolEntries events={events} onToolClick={onToolClick} />,
+    );
+
+    // Click the collapsed group row
+    const groupRow = container.querySelector("[role='button']");
+    expect(groupRow).not.toBeNull();
+    fireEvent.click(groupRow!);
+    // onToolClick must NOT be called
+    expect(onToolClick).not.toHaveBeenCalled();
+  });
+});
+
+describe("ToolEntries - agent dispatch children wiring", () => {
+  afterEach(cleanup);
+
+  function makeAgentDispatchEvents(
+    resultContent?: string | unknown[],
+    isError = false,
+  ): SessionEvent[] {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        id: "tu-agent-1",
+        name: "Task",
+        input: { prompt: "Fix the bug in parser.ts", description: "Fix parser bug" },
+      }),
+    ];
+    if (resultContent !== undefined) {
+      events.push({
+        type: "user",
+        uuid: "uuid-user-agent-1",
+        sessionId: "sess-1",
+        timestamp: "2026-01-01T00:00:01Z",
+        userType: "external",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tu-agent-1",
+              content: resultContent,
+              ...(isError ? { is_error: true } : {}),
+            },
+          ],
+        },
+      } as UserEvent);
+    }
+    return events;
+  }
+
+  it("renders AgentCard with children when agent dispatch has resultContent", () => {
+    const events = makeAgentDispatchEvents("Fixed the bug in parser.ts\nAll tests passing");
+    const { container } = render(<ToolEntries events={events} />);
+
+    // AgentCard should have a chevron (indicating expandable children)
+    const chevron = container.querySelector("[data-testid='agent-card-chevron']");
+    expect(chevron).not.toBeNull();
+
+    // Click the header to expand
+    const header = container.querySelector("[data-testid='agent-card-header']");
+    expect(header).not.toBeNull();
+    fireEvent.click(header!);
+
+    // Detail panel should now be visible with the result content
+    const detail = container.querySelector("[data-testid='agent-card-detail']");
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain("Fixed the bug in parser.ts");
+  });
+
+  it("renders AgentCard without children when agent dispatch has no resultContent", () => {
+    const events = makeAgentDispatchEvents(); // no result
+    const { container } = render(<ToolEntries events={events} />);
+
+    // AgentCard should NOT have a chevron (no children)
+    const chevron = container.querySelector("[data-testid='agent-card-chevron']");
+    expect(chevron).toBeNull();
+  });
+
+  it("renders AgentCard with array resultContent extracting text items", () => {
+    const arrayContent = [
+      { type: "text", text: "First result line" },
+      { type: "text", text: "Second result line" },
+    ];
+    const events = makeAgentDispatchEvents(arrayContent as unknown[]);
+    const { container } = render(<ToolEntries events={events} />);
+
+    const chevron = container.querySelector("[data-testid='agent-card-chevron']");
+    expect(chevron).not.toBeNull();
+
+    const header = container.querySelector("[data-testid='agent-card-header']");
+    fireEvent.click(header!);
+
+    const detail = container.querySelector("[data-testid='agent-card-detail']");
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain("First result line");
+    expect(detail!.textContent).toContain("Second result line");
+  });
+
+  it("truncates long string resultContent to 500 chars", () => {
+    const longContent = "A".repeat(600);
+    const events = makeAgentDispatchEvents(longContent);
+    const { container } = render(<ToolEntries events={events} />);
+
+    const header = container.querySelector("[data-testid='agent-card-header']");
+    fireEvent.click(header!);
+
+    const detail = container.querySelector("[data-testid='agent-card-detail']");
+    expect(detail).not.toBeNull();
+    // Should be truncated: 500 chars + ellipsis
+    const text = detail!.textContent || "";
+    expect(text.length).toBeLessThanOrEqual(510); // 500 + ellipsis + minor markup
   });
 });
 

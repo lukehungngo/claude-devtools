@@ -17,6 +17,9 @@ import { TurnDivider } from "./TurnDivider";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useStreamingState } from "../../hooks/useStreamingState";
 import { StreamingTurnArea } from "./StreamingTurnArea";
+import { ProgressBar } from "./ProgressBar";
+import { TaskGrid } from "./TaskGrid";
+import type { TaskGridProps } from "./TaskGrid";
 
 export interface QuestionItem {
   questionId: string;
@@ -50,6 +53,8 @@ interface ConversationViewProps {
   onSessionStarted?: (sessionId: string) => void;
   /** Called when slash commands request opening a panel */
   onOpenPanel?: (panel: string) => void;
+  /** Individual task items to render in a TaskGrid below the ProgressBar */
+  taskItems?: TaskGridProps["tasks"];
 }
 
 // ─── Virtualized turn list ──────────────────────────────────────────
@@ -327,6 +332,7 @@ export function ConversationView({
   onSubmitAnswer,
   onSessionStarted,
   onOpenPanel,
+  taskItems,
 }: ConversationViewProps) {
   const layoutCtx = useContext(LayoutContext);
   const usage = layoutCtx?.usage ?? null;
@@ -613,6 +619,22 @@ export function ConversationView({
         contextPercent={metrics?.contextPercent}
         onCompactNow={handleCompactNow}
       />
+
+      {/* Task progress bar */}
+      {metrics?.tasks && (
+        <ProgressBar
+          label="Tasks"
+          completed={metrics.tasks.completed}
+          total={metrics.tasks.total}
+        />
+      )}
+
+      {/* Task grid (individual task items) */}
+      {taskItems && taskItems.length > 0 && (
+        <div style={{ padding: "0 24px 8px" }}>
+          <TaskGrid tasks={taskItems} />
+        </div>
+      )}
 
       {/* Turn list (virtualized, scrollable) */}
       <VirtualizedTurnList

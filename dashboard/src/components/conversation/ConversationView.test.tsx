@@ -207,6 +207,154 @@ describe("ConversationView scroll-to-bottom button positioning", () => {
   });
 });
 
+describe("ConversationView ProgressBar", () => {
+  function makeMetricsWithTasks(tasks: { total: number; completed: number; inProgress: number; pending: number }) {
+    return {
+      session: { id: "sess-1", projectPath: "/tmp", model: "test", startTime: "", cwd: "/tmp" },
+      dag: { nodes: [], edges: [] },
+      tokens: { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
+      tokensByModel: {},
+      tokensByTurn: [],
+      tools: [],
+      totalEvents: 0,
+      totalToolCalls: 0,
+      totalAgents: 0,
+      models: [],
+      duration: 0,
+      contextPercent: 0,
+      contextWindowSize: 200000,
+      tasks,
+      hasRemoteControl: false,
+    } as unknown as import("../../lib/types").SessionMetrics;
+  }
+
+  it("renders ProgressBar when metrics.tasks.total > 0", () => {
+    const events = [
+      makeUserEvent("Prompt", 0),
+      makeAssistantEvent(1),
+    ];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+
+    render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={makeMetricsWithTasks({ total: 5, completed: 2, inProgress: 1, pending: 2 })}
+      />
+    );
+
+    const progressbar = screen.getByRole("progressbar");
+    expect(progressbar).toBeTruthy();
+    expect(progressbar.getAttribute("aria-valuenow")).toBe("2");
+    expect(progressbar.getAttribute("aria-valuemax")).toBe("5");
+    expect(screen.getByText("2/5")).toBeTruthy();
+    expect(screen.getByText("Tasks")).toBeTruthy();
+  });
+
+  it("does not render ProgressBar when metrics is null", () => {
+    const events = [
+      makeUserEvent("Prompt", 0),
+      makeAssistantEvent(1),
+    ];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+
+    render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={null}
+      />
+    );
+
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
+  it("does not render ProgressBar when tasks.total is 0", () => {
+    const events = [
+      makeUserEvent("Prompt", 0),
+      makeAssistantEvent(1),
+    ];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+
+    render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={makeMetricsWithTasks({ total: 0, completed: 0, inProgress: 0, pending: 0 })}
+      />
+    );
+
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+});
+
+describe("ConversationView TaskGrid", () => {
+  it("renders TaskGrid when taskItems are provided", () => {
+    const events = [
+      makeUserEvent("Prompt", 0),
+      makeAssistantEvent(1),
+    ];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+    const taskItems = [
+      { id: "T-001", name: "Setup database", status: "done" as const },
+      { id: "T-002", name: "Write tests", status: "in_progress" as const },
+      { id: "T-003", name: "Deploy", status: "pending" as const },
+    ];
+
+    render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={null}
+        taskItems={taskItems}
+      />
+    );
+
+    // TaskGrid renders an expand button with task count
+    const expandButton = screen.getByRole("button", { name: /3 tasks/i });
+    expect(expandButton).toBeTruthy();
+  });
+
+  it("does not render TaskGrid when taskItems is not provided", () => {
+    const events = [
+      makeUserEvent("Prompt", 0),
+      makeAssistantEvent(1),
+    ];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+
+    render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={null}
+      />
+    );
+
+    // No expand button for tasks
+    expect(screen.queryByRole("button", { name: /tasks.*click to expand/i })).toBeNull();
+  });
+
+  it("does not render TaskGrid when taskItems is empty", () => {
+    const events = [
+      makeUserEvent("Prompt", 0),
+      makeAssistantEvent(1),
+    ];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+
+    render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={null}
+        taskItems={[]}
+      />
+    );
+
+    // TaskGrid returns null for empty array
+    expect(screen.queryByRole("button", { name: /tasks.*click to expand/i })).toBeNull();
+  });
+});
+
 describe("ConversationView onDecideSession", () => {
   function makePermission(overrides?: Partial<PermissionRequest>): PermissionRequest {
     return {

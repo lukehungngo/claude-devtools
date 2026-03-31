@@ -9,9 +9,13 @@ import type {
 import { normalizeContent } from "../../lib/normalizeContent";
 import { formatDuration } from "../../lib/cost";
 import { AgentPills } from "./AgentPills";
+import { VerdictBanner } from "./VerdictBanner";
+import { FindingBanner } from "./FindingBanner";
+import type { FindingBannerProps } from "./FindingBanner";
 import { ThinkingBlock } from "../viewer/ThinkingBlock";
 import { ResponseBlock } from "../viewer/ResponseBlock";
 import { ToolEntries } from "./ToolEntries";
+import { CostFooter } from "./CostFooter";
 
 interface TurnCardProps {
   turn: TurnSnapshot;
@@ -37,6 +41,82 @@ function extractResponseContent(events: SessionEvent[]): ContentItem[] {
     }
   }
   return items;
+}
+
+// ─── Verdict extraction ─────────────────────────────────────────────
+
+type VerdictType = "proceed" | "fail" | "flag" | "approved" | "blocked";
+
+interface ExtractedVerdict {
+  verdict: VerdictType;
+  summary: string;
+  detail?: string;
+}
+
+const VERDICT_KEYWORDS: Record<string, VerdictType> = {
+  PROCEED: "proceed",
+  APPROVED: "approved",
+  BLOCKED: "blocked",
+  REJECT: "fail",
+  REVISE: "flag",
+  FAIL: "fail",
+};
+
+// Matches: "Verdict: PROCEED", "**Verdict: PROCEED**", "verdict: "proceed""
+const VERDICT_PATTERN =
+  /(?:\*{0,2})(?:verdict[:\s]+)?(?:\*{0,2})(PROCEED|APPROVED|BLOCKED|REJECT|REVISE|FAIL)(?:\*{0,2})(?:\s*[—\-:]\s*(.+))?/i;
+
+/**
+ * Scans text content items for verdict patterns.
+ * Returns structured verdict or null if none found.
+ */
+export function extractVerdict(items: ContentItem[]): ExtractedVerdict | null {
+  for (const item of items) {
+    if (item.type !== "text" || !("text" in item)) continue;
+    const match = VERDICT_PATTERN.exec(item.text);
+    if (match) {
+      const keyword = match[1].toUpperCase();
+      const mapped = VERDICT_KEYWORDS[keyword];
+      if (!mapped) continue;
+      const summary = match[2]?.trim() ?? "";
+      return { verdict: mapped, summary };
+    }
+  }
+  return null;
+}
+
+// ─── Finding extraction ─────────────────────────────────────────────
+
+const FINDING_PATTERNS: Array<{
+  pattern: RegExp;
+  severity: FindingBannerProps["severity"];
+}> = [
+  { pattern: /^(?:\*\*)?Flag:\*{0,2}\s*(.+)/i, severity: "flag" },
+  { pattern: /^(?:\*\*)?Warning:\*{0,2}\s*(.+)/i, severity: "warning" },
+  { pattern: /^P[01]:\s*(.+)/i, severity: "error" },
+];
+
+/**
+ * Scans text content items for structured finding patterns at line starts.
+ * Returns an array of findings with severity and extracted text.
+ */
+export function extractFindings(items: ContentItem[]): FindingBannerProps[] {
+  const findings: FindingBannerProps[] = [];
+  for (const item of items) {
+    if (item.type !== "text" || !("text" in item)) continue;
+    const lines = item.text.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trimStart();
+      for (const { pattern, severity } of FINDING_PATTERNS) {
+        const match = pattern.exec(trimmed);
+        if (match) {
+          findings.push({ severity, text: match[1].trim() });
+          break;
+        }
+      }
+    }
+  }
+  return findings;
 }
 
 // ─── TurnFooter (elapsed / completed duration) ─────────────────────
@@ -122,6 +202,12 @@ export function TurnCard({
   const isRunning = turn.status === "running";
   const turnEvents = useMemo(() => getEventsForTurn(turn, allEvents), [turn, allEvents]);
   const responseContent = extractResponseContent(turnEvents);
+  const verdict = useMemo(() => extractVerdict(responseContent), [responseContent]);
+  const findings = useMemo(() => extractFindings(responseContent), [responseContent]);
+  const agentCost = useMemo(
+    () => turn.agents.reduce((s, a) => s + a.cost, 0),
+    [turn.agents],
+  );
 
   return (
     <div
@@ -179,6 +265,9 @@ export function TurnCard({
               Claude
             </div>
 
+            {/* Verdict banner (if detected in response) */}
+            {verdict && <VerdictBanner {...verdict} />}
+
             {/* Agent pills */}
             <AgentPills agents={turn.agents} onPillClick={onAgentPillClick} />
 
@@ -199,6 +288,22 @@ export function TurnCard({
 
             {/* Tool entries (grouped card) -- click opens bottom panel tool-call tab */}
             <ToolEntries events={turnEvents} onToolClick={onToolClick} />
+
+            {/* Finding banners (extracted from response text) */}
+            {findings.map((f, i) => (
+              <FindingBanner key={`finding-${i}`} {...f} />
+            ))}
+
+            {/* Cost breakdown */}
+            {turn.cost > 0 && (
+              <CostFooter
+                totalCost={turn.cost}
+                mainCost={turn.cost - agentCost}
+                mainTurns={1}
+                agentCost={agentCost}
+                agentCalls={turn.agents.length}
+              />
+            )}
 
             {/* Running indicator */}
             {isRunning && (

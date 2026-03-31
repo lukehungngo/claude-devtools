@@ -1,8 +1,11 @@
+import { memo, useState } from "react";
+import { ChevronRight, ChevronDown } from "lucide-react";
 import type { SessionEvent, AssistantEvent, UserEvent, ContentItem, ToolUseContent, ToolResultContent } from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
 import { ToolResultBlock } from "../viewer/ToolResultBlock";
 import { DiffBlock } from "../viewer/DiffBlock";
 import { AgentCard } from "./AgentCard";
+import { ExpandHint } from "./ExpandHint";
 
 interface ToolEntriesProps {
   events: SessionEvent[];
@@ -186,6 +189,30 @@ function extractAgentDescription(entry: ToolEntry): string {
   return typeof desc === "string" ? desc.split("\n")[0] : "";
 }
 
+/** Format agent result content for display inside AgentCard children. */
+function formatAgentResult(content: string | unknown[]): string {
+  if (typeof content === "string") {
+    return content.length > 500 ? content.slice(0, 500) + "\u2026" : content;
+  }
+  if (Array.isArray(content)) {
+    const textParts: string[] = [];
+    for (const item of content) {
+      if (
+        item != null &&
+        typeof item === "object" &&
+        "type" in item &&
+        (item as Record<string, unknown>).type === "text" &&
+        "text" in item
+      ) {
+        textParts.push(String((item as Record<string, unknown>).text));
+      }
+    }
+    const joined = textParts.join("\n");
+    return joined.length > 500 ? joined.slice(0, 500) + "\u2026" : joined;
+  }
+  return String(content);
+}
+
 /** Map tool name + status to a human-readable progress verb. */
 const PROGRESS_MAP: Record<string, { running: string; completed: string }> = {
   read: { running: "Reading...", completed: "Read" },
@@ -215,7 +242,7 @@ const STATUS_ICONS: Record<string, { char: string; className: string }> = {
   error: { char: "\u2717", className: "tool-err" },
 };
 
-function ToolEntryRow({ entry, isLast, onToolClick }: { entry: ToolEntry; isLast: boolean; onToolClick?: (toolName: string) => void }) {
+const ToolEntryRow = memo(function ToolEntryRow({ entry, isLast, onToolClick }: { entry: ToolEntry; isLast: boolean; onToolClick?: (toolName: string) => void }) {
   // Agent dispatch entries render as AgentCard instead of normal tool row
   if (isAgentDispatch(entry.name)) {
     return (
@@ -223,7 +250,15 @@ function ToolEntryRow({ entry, isLast, onToolClick }: { entry: ToolEntry; isLast
         agentName={extractAgentName(entry)}
         description={extractAgentDescription(entry)}
         status={entry.status}
-      />
+      >
+        {entry.resultContent != null && (
+          <div className="font-mono" style={{ fontSize: 10, color: "var(--t3)", lineHeight: 1.5 }}>
+            <pre className="whitespace-pre-wrap break-words" style={{ maxHeight: 120, overflow: "auto", margin: 0 }}>
+              {formatAgentResult(entry.resultContent)}
+            </pre>
+          </div>
+        )}
+      </AgentCard>
     );
   }
 
@@ -303,9 +338,10 @@ function ToolEntryRow({ entry, isLast, onToolClick }: { entry: ToolEntry; isLast
       )}
     </div>
   );
-}
+});
 
-function CollapsedGroupRow({ group, isLast, onToolClick }: { group: ToolGroup; isLast: boolean; onToolClick?: (toolName: string) => void }) {
+function CollapsedGroupRowInner({ group, isLast }: { group: ToolGroup; isLast: boolean }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const count = group.entries.length;
   const allSuccess = group.entries.every((e) => e.status === "success");
   const anyRunning = group.entries.some((e) => e.status === "running");
@@ -315,49 +351,96 @@ function CollapsedGroupRow({ group, isLast, onToolClick }: { group: ToolGroup; i
   const summary = buildGroupSummary(group);
 
   return (
-    <div
-      onClick={() => onToolClick?.(group.name)}
-      className="flex items-center cursor-pointer"
-      style={{
-        padding: "8px 12px",
-        gap: 8,
-        fontSize: 11,
-        borderLeft: `3px solid ${borderColor}`,
-        borderBottom: isLast ? "none" : "1px solid var(--bd)",
-      }}
-    >
-      <span
-        className={`shrink-0 ${icon.className}`}
+    <div>
+      <div
+        role="button"
+        aria-expanded={isExpanded}
+        onClick={() => setIsExpanded((prev) => !prev)}
+        className="group flex items-center cursor-pointer"
         style={{
+          padding: "8px 12px",
+          gap: 8,
           fontSize: 11,
-          color: icon.className === "tool-ok" ? "var(--grn)"
-            : icon.className === "tool-err" ? "var(--red)"
-            : "var(--amb)",
+          borderLeft: `3px solid ${borderColor}`,
+          borderBottom: isLast && !isExpanded ? "none" : "1px solid var(--bd)",
         }}
       >
-        {icon.char}
-      </span>
-      <span
-        className="font-mono"
-        style={{ fontSize: 11, color: "var(--t2)" }}
-      >
-        {summary}
-      </span>
-      <span
-        className="font-mono"
-        style={{
-          fontSize: 9,
-          color: "var(--t3)",
-          background: "var(--bg-h)",
-          padding: "1px 5px",
-          borderRadius: "var(--radius)",
-        }}
-      >
-        {count}
-      </span>
+        {isExpanded ? (
+          <ChevronDown data-testid="chevron-down" size={10} style={{ color: "var(--t3)" }} className="shrink-0" />
+        ) : (
+          <ChevronRight data-testid="chevron-right" size={10} style={{ color: "var(--t3)" }} className="shrink-0" />
+        )}
+        <span
+          className={`shrink-0 ${icon.className}`}
+          style={{
+            fontSize: 11,
+            color: icon.className === "tool-ok" ? "var(--grn)"
+              : icon.className === "tool-err" ? "var(--red)"
+              : "var(--amb)",
+          }}
+        >
+          {icon.char}
+        </span>
+        <span
+          className="font-mono"
+          style={{ fontSize: 11, color: "var(--t2)" }}
+        >
+          {summary}
+        </span>
+        <span
+          className="font-mono"
+          style={{
+            fontSize: 9,
+            color: "var(--t3)",
+            background: "var(--bg-h)",
+            padding: "1px 5px",
+            borderRadius: "var(--radius)",
+          }}
+        >
+          {count}
+        </span>
+        <ExpandHint />
+      </div>
+      {isExpanded && (
+        <div
+          role="list"
+          style={{
+            borderLeft: `3px solid ${borderColor}`,
+            borderBottom: isLast ? "none" : "1px solid var(--bd)",
+          }}
+        >
+          {group.entries.map((entry) => (
+            <div
+              key={entry.id}
+              role="listitem"
+              className="flex items-center"
+              style={{ paddingLeft: 20, padding: "4px 12px 4px 20px", gap: 8, fontSize: 11 }}
+            >
+              <span
+                data-testid="sub-row-dot"
+                className="shrink-0"
+                style={{
+                  width: 4,
+                  height: 4,
+                  borderRadius: "50%",
+                  backgroundColor: getToolBorderColor(entry.name, entry.status),
+                }}
+              />
+              <span
+                className="font-mono overflow-hidden text-ellipsis whitespace-nowrap"
+                style={{ fontSize: 11, color: "var(--t3)" }}
+              >
+                {entry.target || entry.name}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
+
+const CollapsedGroupRow = memo(CollapsedGroupRowInner);
 
 export function ToolEntries({ events, onToolClick }: ToolEntriesProps) {
   const entries = extractToolEntries(events);
@@ -379,7 +462,7 @@ export function ToolEntries({ events, onToolClick }: ToolEntriesProps) {
       {groups.map((group, gi) => {
         const isLast = gi === groups.length - 1;
         if (group.isCollapsed) {
-          return <CollapsedGroupRow key={`g-${gi}`} group={group} isLast={isLast} onToolClick={onToolClick} />;
+          return <CollapsedGroupRow key={`g-${gi}`} group={group} isLast={isLast} />;
         }
         // Single entry or error — show individually
         return group.entries.map((entry, ei) => (
