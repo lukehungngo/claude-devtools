@@ -13,8 +13,6 @@ import { ExpandHint } from "./ExpandHint";
 interface ToolEntriesProps {
   events: SessionEvent[];
   onToolClick?: (toolName: string) => void;
-  assistantTextIndices?: number[];
-  thinkingContext?: string;
 }
 
 export interface ToolEntry {
@@ -27,15 +25,38 @@ export interface ToolEntry {
   toolInput?: Record<string, unknown>;
 }
 
-function extractToolEntries(events: SessionEvent[]): ToolEntry[] {
+interface ExtractResult {
+  entries: ToolEntry[];
+  /** Indices (into the entries array) where assistant text appeared BEFORE that tool entry */
+  textBoundaryIndices: number[];
+  /** First thinking block text found (for phase label inference) */
+  thinkingContext: string | undefined;
+}
+
+function extractToolEntries(events: SessionEvent[]): ExtractResult {
   const entries: ToolEntry[] = [];
   const toolUseMap = new Map<string, ToolEntry>();
+  const textBoundaryIndices: number[] = [];
+  let thinkingContext: string | undefined;
+
+  // Track whether we've seen assistant text since the last tool_use
+  let sawTextSinceLastTool = false;
 
   for (const event of events) {
     if (event.type === "assistant") {
       const asst = event as AssistantEvent;
       for (const content of normalizeContent(asst.message?.content)) {
-        if (content.type === "tool_use") {
+        if (content.type === "text" && "text" in content) {
+          const text = (content as { text: string }).text.trim();
+          if (text.length > 0) {
+            sawTextSinceLastTool = true;
+          }
+        } else if (content.type === "thinking" && "thinking" in content) {
+          const thinking = (content as { thinking: string }).thinking;
+          if (!thinkingContext && thinking.trim().length > 0) {
+            thinkingContext = thinking;
+          }
+        } else if (content.type === "tool_use") {
           const toolUse = content as ToolUseContent;
           const input = (toolUse.input || {}) as Record<string, unknown>;
           const target =
@@ -44,6 +65,12 @@ function extractToolEntries(events: SessionEvent[]): ToolEntry[] {
             (input.command as string) ||
             (input.pattern as string) ||
             "";
+
+          // If assistant wrote text between previous tool and this one, mark boundary
+          if (sawTextSinceLastTool && entries.length > 0) {
+            textBoundaryIndices.push(entries.length); // index of the NEXT entry
+            sawTextSinceLastTool = false;
+          }
 
           const entry: ToolEntry = {
             id: toolUse.id,
@@ -74,7 +101,7 @@ function extractToolEntries(events: SessionEvent[]): ToolEntry[] {
     }
   }
 
-  return entries;
+  return { entries, textBoundaryIndices, thinkingContext };
 }
 
 /** A group of consecutive same-name tool entries, or a single error entry */
@@ -555,14 +582,35 @@ function renderGroups(
   return nodes;
 }
 
-export function ToolEntries({ events, onToolClick, assistantTextIndices, thinkingContext }: ToolEntriesProps) {
-  const entries = extractToolEntries(events);
+export function ToolEntries({ events, onToolClick }: ToolEntriesProps) {
+  const { entries, textBoundaryIndices, thinkingContext } = extractToolEntries(events);
   const groups = groupToolEntries(entries);
 
   if (groups.length === 0) return null;
 
+  // Convert entry-level text boundary indices to group-level indices.
+  // A text boundary at entry index N means "assistant text appeared before entry N".
+  // We need to find which group contains entry N and mark that group index as a boundary.
+  let assistantTextGroupIndices: number[] | undefined;
+  if (textBoundaryIndices.length > 0) {
+    const boundarySet = new Set(textBoundaryIndices);
+    const groupIndices = new Set<number>();
+    let entryIdx = 0;
+    for (let gi = 0; gi < groups.length; gi++) {
+      for (let ei = 0; ei < groups[gi].entries.length; ei++) {
+        if (boundarySet.has(entryIdx)) {
+          groupIndices.add(gi);
+        }
+        entryIdx++;
+      }
+    }
+    if (groupIndices.size > 0) {
+      assistantTextGroupIndices = Array.from(groupIndices);
+    }
+  }
+
   // Phase grouping (Level 2)
-  const phases = groupIntoPhases(groups, assistantTextIndices, thinkingContext);
+  const phases = groupIntoPhases(groups, assistantTextGroupIndices, thinkingContext);
 
   // Build a reverse map: group reference -> phase (O(n) using identity lookup)
   const groupToPhase = new Map<ToolGroup, Phase>();
