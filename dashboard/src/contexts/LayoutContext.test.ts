@@ -21,10 +21,6 @@ function createMockContextValue(overrides?: Partial<LayoutContextValue>): Layout
     setCurrentMetrics: () => {},
     toolFilter: null,
     setToolFilter: () => {},
-    requestedRightTab: undefined,
-    setRequestedRightTab: () => {},
-    rightPanelContent: null,
-    setRightPanelContent: () => {},
     questions: [],
     submitAnswer: async () => {},
     activeSessionId: null,
@@ -48,6 +44,9 @@ function createMockContextValue(overrides?: Partial<LayoutContextValue>): Layout
     setCurrentActiveTurnIndex: () => {},
     hasSubagents: false,
     setHasSubagents: () => {},
+    viewingTurnNumber: undefined,
+    setViewingTurnNumber: () => {},
+    onClearViewingTurnRef: { current: null },
     ...overrides,
   };
 }

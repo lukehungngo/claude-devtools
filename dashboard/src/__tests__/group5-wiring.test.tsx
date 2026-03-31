@@ -33,10 +33,6 @@ function makeLayoutCtx(overrides?: Partial<LayoutContextValue>): LayoutContextVa
     setCurrentMetrics: () => {},
     toolFilter: null,
     setToolFilter: () => {},
-    requestedRightTab: undefined,
-    setRequestedRightTab: () => {},
-    rightPanelContent: null,
-    setRightPanelContent: () => {},
     questions: [],
     submitAnswer: async () => {},
     activeSessionId: null,
@@ -59,6 +55,9 @@ function makeLayoutCtx(overrides?: Partial<LayoutContextValue>): LayoutContextVa
     setCurrentSelectedAgent: () => {},
     hasSubagents: false,
     setHasSubagents: () => {},
+    viewingTurnNumber: undefined,
+    setViewingTurnNumber: () => {},
+    onClearViewingTurnRef: { current: null },
     ...overrides,
   };
 }

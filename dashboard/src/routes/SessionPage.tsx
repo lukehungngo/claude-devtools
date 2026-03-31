@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback, lazy, Suspense } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useLayoutContext } from "../contexts/LayoutContext";
 import { useSessionMetrics } from "../hooks/useSessionData";
@@ -6,11 +6,6 @@ import { useEventStream } from "../hooks/useEventStream";
 import { resolveSlugToProjectHash } from "../lib/repoSlug";
 import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental } from "../lib/turnSnapshot";
 import { ConversationView } from "../components/conversation/ConversationView";
-
-const RightPanel = lazy(() =>
-  import("../components/right-panel/RightPanel").then(m => ({ default: m.RightPanel }))
-);
-import type { PrimaryTab } from "../components/right-panel/PrimaryTabs";
 
 export function SessionPage() {
   const { repoSlug, sessionId } = useParams({ strict: false }) as {
@@ -29,11 +24,8 @@ export function SessionPage() {
     setCurrentDag,
     setCurrentSelectedAgent,
     setHasSubagents,
-    setRightPanelContent,
     toolFilter,
     setToolFilter,
-    requestedRightTab,
-    setRequestedRightTab,
     permissions,
     decidePermission,
     decidePermissionSession,
@@ -45,6 +37,8 @@ export function SessionPage() {
     setSelected,
     slugMap,
     usage,
+    setViewingTurnNumber,
+    onClearViewingTurnRef,
   } = ctx;
 
   // Resolve URL slug to projectHash for API calls
@@ -129,8 +123,6 @@ export function SessionPage() {
     setCurrentEvents(allEvents);
   }, [allEvents, setCurrentEvents]);
 
-  const agents = metrics?.dag.nodes || [];
-
   // Incremental turn grouping: only rebuild the last turn when events are appended
   const prevEventCountRef = useRef(0);
   const prevTurnsRef = useRef<ReturnType<typeof groupEventsIntoTurns>>([]);
@@ -160,9 +152,26 @@ export function SessionPage() {
     setCurrentActiveTurnIndex(effectiveIndex);
   }, [selectedTurnIndex, turns.length, setCurrentActiveTurnIndex]);
 
+  // Register callback for TopBar dismiss button to clear local selectedTurnIndex
+  useEffect(() => {
+    onClearViewingTurnRef.current = () => {
+      setSelectedTurnIndex(null);
+      setHighlightedTurnIndex(undefined);
+    };
+    return () => { onClearViewingTurnRef.current = null; };
+  }, [onClearViewingTurnRef]);
+
+  // Push viewing turn number to layout context for TopBar pill
+  useEffect(() => {
+    const turnNumber =
+      selectedTurnIndex != null ? turns[selectedTurnIndex]?.turnNumber : undefined;
+    setViewingTurnNumber(turnNumber);
+  }, [selectedTurnIndex, turns, setViewingTurnNumber]);
+
   // Auto-release turn pin when new turns arrive
   useEffect(() => {
     setSelectedTurnIndex(null);
+    setHighlightedTurnIndex(undefined);
   }, [turns.length]);
 
   // Reset local state on session change
@@ -179,67 +188,19 @@ export function SessionPage() {
 
   const handleAgentPillClick = useCallback((agentId: string) => {
     setSelectedAgent(agentId);
-    setRequestedRightTab("log");
-  }, [setRequestedRightTab]);
+  }, []);
 
   const handleTurnClick = useCallback((turnIndex: number) => {
     setSelectedTurnIndex(turnIndex);
-    setRequestedRightTab("graph");
-  }, [setRequestedRightTab]);
+    setHighlightedTurnIndex(turnIndex);
+  }, []);
 
-  const handleOpenPanel = useCallback((panel: string) => {
-    setRequestedRightTab(panel as PrimaryTab);
-  }, [setRequestedRightTab]);
+  // No-op: previously opened a right panel tab; kept for onOpenPanel callback chain
+  const handleOpenPanel = useCallback((_panel: string) => {}, []);
 
-  // Render right panel content into layout context
-  const rightPanel = useMemo(() => {
-    if (metricsLoading && !metrics) {
-      return (
-        <div className="flex items-center justify-center h-full text-sm text-dt-text2">
-          Loading...
-        </div>
-      );
-    }
-    if (!metrics) return null;
-    return (
-      <Suspense fallback={
-        <div className="flex items-center justify-center h-full text-sm text-dt-text2">
-          Loading...
-        </div>
-      }>
-        <RightPanel
-          turns={turns}
-          dag={metrics.dag}
-          events={allEvents}
-          agents={agents}
-          subagentMeta={subagentMeta}
-          selectedAgent={selectedAgent}
-          toolFilter={toolFilter}
-          onSelectAgent={setSelectedAgent}
-          onSnapshotSelect={setHighlightedTurnIndex}
-          requestedTab={requestedRightTab}
-          externalActiveIndex={selectedTurnIndex}
-          metrics={metrics}
-          usage={usage}
-          projectHash={projectHash}
-          sessionId={sessionId}
-        />
-      </Suspense>
-    );
-  }, [
-    metricsLoading, metrics, turns, allEvents, agents, subagentMeta,
-    selectedAgent, toolFilter, requestedRightTab, selectedTurnIndex,
-    setHighlightedTurnIndex, usage, projectHash, sessionId,
-  ]);
-
-  useEffect(() => {
-    setRightPanelContent(rightPanel);
-  }, [rightPanel, setRightPanelContent]);
-
-  // Clean up right panel and session data on unmount
+  // Clean up session data on unmount
   useEffect(() => {
     return () => {
-      setRightPanelContent(null);
       setCurrentMetrics(null);
       setCurrentEvents([]);
       setCurrentLiveEvents([]);
@@ -248,8 +209,9 @@ export function SessionPage() {
       setCurrentSelectedAgent(null);
       setCurrentActiveTurnIndex(null);
       setHasSubagents(false);
+      setViewingTurnNumber(undefined);
     };
-  }, [setRightPanelContent, setCurrentMetrics, setCurrentEvents, setCurrentLiveEvents, setCurrentTurns, setCurrentDag, setCurrentSelectedAgent, setCurrentActiveTurnIndex, setHasSubagents]);
+  }, [setCurrentMetrics, setCurrentEvents, setCurrentLiveEvents, setCurrentTurns, setCurrentDag, setCurrentSelectedAgent, setCurrentActiveTurnIndex, setHasSubagents, setViewingTurnNumber]);
 
   if (metricsLoading && !metrics) {
     return (

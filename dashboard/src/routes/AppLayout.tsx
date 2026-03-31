@@ -8,7 +8,6 @@ import { TopBar } from "../components/TopBar";
 const BottomPanel = lazy(() =>
   import("../components/bottom-panel/BottomPanel").then(m => ({ default: m.BottomPanel }))
 );
-import type { PrimaryTab } from "../components/right-panel/PrimaryTabs";
 import { useRepos } from "../hooks/useRepos";
 import { useUnifiedWebSocket } from "../hooks/useUnifiedWebSocket";
 import { usePermissions } from "../hooks/usePermissions";
@@ -19,7 +18,7 @@ import { buildSlugMap, buildProjectHashToSlugMap } from "../lib/repoSlug";
 import type { SessionWsHandlers, QuestionItem } from "../contexts/LayoutContext";
 import type { SessionMetrics, SessionEvent, AgentDAG } from "../lib/types";
 import type { TurnSnapshot } from "../lib/turnSnapshot";
-import type { ReactNode } from "react";
+
 
 export function AppLayout() {
   const navigate = useNavigate();
@@ -35,11 +34,6 @@ export function AppLayout() {
   const [currentMetrics, setCurrentMetrics] = useState<SessionMetrics | null>(null);
   // Tool filter state (set by TopBar badge clicks, consumed by SessionPage)
   const [toolFilter, setToolFilter] = useState<string | null>(null);
-  const [requestedRightTab, setRequestedRightTab] = useState<PrimaryTab | undefined>(undefined);
-
-  // Right panel content -- kept for backward compat but not rendered in layout
-  const [rightPanelContent, setRightPanelContent] = useState<ReactNode>(null);
-
   // Session data state bridged to BottomPanel
   const [currentEvents, setCurrentEvents] = useState<SessionEvent[]>([]);
   const [currentLiveEvents, setCurrentLiveEvents] = useState<SessionEvent[]>([]);
@@ -48,6 +42,13 @@ export function AppLayout() {
   const [currentActiveTurnIndex, setCurrentActiveTurnIndex] = useState<number | null>(null);
   const [currentSelectedAgent, setCurrentSelectedAgent] = useState<string | null>(null);
   const [hasSubagents, setHasSubagents] = useState(false);
+  const [viewingTurnNumber, setViewingTurnNumber] = useState<number | undefined>(undefined);
+  const onClearViewingTurnRef = useRef<(() => void) | null>(null);
+
+  const handleClearViewingTurn = useCallback(() => {
+    setViewingTurnNumber(undefined);
+    onClearViewingTurnRef.current?.();
+  }, []);
 
   // Question state for AskUserQuestion
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
@@ -125,7 +126,6 @@ export function AppLayout() {
   const handleSelect = useCallback((s: { projectHash: string; sessionId: string }) => {
     setSelected(s);
     setToolFilter(null);
-    setRequestedRightTab(undefined);
     const repoSlug = reverseSlugMap.get(s.projectHash) ?? s.projectHash;
     navigate({ to: "/session/$repoSlug/$sessionId", params: { repoSlug, sessionId: s.sessionId } });
   }, [navigate, reverseSlugMap]);
@@ -155,10 +155,6 @@ export function AppLayout() {
     setCurrentMetrics,
     toolFilter,
     setToolFilter,
-    requestedRightTab,
-    setRequestedRightTab,
-    rightPanelContent,
-    setRightPanelContent,
     questions,
     submitAnswer,
     activeSessionId,
@@ -181,6 +177,9 @@ export function AppLayout() {
     setCurrentSelectedAgent,
     hasSubagents,
     setHasSubagents,
+    viewingTurnNumber,
+    setViewingTurnNumber,
+    onClearViewingTurnRef,
   };
 
   return (
@@ -198,6 +197,8 @@ export function AppLayout() {
           <TopBar
             metrics={currentMetrics}
             isLive={isLive}
+            viewingTurnNumber={viewingTurnNumber}
+            onClearViewingTurn={handleClearViewingTurn}
           />
         }
         sidebar={

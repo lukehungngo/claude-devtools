@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { ChevronRight, ChevronDown } from "lucide-react";
 import type { SessionEvent, AssistantEvent, ContentItem } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { getEventsForTurn } from "../../lib/turnSnapshot";
@@ -11,8 +12,6 @@ export interface RawLogTabProps {
   liveEvents: SessionEvent[];
   isLive?: boolean;
 }
-
-const MAX_VISIBLE = 100;
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   user: { bg: "rgba(59,130,246,0.15)", color: "var(--blu, #3b82f6)" },
@@ -111,29 +110,204 @@ function highlightJson(json: string): string {
     );
 }
 
+// ─── Turn Group Header ──────────────────────────────────────────────
+
+interface TurnGroupHeaderProps {
+  turnNumber: number;
+  eventCount: number;
+  isExpanded: boolean;
+  isActive: boolean;
+  timestamp: string;
+  onToggle: () => void;
+}
+
+function TurnGroupHeader({
+  turnNumber,
+  eventCount,
+  isExpanded,
+  isActive,
+  timestamp,
+  onToggle,
+}: TurnGroupHeaderProps) {
+  const Icon = isExpanded ? ChevronDown : ChevronRight;
+  return (
+    <button
+      data-testid="turn-group-header"
+      aria-expanded={isExpanded}
+      aria-controls={`turn-group-${turnNumber}`}
+      aria-label={`Turn ${turnNumber}, ${eventCount} events`}
+      onClick={onToggle}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        width: "100%",
+        padding: "4px 12px",
+        height: 28,
+        fontSize: 11,
+        fontFamily: "var(--font-mono)",
+        background: isActive ? "var(--acc-bg)" : "var(--bg-s)",
+        color: isActive ? "var(--acc)" : "var(--t2)",
+        cursor: "pointer",
+        position: "sticky",
+        top: 0,
+        zIndex: 1,
+        border: "none",
+        borderBottom: "1px solid var(--bd)",
+        borderLeft: isActive ? "2px solid var(--acc)" : "2px solid transparent",
+        textAlign: "left",
+      }}
+    >
+      <Icon size={9} style={{ flexShrink: 0, color: isActive ? "var(--acc)" : "var(--t3)" }} />
+      <span>Turn {turnNumber}</span>
+      <span style={{ color: isActive ? "var(--acc)" : "var(--t3)" }}>
+        ({eventCount} events)
+      </span>
+      <span style={{ marginLeft: "auto", fontSize: 10, color: isActive ? "var(--acc)" : "var(--t3)" }}>
+        {formatTimestamp(timestamp)}
+      </span>
+    </button>
+  );
+}
+
+// ─── Event Row ──────────────────────────────────────────────────────
+
+interface EventRowProps {
+  event: SessionEvent;
+  globalIndex: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+}
+
+function EventRow({ event, isExpanded, onToggle }: EventRowProps) {
+  const colors = TYPE_COLORS[event.type] ?? TYPE_COLORS.system;
+  return (
+    <div key={event.uuid}>
+      <div
+        data-testid="event-row"
+        onClick={onToggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "4px 12px",
+          fontSize: 11,
+          fontFamily: "var(--font-mono)",
+          borderBottom: "1px solid var(--bd)",
+          cursor: "pointer",
+        }}
+      >
+        <span
+          style={{
+            width: 12,
+            flexShrink: 0,
+            color: "var(--t3)",
+            fontSize: 9,
+          }}
+        >
+          {isExpanded ? "\u25bc" : "\u25b6"}
+        </span>
+        <span
+          style={{
+            color: "var(--t3)",
+            width: 80,
+            flexShrink: 0,
+          }}
+        >
+          {formatTimestampMs(event.timestamp)}
+        </span>
+        <span
+          style={{
+            padding: "1px 6px",
+            borderRadius: "var(--radius)",
+            fontSize: 10,
+            background: colors.bg,
+            color: colors.color,
+            flexShrink: 0,
+          }}
+        >
+          {event.type}
+        </span>
+        <span
+          style={{
+            color: "var(--t2)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {extractSummary(event)}
+        </span>
+      </div>
+      {isExpanded && (
+        <div className="row-expand" data-testid="row-json-expand">
+          <div className="row-json">
+            <pre
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                margin: 0,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+              dangerouslySetInnerHTML={{
+                __html: highlightJson(
+                  JSON.stringify(event, null, 2),
+                ),
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Events Mode ────────────────────────────────────────────────────
 
 interface EventsModeProps {
   events: SessionEvent[];
   liveEvents: SessionEvent[];
+  turns: TurnSnapshot[];
+  allEvents: SessionEvent[];
+  activeTurnIndex: number | null;
 }
 
-function EventsMode({ events, liveEvents }: EventsModeProps) {
+function EventsMode({ turns, allEvents, activeTurnIndex }: EventsModeProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(
     () => new Set(),
   );
+  const [expandedTurns, setExpandedTurns] = useState<Set<number>>(
+    () => new Set(),
+  );
 
-  const combined = useMemo(() => {
-    const all = [...events, ...liveEvents];
-    return all.length > MAX_VISIBLE ? all.slice(-MAX_VISIBLE) : all;
-  }, [events, liveEvents]);
+  // Expand only the latest turn when turns change
+  useEffect(() => {
+    if (turns.length > 0) {
+      setExpandedTurns(new Set([turns[turns.length - 1].turnNumber]));
+    }
+  }, [turns.length]);
 
+  // Auto-expand active turn
+  useEffect(() => {
+    if (activeTurnIndex !== null && activeTurnIndex >= 0 && activeTurnIndex < turns.length) {
+      const turn = turns[activeTurnIndex];
+      setExpandedTurns((prev) => {
+        if (prev.has(turn.turnNumber)) return prev;
+        const next = new Set(prev);
+        next.add(turn.turnNumber);
+        return next;
+      });
+    }
+  }, [activeTurnIndex, turns]);
+
+  // Auto-scroll to bottom when new events arrive
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [combined.length]);
+  }, [allEvents.length]);
 
   const toggleRow = useCallback((index: number) => {
     setExpandedRows((prev) => {
@@ -147,7 +321,35 @@ function EventsMode({ events, liveEvents }: EventsModeProps) {
     });
   }, []);
 
-  if (combined.length === 0) {
+  const toggleTurn = useCallback((turnNumber: number) => {
+    setExpandedTurns((prev) => {
+      const next = new Set(prev);
+      if (next.has(turnNumber)) {
+        next.delete(turnNumber);
+      } else {
+        next.add(turnNumber);
+      }
+      return next;
+    });
+  }, []);
+
+  // Compute init events (before first turn)
+  const initEvents = useMemo(() => {
+    if (turns.length === 0) return allEvents;
+    const firstStartIndex = turns[0].startIndex;
+    if (firstStartIndex <= 0) return [];
+    return allEvents.slice(0, firstStartIndex);
+  }, [turns, allEvents]);
+
+  // Compute turn event groups
+  const turnGroups = useMemo(() => {
+    return turns.map((turn) => ({
+      turn,
+      events: getEventsForTurn(turn, allEvents),
+    }));
+  }, [turns, allEvents]);
+
+  if (allEvents.length === 0) {
     return (
       <div
         style={{
@@ -166,85 +368,72 @@ function EventsMode({ events, liveEvents }: EventsModeProps) {
 
   return (
     <div ref={scrollRef} style={{ height: "100%", overflowY: "auto" }}>
-      {combined.map((event, i) => {
-        const colors = TYPE_COLORS[event.type] ?? TYPE_COLORS.system;
-        const isExpanded = expandedRows.has(i);
+      {/* Init group: events before Turn 1 */}
+      {initEvents.length > 0 && (
+        <div data-testid="init-group">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "4px 12px",
+              height: 28,
+              fontSize: 11,
+              fontFamily: "var(--font-mono)",
+              background: "var(--bg-s)",
+              color: "var(--t3)",
+              borderBottom: "1px solid var(--bd)",
+              position: "sticky",
+              top: 0,
+              zIndex: 1,
+            }}
+          >
+            <span>Init ({initEvents.length} events)</span>
+          </div>
+          {initEvents.map((event, i) => (
+            <EventRow
+              key={event.uuid ?? `init-${i}`}
+              event={event}
+              globalIndex={i}
+              isExpanded={expandedRows.has(i)}
+              onToggle={() => toggleRow(i)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Turn groups */}
+      {turnGroups.map(({ turn, events: turnEvents }, groupIdx) => {
+        const isActive = activeTurnIndex === groupIdx;
+        const isExpanded = expandedTurns.has(turn.turnNumber);
         return (
-          <div key={event.uuid ?? i}>
-            <div
-              data-testid="event-row"
-              onClick={() => toggleRow(i)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "4px 12px",
-                fontSize: 11,
-                fontFamily: "var(--font-mono)",
-                borderBottom: "1px solid var(--bd)",
-                cursor: "pointer",
-              }}
-            >
-              <span
-                style={{
-                  width: 12,
-                  flexShrink: 0,
-                  color: "var(--t3)",
-                  fontSize: 9,
-                }}
-              >
-                {isExpanded ? "\u25bc" : "\u25b6"}
-              </span>
-              <span
-                style={{
-                  color: "var(--t3)",
-                  width: 80,
-                  flexShrink: 0,
-                }}
-              >
-                {formatTimestampMs(event.timestamp)}
-              </span>
-              <span
-                style={{
-                  padding: "1px 6px",
-                  borderRadius: "var(--radius)",
-                  fontSize: 10,
-                  background: colors.bg,
-                  color: colors.color,
-                  flexShrink: 0,
-                }}
-              >
-                {event.type}
-              </span>
-              <span
-                style={{
-                  color: "var(--t2)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {extractSummary(event)}
-              </span>
-            </div>
+          <div key={turn.turnNumber}>
+            <TurnGroupHeader
+              turnNumber={turn.turnNumber}
+              eventCount={turnEvents.length}
+              isExpanded={isExpanded}
+              isActive={isActive}
+              timestamp={turn.startTime}
+              onToggle={() => toggleTurn(turn.turnNumber)}
+            />
             {isExpanded && (
-              <div className="row-expand" data-testid="row-json-expand">
-                <div className="row-json">
-                  <pre
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 11,
-                      margin: 0,
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                    }}
-                    dangerouslySetInnerHTML={{
-                      __html: highlightJson(
-                        JSON.stringify(event, null, 2),
-                      ),
-                    }}
-                  />
-                </div>
+              <div
+                data-testid={`turn-group-${turn.turnNumber}`}
+                id={`turn-group-${turn.turnNumber}`}
+                role="region"
+              >
+                {turnEvents.map((event, i) => {
+                  const globalIdx = turn.startIndex + i;
+                  return (
+                    <EventRow
+                      key={event.uuid ?? `${turn.turnNumber}-${i}`}
+                      event={event}
+                      globalIndex={globalIdx}
+                      isExpanded={expandedRows.has(globalIdx)}
+                      onToggle={() => toggleRow(globalIdx)}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
@@ -401,7 +590,13 @@ function RawLogTabInner({
       </div>
       <div style={{ flex: 1, overflow: "hidden" }}>
         {mode === "events" ? (
-          <EventsMode events={events} liveEvents={liveEvents} />
+          <EventsMode
+            events={events}
+            liveEvents={liveEvents}
+            turns={turns}
+            allEvents={allEvents}
+            activeTurnIndex={activeTurnIndex}
+          />
         ) : (
           <JsonMode
             turns={turns}
