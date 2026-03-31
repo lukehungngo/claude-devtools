@@ -1,8 +1,6 @@
-import { createRouter, createRoute, createRootRoute } from "@tanstack/react-router";
+import { createRouter, createRoute, createRootRoute, lazyRouteComponent } from "@tanstack/react-router";
 import { RootLayout } from "./routes/RootLayout";
 import { AppLayout } from "./routes/AppLayout";
-import { HomePage } from "./routes/HomePage";
-import { SessionPage } from "./routes/SessionPage";
 
 const rootRoute = createRootRoute({
   component: RootLayout,
@@ -17,13 +15,13 @@ const layoutRoute = createRoute({
 const indexRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/",
-  component: HomePage,
+  component: lazyRouteComponent(() => import("./routes/HomePage"), "HomePage"),
 });
 
 const sessionRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/session/$repoSlug/$sessionId",
-  component: SessionPage,
+  component: lazyRouteComponent(() => import("./routes/SessionPage"), "SessionPage"),
 });
 
 const routeTree = rootRoute.addChildren([

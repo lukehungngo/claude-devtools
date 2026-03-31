@@ -579,12 +579,6 @@
   border-radius: 5px;
   display: flex;
   align-items: center;
-  padding: 0 10px;
-  font-size: 10px;
-  font-weight: 500;
-  gap: 6px;
-  overflow: hidden;
-  white-space: nowrap;
   transition: filter 0.1s;
 }
 
@@ -592,11 +586,38 @@
   filter: brightness(1.05);
 }
 
-.trace-bar-right {
-  margin-left: auto;
-  font-size: 9px;
-  font-weight: 400;
-  opacity: 0.7;
+/* Running bar internal content */
+.trace-bar-running {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Label outside (or inside for wide bars) */
+.trace-bar-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  font-family: var(--font);
+  color: var(--t2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.trace-bar-label-outside {
+  /* Positioned relative to trace-track, after bar right edge */
+  padding-left: 6px;
+}
+
+.trace-bar-label-inside {
+  right: 8px;
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .trace-spacer {

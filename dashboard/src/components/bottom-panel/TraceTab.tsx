@@ -274,11 +274,19 @@ const TraceRowComponent = memo(function TraceRowComponent({
 
   const isActive = node.status === "active";
   const label = node.description || node.type;
-  const barContent = isActive
-    ? null
-    : `${node.toolCalls}t`;
   const durationStr = durationMs > 0 ? formatDuration(durationMs) : "";
   const costStr = formatCost(node.tokenUsage.totalCost);
+
+  // Build label text for completed bars: "3t · 1m 30s · $0.05"
+  const labelParts: string[] = [];
+  if (node.toolCalls > 0) labelParts.push(`${node.toolCalls}t`);
+  if (durationStr) labelParts.push(durationStr);
+  if (costStr) labelParts.push(costStr);
+  const labelText = labelParts.join(" \u00b7 ");
+
+  // Wide bars (right edge > 85%) show label inside
+  const barRightEdge = bar.leftPct + bar.widthPct;
+  const labelInside = barRightEdge > 85;
 
   return (
     <div
@@ -307,19 +315,29 @@ const TraceRowComponent = memo(function TraceRowComponent({
             color: color.text,
           }}
         >
-          {isActive ? (
-            <>
+          {isActive && (
+            <span className="trace-bar-running">
               <span className="running-dot" />
               <span>running</span>
-            </>
-          ) : (
-            <>
-              {barContent}
-              {durationStr && ` \u00b7 ${durationStr}`}
-            </>
+            </span>
           )}
-          <span className="trace-bar-right">{costStr}</span>
+          {!isActive && labelInside && labelText && (
+            <span
+              className="trace-bar-label trace-bar-label-inside"
+              style={{ color: color.text }}
+            >
+              {labelText}
+            </span>
+          )}
         </div>
+        {!isActive && !labelInside && labelText && (
+          <span
+            className="trace-bar-label trace-bar-label-outside"
+            style={{ left: `${barRightEdge}%` }}
+          >
+            {labelText}
+          </span>
+        )}
       </div>
     </div>
   );
