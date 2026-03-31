@@ -333,19 +333,19 @@ function EventsMode({ turns, allEvents, activeTurnIndex }: EventsModeProps) {
     });
   }, []);
 
-  // Compute init events (before first turn)
+  // Compute init events (before first turn) — reversed (latest first)
   const initEvents = useMemo(() => {
-    if (turns.length === 0) return allEvents;
+    if (turns.length === 0) return [...allEvents].reverse();
     const firstStartIndex = turns[0].startIndex;
     if (firstStartIndex <= 0) return [];
-    return allEvents.slice(0, firstStartIndex);
+    return [...allEvents.slice(0, firstStartIndex)].reverse();
   }, [turns, allEvents]);
 
-  // Compute turn event groups
+  // Compute turn event groups — reversed (latest turn first)
   const turnGroups = useMemo(() => {
-    return turns.map((turn) => ({
+    return [...turns].reverse().map((turn) => ({
       turn,
-      events: getEventsForTurn(turn, allEvents),
+      events: [...getEventsForTurn(turn, allEvents)].reverse(),
     }));
   }, [turns, allEvents]);
 
@@ -368,7 +368,45 @@ function EventsMode({ turns, allEvents, activeTurnIndex }: EventsModeProps) {
 
   return (
     <div ref={scrollRef} style={{ height: "100%", overflowY: "auto" }}>
-      {/* Init group: events before Turn 1 */}
+      {/* Turn groups — latest first */}
+      {turnGroups.map(({ turn, events: turnEvents }) => {
+        const isActive = activeTurnIndex !== null && activeTurnIndex < turns.length && turns[activeTurnIndex].turnNumber === turn.turnNumber;
+        const isExpanded = expandedTurns.has(turn.turnNumber);
+        return (
+          <div key={turn.turnNumber}>
+            <TurnGroupHeader
+              turnNumber={turn.turnNumber}
+              eventCount={turnEvents.length}
+              isExpanded={isExpanded}
+              isActive={isActive}
+              timestamp={turn.startTime}
+              onToggle={() => toggleTurn(turn.turnNumber)}
+            />
+            {isExpanded && (
+              <div
+                data-testid={`turn-group-${turn.turnNumber}`}
+                id={`turn-group-${turn.turnNumber}`}
+                role="region"
+              >
+                {turnEvents.map((event, i) => {
+                  const globalIdx = turn.endIndex - 1 - i;
+                  return (
+                    <EventRow
+                      key={event.uuid ?? `${turn.turnNumber}-${i}`}
+                      event={event}
+                      globalIndex={globalIdx}
+                      isExpanded={expandedRows.has(globalIdx)}
+                      onToggle={() => toggleRow(globalIdx)}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Init group: events before Turn 1 — shown last (oldest) */}
       {initEvents.length > 0 && (
         <div data-testid="init-group">
           <div
@@ -401,44 +439,6 @@ function EventsMode({ turns, allEvents, activeTurnIndex }: EventsModeProps) {
           ))}
         </div>
       )}
-
-      {/* Turn groups */}
-      {turnGroups.map(({ turn, events: turnEvents }, groupIdx) => {
-        const isActive = activeTurnIndex === groupIdx;
-        const isExpanded = expandedTurns.has(turn.turnNumber);
-        return (
-          <div key={turn.turnNumber}>
-            <TurnGroupHeader
-              turnNumber={turn.turnNumber}
-              eventCount={turnEvents.length}
-              isExpanded={isExpanded}
-              isActive={isActive}
-              timestamp={turn.startTime}
-              onToggle={() => toggleTurn(turn.turnNumber)}
-            />
-            {isExpanded && (
-              <div
-                data-testid={`turn-group-${turn.turnNumber}`}
-                id={`turn-group-${turn.turnNumber}`}
-                role="region"
-              >
-                {turnEvents.map((event, i) => {
-                  const globalIdx = turn.startIndex + i;
-                  return (
-                    <EventRow
-                      key={event.uuid ?? `${turn.turnNumber}-${i}`}
-                      event={event}
-                      globalIndex={globalIdx}
-                      isExpanded={expandedRows.has(globalIdx)}
-                      onToggle={() => toggleRow(globalIdx)}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -464,7 +464,8 @@ function JsonMode({ turns, allEvents, activeTurnIndex }: JsonModeProps) {
       : undefined;
 
   const events = useMemo(
-    () => (activeTurn ? getEventsForTurn(activeTurn, allEvents) : []),
+    () =>
+      activeTurn ? [...getEventsForTurn(activeTurn, allEvents)].reverse() : [],
     [activeTurn, allEvents],
   );
 

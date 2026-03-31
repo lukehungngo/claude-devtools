@@ -211,9 +211,10 @@ describe("RawLogTab", () => {
 
       const headers = screen.getAllByTestId("turn-group-header");
       expect(headers).toHaveLength(2);
-      expect(headers[0].textContent).toContain("Turn 1");
+      // Turns reversed: latest (Turn 2) first
+      expect(headers[0].textContent).toContain("Turn 2");
       expect(headers[0].textContent).toContain("2 events");
-      expect(headers[1].textContent).toContain("Turn 2");
+      expect(headers[1].textContent).toContain("Turn 1");
       expect(headers[1].textContent).toContain("2 events");
     });
 
@@ -249,13 +250,14 @@ describe("RawLogTab", () => {
 
       const headers = screen.getAllByTestId("turn-group-header");
 
+      // Turns are reversed (latest first): headers[0]=Turn 2 (expanded), headers[1]=Turn 1 (collapsed)
       // Turn 1 is collapsed by default; click to expand
-      fireEvent.click(headers[0]);
+      fireEvent.click(headers[1]);
       const turn1Region = screen.getByTestId("turn-group-1");
       expect(turn1Region).toBeTruthy();
 
       // Click again to collapse
-      fireEvent.click(headers[0]);
+      fireEvent.click(headers[1]);
       expect(screen.queryByTestId("turn-group-1")).toBeNull();
     });
 
@@ -279,10 +281,9 @@ describe("RawLogTab", () => {
       render(<RawLogTab {...props} />);
 
       const headers = screen.getAllByTestId("turn-group-header");
-      // Turn 1 collapsed
-      expect(headers[0].getAttribute("aria-expanded")).toBe("false");
-      // Turn 2 expanded (latest)
-      expect(headers[1].getAttribute("aria-expanded")).toBe("true");
+      // Turns reversed: headers[0]=Turn 2 (latest, expanded), headers[1]=Turn 1 (collapsed)
+      expect(headers[0].getAttribute("aria-expanded")).toBe("true");
+      expect(headers[1].getAttribute("aria-expanded")).toBe("false");
     });
 
     it("session with no turns shows all events in init group", () => {
