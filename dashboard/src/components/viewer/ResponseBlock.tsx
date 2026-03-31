@@ -22,11 +22,14 @@ export const ResponseBlock = memo(function ResponseBlock({ text }: ResponseBlock
   const displayText = isSuccess ? text.replace(/^\u2713\s*/, "") : text;
 
   return (
-    <div className="text-dt-text0 font-mono text-md leading-[1.6] mb-1.5 break-words border-l-2 border-dt-accent pl-2">
-      {isSuccess && <span className="text-dt-green mr-1">{"\u2713"}</span>}
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
-        {displayText}
-      </ReactMarkdown>
+    <div className="border-l-2 border-dt-accent pl-2 mb-1.5">
+      <span className="text-dt-accent text-xs font-semibold font-mono uppercase tracking-wide">Response</span>
+      <div className="text-dt-text0 font-mono text-md leading-[1.6] mt-0.5 break-words">
+        {isSuccess && <span className="text-dt-green mr-1">{"\u2713"}</span>}
+        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
+          {displayText}
+        </ReactMarkdown>
+      </div>
     </div>
   );
 }, (prev, next) => prev.text === next.text);
