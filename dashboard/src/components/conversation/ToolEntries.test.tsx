@@ -864,3 +864,86 @@ describe("ToolEntries - expand/collapse long output", () => {
     expect(container.textContent).toContain("Collapse");
   });
 });
+
+describe("ToolEntries — PhaseGroup wrapping (Level 2)", () => {
+  afterEach(cleanup);
+
+  /**
+   * Create events for a sequence of tool calls targeting overlapping files,
+   * split into two disjoint file-sets so groupIntoPhases produces 2 phases.
+   */
+  function makeOverlappingPhaseEvents(): SessionEvent[] {
+    const events: SessionEvent[] = [];
+    // Phase 1: Grep + Read 3 files in src/lib/
+    events.push(
+      makeAssistantEvent({ id: "ph-grep-1", name: "Grep", input: { pattern: "computeMetrics", file_path: "src/lib/metrics.ts" } }),
+    );
+    events.push(makeUserEvent("ph-grep-1", "matches"));
+    for (let i = 0; i < 3; i++) {
+      const toolId = `ph-read-1-${i}`;
+      events.push(
+        makeAssistantEvent({ id: toolId, name: "Read", input: { file_path: `src/lib/file${i}.ts` } }),
+      );
+      events.push(makeUserEvent(toolId, `content ${i}`));
+    }
+    for (let i = 0; i < 3; i++) {
+      const toolId = `ph-edit-1-${i}`;
+      events.push(
+        makeAssistantEvent({ id: toolId, name: "Edit", input: { file_path: `src/lib/file${i}.ts`, old_string: "old", new_string: "new" } }),
+      );
+      events.push(makeUserEvent(toolId, "OK"));
+    }
+
+    // Phase 2: completely disjoint file-set in test/
+    events.push(
+      makeAssistantEvent({ id: "ph-grep-2", name: "Grep", input: { pattern: "describe", file_path: "test/metrics.test.ts" } }),
+    );
+    events.push(makeUserEvent("ph-grep-2", "matches"));
+    for (let i = 0; i < 3; i++) {
+      const toolId = `ph-read-2-${i}`;
+      events.push(
+        makeAssistantEvent({ id: toolId, name: "Read", input: { file_path: `test/file${i}.test.ts` } }),
+      );
+      events.push(makeUserEvent(toolId, `test content ${i}`));
+    }
+
+    return events;
+  }
+
+  it("wraps multi-group phases in PhaseGroup wrapper", () => {
+    const events = makeOverlappingPhaseEvents();
+    const { container } = render(<ToolEntries events={events} />);
+
+    const phaseGroups = container.querySelectorAll("[data-testid='phase-group']");
+    expect(phaseGroups.length).toBeGreaterThanOrEqual(1);
+
+    // Each phase-group should have a phase-head with a label
+    const phaseHeads = container.querySelectorAll("[data-testid='phase-head']");
+    expect(phaseHeads.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("single-group phases render without PhaseGroup wrapper", () => {
+    // Just 2 Reads — forms a single group, single phase => no PhaseGroup
+    const events: SessionEvent[] = [];
+    for (let i = 0; i < 2; i++) {
+      const toolId = `ph-single-${i}`;
+      events.push(
+        makeAssistantEvent({ id: toolId, name: "Read", input: { file_path: `src/single${i}.ts` } }),
+      );
+      events.push(makeUserEvent(toolId, `content ${i}`));
+    }
+    const { container } = render(<ToolEntries events={events} />);
+
+    const phaseGroups = container.querySelectorAll("[data-testid='phase-group']");
+    expect(phaseGroups.length).toBe(0);
+  });
+
+  it("PhaseGroup pill badges show tool counts", () => {
+    const events = makeOverlappingPhaseEvents();
+    const { container } = render(<ToolEntries events={events} />);
+
+    const pills = container.querySelectorAll("[data-testid='phase-pill']");
+    // At least one phase should have pill badges
+    expect(pills.length).toBeGreaterThanOrEqual(1);
+  });
+});

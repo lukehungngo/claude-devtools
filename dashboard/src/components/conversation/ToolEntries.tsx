@@ -2,17 +2,22 @@ import { memo, useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import type { SessionEvent, AssistantEvent, UserEvent, ContentItem, ToolUseContent, ToolResultContent } from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
+import { groupIntoPhases } from "../../lib/phaseGrouping";
+import type { Phase } from "../../lib/phaseGrouping";
 import { ToolResultBlock } from "../viewer/ToolResultBlock";
 import { DiffBlock } from "../viewer/DiffBlock";
 import { AgentCard } from "./AgentCard";
+import { PhaseGroup } from "./PhaseGroup";
 import { ExpandHint } from "./ExpandHint";
 
 interface ToolEntriesProps {
   events: SessionEvent[];
   onToolClick?: (toolName: string) => void;
+  assistantTextIndices?: number[];
+  thinkingContext?: string;
 }
 
-interface ToolEntry {
+export interface ToolEntry {
   id: string;
   name: string;
   target: string;
@@ -73,7 +78,7 @@ function extractToolEntries(events: SessionEvent[]): ToolEntry[] {
 }
 
 /** A group of consecutive same-name tool entries, or a single error entry */
-interface ToolGroup {
+export interface ToolGroup {
   name: string;
   entries: ToolEntry[];
   isCollapsed: boolean;
@@ -83,7 +88,7 @@ interface ToolGroup {
  * Group consecutive same-name, non-error tool entries.
  * Errors always shown individually (never collapsed into a passing group).
  */
-function groupToolEntries(entries: ToolEntry[]): ToolGroup[] {
+export function groupToolEntries(entries: ToolEntry[]): ToolGroup[] {
   const groups: ToolGroup[] = [];
 
   for (const entry of entries) {
@@ -519,11 +524,56 @@ function CollapsedGroupRowInner({ group, isLast }: { group: ToolGroup; isLast: b
 
 const CollapsedGroupRow = memo(CollapsedGroupRowInner);
 
-export function ToolEntries({ events, onToolClick }: ToolEntriesProps) {
+/** Render a list of Level 1 groups (used both standalone and inside PhaseGroup). */
+function renderGroups(
+  groups: ToolGroup[],
+  allGroupsLength: number,
+  startIndex: number,
+  onToolClick?: (toolName: string) => void,
+): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  for (let gi = 0; gi < groups.length; gi++) {
+    const group = groups[gi];
+    const globalIndex = startIndex + gi;
+    const isLast = globalIndex === allGroupsLength - 1;
+    if (group.isCollapsed) {
+      nodes.push(<CollapsedGroupRow key={`g-${globalIndex}`} group={group} isLast={isLast} />);
+    } else {
+      for (let ei = 0; ei < group.entries.length; ei++) {
+        const entry = group.entries[ei];
+        nodes.push(
+          <ToolEntryRow
+            key={entry.id}
+            entry={entry}
+            isLast={isLast && ei === group.entries.length - 1}
+            onToolClick={onToolClick}
+          />,
+        );
+      }
+    }
+  }
+  return nodes;
+}
+
+export function ToolEntries({ events, onToolClick, assistantTextIndices, thinkingContext }: ToolEntriesProps) {
   const entries = extractToolEntries(events);
   const groups = groupToolEntries(entries);
 
   if (groups.length === 0) return null;
+
+  // Phase grouping (Level 2)
+  const phases = groupIntoPhases(groups, assistantTextIndices, thinkingContext);
+
+  // Build a reverse map: group reference -> phase (O(n) using identity lookup)
+  const groupToPhase = new Map<ToolGroup, Phase>();
+  const phaseFirstGroup = new Map<Phase, ToolGroup>();
+  for (const phase of phases) {
+    for (let pi = 0; pi < phase.groups.length; pi++) {
+      const g = phase.groups[pi];
+      groupToPhase.set(g, phase);
+      if (pi === 0) phaseFirstGroup.set(phase, g);
+    }
+  }
 
   return (
     <div
@@ -537,11 +587,23 @@ export function ToolEntries({ events, onToolClick }: ToolEntriesProps) {
       }}
     >
       {groups.map((group, gi) => {
+        const phase = groupToPhase.get(group);
+
+        // If this group belongs to a phase, only render on the first group of that phase
+        if (phase) {
+          if (phaseFirstGroup.get(phase) !== group) return null; // skip — rendered by first group
+          return (
+            <PhaseGroup key={`phase-${gi}`} phase={phase}>
+              {renderGroups(phase.groups, groups.length, gi, onToolClick)}
+            </PhaseGroup>
+          );
+        }
+
+        // No phase — render as before
         const isLast = gi === groups.length - 1;
         if (group.isCollapsed) {
           return <CollapsedGroupRow key={`g-${gi}`} group={group} isLast={isLast} />;
         }
-        // Single entry or error — show individually
         return group.entries.map((entry, ei) => (
           <ToolEntryRow
             key={entry.id}

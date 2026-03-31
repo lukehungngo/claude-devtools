@@ -9,6 +9,7 @@ import type {
 import { normalizeContent } from "../../lib/normalizeContent";
 import { formatDuration } from "../../lib/cost";
 import { AgentPills } from "./AgentPills";
+import { CollapsiblePrompt } from "./CollapsiblePrompt";
 import { ThinkingBlock } from "../viewer/ThinkingBlock";
 import { ResponseBlock } from "../viewer/ResponseBlock";
 import { ToolEntries } from "./ToolEntries";
@@ -156,7 +157,7 @@ export function TurnCard({
               You
             </div>
             <div style={{ fontSize: 13, color: "var(--t1)", lineHeight: 1.65 }}>
-              {turn.promptText}
+              <CollapsiblePrompt text={turn.promptText} />
             </div>
           </div>
         </div>
