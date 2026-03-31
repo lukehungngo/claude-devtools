@@ -178,3 +178,48 @@ describe("TurnCard — CostFooter wiring", () => {
   });
 });
 
+describe("TurnCard — CollapsiblePrompt wiring", () => {
+  it("renders CollapsiblePrompt for user prompt text", () => {
+    const { turn, allEvents } = makeTurnAndEvents({ promptText: "Hello world" });
+    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+
+    const collapsiblePrompt = container.querySelector('[data-testid="collapsible-prompt"]');
+    expect(collapsiblePrompt).not.toBeNull();
+    expect(collapsiblePrompt!.textContent).toContain("Hello world");
+  });
+
+  it("renders CollapsiblePrompt with expand toggle for long prompt", () => {
+    const longPrompt = Array.from({ length: 50 }, (_, i) => `Line ${i + 1} of a very long prompt message`).join("\n");
+    const { turn, allEvents } = makeTurnAndEvents({ promptText: longPrompt });
+    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+
+    const collapsiblePrompt = container.querySelector('[data-testid="collapsible-prompt"]');
+    expect(collapsiblePrompt).not.toBeNull();
+
+    // Should have an expand toggle for long content
+    const expandToggle = container.querySelector('[data-testid="expand-toggle"]');
+    expect(expandToggle).not.toBeNull();
+    expect(expandToggle!.textContent).toMatch(/\+\d+ lines/);
+  });
+
+  it("renders CollapsiblePrompt with CommandPill for slash commands", () => {
+    const { turn, allEvents } = makeTurnAndEvents({ promptText: "/help" });
+    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+
+    const commandPill = container.querySelector('[data-testid="command-pill"]');
+    expect(commandPill).not.toBeNull();
+    expect(commandPill!.textContent).toContain("/help");
+  });
+
+  it("short prompt renders via CollapsiblePrompt without expand toggle", () => {
+    const { turn, allEvents } = makeTurnAndEvents({ promptText: "Fix the bug" });
+    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+
+    const collapsiblePrompt = container.querySelector('[data-testid="collapsible-prompt"]');
+    expect(collapsiblePrompt).not.toBeNull();
+
+    const expandToggle = container.querySelector('[data-testid="expand-toggle"]');
+    expect(expandToggle).toBeNull();
+  });
+});
+
