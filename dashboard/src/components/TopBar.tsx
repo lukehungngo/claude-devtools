@@ -1,12 +1,15 @@
+import { X } from "lucide-react";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
 import type { SessionMetrics } from "../lib/types";
 
 interface Props {
   metrics: SessionMetrics | null;
   isLive?: boolean;
+  viewingTurnNumber?: number;
+  onClearViewingTurn?: () => void;
 }
 
-export function TopBar({ metrics, isLive }: Props) {
+export function TopBar({ metrics, isLive, viewingTurnNumber, onClearViewingTurn }: Props) {
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
@@ -56,6 +59,16 @@ export function TopBar({ metrics, isLive }: Props) {
           {isLive ? "LIVE" : "DONE"}
         </span>
       </div>
+
+      {viewingTurnNumber != null && (
+        <>
+          <ViewingTurnPill
+            turnNumber={viewingTurnNumber}
+            onDismiss={onClearViewingTurn}
+          />
+          <HudSep />
+        </>
+      )}
 
       {metrics ? (
         <>
@@ -181,6 +194,52 @@ function HudSep() {
       className="shrink-0"
       style={{ width: 1, height: 22, background: "var(--bd)" }}
     />
+  );
+}
+
+function ViewingTurnPill({
+  turnNumber,
+  onDismiss,
+}: {
+  turnNumber: number;
+  onDismiss?: () => void;
+}) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="inline-flex items-center shrink-0"
+      style={{
+        background: "var(--acc-bg)",
+        border: "1px solid color-mix(in srgb, var(--acc) 30%, transparent)",
+        borderRadius: 10,
+        padding: "3px 6px 3px 10px",
+        gap: 4,
+        animation: "slideDown 200ms ease-out",
+      }}
+    >
+      <span
+        className="font-mono font-semibold"
+        style={{ fontSize: 10, color: "var(--acc)" }}
+      >
+        T{turnNumber}
+      </span>
+      <button
+        onClick={onDismiss}
+        aria-label={`Stop viewing turn ${turnNumber}, return to latest`}
+        className="inline-flex items-center justify-center rounded-full shrink-0 cursor-pointer bg-transparent border-none"
+        style={{
+          width: 16,
+          height: 16,
+          color: "var(--t3)",
+          padding: 8,
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--acc)"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--t3)"; }}
+      >
+        <X size={12} aria-hidden="true" />
+      </button>
+    </div>
   );
 }
 

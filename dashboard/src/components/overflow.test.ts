@@ -1,10 +1,9 @@
 /**
  * Overflow fix tests (TASK-005)
  *
- * Verifies that the CSS class strings applied to the AgentFlowDAG legend,
- * SnapshotTabs root, and RightPanel wrapper divs contain the required
- * overflow-prevention utilities so that 9 legend items never wrap to a
- * second line.
+ * Verifies that the CSS class strings applied to the AgentFlowDAG legend
+ * contain the required overflow-prevention utilities so that 9 legend items
+ * never wrap to a second line.
  *
  * Strategy: export the class constants from each component and assert on
  * them here. This avoids a full DOM render while still being a meaningful
@@ -16,11 +15,6 @@ import {
   LEGEND_CONTAINER_CLASS,
   LEGEND_ITEM_CLASS,
 } from "./AgentFlowDAG";
-import { SNAPSHOT_TABS_ROOT_CLASS } from "./right-panel/SnapshotTabs";
-import {
-  SNAPSHOT_ROW_WRAPPER_CLASS,
-  TAB_CONTENT_WRAPPER_CLASS,
-} from "./right-panel/RightPanel";
 
 describe("AgentFlowDAG legend overflow fix", () => {
   it("legend container has flex-wrap to allow items to break to new lines", () => {
@@ -47,31 +41,3 @@ describe("AgentFlowDAG legend overflow fix", () => {
   });
 });
 
-describe("SnapshotTabs overflow fix", () => {
-  it("root div has flex-1 min-w-0 instead of shrink-0", () => {
-    expect(SNAPSHOT_TABS_ROOT_CLASS).toContain("flex-1");
-    expect(SNAPSHOT_TABS_ROOT_CLASS).toContain("min-w-0");
-  });
-
-  it("root div does not use shrink-0 (which blocks overflow-x-auto)", () => {
-    expect(SNAPSHOT_TABS_ROOT_CLASS).not.toContain("shrink-0");
-  });
-
-  it("root div still has overflow-x-auto", () => {
-    expect(SNAPSHOT_TABS_ROOT_CLASS).toContain("overflow-x-auto");
-  });
-});
-
-describe("RightPanel wrapper overflow fix", () => {
-  it("snapshot row wrapper has min-w-0 to propagate flex constraint", () => {
-    expect(SNAPSHOT_ROW_WRAPPER_CLASS).toContain("min-w-0");
-  });
-
-  it("snapshot row wrapper has overflow-hidden to clip escaping content", () => {
-    expect(SNAPSHOT_ROW_WRAPPER_CLASS).toContain("overflow-hidden");
-  });
-
-  it("tab content wrapper has min-w-0 so AgentLogs filter bar overflow-x-auto activates", () => {
-    expect(TAB_CONTENT_WRAPPER_CLASS).toContain("min-w-0");
-  });
-});

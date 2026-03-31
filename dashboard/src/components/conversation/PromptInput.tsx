@@ -32,7 +32,7 @@ interface PromptInputProps {
   hasMessages?: boolean;
   /** Whether the last turn had an error (for ghost text) */
   lastTurnHadError?: boolean;
-  /** Callback for slash commands that open right-panel tabs */
+  /** Callback for slash commands that open a panel */
   onOpenPanel?: (panel: string) => void;
   /** Callback when a bash command (! prefix) completes */
   onBashOutput?: (result: { command: string; stdout: string; stderr: string; exitCode: number }) => void;

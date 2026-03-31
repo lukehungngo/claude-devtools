@@ -13,6 +13,7 @@ import { QuestionBlock } from "./QuestionBlock";
 import { PromptInput } from "./PromptInput";
 import { ContextWarningBanner } from "./ContextWarningBanner";
 import { MemoTurnCard } from "./TurnCard";
+import { TurnDivider } from "./TurnDivider";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useStreamingState } from "../../hooks/useStreamingState";
 import { StreamingTurnArea } from "./StreamingTurnArea";
@@ -47,7 +48,7 @@ interface ConversationViewProps {
   onSubmitAnswer?: (questionId: string, answer: string) => void;
   /** Called when PromptInput auto-starts or resumes a session */
   onSessionStarted?: (sessionId: string) => void;
-  /** Called when slash commands request opening a right-panel tab */
+  /** Called when slash commands request opening a panel */
   onOpenPanel?: (panel: string) => void;
 }
 
@@ -123,6 +124,13 @@ function TurnRow({
 
   return (
     <>
+      {filteredIndex > 0 && (
+        <TurnDivider
+          turnNumber={turn.turnNumber}
+          isSelected={highlightedTurnIndex === unfilteredIndex}
+          onClick={() => onTurnClick?.(unfilteredIndex)}
+        />
+      )}
       <MemoTurnCard
         turn={turn}
         allEvents={allEvents}

@@ -5,8 +5,15 @@
  * when a turn's outer container is clicked.
  */
 
-import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
+import { render, fireEvent, screen, cleanup } from "@testing-library/react";
+
+// Mock scrollIntoView for jsdom (not implemented)
+beforeAll(() => {
+  Element.prototype.scrollIntoView = vi.fn();
+});
+
+afterEach(cleanup);
 import { ConversationView } from "./ConversationView";
 import { groupEventsIntoTurns } from "../../lib/turnSnapshot";
 import type { UserEvent, AssistantEvent, PermissionRequest, SessionEvent } from "../../lib/types";
@@ -95,6 +102,63 @@ describe("ConversationView onTurnClick", () => {
     fireEvent.click(turnCards[1]);
 
     expect(onTurnClick).toHaveBeenCalledWith(1);
+  });
+});
+
+describe("ConversationView highlightedTurnIndex", () => {
+  it("passes isSelected=true to TurnDivider when highlightedTurnIndex matches turn index", () => {
+    const events = [
+      makeUserEvent("First prompt", 0),
+      makeAssistantEvent(1),
+      makeUserEvent("Second prompt", 2),
+      makeAssistantEvent(3),
+    ];
+
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+    render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={null}
+        highlightedTurnIndex={1}
+      />
+    );
+
+    // TurnDivider for the second turn should have aria-pressed="true"
+    const buttons = screen.getAllByRole("button");
+    const turnDividerButton = buttons.find(
+      (b) => b.getAttribute("aria-label")?.startsWith("Go to turn")
+    );
+    expect(turnDividerButton).toBeDefined();
+    expect(turnDividerButton!.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("passes isSelected=false to TurnDivider when highlightedTurnIndex does not match", () => {
+    const events = [
+      makeUserEvent("First prompt", 0),
+      makeAssistantEvent(1),
+      makeUserEvent("Second prompt", 2),
+      makeAssistantEvent(3),
+    ];
+
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+    render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={null}
+        highlightedTurnIndex={0}
+      />
+    );
+
+    // TurnDivider only exists for turn 1 (filteredIndex > 0).
+    // With highlightedTurnIndex=0, the divider at turn 1 should have aria-pressed="false"
+    const buttons = screen.getAllByRole("button");
+    const turnDividerButton = buttons.find(
+      (b) => b.getAttribute("aria-label")?.startsWith("Go to turn")
+    );
+    expect(turnDividerButton).toBeDefined();
+    expect(turnDividerButton!.getAttribute("aria-pressed")).toBe("false");
   });
 });
 
