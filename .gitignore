@@ -35,5 +35,12 @@ Thumbs.db
 
 # Development
 .pnpm-debug.log
-docs
+docs/results/
+docs/reports/
+docs/lesson_learned/
+docs/tasks/
+docs/bugs/
+!!docs/specs/
+!!docs/plans/
+!!docs/design/
 .worktrees/

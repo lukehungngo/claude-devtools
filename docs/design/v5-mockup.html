@@ -1,0 +1,1801 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude DevTools — Redesign Mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --font: 'DM Sans', -apple-system, 'Segoe UI', sans-serif;
+            --mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+            --radius: 8px;
+            --radius-lg: 12px;
+        }
+
+        [data-theme="light"] {
+            --bg: #F7F5F0;
+            --bg-s: #EFECE4;
+            --bg-e: #FFFFFF;
+            --bg-h: #E8E5DC;
+            --bd: #E5E1D8;
+            --bd-s: #D8D4CA;
+            --t1: #2C2B28;
+            --t2: #6B665D;
+            --t3: #8B8780;
+            --t4: #B0AB9F;
+            --acc: #C2592E;
+            --acc-h: #A84A24;
+            --acc-bg: #F0DDD5;
+            --grn: #3D8A4A;
+            --grn-bg: rgba(61, 138, 74, .08);
+            --amb: #B07D2E;
+            --amb-bg: rgba(176, 125, 46, .08);
+            --red: #C94040;
+            --red-bg: rgba(201, 64, 64, .08);
+            --teal: #4B8A8A;
+            --teal-bg: rgba(75, 138, 138, .08);
+            --pur: #8B6BAF;
+            --pur-bg: rgba(139, 107, 175, .08);
+            --span-pm: #E8C5B5;
+            --span-pm-t: #7D3A20;
+            --span-swe: #B5D4E8;
+            --span-swe-t: #1A3D5C;
+            --span-swe2: #92C4DB;
+            --span-swe2-t: #0F2E45;
+            --span-qa: #B5DBB5;
+            --span-qa-t: #1A4523;
+            --span-doc: #E8D5A8;
+            --span-doc-t: #5C4A1A;
+            --span-bug: #DBB5C4;
+            --span-bug-t: #5C1A35;
+            --span-rev: #A8D4C9;
+            --span-rev-t: #1A4540;
+            --dots-r: #E8695A;
+            --dots-y: #D4A03E;
+            --dots-g: #5DB86C;
+            --shadow: 0 1px 3px rgba(0, 0, 0, .06);
+        }
+
+        [data-theme="dark"] {
+            --bg: #2B2A27;
+            --bg-s: #353431;
+            --bg-e: #3D3C38;
+            --bg-h: #474642;
+            --bd: #4A4944;
+            --bd-s: #5A5854;
+            --t1: #EEECE8;
+            --t2: #A8A49D;
+            --t3: #6F6C66;
+            --t4: #56534E;
+            --acc: #D97757;
+            --acc-h: #E8896A;
+            --acc-bg: rgba(217, 119, 87, .18);
+            --grn: #5DB86C;
+            --grn-bg: rgba(93, 184, 108, .12);
+            --amb: #D4A03E;
+            --amb-bg: rgba(212, 160, 62, .12);
+            --red: #D9534F;
+            --red-bg: rgba(217, 83, 79, .12);
+            --teal: #4BA8A8;
+            --teal-bg: rgba(75, 168, 168, .12);
+            --pur: #B08CDB;
+            --pur-bg: rgba(176, 140, 219, .12);
+            --span-pm: #D9A892;
+            --span-pm-t: #5C2E1A;
+            --span-swe: #8BBFD9;
+            --span-swe-t: #1A3D5C;
+            --span-swe2: #6BAAC9;
+            --span-swe2-t: #0F2E45;
+            --span-qa: #8DC99A;
+            --span-qa-t: #1A4523;
+            --span-doc: #D4BC82;
+            --span-doc-t: #5C4A1A;
+            --span-bug: #C99AAE;
+            --span-bug-t: #5C1A35;
+            --span-rev: #82C4B5;
+            --span-rev-t: #1A4540;
+            --dots-r: #D9534F;
+            --dots-y: #D4A03E;
+            --dots-g: #5DB86C;
+            --shadow: none;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--t1);
+        }
+
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* ── Title bar ── */
+        .titlebar {
+            height: 38px;
+            background: var(--bg-s);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 8px;
+            border-bottom: 1px solid var(--bd);
+            flex-shrink: 0;
+        }
+
+        .dots {
+            display: flex;
+            gap: 7px;
+        }
+
+        .dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+        }
+
+        .dot-r {
+            background: var(--dots-r);
+        }
+
+        .dot-y {
+            background: var(--dots-y);
+        }
+
+        .dot-g {
+            background: var(--dots-g);
+        }
+
+        .titlebar-text {
+            flex: 1;
+            text-align: center;
+            font-size: 12px;
+            color: var(--t3);
+            letter-spacing: .2px;
+        }
+
+        .theme-toggle {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            border: 1px solid var(--bd);
+            background: transparent;
+            color: var(--t3);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all .15s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-h);
+            color: var(--t1);
+        }
+
+        /* ── Body ── */
+        .body {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            width: 220px;
+            background: var(--bg-s);
+            border-right: 1px solid var(--bd);
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sb-section-title {
+            font-size: 10px;
+            color: var(--t3);
+            text-transform: uppercase;
+            letter-spacing: .8px;
+            padding: 14px 14px 6px;
+            font-weight: 500;
+        }
+
+        .conn-item {
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .conn-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .conn-info {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .conn-name {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--t1);
+        }
+
+        .conn-sub {
+            font-size: 10px;
+            color: var(--t3);
+            font-family: var(--mono);
+        }
+
+        .conn-badge {
+            font-size: 9px;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+
+        .badge-ok {
+            background: var(--grn-bg);
+            color: var(--grn);
+        }
+
+        .badge-plan {
+            background: var(--acc-bg);
+            color: var(--acc);
+        }
+
+        .usage-section {
+            padding: 8px 14px;
+            border-bottom: 1px solid var(--bd);
+        }
+
+        .usage-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .usage-label {
+            font-size: 10px;
+            color: var(--t3);
+        }
+
+        .usage-val {
+            font-size: 11px;
+            font-family: var(--mono);
+            font-weight: 500;
+            color: var(--t1);
+        }
+
+        .usage-bar {
+            height: 4px;
+            background: var(--bd);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .usage-fill {
+            height: 100%;
+            border-radius: 2px;
+        }
+
+        .usage-tokens {
+            display: flex;
+            gap: 10px;
+        }
+
+        .usage-tok-label {
+            font-size: 9px;
+            color: var(--t3);
+        }
+
+        .usage-tok-val {
+            font-size: 11px;
+            font-family: var(--mono);
+            font-weight: 500;
+        }
+
+        .sb-sep {
+            border-bottom: 1px solid var(--bd);
+        }
+
+        .repo-item {
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            cursor: pointer;
+            border-left: 2px solid transparent;
+            transition: background .12s;
+        }
+
+        .repo-item:hover {
+            background: var(--bg-h);
+        }
+
+        .repo-item.active {
+            border-left-color: var(--acc);
+        }
+
+        .repo-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .repo-info {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .repo-name {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--t1);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .repo-branch {
+            font-size: 10px;
+            color: var(--t3);
+            font-family: var(--mono);
+        }
+
+        .caret {
+            font-size: 9px;
+            color: var(--t3);
+            width: 12px;
+            text-align: center;
+            flex-shrink: 0;
+            transition: transform .15s;
+            cursor: pointer;
+        }
+
+        .caret.open {
+            transform: rotate(90deg);
+        }
+
+        .sess-list {
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height .25s ease;
+        }
+
+        .sess-list.open {
+            max-height: 400px;
+        }
+
+        .sess-item {
+            padding: 5px 14px 5px 36px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            border-left: 2px solid transparent;
+            transition: background .12s;
+        }
+
+        .sess-item:hover {
+            background: var(--bg-h);
+        }
+
+        .sess-item.active {
+            background: var(--acc-bg);
+            border-left-color: var(--acc);
+        }
+
+        .sess-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .sess-id {
+            font-size: 10px;
+            font-family: var(--mono);
+            color: var(--t2);
+            flex: 1;
+        }
+
+        .sess-cost {
+            font-size: 10px;
+            color: var(--amb);
+            font-family: var(--mono);
+        }
+
+        .sess-time {
+            font-size: 9px;
+            color: var(--t3);
+            font-family: var(--mono);
+        }
+
+        .sb-footer {
+            margin-top: auto;
+            padding: 10px 14px;
+            border-top: 1px solid var(--bd);
+            font-size: 11px;
+            color: var(--t3);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sb-footer:hover {
+            color: var(--t2);
+        }
+
+        /* ── Main ── */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Topbar HUD ── */
+        .topbar-hud {
+            display: flex;
+            align-items: center;
+            padding: 0 18px;
+            height: 40px;
+            background: var(--bg-s);
+            border-bottom: 1px solid var(--bd);
+            flex-shrink: 0;
+            gap: 14px;
+        }
+
+        .hud-status {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding-right: 12px;
+            border-right: 1px solid var(--bd);
+        }
+
+        .hud-pulse {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: .35;
+                transform: scale(.7);
+            }
+        }
+
+        .hud-status-text {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: .5px;
+        }
+
+        .hud-metric {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .hud-label {
+            font-size: 8px;
+            color: var(--t3);
+            text-transform: uppercase;
+            letter-spacing: .4px;
+        }
+
+        .hud-value {
+            font-family: var(--mono);
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--t1);
+        }
+
+        .hud-sep {
+            width: 1px;
+            height: 22px;
+            background: var(--bd);
+            flex-shrink: 0;
+        }
+
+        .hud-ctx {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .ctx-bar {
+            width: 42px;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--bd);
+            overflow: hidden;
+        }
+
+        .ctx-fill {
+            height: 100%;
+            border-radius: 2px;
+        }
+
+        .hud-tokens {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .hud-tok {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .hud-tok-val {
+            font-family: var(--mono);
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        /* ── Conversation ── */
+        .conversation {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 24px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .msg {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .avatar-user {
+            background: var(--bg-h);
+            color: var(--t2);
+        }
+
+        .avatar-claude {
+            background: var(--acc-bg);
+            color: var(--acc);
+        }
+
+        .msg-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .msg-name {
+            font-size: 10px;
+            color: var(--t3);
+            margin-bottom: 3px;
+            font-weight: 500;
+        }
+
+        .msg-text {
+            font-size: 13px;
+            color: var(--t1);
+            line-height: 1.65;
+        }
+
+        .msg-text code {
+            font-family: var(--mono);
+            font-size: 11px;
+            background: var(--bg-s);
+            padding: 2px 5px;
+            border-radius: 4px;
+            color: var(--acc);
+        }
+
+        .tool-group {
+            background: var(--bg-s);
+            border: 1px solid var(--bd);
+            border-radius: var(--radius);
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .tool-row {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            gap: 8px;
+            font-size: 11px;
+            border-bottom: 1px solid var(--bd);
+            cursor: pointer;
+            transition: background .1s;
+        }
+
+        .tool-row:last-child {
+            border-bottom: none;
+        }
+
+        .tool-row:hover {
+            background: var(--bg-h);
+        }
+
+        .tool-icon {
+            font-size: 11px;
+            flex-shrink: 0;
+        }
+
+        .tool-ok {
+            color: var(--grn);
+        }
+
+        .tool-err {
+            color: var(--red);
+        }
+
+        .tool-run {
+            color: var(--amb);
+        }
+
+        .tool-name {
+            color: var(--t2);
+            flex: 1;
+            font-family: var(--mono);
+            font-size: 11px;
+        }
+
+        .tool-dur {
+            color: var(--t3);
+            font-family: var(--mono);
+            font-size: 10px;
+        }
+
+        .tool-cost {
+            color: var(--amb);
+            font-family: var(--mono);
+            font-size: 10px;
+        }
+
+        .running-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--amb);
+            animation: pulse 1.5s infinite;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        /* ── Prompt ── */
+        .prompt-area {
+            padding: 10px 24px 16px;
+            flex-shrink: 0;
+        }
+
+        .prompt-box {
+            display: flex;
+            align-items: center;
+            background: var(--bg-e);
+            border: 1px solid var(--bd);
+            border-radius: var(--radius-lg);
+            padding: 10px 14px;
+            gap: 10px;
+            box-shadow: var(--shadow);
+            transition: border-color .15s;
+        }
+
+        .prompt-box:focus-within {
+            border-color: var(--acc);
+        }
+
+        .prompt-box input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--t1);
+            font-size: 13px;
+            font-family: var(--font);
+            outline: none;
+        }
+
+        .prompt-box input::placeholder {
+            color: var(--t4);
+        }
+
+        .send-btn {
+            background: var(--acc);
+            color: #fff;
+            border: none;
+            padding: 6px 18px;
+            border-radius: var(--radius);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: var(--font);
+            transition: background .12s;
+        }
+
+        .send-btn:hover {
+            background: var(--acc-h);
+        }
+
+        /* ── Divider ── */
+        .panel-divider {
+            height: 3px;
+            background: var(--bd);
+            cursor: row-resize;
+            flex-shrink: 0;
+            transition: background .15s;
+        }
+
+        .panel-divider:hover {
+            background: var(--acc);
+        }
+
+        /* ── Bottom panel ── */
+        .bottom-panel {
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            background: var(--bg-s);
+            border-top: 1px solid var(--bd);
+        }
+
+        .panel-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--bd);
+            background: var(--bg);
+            flex-shrink: 0;
+        }
+
+        .ptab {
+            padding: 8px 16px;
+            font-size: 11px;
+            color: var(--t3);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all .12s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .ptab:hover {
+            color: var(--t2);
+        }
+
+        .ptab.active {
+            color: var(--acc);
+            border-bottom-color: var(--acc);
+        }
+
+        .ptab-count {
+            font-size: 9px;
+            font-family: var(--mono);
+            background: var(--bg-s);
+            padding: 1px 6px;
+            border-radius: 6px;
+        }
+
+        .panel-body {
+            height: 220px;
+            overflow-y: auto;
+        }
+
+        .panel-content {
+            display: none;
+        }
+
+        .panel-content.active {
+            display: block;
+        }
+
+        /* ── Trace tab ── */
+        .trace-area {
+            padding: 10px 16px;
+        }
+
+        .trace-ticks {
+            display: flex;
+            margin-left: 110px;
+            margin-bottom: 6px;
+        }
+
+        .trace-ticks span {
+            flex: 1;
+            font-size: 9px;
+            color: var(--t3);
+            font-family: var(--mono);
+        }
+
+        .trace-body {
+            position: relative;
+        }
+
+        .trace-grid {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 110px;
+            right: 0;
+            display: flex;
+            pointer-events: none;
+        }
+
+        .trace-grid div {
+            flex: 1;
+            border-left: 1px solid var(--bd);
+            opacity: .25;
+        }
+
+        .trace-grid div:first-child {
+            border: none;
+        }
+
+        .trace-row {
+            display: flex;
+            align-items: center;
+            height: 40px;
+            position: relative;
+            z-index: 1;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background .1s;
+            margin-bottom: 2px;
+        }
+
+        .trace-row:hover {
+            background: var(--bg-h);
+        }
+
+        .trace-label {
+            width: 110px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding-right: 8px;
+            overflow: hidden;
+        }
+
+        .trace-indent {
+            flex-shrink: 0;
+        }
+
+        .trace-icon {
+            width: 22px;
+            height: 22px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .trace-name {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--t1);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .trace-track {
+            flex: 1;
+            position: relative;
+            height: 26px;
+        }
+
+        .trace-bar {
+            position: absolute;
+            height: 100%;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 10px;
+            font-weight: 500;
+            gap: 6px;
+            overflow: hidden;
+            white-space: nowrap;
+            transition: filter .1s;
+        }
+
+        .trace-bar:hover {
+            filter: brightness(1.05);
+        }
+
+        .trace-bar-right {
+            margin-left: auto;
+            font-size: 9px;
+            font-weight: 400;
+            opacity: .7;
+        }
+
+        .trace-spacer {
+            height: 10px;
+        }
+
+        .par-bracket {
+            position: absolute;
+            left: 110px;
+            width: 10px;
+            border: 1px solid var(--bd);
+            border-right: none;
+            border-radius: 4px 0 0 4px;
+            pointer-events: none;
+            z-index: 2;
+            opacity: .35;
+        }
+
+        /* ── Detail tab ── */
+        .detail-header {
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--bd);
+            background: var(--bg);
+        }
+
+        .detail-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 600;
+        }
+
+        .detail-title {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--t1);
+        }
+
+        .detail-meta {
+            font-size: 10px;
+            color: var(--t3);
+            font-family: var(--mono);
+            margin-left: auto;
+        }
+
+        .file-row {
+            display: flex;
+            align-items: center;
+            padding: 6px 16px;
+            gap: 8px;
+            border-bottom: 1px solid var(--bd);
+            cursor: pointer;
+            transition: background .1s;
+            font-size: 11px;
+        }
+
+        .file-row:hover {
+            background: var(--bg);
+        }
+
+        .file-path {
+            font-family: var(--mono);
+            color: var(--t1);
+            flex: 1;
+            font-size: 11px;
+        }
+
+        .file-lines {
+            font-family: var(--mono);
+            color: var(--t3);
+            font-size: 10px;
+        }
+
+        .file-badge {
+            font-size: 9px;
+            padding: 2px 7px;
+            border-radius: 6px;
+            background: var(--teal-bg);
+            color: var(--teal);
+        }
+
+        /* ── Raw tab ── */
+        .raw-content {
+            padding: 14px 16px;
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--t2);
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+
+        .raw-key {
+            color: var(--teal);
+        }
+
+        .raw-str {
+            color: var(--grn);
+        }
+
+        .raw-num {
+            color: var(--amb);
+        }
+
+        /* ── Live tab ── */
+        .live-row {
+            display: flex;
+            align-items: center;
+            padding: 6px 16px;
+            gap: 8px;
+            border-bottom: 1px solid var(--bd);
+            font-size: 11px;
+        }
+
+        .live-time {
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--t3);
+            width: 50px;
+            flex-shrink: 0;
+        }
+
+        .live-type {
+            font-size: 9px;
+            padding: 2px 7px;
+            border-radius: 6px;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+
+        .lt-read {
+            background: var(--teal-bg);
+            color: var(--teal);
+        }
+
+        .lt-write {
+            background: var(--grn-bg);
+            color: var(--grn);
+        }
+
+        .lt-bash {
+            background: var(--pur-bg);
+            color: var(--pur);
+        }
+
+        .live-msg {
+            color: var(--t1);
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ── History tab ── */
+        .hist-row {
+            display: flex;
+            align-items: center;
+            padding: 6px 16px;
+            gap: 10px;
+            border-bottom: 1px solid var(--bd);
+            font-size: 11px;
+            cursor: pointer;
+            transition: background .1s;
+        }
+
+        .hist-row:hover {
+            background: var(--bg);
+        }
+
+        .hist-date {
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--t3);
+            width: 72px;
+            flex-shrink: 0;
+        }
+
+        .hist-id {
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--t2);
+            width: 62px;
+            flex-shrink: 0;
+        }
+
+        .hist-prompt {
+            flex: 1;
+            color: var(--t1);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .hist-cost {
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--amb);
+            flex-shrink: 0;
+        }
+
+        /* ── Cost tab ── */
+        .cost-cards {
+            display: flex;
+            gap: 10px;
+            padding: 12px 16px;
+            flex-wrap: wrap;
+        }
+
+        .cost-card {
+            background: var(--bg);
+            border-radius: var(--radius);
+            padding: 10px 14px;
+            flex: 1;
+            min-width: 90px;
+        }
+
+        .cost-card-label {
+            font-size: 9px;
+            color: var(--t3);
+            text-transform: uppercase;
+            letter-spacing: .3px;
+            margin-bottom: 4px;
+        }
+
+        .cost-card-value {
+            font-family: var(--mono);
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--t1);
+        }
+
+        .cost-card-sub {
+            font-size: 10px;
+            color: var(--t3);
+            margin-top: 3px;
+        }
+
+        .agent-breakdown {
+            padding: 0 16px 12px;
+        }
+
+        .ab-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid var(--bd);
+            font-size: 11px;
+        }
+
+        .ab-row:last-child {
+            border: none;
+        }
+
+        .ab-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .ab-name {
+            color: var(--t1);
+            width: 80px;
+            flex-shrink: 0;
+        }
+
+        .ab-track {
+            flex: 1;
+            height: 7px;
+            background: var(--bd);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .ab-fill {
+            height: 100%;
+            border-radius: 4px;
+        }
+
+        .ab-cost {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--t1);
+            width: 50px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .ab-pct {
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--t3);
+            width: 32px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+
+        <div class="titlebar">
+            <div class="dots">
+                <div class="dot dot-r"></div>
+                <div class="dot dot-y"></div>
+                <div class="dot dot-g"></div>
+            </div>
+            <div class="titlebar-text">Claude DevTools — claude-devtools @ master</div>
+            <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn" title="Toggle theme">☀</button>
+        </div>
+
+        <div class="body">
+
+            <div class="sidebar">
+                <div class="sb-section-title">Connection</div>
+                <div class="conn-item">
+                    <div class="conn-dot" style="background:var(--grn)"></div>
+                    <div class="conn-info">
+                        <div class="conn-name">Claude Code</div>
+                        <div class="conn-sub">MCP + logs + hooks</div>
+                    </div>
+                    <span class="conn-badge badge-ok">connected</span>
+                </div>
+                <div class="conn-item sb-sep" style="padding-bottom:10px">
+                    <div class="conn-dot" style="background:var(--grn)"></div>
+                    <div class="conn-info">
+                        <div class="conn-name">luke@anthropic</div>
+                        <div class="conn-sub">Max plan</div>
+                    </div>
+                    <span class="conn-badge badge-plan">max</span>
+                </div>
+
+                <div class="sb-section-title">Usage (7 day)</div>
+                <div class="usage-section">
+                    <div class="usage-row"><span class="usage-label">Session limit</span><span
+                            class="usage-val">13%</span></div>
+                    <div class="usage-bar">
+                        <div class="usage-fill" style="width:13%;background:var(--grn)"></div>
+                    </div>
+                    <div class="usage-row"><span class="usage-label">Rate limit (5h)</span><span
+                            class="usage-val">42%</span></div>
+                    <div class="usage-bar">
+                        <div class="usage-fill" style="width:42%;background:var(--amb)"></div>
+                    </div>
+                    <div class="usage-tokens">
+                        <div><span class="usage-tok-label">Total in</span><br><span class="usage-tok-val"
+                                style="color:var(--teal)">26K</span></div>
+                        <div><span class="usage-tok-label">Total out</span><br><span class="usage-tok-val"
+                                style="color:var(--pur)">432K</span></div>
+                    </div>
+                </div>
+
+                <div class="sb-section-title">Repositories</div>
+                <div class="repo-item active" onclick="togRepo(this)">
+                    <span class="caret open">&#9656;</span>
+                    <div class="repo-dot" style="background:var(--grn)"></div>
+                    <div class="repo-info">
+                        <div class="repo-name">claude-devtools</div>
+                        <div class="repo-branch">master</div>
+                    </div>
+                </div>
+                <div class="sess-list open">
+                    <div class="sess-item active">
+                        <div class="sess-dot" style="background:var(--grn)"></div><span
+                            class="sess-id">b9fc5b5e</span><span class="sess-cost">$580</span><span
+                            class="sess-time">14:31</span>
+                    </div>
+                    <div class="sess-item">
+                        <div class="sess-dot" style="background:var(--t3)"></div><span
+                            class="sess-id">a3e81f22</span><span class="sess-cost">$58</span><span
+                            class="sess-time">12:08</span>
+                    </div>
+                    <div class="sess-item">
+                        <div class="sess-dot" style="background:var(--t3)"></div><span
+                            class="sess-id">7c4d9a01</span><span class="sess-cost">$12</span><span
+                            class="sess-time">08:45</span>
+                    </div>
+                </div>
+
+                <div class="repo-item" onclick="togRepo(this)">
+                    <span class="caret">&#9656;</span>
+                    <div class="repo-dot" style="background:var(--t3)"></div>
+                    <div class="repo-info">
+                        <div class="repo-name">openclaw-swe</div>
+                        <div class="repo-branch">develop</div>
+                    </div>
+                </div>
+                <div class="sess-list">
+                    <div class="sess-item">
+                        <div class="sess-dot" style="background:var(--t3)"></div><span
+                            class="sess-id">f2a91c34</span><span class="sess-cost">$142</span><span
+                            class="sess-time">11:20</span>
+                    </div>
+                </div>
+
+                <div class="repo-item" onclick="togRepo(this)">
+                    <span class="caret">&#9656;</span>
+                    <div class="repo-dot" style="background:var(--t3)"></div>
+                    <div class="repo-info">
+                        <div class="repo-name">claude-mas-template</div>
+                        <div class="repo-branch">main</div>
+                    </div>
+                </div>
+                <div class="sess-list">
+                    <div class="sess-item">
+                        <div class="sess-dot" style="background:var(--t3)"></div><span
+                            class="sess-id">c4d02f19</span><span class="sess-cost">$24</span><span
+                            class="sess-time">yesterday</span>
+                    </div>
+                </div>
+
+                <div class="sb-footer">&#9881; Settings</div>
+            </div>
+
+            <div class="main">
+                <div class="topbar-hud">
+                    <div class="hud-status">
+                        <div class="hud-pulse" style="background:var(--grn)"></div>
+                        <span class="hud-status-text" style="color:var(--grn)">LIVE</span>
+                    </div>
+                    <div class="hud-metric"><span class="hud-label">Model</span><span class="hud-value">Opus 4.6</span>
+                    </div>
+                    <div class="hud-sep"></div>
+                    <div class="hud-metric"><span class="hud-label">Duration</span><span class="hud-value">37m</span>
+                    </div>
+                    <div class="hud-sep"></div>
+                    <div class="hud-metric">
+                        <span class="hud-label">Context</span>
+                        <div class="hud-ctx"><span class="hud-value">35%</span>
+                            <div class="ctx-bar">
+                                <div class="ctx-fill" style="width:35%;background:var(--grn)"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hud-sep"></div>
+                    <div class="hud-metric"><span class="hud-label">Cost</span><span class="hud-value"
+                            style="color:var(--amb)">$580</span></div>
+                    <div class="hud-sep"></div>
+                    <div class="hud-metric"><span class="hud-label">Agents</span><span class="hud-value">7</span></div>
+                    <div class="hud-tokens">
+                        <div class="hud-tok"><span class="hud-label">In</span><span class="hud-tok-val"
+                                style="color:var(--teal)">18K</span></div>
+                        <div class="hud-tok"><span class="hud-label">Out</span><span class="hud-tok-val"
+                                style="color:var(--pur)">350K</span></div>
+                    </div>
+                </div>
+
+                <div class="conversation">
+                    <div class="msg">
+                        <div class="avatar avatar-user">U</div>
+                        <div class="msg-body">
+                            <div class="msg-name">You</div>
+                            <div class="msg-text">Fix the auth bug in <code>src/http/server.ts</code> — the token
+                                validation is failing for refresh tokens</div>
+                        </div>
+                    </div>
+
+                    <div class="msg">
+                        <div class="avatar avatar-claude">C</div>
+                        <div class="msg-body">
+                            <div class="msg-name">Claude</div>
+                            <div class="msg-text">I'll fix the refresh token validation bug. Let me start by reading the
+                                relevant files to understand the current implementation.</div>
+                            <div class="tool-group">
+                                <div class="tool-row" onclick="switchTab('detail')"><span
+                                        class="tool-icon tool-ok">&#10003;</span><span class="tool-name">Read x4
+                                        files</span><span class="tool-dur">12s</span></div>
+                                <div class="tool-row" onclick="switchTab('detail')"><span
+                                        class="tool-icon tool-ok">&#10003;</span><span class="tool-name">Edit x2
+                                        files</span><span class="tool-dur">1m 8s</span></div>
+                                <div class="tool-row"><span class="tool-icon tool-err">&#10007;</span><span
+                                        class="tool-name">npm test — 2 failures</span><span class="tool-dur">34s</span>
+                                </div>
+                                <div class="tool-row"><span class="tool-icon tool-ok">&#10003;</span><span
+                                        class="tool-name">Edit x1 file</span><span class="tool-dur">22s</span></div>
+                                <div class="tool-row"><span class="tool-icon tool-ok">&#10003;</span><span
+                                        class="tool-name">npm test — all pass</span><span class="tool-dur">31s</span>
+                                </div>
+                            </div>
+                            <div class="msg-text" style="margin-top:10px">Fixed. The issue was in
+                                <code>validateToken()</code> — it was checking <code>token.type === 'access'</code> but
+                                refresh tokens have <code>type: 'refresh'</code>. Updated the validation logic and both
+                                tests pass now.</div>
+                        </div>
+                    </div>
+
+                    <div class="msg">
+                        <div class="avatar avatar-user">U</div>
+                        <div class="msg-body">
+                            <div class="msg-name">You</div>
+                            <div class="msg-text">Good. Now refactor the entire auth module to use the new JWT library,
+                                and write comprehensive tests. Use sub-agents for the implementation and testing.</div>
+                        </div>
+                    </div>
+
+                    <div class="msg">
+                        <div class="avatar avatar-claude">C</div>
+                        <div class="msg-body">
+                            <div class="msg-name">Claude</div>
+                            <div class="msg-text">I'll orchestrate this with specialized agents. Spawning an SWE agent
+                                for the refactor and a QA agent for test writing — they'll work in parallel.</div>
+                            <div class="tool-group">
+                                <div class="tool-row"><span class="tool-icon tool-run">&#9656;</span><span
+                                        class="tool-name">Agent: SWE Engineer <span style="color:var(--t3)">(running, 45
+                                            turns)</span></span><span class="tool-cost">$184</span></div>
+                                <div class="tool-row"><span class="tool-icon tool-run">&#9656;</span><span
+                                        class="tool-name">Agent: QA Tester <span style="color:var(--t3)">(running, 28
+                                            turns)</span></span><span class="tool-cost">$96</span></div>
+                            </div>
+                            <div class="msg-text" style="margin-top:8px;color:var(--t2)"><span
+                                    class="running-dot"></span>&ensp;Agents working... SWE is refactoring auth handlers,
+                                QA is writing integration tests.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="prompt-area">
+                    <div class="prompt-box">
+                        <input placeholder="Type a message...">
+                        <button class="send-btn">Send</button>
+                    </div>
+                </div>
+
+                <div class="panel-divider"></div>
+
+                <div class="bottom-panel">
+                    <div class="panel-tabs">
+                        <div class="ptab" onclick="switchTab('trace',this)">Trace</div>
+                        <div class="ptab active" onclick="switchTab('detail',this)">Detail <span
+                                class="ptab-count">4</span></div>
+                        <div class="ptab" onclick="switchTab('raw',this)">Raw</div>
+                        <div class="ptab" onclick="switchTab('live',this)">Live</div>
+                        <div class="ptab" onclick="switchTab('history',this)">History</div>
+                        <div class="ptab" onclick="switchTab('cost',this)">Cost</div>
+                    </div>
+                    <div class="panel-body">
+
+                        <div class="panel-content" id="tab-trace">
+                            <div class="trace-area">
+                                <div class="trace-ticks">
+                                    <span>0m</span><span>5m</span><span>10m</span><span>15m</span><span>20m</span><span>25m</span><span>30m</span><span>37m</span>
+                                </div>
+                                <div class="trace-body">
+                                    <div class="trace-grid">
+                                        <div></div>
+                                        <div></div>
+                                        <div></div>
+                                        <div></div>
+                                        <div></div>
+                                        <div></div>
+                                        <div></div>
+                                        <div></div>
+                                    </div>
+                                    <div class="trace-row">
+                                        <div class="trace-label"><span class="caret open">&#9656;</span>
+                                            <div class="trace-icon"
+                                                style="background:var(--span-pm);color:var(--span-pm-t)">PM</div>
+                                            <div class="trace-name">Orchestrator</div>
+                                        </div>
+                                        <div class="trace-track">
+                                            <div class="trace-bar"
+                                                style="left:0%;width:100%;background:var(--span-pm);color:var(--span-pm-t)">
+                                                171t · 37m<span class="trace-bar-right">$580</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="trace-spacer"></div>
+                                    <div style="position:relative">
+                                        <div class="par-bracket" style="top:6px;height:72px"></div>
+                                        <div class="trace-row">
+                                            <div class="trace-label">
+                                                <div class="trace-indent" style="width:12px"></div><span
+                                                    class="caret open">&#9656;</span>
+                                                <div class="trace-icon"
+                                                    style="background:var(--span-swe);color:var(--span-swe-t)">S1</div>
+                                                <div class="trace-name">SWE frontend</div>
+                                            </div>
+                                            <div class="trace-track">
+                                                <div class="trace-bar"
+                                                    style="left:10%;width:35%;background:var(--span-swe);color:var(--span-swe-t)">
+                                                    52t · 14m<span class="trace-bar-right">$198</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="trace-row">
+                                            <div class="trace-label">
+                                                <div class="trace-indent" style="width:12px"></div><span
+                                                    class="caret">&#9656;</span>
+                                                <div class="trace-icon"
+                                                    style="background:var(--span-swe2);color:var(--span-swe2-t)">S2
+                                                </div>
+                                                <div class="trace-name">SWE backend</div>
+                                            </div>
+                                            <div class="trace-track">
+                                                <div class="trace-bar"
+                                                    style="left:10%;width:30%;background:var(--span-swe2);color:var(--span-swe2-t)">
+                                                    48t · 12m<span class="trace-bar-right">$173</span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="trace-spacer"></div>
+                                    <div class="trace-row">
+                                        <div class="trace-label">
+                                            <div class="trace-indent" style="width:12px"></div><span
+                                                class="caret">&#9656;</span>
+                                            <div class="trace-icon"
+                                                style="background:var(--span-qa);color:var(--span-qa-t)">QA</div>
+                                            <div class="trace-name">Tester</div>
+                                        </div>
+                                        <div class="trace-track">
+                                            <div class="trace-bar"
+                                                style="left:46%;width:20%;background:var(--span-qa);color:var(--span-qa-t)">
+                                                28t · 8m<span class="trace-bar-right">$96</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="trace-spacer"></div>
+                                    <div class="trace-row">
+                                        <div class="trace-label">
+                                            <div class="trace-indent" style="width:12px"></div><span
+                                                class="caret">&#9656;</span>
+                                            <div class="trace-icon"
+                                                style="background:var(--span-rev);color:var(--span-rev-t)">CR</div>
+                                            <div class="trace-name">Reviewer</div>
+                                        </div>
+                                        <div class="trace-track">
+                                            <div class="trace-bar"
+                                                style="left:85%;width:12%;background:var(--span-rev);color:var(--span-rev-t)">
+                                                <span class="running-dot"></span> running<span
+                                                    class="trace-bar-right">$19</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel-content active" id="tab-detail">
+                            <div class="detail-header">
+                                <div class="detail-icon" style="background:var(--span-swe);color:var(--span-swe-t)">S1
+                                </div>
+                                <div class="detail-title">SWE frontend &rarr; Read x4</div>
+                                <div class="detail-meta">4 files · 12s · $2.40</div>
+                            </div>
+                            <div class="file-row"><span class="file-path">src/http/server.ts</span><span
+                                    class="file-lines">192 ln</span><span class="file-badge">read</span></div>
+                            <div class="file-row"><span class="file-path">src/http/auth.ts</span><span
+                                    class="file-lines">148 ln</span><span class="file-badge">read</span></div>
+                            <div class="file-row"><span class="file-path">src/utils/jwt.ts</span><span
+                                    class="file-lines">67 ln</span><span class="file-badge">read</span></div>
+                            <div class="file-row"><span class="file-path">src/types/auth.d.ts</span><span
+                                    class="file-lines">34 ln</span><span class="file-badge">read</span></div>
+                        </div>
+
+                        <div class="panel-content" id="tab-raw">
+                            <div class="raw-content"><span class="raw-key">"type"</span>: <span
+                                    class="raw-str">"tool_use"</span>,
+                                <span class="raw-key">"name"</span>: <span class="raw-str">"Read"</span>,
+                                <span class="raw-key">"input"</span>: {
+                                <span class="raw-key">"file_path"</span>: <span
+                                    class="raw-str">"src/http/server.ts"</span>,
+                                <span class="raw-key">"offset"</span>: <span class="raw-num">0</span>,
+                                <span class="raw-key">"limit"</span>: <span class="raw-num">500</span>
+                                },
+                                <span class="raw-key">"result"</span>: {
+                                <span class="raw-key">"content"</span>: <span class="raw-str">"import { Tool } from
+                                    '@modelcontextprotocol/sdk'..."</span>,
+                                <span class="raw-key">"total_lines"</span>: <span class="raw-num">192</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="panel-content" id="tab-live">
+                            <div class="live-row"><span class="live-time">14:31:42</span><span
+                                    class="live-type lt-write">Write</span><span
+                                    class="live-msg">docs/reports/v4-audit-2026-03-30.md — 258 lines</span></div>
+                            <div class="live-row"><span class="live-time">14:31:27</span><span
+                                    class="live-type lt-read">Glob</span><span class="live-msg">docs/plans/v4* — 1 file
+                                    matched</span></div>
+                            <div class="live-row"><span class="live-time">14:31:26</span><span
+                                    class="live-type lt-read">Glob</span><span class="live-msg">docs/reports/* — 10
+                                    files matched</span></div>
+                            <div class="live-row"><span class="live-time">14:28:15</span><span
+                                    class="live-type lt-bash">Bash</span><span class="live-msg">npm test -- --run — exit
+                                    0</span></div>
+                            <div class="live-row"><span class="live-time">14:26:02</span><span
+                                    class="live-type lt-write">Edit</span><span class="live-msg">src/http/auth.ts — 12
+                                    lines changed</span></div>
+                            <div class="live-row"><span class="live-time">14:24:48</span><span
+                                    class="live-type lt-bash">Bash</span><span class="live-msg">npm test -- --run — exit
+                                    1 (2 failures)</span></div>
+                            <div class="live-row"><span class="live-time">14:22:30</span><span
+                                    class="live-type lt-read">Read</span><span class="live-msg">src/utils/jwt.ts — 67
+                                    lines</span></div>
+                        </div>
+
+                        <div class="panel-content" id="tab-history">
+                            <div class="hist-row"><span class="hist-date">14:31 today</span><span
+                                    class="hist-id">b9fc5b5e</span><span class="hist-prompt">save to v4 report
+                                    audit</span><span class="hist-cost">$580</span></div>
+                            <div class="hist-row"><span class="hist-date">12:08 today</span><span
+                                    class="hist-id">a3e81f22</span><span class="hist-prompt">implement hooks display
+                                    panel</span><span class="hist-cost">$58</span></div>
+                            <div class="hist-row"><span class="hist-date">08:45 today</span><span
+                                    class="hist-id">7c4d9a01</span><span class="hist-prompt">fix agent graph
+                                    rendering</span><span class="hist-cost">$12</span></div>
+                            <div class="hist-row"><span class="hist-date">22:10 yday</span><span
+                                    class="hist-id">d1f84c02</span><span class="hist-prompt">refactor websocket
+                                    handler</span><span class="hist-cost">$94</span></div>
+                            <div class="hist-row"><span class="hist-date">18:30 yday</span><span
+                                    class="hist-id">e9b23a11</span><span class="hist-prompt">add cost tracking to MCP
+                                    server</span><span class="hist-cost">$142</span></div>
+                        </div>
+
+                        <div class="panel-content" id="tab-cost">
+                            <div class="cost-cards">
+                                <div class="cost-card">
+                                    <div class="cost-card-label">Session cost</div>
+                                    <div class="cost-card-value" style="color:var(--amb)">$580.12</div>
+                                    <div class="cost-card-sub">171 turns · 368K tokens</div>
+                                </div>
+                                <div class="cost-card">
+                                    <div class="cost-card-label">Burn rate</div>
+                                    <div class="cost-card-value">$15.68<span
+                                            style="font-size:11px;color:var(--t3)">/min</span></div>
+                                    <div class="cost-card-sub" style="color:var(--red)">&#9650; 12% vs avg</div>
+                                </div>
+                                <div class="cost-card">
+                                    <div class="cost-card-label">Projected total</div>
+                                    <div class="cost-card-value">~$640</div>
+                                    <div class="cost-card-sub">at current rate</div>
+                                </div>
+                            </div>
+                            <div class="agent-breakdown">
+                                <div class="ab-row">
+                                    <div class="ab-icon" style="background:var(--span-pm);color:var(--span-pm-t)">PM
+                                    </div>
+                                    <div class="ab-name">Orchestrator</div>
+                                    <div class="ab-track">
+                                        <div class="ab-fill" style="width:43%;background:var(--span-pm)"></div>
+                                    </div>
+                                    <div class="ab-cost">$248</div>
+                                    <div class="ab-pct">43%</div>
+                                </div>
+                                <div class="ab-row">
+                                    <div class="ab-icon" style="background:var(--span-swe);color:var(--span-swe-t)">SW
+                                    </div>
+                                    <div class="ab-name">Engineer</div>
+                                    <div class="ab-track">
+                                        <div class="ab-fill" style="width:32%;background:var(--span-swe)"></div>
+                                    </div>
+                                    <div class="ab-cost">$184</div>
+                                    <div class="ab-pct">32%</div>
+                                </div>
+                                <div class="ab-row">
+                                    <div class="ab-icon" style="background:var(--span-qa);color:var(--span-qa-t)">QA
+                                    </div>
+                                    <div class="ab-name">Tester</div>
+                                    <div class="ab-track">
+                                        <div class="ab-fill" style="width:17%;background:var(--span-qa)"></div>
+                                    </div>
+                                    <div class="ab-cost">$96</div>
+                                    <div class="ab-pct">17%</div>
+                                </div>
+                                <div class="ab-row">
+                                    <div class="ab-icon" style="background:var(--span-doc);color:var(--span-doc-t)">DC
+                                    </div>
+                                    <div class="ab-name">Writer</div>
+                                    <div class="ab-track">
+                                        <div class="ab-fill" style="width:9%;background:var(--span-doc)"></div>
+                                    </div>
+                                    <div class="ab-cost">$52</div>
+                                    <div class="ab-pct">9%</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function togRepo(el) {
+            const list = el.nextElementSibling;
+            if (!list || !list.classList.contains('sess-list')) return;
+            const c = el.querySelector('.caret');
+            if (list.classList.contains('open')) {
+                list.classList.remove('open');
+                list.style.maxHeight = '0';
+                if (c) c.classList.remove('open');
+            } else {
+                list.classList.add('open');
+                list.style.maxHeight = list.scrollHeight + 'px';
+                if (c) c.classList.add('open');
+            }
+        }
+
+        function switchTab(id, btn) {
+            document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'));
+            if (btn) {
+                btn.classList.add('active');
+            } else {
+                document.querySelectorAll('.ptab').forEach(t => {
+                    if (t.textContent.toLowerCase().trim().startsWith(id)) t.classList.add('active');
+                });
+            }
+            const panel = document.getElementById('tab-' + id);
+            if (panel) panel.classList.add('active');
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const btn = document.getElementById('themeBtn');
+            if (html.getAttribute('data-theme') === 'light') {
+                html.setAttribute('data-theme', 'dark');
+                btn.textContent = '☾';
+            } else {
+                html.setAttribute('data-theme', 'light');
+                btn.textContent = '☀';
+            }
+        }
+    </script>
+</body>
+
+</html>
