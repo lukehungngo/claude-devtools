@@ -52,14 +52,33 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   return union === 0 ? 0 : intersection / union;
 }
 
-/** Build a rolling set of file paths from the last N groups. */
+/** Extract directory prefixes from a set of file paths. */
+function extractDirs(paths: Set<string>): Set<string> {
+  const dirs = new Set<string>();
+  for (const p of paths) {
+    const lastSlash = p.lastIndexOf("/");
+    if (lastSlash > 0) {
+      dirs.add(p.slice(0, lastSlash));
+    }
+  }
+  return dirs;
+}
+
+/**
+ * Build a rolling set of file paths from the last N groups that have file paths.
+ * Groups without file paths (e.g. Bash commands) are skipped so they don't
+ * occupy useful window slots.
+ */
 function buildRollingSet(groups: ToolGroup[], endIndex: number, windowSize: number): Set<string> {
   const result = new Set<string>();
-  const start = Math.max(0, endIndex - windowSize);
-  for (let i = start; i < endIndex; i++) {
-    for (const p of extractFilePaths(groups[i])) {
+  let collected = 0;
+  for (let i = endIndex - 1; i >= 0 && collected < windowSize; i--) {
+    const paths = extractFilePaths(groups[i]);
+    if (paths.size === 0) continue; // Skip path-free groups (Fix 1)
+    for (const p of paths) {
       result.add(p);
     }
+    collected++;
   }
   return result;
 }
@@ -220,6 +239,10 @@ export function groupIntoPhases(
 
   // Step 3: Split non-agent groups into sections at boundaries, then detect file-set disjunction
   const rawPhases: ToolGroup[][] = [];
+  // hardBoundaryAfter[i] = true means a hard boundary exists AFTER rawPhases[i],
+  // i.e., between rawPhases[i] and rawPhases[i+1]. Hard boundaries come from
+  // assistant text gaps / agent dispatch. Soft boundaries come from Jaccard splits.
+  const hardBoundaryAfter: boolean[] = [];
   let currentPhase: ToolGroup[] = [];
 
   for (let ni = 0; ni < nonAgentGroups.length; ni++) {
@@ -228,6 +251,7 @@ export function groupIntoPhases(
     // Check if this group's original index crosses a boundary
     if (currentPhase.length > 0 && boundaryIndices.has(originalIndex)) {
       rawPhases.push(currentPhase);
+      hardBoundaryAfter.push(true);
       currentPhase = [g];
       continue;
     }
@@ -244,6 +268,7 @@ export function groupIntoPhases(
       }
       if (hasBoundaryBetween) {
         rawPhases.push(currentPhase);
+        hardBoundaryAfter.push(true);
         currentPhase = [g];
         continue;
       }
@@ -258,9 +283,16 @@ export function groupIntoPhases(
       if (rollingSet.size > 0 && newPaths.size > 0) {
         const similarity = jaccardSimilarity(rollingSet, newPaths);
         if (similarity < 0.1) {
-          rawPhases.push(currentPhase);
-          currentPhase = [g];
-          continue;
+          // Fix 2: Fall back to directory-level similarity before splitting
+          const rollingDirs = extractDirs(rollingSet);
+          const newDirs = extractDirs(newPaths);
+          const dirSimilarity = jaccardSimilarity(rollingDirs, newDirs);
+          if (dirSimilarity < 0.3) {
+            rawPhases.push(currentPhase);
+            hardBoundaryAfter.push(false); // soft boundary
+            currentPhase = [g];
+            continue;
+          }
         }
       }
     }
@@ -271,40 +303,46 @@ export function groupIntoPhases(
     rawPhases.push(currentPhase);
   }
 
-  // Step 4: Singleton absorption
-  // Check for phases with exactly 1 group containing exactly 1 entry
-  // and merge into adjacent phase if files overlap
+  // Step 4: Small-phase absorption (Fix 3)
+  // Absorb phases with <= 3 total entries into adjacent phase when files overlap.
+  // Only absorb across soft boundaries (Jaccard splits), not hard boundaries
+  // (assistant text / agent dispatch).
   for (let i = 0; i < rawPhases.length; i++) {
     const phase = rawPhases[i];
-    if (phase.length === 1 && phase[0].entries.length === 1) {
-      const singletonPaths = extractFilePaths(phase[0]);
-      if (singletonPaths.size === 0) continue; // No file paths to compare
+    if (totalEntries(phase) <= 3) {
+      const smallPhasePaths = new Set<string>();
+      for (const g of phase) {
+        for (const p of extractFilePaths(g)) smallPhasePaths.add(p);
+      }
+      if (smallPhasePaths.size === 0) continue; // No file paths to compare
 
-      // Try merging with previous phase
-      if (i > 0) {
+      // Try merging with previous phase (only across soft boundaries)
+      if (i > 0 && !hardBoundaryAfter[i - 1]) {
         const prevPhase = rawPhases[i - 1];
         const prevPaths = new Set<string>();
         for (const g of prevPhase) {
           for (const p of extractFilePaths(g)) prevPaths.add(p);
         }
-        if (jaccardSimilarity(singletonPaths, prevPaths) > 0) {
+        if (jaccardSimilarity(smallPhasePaths, prevPaths) > 0) {
           prevPhase.push(...phase);
           rawPhases.splice(i, 1);
+          hardBoundaryAfter.splice(i - 1, 1);
           i--;
           continue;
         }
       }
 
-      // Try merging with next phase
-      if (i < rawPhases.length - 1) {
+      // Try merging with next phase (only across soft boundaries)
+      if (i < rawPhases.length - 1 && !hardBoundaryAfter[i]) {
         const nextPhase = rawPhases[i + 1];
         const nextPaths = new Set<string>();
         for (const g of nextPhase) {
           for (const p of extractFilePaths(g)) nextPaths.add(p);
         }
-        if (jaccardSimilarity(singletonPaths, nextPaths) > 0) {
+        if (jaccardSimilarity(smallPhasePaths, nextPaths) > 0) {
           nextPhase.unshift(...phase);
           rawPhases.splice(i, 1);
+          hardBoundaryAfter.splice(i, 1);
           i--;
           continue;
         }
