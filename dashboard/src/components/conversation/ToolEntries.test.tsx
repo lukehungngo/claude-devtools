@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup, fireEvent, screen } from "@testing-library/react";
-import { ToolEntries, getProgressText, getToolBadgeColors, extractToolStatsFromResult } from "./ToolEntries";
+import { ToolEntries, getProgressText, getToolBadgeColors, extractToolStatsFromResult, extractDurationFromResult, extractCostFromResult } from "./ToolEntries";
 import type { SessionEvent, AssistantEvent, UserEvent } from "../../lib/types";
 
 afterEach(cleanup);
@@ -949,5 +949,135 @@ describe("ToolEntries — PhaseGroup wrapping (Level 2)", () => {
     const pills = container.querySelectorAll("[data-testid='phase-pill']");
     // At least one phase should have pill badges
     expect(pills.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("extractDurationFromResult", () => {
+  it("parses 'duration_ms: 152027' from string content", () => {
+    const result = extractDurationFromResult("Task completed.\nduration_ms: 152027\nnum_turns: 5");
+    expect(result).toBe(152027);
+  });
+
+  it("parses duration_ms from array content blocks", () => {
+    const content = [
+      { type: "text", text: "All done.\nduration_ms: 5000" },
+    ];
+    const result = extractDurationFromResult(content as unknown[]);
+    expect(result).toBe(5000);
+  });
+
+  it("returns undefined when no duration pattern found", () => {
+    expect(extractDurationFromResult("Just a normal result")).toBeUndefined();
+  });
+
+  it("returns undefined for empty string", () => {
+    expect(extractDurationFromResult("")).toBeUndefined();
+  });
+
+  it("returns undefined for empty array", () => {
+    expect(extractDurationFromResult([])).toBeUndefined();
+  });
+});
+
+describe("extractCostFromResult", () => {
+  it("parses 'total_cost_usd: 0.05' from string content", () => {
+    const result = extractCostFromResult("Task completed.\ntotal_cost_usd: 0.05\nduration_ms: 12000");
+    expect(result).toBe(0.05);
+  });
+
+  it("parses total_cost_usd from array content blocks", () => {
+    const content = [
+      { type: "text", text: "Done.\ntotal_cost_usd: 0.123" },
+    ];
+    const result = extractCostFromResult(content as unknown[]);
+    expect(result).toBe(0.123);
+  });
+
+  it("returns undefined when no cost pattern found", () => {
+    expect(extractCostFromResult("Just a normal result")).toBeUndefined();
+  });
+
+  it("returns undefined for empty string", () => {
+    expect(extractCostFromResult("")).toBeUndefined();
+  });
+
+  it("returns undefined for empty array", () => {
+    expect(extractCostFromResult([])).toBeUndefined();
+  });
+});
+
+describe("ToolEntries - AgentCard cost/duration wiring", () => {
+  afterEach(cleanup);
+
+  it("passes durationMs and cost to AgentCard when result contains patterns", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        id: "tu-agent-dur",
+        name: "Task",
+        input: { prompt: "Fix bug", description: "Fix bug" },
+      }),
+      {
+        type: "user",
+        uuid: "uuid-user-agent-dur",
+        sessionId: "sess-1",
+        timestamp: "2026-01-01T00:00:01Z",
+        userType: "external",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tu-agent-dur",
+              content: "Task completed.\nduration_ms: 152027\ntotal_cost_usd: 0.05\nRead ×11",
+            },
+          ],
+        },
+      } as UserEvent,
+    ];
+    const { container } = render(<ToolEntries events={events} />);
+
+    // AgentCard should render duration (data-testid="agent-duration")
+    const duration = container.querySelector("[data-testid='agent-duration']");
+    expect(duration).not.toBeNull();
+    expect(duration!.textContent).toContain("2m"); // 152027ms ~ 2.5m
+
+    // AgentCard should render cost (data-testid="agent-cost")
+    const cost = container.querySelector("[data-testid='agent-cost']");
+    expect(cost).not.toBeNull();
+    expect(cost!.textContent).toContain("$0.050");
+  });
+
+  it("does not render duration/cost when result has no patterns", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        id: "tu-agent-nodur",
+        name: "Task",
+        input: { prompt: "Simple task", description: "Simple task" },
+      }),
+      {
+        type: "user",
+        uuid: "uuid-user-agent-nodur",
+        sessionId: "sess-1",
+        timestamp: "2026-01-01T00:00:01Z",
+        userType: "external",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tu-agent-nodur",
+              content: "Task completed successfully.",
+            },
+          ],
+        },
+      } as UserEvent,
+    ];
+    const { container } = render(<ToolEntries events={events} />);
+
+    const duration = container.querySelector("[data-testid='agent-duration']");
+    expect(duration).toBeNull();
+
+    const cost = container.querySelector("[data-testid='agent-cost']");
+    expect(cost).toBeNull();
   });
 });

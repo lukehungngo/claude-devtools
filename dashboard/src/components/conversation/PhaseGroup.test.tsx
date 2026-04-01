@@ -149,6 +149,30 @@ describe("PhaseGroup", () => {
     expect(chevron.style.transform).toBe("rotate(90deg)");
   });
 
+  it("auto-expands when phase transitions from running to error", () => {
+    const runningPhase = makePhase({ status: "running" });
+    const { container, rerender } = render(
+      <PhaseGroup phase={runningPhase}>
+        <div data-testid="child-content">inner</div>
+      </PhaseGroup>,
+    );
+
+    // Running phase should be collapsed
+    expect(container.querySelector('[data-testid="phase-body"]')).toBeNull();
+
+    // Re-render with error status (simulating live transition)
+    const errorPhase = makePhase({ status: "error" });
+    rerender(
+      <PhaseGroup phase={errorPhase}>
+        <div data-testid="child-content">inner</div>
+      </PhaseGroup>,
+    );
+
+    // Should auto-expand on error transition
+    expect(container.querySelector('[data-testid="phase-body"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="child-content"]')).toBeTruthy();
+  });
+
   it("renders empty toolCounts without pills", () => {
     const { container } = render(
       <PhaseGroup phase={makePhase({ toolCounts: {} })}>

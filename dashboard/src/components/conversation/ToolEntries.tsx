@@ -284,6 +284,54 @@ export function extractToolStatsFromResult(content: string | unknown[]): Array<{
   return stats;
 }
 
+/**
+ * Extract text from content (string or array of content blocks).
+ * Shared helper for extractDurationFromResult and extractCostFromResult.
+ */
+function extractTextFromContent(content: string | unknown[]): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    const parts: string[] = [];
+    for (const item of content) {
+      if (
+        item != null &&
+        typeof item === "object" &&
+        "type" in item &&
+        (item as Record<string, unknown>).type === "text" &&
+        "text" in item
+      ) {
+        parts.push(String((item as Record<string, unknown>).text));
+      }
+    }
+    return parts.join("\n");
+  }
+  return "";
+}
+
+/**
+ * Extract duration_ms from agent result content.
+ * Parses patterns like "duration_ms: 152027" from the text.
+ */
+export function extractDurationFromResult(content: string | unknown[]): number | undefined {
+  const text = extractTextFromContent(content);
+  if (!text) return undefined;
+  const match = /duration_ms:\s*(\d+)/.exec(text);
+  if (match) return parseInt(match[1], 10);
+  return undefined;
+}
+
+/**
+ * Extract cost from agent result content.
+ * Parses patterns like "total_cost_usd: 0.05" from the text.
+ */
+export function extractCostFromResult(content: string | unknown[]): number | undefined {
+  const text = extractTextFromContent(content);
+  if (!text) return undefined;
+  const match = /total_cost_usd:\s*([\d.]+)/.exec(text);
+  if (match) return parseFloat(match[1]);
+  return undefined;
+}
+
 /** Map tool name to badge background/text color pair for collapsed group count badges. */
 export function getToolBadgeColors(toolName: string): { bg: string; text: string } {
   const name = toolName.toLowerCase();
@@ -340,6 +388,8 @@ const ToolEntryRow = memo(function ToolEntryRow({ entry, isLast, onToolClick }: 
         description={extractAgentDescription(entry)}
         status={entry.status}
         toolStats={extractToolStatsFromResult(entry.resultContent ?? [])}
+        durationMs={extractDurationFromResult(entry.resultContent ?? [])}
+        cost={extractCostFromResult(entry.resultContent ?? [])}
       >
         {entry.resultContent != null && (
           <div className="font-mono" style={{ fontSize: 10, color: "var(--t3)", lineHeight: 1.5 }}>

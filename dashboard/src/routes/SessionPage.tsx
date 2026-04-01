@@ -172,12 +172,6 @@ export function SessionPage() {
     setViewingTurnNumber(turnNumber);
   }, [selectedTurnIndex, turns, setViewingTurnNumber]);
 
-  // Auto-release turn pin when new turns arrive
-  useEffect(() => {
-    setSelectedTurnIndex(null);
-    setHighlightedTurnIndex(undefined);
-  }, [turns.length]);
-
   // Reset local state on session change
   useEffect(() => {
     setSelectedAgent(null);
