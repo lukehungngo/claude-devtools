@@ -131,6 +131,7 @@ function TurnRow({
       {filteredIndex > 0 && (
         <TurnDivider
           turnNumber={turn.turnNumber}
+          turnIndex={unfilteredIndex}
           isSelected={highlightedTurnIndex === unfilteredIndex}
           onClick={() => onTurnClick?.(unfilteredIndex)}
         />

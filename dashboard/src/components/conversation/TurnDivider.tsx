@@ -2,6 +2,7 @@ import { memo } from "react";
 
 export interface TurnDividerProps {
   turnNumber: number;
+  turnIndex?: number;
   isSelected: boolean;
   onClick: () => void;
 }
@@ -38,7 +39,7 @@ const badgeSelectedStyle = {
   border: "1px solid var(--acc)",
 } as const;
 
-function TurnDividerInner({ turnNumber, isSelected, onClick }: TurnDividerProps) {
+function TurnDividerInner({ turnNumber, turnIndex, isSelected, onClick }: TurnDividerProps) {
   const currentLineStyle = isSelected ? lineSelectedStyle : lineStyle;
   const currentBadgeStyle = isSelected ? badgeSelectedStyle : badgeDefaultStyle;
 
@@ -46,6 +47,7 @@ function TurnDividerInner({ turnNumber, isSelected, onClick }: TurnDividerProps)
     <div
       className="flex items-center"
       style={{ margin: "16px 0 12px 0" }}
+      data-turn-index={turnIndex}
     >
       <div className="flex-1" style={currentLineStyle} />
       <button

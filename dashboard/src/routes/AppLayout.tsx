@@ -1,9 +1,10 @@
-import { useRef, useCallback, useState, useMemo, lazy, Suspense } from "react";
+import { useRef, useCallback, useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import { Layout } from "../components/Layout";
 import { Titlebar } from "../components/Titlebar";
 import { RepoList } from "../components/RepoList";
 import { TopBar } from "../components/TopBar";
+import { TurnHistoryPanel } from "../components/TurnHistoryPanel";
 
 const BottomPanel = lazy(() =>
   import("../components/bottom-panel/BottomPanel").then(m => ({ default: m.BottomPanel }))
@@ -30,6 +31,29 @@ export function AppLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
+  // Turn history panel collapse state with localStorage persistence
+  const [turnHistoryOpen, setTurnHistoryOpen] = useState(() => {
+    try {
+      const stored = localStorage.getItem("turnHistoryOpen");
+      return stored !== "false"; // default true
+    } catch {
+      return true;
+    }
+  });
+
+  // Persist turn history open state
+  useEffect(() => {
+    try {
+      localStorage.setItem("turnHistoryOpen", String(turnHistoryOpen));
+    } catch {
+      // Silently fail
+    }
+  }, [turnHistoryOpen]);
+
+  const toggleTurnHistory = useCallback(() => {
+    setTurnHistoryOpen((prev) => !prev);
+  }, []);
+
   // Metrics from the currently-viewed session (set by SessionPage via context)
   const [currentMetrics, setCurrentMetrics] = useState<SessionMetrics | null>(null);
   // Tool filter state (set by TopBar badge clicks, consumed by SessionPage)
@@ -44,7 +68,12 @@ export function AppLayout() {
   const [hasSubagents, setHasSubagents] = useState(false);
   const [viewingTurnNumber, setViewingTurnNumber] = useState<number | undefined>(undefined);
   const onClearViewingTurnRef = useRef<(() => void) | null>(null);
+  const onTurnClickRef = useRef<((turnIndex: number) => void) | null>(null);
   const openBottomTabRef = useRef<((tab: string) => void) | null>(null);
+
+  const handleTurnSelect = useCallback((turnIndex: number) => {
+    onTurnClickRef.current?.(turnIndex);
+  }, []);
 
   const handleClearViewingTurn = useCallback(() => {
     setViewingTurnNumber(undefined);
@@ -178,9 +207,12 @@ export function AppLayout() {
     setCurrentSelectedAgent,
     hasSubagents,
     setHasSubagents,
+    turnHistoryOpen,
+    setTurnHistoryOpen,
     viewingTurnNumber,
     setViewingTurnNumber,
     onClearViewingTurnRef,
+    onTurnClickRef,
     openBottomTabRef,
   };
 
@@ -238,6 +270,15 @@ export function AppLayout() {
             isConnected={isLive}
           />
         }
+        turnHistory={
+          <TurnHistoryPanel
+            turns={currentTurns}
+            activeTurnIndex={currentActiveTurnIndex}
+            onSelectTurn={handleTurnSelect}
+            isOpen={turnHistoryOpen}
+            onToggle={toggleTurnHistory}
+          />
+        }
         center={<Outlet />}
         bottomPanel={
           <Suspense fallback={null}>
@@ -253,6 +294,7 @@ export function AppLayout() {
               sessionId={selected?.sessionId ?? ""}
               isLive={isLive}
               hasSubagents={hasSubagents}
+              viewingTurnNumber={viewingTurnNumber}
               openBottomTabRef={openBottomTabRef}
             />
           </Suspense>

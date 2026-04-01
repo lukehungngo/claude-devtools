@@ -304,6 +304,24 @@ describe("BottomPanel", () => {
     expect(toolCallTab).toBeDefined();
   });
 
+  // --- TASK-003: scope pill tests ---
+
+  it("shows 'Scoped to T{N}' when viewingTurnNumber is defined", () => {
+    render(<BottomPanel viewingTurnNumber={65} />);
+    expect(screen.getByText(/Scoped to/)).toBeDefined();
+    expect(screen.getByText("T65")).toBeDefined();
+  });
+
+  it("does not show scope pill when viewingTurnNumber is undefined", () => {
+    render(<BottomPanel />);
+    expect(screen.queryByText(/Scoped to/)).toBeNull();
+  });
+
+  it("shows scope pill for turn 0", () => {
+    render(<BottomPanel viewingTurnNumber={0} />);
+    expect(screen.getByText("T0")).toBeDefined();
+  });
+
   it("cleans up openBottomTabRef on unmount", () => {
     const openBottomTabRef = createRef<((tab: string) => void) | null>() as React.MutableRefObject<((tab: string) => void) | null>;
     openBottomTabRef.current = null;

@@ -86,4 +86,22 @@ describe("TurnDivider", () => {
     // Component should still render correctly (memo doesn't break rendering)
     expect(getByText("T5")).toBeTruthy();
   });
+
+  it("renders data-turn-index attribute when turnIndex is provided", () => {
+    const { container } = render(
+      <TurnDivider turnNumber={3} turnIndex={2} isSelected={false} onClick={vi.fn()} />
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.getAttribute("data-turn-index")).toBe("2");
+  });
+
+  it("omits data-turn-index when turnIndex is not provided", () => {
+    const { container } = render(
+      <TurnDivider turnNumber={3} isSelected={false} onClick={vi.fn()} />
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.hasAttribute("data-turn-index")).toBe(false);
+  });
 });

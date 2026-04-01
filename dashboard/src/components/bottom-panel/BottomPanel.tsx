@@ -30,6 +30,8 @@ export interface BottomPanelProps {
   sessionId?: string;
   isLive?: boolean;
   hasSubagents?: boolean;
+  /** Currently viewed turn number — drives the scope pill in the tab bar */
+  viewingTurnNumber?: number;
   /** Ref-based callback to switch tab programmatically without re-renders */
   openBottomTabRef?: MutableRefObject<((tab: string) => void) | null>;
 }
@@ -50,6 +52,7 @@ export function BottomPanel({
   sessionId: _sessionId,
   isLive,
   hasSubagents,
+  viewingTurnNumber,
   openBottomTabRef,
 }: BottomPanelProps) {
   const [activeTab, setActiveTab] = useState<BottomTab>("agent-graph");
@@ -228,6 +231,14 @@ export function BottomPanel({
               )}
             </button>
           ))}
+          {viewingTurnNumber !== undefined && (
+            <div className="ml-auto flex items-center gap-[3px] text-[10px] text-dt-text3 pr-2">
+              Scoped to{" "}
+              <span className="font-mono text-[10px] font-semibold text-dt-accent bg-dt-accent-bg px-[5px] py-[1px] rounded-[3px]">
+                T{viewingTurnNumber}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Panel body */}

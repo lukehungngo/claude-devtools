@@ -46,7 +46,10 @@ function createMockContextValue(overrides?: Partial<LayoutContextValue>): Layout
     setHasSubagents: () => {},
     viewingTurnNumber: undefined,
     setViewingTurnNumber: () => {},
+    turnHistoryOpen: true,
+    setTurnHistoryOpen: () => {},
     onClearViewingTurnRef: { current: null },
+    onTurnClickRef: { current: null },
     openBottomTabRef: { current: null },
     ...overrides,
   };

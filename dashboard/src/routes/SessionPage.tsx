@@ -6,6 +6,7 @@ import { useEventStream } from "../hooks/useEventStream";
 import { resolveSlugToProjectHash } from "../lib/repoSlug";
 import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental } from "../lib/turnSnapshot";
 import { ConversationView } from "../components/conversation/ConversationView";
+import { ReopenBar } from "../components/conversation/ReopenBar";
 
 export function SessionPage() {
   const { repoSlug, sessionId } = useParams({ strict: false }) as {
@@ -39,6 +40,9 @@ export function SessionPage() {
     usage,
     setViewingTurnNumber,
     onClearViewingTurnRef,
+    onTurnClickRef,
+    turnHistoryOpen,
+    setTurnHistoryOpen,
   } = ctx;
 
   // Resolve URL slug to projectHash for API calls
@@ -193,10 +197,27 @@ export function SessionPage() {
   const handleTurnClick = useCallback((turnIndex: number) => {
     setSelectedTurnIndex(turnIndex);
     setHighlightedTurnIndex(turnIndex);
+    // Scroll conversation to the clicked turn's divider
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-turn-index="${turnIndex}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
   }, []);
+
+  // Register turn click handler for TurnHistoryPanel (rendered in AppLayout)
+  useEffect(() => {
+    onTurnClickRef.current = handleTurnClick;
+    return () => { onTurnClickRef.current = null; };
+  }, [onTurnClickRef, handleTurnClick]);
 
   // No-op: previously opened a right panel tab; kept for onOpenPanel callback chain
   const handleOpenPanel = useCallback((_panel: string) => {}, []);
+
+  const handleReopenTurnHistory = useCallback(() => {
+    setTurnHistoryOpen(true);
+  }, [setTurnHistoryOpen]);
 
   // Clean up session data on unmount
   useEffect(() => {
@@ -230,25 +251,28 @@ export function SessionPage() {
   }
 
   return (
-    <ConversationView
-      events={allEvents}
-      turns={turns}
-      metrics={metrics}
-      isLive={isLive}
-      sessionCwd={metrics.session.cwd}
-      sessionId={metrics.session.id}
-      projectHash={projectHash}
-      activeSessionId={activeSessionId ?? undefined}
-      onSessionStarted={setActiveSessionId}
-      highlightedTurnIndex={highlightedTurnIndex}
-      permissions={permissions}
-      onPermissionDecide={decidePermission}
-      onDecideSession={decidePermissionSession}
-      questions={questions}
-      onSubmitAnswer={submitAnswer}
-      onAgentPillClick={handleAgentPillClick}
-      onTurnClick={handleTurnClick}
-      onOpenPanel={handleOpenPanel}
-    />
+    <>
+      {!turnHistoryOpen && <ReopenBar onReopen={handleReopenTurnHistory} />}
+      <ConversationView
+        events={allEvents}
+        turns={turns}
+        metrics={metrics}
+        isLive={isLive}
+        sessionCwd={metrics.session.cwd}
+        sessionId={metrics.session.id}
+        projectHash={projectHash}
+        activeSessionId={activeSessionId ?? undefined}
+        onSessionStarted={setActiveSessionId}
+        highlightedTurnIndex={highlightedTurnIndex}
+        permissions={permissions}
+        onPermissionDecide={decidePermission}
+        onDecideSession={decidePermissionSession}
+        questions={questions}
+        onSubmitAnswer={submitAnswer}
+        onAgentPillClick={handleAgentPillClick}
+        onTurnClick={handleTurnClick}
+        onOpenPanel={handleOpenPanel}
+      />
+    </>
   );
 }

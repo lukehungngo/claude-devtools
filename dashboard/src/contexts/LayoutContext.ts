@@ -62,11 +62,17 @@ export interface LayoutContextValue {
   hasSubagents: boolean;
   setHasSubagents: (v: boolean) => void;
 
+  // Turn history panel state
+  turnHistoryOpen: boolean;
+  setTurnHistoryOpen: (open: boolean) => void;
+
   // Viewing turn indicator (set by SessionPage, consumed by TopBar via AppLayout)
   viewingTurnNumber: number | undefined;
   setViewingTurnNumber: (n: number | undefined) => void;
   /** Registered by SessionPage to clear selectedTurnIndex when TopBar dismiss is clicked */
   onClearViewingTurnRef: MutableRefObject<(() => void) | null>;
+  /** Registered by SessionPage to handle turn clicks from TurnHistoryPanel */
+  onTurnClickRef: MutableRefObject<((turnIndex: number) => void) | null>;
   /** Registered by BottomPanel to switch active tab programmatically */
   openBottomTabRef: MutableRefObject<((tab: string) => void) | null>;
 }

@@ -4,6 +4,7 @@ interface LayoutProps {
   titlebar: ReactNode;
   topBar: ReactNode;
   sidebar: ReactNode;
+  turnHistory?: ReactNode;
   center: ReactNode;
   bottomPanel: ReactNode;
   sidebarCollapsed?: boolean;
@@ -14,6 +15,7 @@ export function Layout({
   titlebar,
   topBar,
   sidebar,
+  turnHistory,
   center,
   bottomPanel,
   sidebarCollapsed = false,
@@ -73,6 +75,9 @@ export function Layout({
             {sidebar}
           </div>
         </aside>
+
+        {/* Turn history panel */}
+        {turnHistory}
 
         {/* Main area */}
         <main className="flex-1 flex flex-col overflow-hidden min-w-0">
