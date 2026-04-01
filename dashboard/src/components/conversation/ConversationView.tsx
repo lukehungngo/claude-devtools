@@ -17,8 +17,6 @@ import { TurnDivider } from "./TurnDivider";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useStreamingState } from "../../hooks/useStreamingState";
 import { StreamingTurnArea } from "./StreamingTurnArea";
-import { ProgressBar } from "./ProgressBar";
-import { TaskGrid } from "./TaskGrid";
 export interface QuestionItem {
   questionId: string;
   questionText: string;
@@ -55,6 +53,8 @@ interface ConversationViewProps {
 
 // ─── Virtualized turn list ──────────────────────────────────────────
 
+type TaskItem = { id: string; name: string; status: "done" | "pending" | "in_progress" | "error" };
+
 interface VirtualizedTurnListProps {
   scrollRef: React.RefObject<HTMLDivElement>;
   handleScroll: () => void;
@@ -72,6 +72,8 @@ interface VirtualizedTurnListProps {
   questions?: QuestionItem[];
   onSubmitAnswer?: (questionId: string, answer: string) => void;
   streamingState: import("../../lib/streaming-types").StreamingState;
+  tasksByTurn?: Map<number, TaskItem[]>;
+  sessionIsRunning?: boolean;
 }
 
 /** Render a single turn with its permissions and questions */
@@ -90,6 +92,8 @@ function TurnRow({
   onDecideSession,
   questions,
   onSubmitAnswer,
+  tasksByTurn,
+  sessionIsRunning,
 }: {
   turn: TurnSnapshot;
   filteredIndex: number;
@@ -105,6 +109,8 @@ function TurnRow({
   onDecideSession?: (id: string) => void;
   questions?: QuestionItem[];
   onSubmitAnswer?: (questionId: string, answer: string) => void;
+  tasksByTurn?: Map<number, TaskItem[]>;
+  sessionIsRunning?: boolean;
 }) {
   const unfilteredIndex = turns.indexOf(turn);
   const nextTurn = filteredTurns[filteredIndex + 1];
@@ -143,6 +149,8 @@ function TurnRow({
         onAgentPillClick={onAgentPillClick}
         onTurnClick={onTurnClick ? () => onTurnClick(unfilteredIndex) : undefined}
         onToolClick={onToolClick}
+        tasks={tasksByTurn?.get(turn.turnNumber)}
+        sessionIsRunning={sessionIsRunning}
       />
       {turnPerms.map((perm) => (
         <PermissionBlock
@@ -183,6 +191,8 @@ function VirtualizedTurnList({
   questions,
   onSubmitAnswer,
   streamingState,
+  tasksByTurn,
+  sessionIsRunning,
 }: VirtualizedTurnListProps) {
   const virtualizer = useVirtualizer({
     count: filteredTurns.length,
@@ -199,6 +209,18 @@ function VirtualizedTurnList({
       });
     }
   }, [filteredTurns.length, autoScroll]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll to highlighted turn using virtualizer (DOM queries fail for off-screen items)
+  useEffect(() => {
+    if (highlightedTurnIndex == null) return;
+    // Map unfiltered turn index to filtered virtualizer index
+    const filteredIdx = filteredTurns.findIndex(
+      (t) => turns.indexOf(t) === highlightedTurnIndex
+    );
+    if (filteredIdx >= 0) {
+      virtualizer.scrollToIndex(filteredIdx, { align: "start", behavior: "smooth" });
+    }
+  }, [highlightedTurnIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const virtualItems = virtualizer.getVirtualItems();
   // Fallback: when virtualizer returns no items but we have turns (e.g., jsdom with 0-height container),
@@ -250,6 +272,8 @@ function VirtualizedTurnList({
                   onDecideSession={onDecideSession}
                   questions={questions}
                   onSubmitAnswer={onSubmitAnswer}
+                  tasksByTurn={tasksByTurn}
+                  sessionIsRunning={sessionIsRunning}
                 />
               </div>
             );
@@ -274,6 +298,8 @@ function VirtualizedTurnList({
               onDecideSession={onDecideSession}
               questions={questions}
               onSubmitAnswer={onSubmitAnswer}
+              tasksByTurn={tasksByTurn}
+              sessionIsRunning={sessionIsRunning}
             />
           </div>
         ))
@@ -388,8 +414,9 @@ export function ConversationView({
     });
   }, [turns, events]);
 
-  // Derive task items from tool_use events (TodoWrite, TaskCreate, TaskUpdate)
-  const derivedTasks = useMemo(() => {
+  // Derive task items per-turn from tool_use events (TodoWrite, TaskCreate, TaskUpdate)
+  // Returns a map of turnNumber -> cumulative task state at that turn (only for turns with task tool calls)
+  const tasksByTurn = useMemo(() => {
     type TaskItem = { id: string; name: string; status: "done" | "pending" | "in_progress" | "error" };
     const TASK_TOOLS = new Set(["TodoWrite", "TaskCreate", "TaskUpdate"]);
 
@@ -400,61 +427,61 @@ export function ConversationView({
       return "pending";
     };
 
+    const result = new Map<number, TaskItem[]>();
     let tasks: TaskItem[] = [];
 
-    for (const evt of events) {
-      if (evt.type !== "assistant") continue;
-      const msg = (evt as AssistantEvent).message;
-      if (!Array.isArray(msg?.content)) continue;
+    for (const turn of turns) {
+      const turnEvents = getEventsForTurn(turn, events);
+      let turnHasTaskTools = false;
 
-      for (const item of msg.content) {
-        if (
-          typeof item !== "object" ||
-          item === null ||
-          !("type" in item) ||
-          (item as { type: string }).type !== "tool_use"
-        ) continue;
+      for (const evt of turnEvents) {
+        if (evt.type !== "assistant") continue;
+        const msg = (evt as AssistantEvent).message;
+        if (!Array.isArray(msg?.content)) continue;
 
-        const toolUse = item as { type: "tool_use"; name: string; input: Record<string, unknown> };
-        if (!TASK_TOOLS.has(toolUse.name)) continue;
+        for (const item of msg.content) {
+          if (
+            typeof item !== "object" ||
+            item === null ||
+            !("type" in item) ||
+            (item as { type: string }).type !== "tool_use"
+          ) continue;
 
-        if (toolUse.name === "TodoWrite") {
-          const todos = toolUse.input.todos;
-          if (!Array.isArray(todos)) continue;
-          // TodoWrite replaces the full task list each time
-          tasks = todos.map((todo: unknown, idx: number) => {
-            const t = todo as { content?: string; status?: string };
-            return {
-              id: `T-${String(idx + 1).padStart(3, "0")}`,
-              name: t.content ?? `Task ${idx + 1}`,
-              status: normalizeStatus(t.status),
-            };
-          });
-        } else if (toolUse.name === "TaskCreate") {
-          const desc = toolUse.input.description;
-          tasks.push({
-            id: `T-${String(tasks.length + 1).padStart(3, "0")}`,
-            name: typeof desc === "string" ? desc : `Task ${tasks.length + 1}`,
-            status: "pending",
-          });
+          const toolUse = item as { type: "tool_use"; name: string; input: Record<string, unknown> };
+          if (!TASK_TOOLS.has(toolUse.name)) continue;
+          turnHasTaskTools = true;
+
+          if (toolUse.name === "TodoWrite") {
+            const todos = toolUse.input.todos;
+            if (!Array.isArray(todos)) continue;
+            tasks = todos.map((todo: unknown, idx: number) => {
+              const t = todo as { content?: string; status?: string };
+              return {
+                id: `T-${String(idx + 1).padStart(3, "0")}`,
+                name: t.content ?? `Task ${idx + 1}`,
+                status: normalizeStatus(t.status),
+              };
+            });
+          } else if (toolUse.name === "TaskCreate") {
+            const desc = toolUse.input.description;
+            tasks = [...tasks, {
+              id: `T-${String(tasks.length + 1).padStart(3, "0")}`,
+              name: typeof desc === "string" ? desc : `Task ${tasks.length + 1}`,
+              status: "pending",
+            }];
+          }
         }
-        // TaskUpdate could update status of existing tasks -- skip for now as spec is thin
+      }
+
+      if (turnHasTaskTools && tasks.length > 0) {
+        result.set(turn.turnNumber, [...tasks]);
       }
     }
 
-    return tasks;
-  }, [events]);
+    return result;
+  }, [turns, events]);
 
-  // Scroll to highlighted turn (works with virtualization via DOM query)
-  useEffect(() => {
-    if (highlightedTurnIndex != null && scrollRef.current) {
-      const turnElements = scrollRef.current.querySelectorAll(".conv-turn");
-      const target = turnElements[highlightedTurnIndex];
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }
-  }, [highlightedTurnIndex]);
+  // Scroll to highlighted turn is handled by VirtualizedTurnList via virtualizer.scrollToIndex
 
   // Detect user scroll to toggle auto-scroll
   const handleScroll = useCallback(() => {
@@ -650,22 +677,6 @@ export function ConversationView({
         onCompactNow={handleCompactNow}
       />
 
-      {/* Task progress bar */}
-      {metrics?.tasks && (
-        <ProgressBar
-          label="Tasks"
-          completed={metrics.tasks.completed}
-          total={metrics.tasks.total}
-        />
-      )}
-
-      {/* Task grid (derived from tool_use events) */}
-      {derivedTasks.length > 0 && (
-        <div style={{ padding: "0 24px 8px" }}>
-          <TaskGrid tasks={derivedTasks} />
-        </div>
-      )}
-
       {/* Turn list (virtualized, scrollable) */}
       <VirtualizedTurnList
         scrollRef={scrollRef}
@@ -684,6 +695,13 @@ export function ConversationView({
         questions={questions}
         onSubmitAnswer={onSubmitAnswer}
         streamingState={streamingState}
+        tasksByTurn={tasksByTurn}
+        sessionIsRunning={
+          // Prefer authoritative SDK session_state_changed signal over mtime heuristic
+          streamingState.sessionState != null
+            ? streamingState.sessionState === "running"
+            : metrics?.session?.isRunning
+        }
       />
 
       {/* Scroll-to-bottom button */}

@@ -145,6 +145,32 @@ describe("Discovery endpoints", () => {
       expect(res.body.commands).toEqual(mockCommands);
     });
 
+    it("returns cached commands when activeQuery is cleared (idle session)", async () => {
+      const sessionId = await sessionManager.startSession("/tmp");
+      const session = sessionManager.getStatus(sessionId)!;
+      const sdkCommands = [
+        { name: "help", description: "Show help", argumentHint: "" },
+        { name: "my-skill", description: "Marketplace skill", argumentHint: "" },
+      ];
+      // Simulate: activeQuery available, commands fetched and cached
+      session.activeQuery = {
+        supportedCommands: vi.fn().mockResolvedValue(sdkCommands),
+      } as unknown as import("@anthropic-ai/claude-agent-sdk").Query;
+
+      // First fetch — should get SDK commands and cache them
+      const res1 = await request(app).get(`/sessions/${sessionId}/commands`);
+      expect(res1.body.commands).toEqual(sdkCommands);
+      expect(res1.body.source).toBe("sdk");
+
+      // Clear activeQuery (session goes idle)
+      session.activeQuery = undefined;
+
+      // Second fetch — should get cached commands, not fallback
+      const res2 = await request(app).get(`/sessions/${sessionId}/commands`);
+      expect(res2.body.commands).toEqual(sdkCommands);
+      expect(res2.body.source).toBe("cached");
+    });
+
     it("returns fallback when activeQuery.supportedCommands throws", async () => {
       const sessionId = await sessionManager.startSession("/tmp");
       const session = sessionManager.getStatus(sessionId)!;

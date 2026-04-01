@@ -67,6 +67,16 @@ export interface SSEResultEvent {
   num_turns?: number;
   result?: string;
   errors?: string[];
+  /** Per-model usage breakdown from SDK (authoritative cost data) */
+  modelUsage?: Record<string, {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadInputTokens: number;
+    cacheCreationInputTokens: number;
+    costUSD: number;
+    contextWindow: number;
+    maxOutputTokens: number;
+  }>;
 }
 
 export interface SSEErrorEvent {
@@ -142,6 +152,11 @@ export interface SSECommandOutputEvent {
   exitCode?: number;
 }
 
+export interface SSESessionStateChangedEvent {
+  type: "session_state_changed";
+  state: string;
+}
+
 export type SSEEvent =
   | SSETextEvent
   | SSEThinkingEvent
@@ -164,7 +179,8 @@ export type SSEEvent =
   | SSEHookProgressEvent
   | SSEHookResponseEvent
   | SSEPromptSuggestionEvent
-  | SSECommandOutputEvent;
+  | SSECommandOutputEvent
+  | SSESessionStateChangedEvent;
 
 /**
  * Maps an SDK message to zero or more SSE events.
@@ -292,6 +308,11 @@ export function mapSdkMessageToSSEEvents(msg: {
     events.push({ type: "task_notification", taskId: msg.taskId, message: msg.message });
   }
 
+  // Session state changed (official SDK signal for running/idle/requires_action)
+  if (msg.type === "system" && msg.subtype === "session_state_changed") {
+    events.push({ type: "session_state_changed", state: msg.state });
+  }
+
   // System hook events
   if (msg.type === "system" && msg.subtype === "hook_started") {
     events.push({ type: "hook_started", hookName: msg.hookName, hookId: msg.hookId });
@@ -340,7 +361,7 @@ export function mapSdkMessageToSSEEvents(msg: {
     });
   }
 
-  // Result message
+  // Result message (authoritative end signal from SDK)
   if (msg.type === "result") {
     const resultEvent: SSEResultEvent = {
       type: "result",
@@ -355,6 +376,10 @@ export function mapSdkMessageToSSEEvents(msg: {
     }
     if (!msg.is_error && msg.result) {
       resultEvent.result = msg.result;
+    }
+    // Forward per-model usage breakdown (authoritative cost data from SDK)
+    if (msg.modelUsage) {
+      resultEvent.modelUsage = msg.modelUsage;
     }
     events.push(resultEvent);
   }

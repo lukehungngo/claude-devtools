@@ -10,6 +10,8 @@ export interface CanUseToolOptions {
   suggestions?: PermissionUpdate[];
   toolUseID: string;
   agentID?: string;
+  blockedPath?: string;
+  decisionReason?: string;
 }
 
 /** Permission modes matching the SDK PermissionMode type.
@@ -39,6 +41,8 @@ export interface ActiveSession {
   activeQuery?: Query;
   /** True for sessions created via startSession(), false for resumed JSONL sessions */
   isNew: boolean;
+  /** Cached SDK-provided slash commands (persists after activeQuery clears) */
+  cachedCommands?: Array<{ name: string; description: string; argumentHint?: string }>;
 }
 
 // Broadcast function type (injected to avoid circular deps)
@@ -171,6 +175,8 @@ export class SessionManager {
               suggestions: options.suggestions,
               toolUseID: options.toolUseID,
               agentID: options.agentID,
+              blockedPath: (options as Record<string, unknown>).blockedPath as string | undefined,
+              decisionReason: (options as Record<string, unknown>).decisionReason as string | undefined,
             });
           },
         },
@@ -178,6 +184,15 @@ export class SessionManager {
 
       // Store the Query object for mid-session SDK control methods
       session.activeQuery = responseStream;
+
+      // Proactively cache SDK-provided commands (includes marketplace/skills)
+      if (responseStream.supportedCommands) {
+        responseStream.supportedCommands()
+          .then((commands) => {
+            session.cachedCommands = commands as Array<{ name: string; description: string; argumentHint?: string }>;
+          })
+          .catch(() => { /* keep existing cache or fallback */ });
+      }
 
       for await (const message of responseStream) {
         yield message;
@@ -232,6 +247,8 @@ export class SessionManager {
         ...(options?.description ? { description: options.description } : {}),
         ...(options?.suggestions?.length ? { suggestions: options.suggestions } : {}),
         ...(options?.toolUseID ? { toolUseId: options.toolUseID } : {}),
+        ...(options?.blockedPath ? { blockedPath: options.blockedPath } : {}),
+        ...(options?.decisionReason ? { decisionReason: options.decisionReason } : {}),
       },
     });
 

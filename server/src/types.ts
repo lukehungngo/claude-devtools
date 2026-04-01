@@ -290,6 +290,10 @@ export interface PermissionRequest {
   description?: string;
   suggestions?: PermissionSuggestion[];
   toolUseId?: string;
+  /** File/dir path that triggered the permission (SDK blockedPath) */
+  blockedPath?: string;
+  /** SDK-provided reason for why permission is needed */
+  decisionReason?: string;
 }
 
 export interface AgentLogEntry {

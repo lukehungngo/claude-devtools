@@ -15,6 +15,14 @@ import { NarrationGroup } from "./NarrationGroup";
 import { ResponseBlock } from "../viewer/ResponseBlock";
 import { ToolEntries } from "./ToolEntries";
 import { CostFooter } from "./CostFooter";
+import { ProgressBar } from "./ProgressBar";
+import { TaskGrid } from "./TaskGrid";
+
+interface TaskItem {
+  id: string;
+  name: string;
+  status: "done" | "pending" | "in_progress" | "error";
+}
 
 interface TurnCardProps {
   turn: TurnSnapshot;
@@ -23,6 +31,9 @@ interface TurnCardProps {
   onAgentPillClick?: (agentId: string) => void;
   onTurnClick?: () => void;
   onToolClick?: (toolName: string) => void;
+  tasks?: TaskItem[];
+  /** Server-side session.isRunning (JSONL mtime < 2min). When false, suppresses "Generating..." on stale turns. */
+  sessionIsRunning?: boolean;
 }
 
 // ─── Content renderers ───────────────────────────────────────────────
@@ -67,8 +78,14 @@ function extractResponseContent(events: SessionEvent[]): TaggedContent[] {
 
 // ─── TurnFooter (elapsed / completed duration) ─────────────────────
 
-function TurnFooter({ turn }: { turn: TurnSnapshot }) {
-  const isStreaming = turn.status === "running";
+function TurnFooter({ turn, sessionIsRunning }: { turn: TurnSnapshot; sessionIsRunning?: boolean }) {
+  // A turn is truly streaming only if:
+  // 1. Its status is "running" (no end_turn / turn_duration marker in JSONL), AND
+  // 2. The server confirms the session is still active.
+  //    For SSE sessions: uses SDK's session_state_changed event (authoritative).
+  //    For JSONL sessions: server uses mtime < 2min heuristic (SessionInfo.isRunning).
+  // This prevents stale "Generating..." on sessions that ended without clean markers.
+  const isStreaming = turn.status === "running" && sessionIsRunning !== false;
   const [elapsed, setElapsed] = useState<number>(0);
 
   useEffect(() => {
@@ -133,7 +150,9 @@ export function turnCardAreEqual(
     prev.isHighlighted === next.isHighlighted &&
     prev.onAgentPillClick === next.onAgentPillClick &&
     prev.onTurnClick === next.onTurnClick &&
-    prev.onToolClick === next.onToolClick
+    prev.onToolClick === next.onToolClick &&
+    prev.tasks?.length === next.tasks?.length &&
+    prev.sessionIsRunning === next.sessionIsRunning
   );
 }
 
@@ -144,8 +163,10 @@ export function TurnCard({
   onAgentPillClick,
   onTurnClick,
   onToolClick,
+  tasks,
+  sessionIsRunning,
 }: TurnCardProps) {
-  const isRunning = turn.status === "running";
+  const isRunning = turn.status === "running" && sessionIsRunning !== false;
   const turnEvents = useMemo(() => getEventsForTurn(turn, allEvents), [turn, allEvents]);
   const responseContent = extractResponseContent(turnEvents);
   const agentCost = useMemo(
@@ -244,6 +265,18 @@ export function TurnCard({
             {/* Tool entries (grouped card) -- click opens bottom panel tool-call tab */}
             <ToolEntries events={turnEvents} onToolClick={onToolClick} />
 
+            {/* Task progress (only shown on turns that executed task tool calls) */}
+            {tasks && tasks.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <ProgressBar
+                  label="Tasks"
+                  completed={tasks.filter((t) => t.status === "done").length}
+                  total={tasks.length}
+                />
+                <TaskGrid tasks={tasks} />
+              </div>
+            )}
+
             {/* Cost breakdown */}
             {turn.cost > 0 && (
               <CostFooter
@@ -277,7 +310,7 @@ export function TurnCard({
             )}
 
             {/* Completion indicator */}
-            <TurnFooter turn={turn} />
+            <TurnFooter turn={turn} sessionIsRunning={sessionIsRunning} />
           </div>
         </div>
       )}

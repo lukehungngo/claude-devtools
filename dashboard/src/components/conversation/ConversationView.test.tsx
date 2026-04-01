@@ -207,54 +207,28 @@ describe("ConversationView scroll-to-bottom button positioning", () => {
   });
 });
 
-describe("ConversationView ProgressBar", () => {
-  function makeMetricsWithTasks(tasks: { total: number; completed: number; inProgress: number; pending: number }) {
+describe("ConversationView ProgressBar (per-turn)", () => {
+  function makeAssistantWithTaskCreate(ts: number, desc: string): SessionEvent {
     return {
-      session: { id: "sess-1", projectPath: "/tmp", model: "test", startTime: "", cwd: "/tmp" },
-      dag: { nodes: [], edges: [] },
-      tokens: { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
-      tokensByModel: {},
-      tokensByTurn: [],
-      tools: [],
-      totalEvents: 0,
-      totalToolCalls: 0,
-      totalAgents: 0,
-      models: [],
-      duration: 0,
-      contextPercent: 0,
-      contextWindowSize: 200000,
-      tasks,
-      hasRemoteControl: false,
-    } as unknown as import("../../lib/types").SessionMetrics;
+      type: "assistant",
+      uuid: `asst-task-${ts}`,
+      timestamp: new Date(ts).toISOString(),
+      sessionId: "sess-1",
+      message: {
+        role: "assistant",
+        model: "test",
+        content: [
+          { type: "tool_use", id: "tu1", name: "TaskCreate", input: { description: desc } },
+        ],
+      },
+    } as unknown as SessionEvent;
   }
 
-  it("renders ProgressBar when metrics.tasks.total > 0", () => {
+  it("renders ProgressBar inside the turn that has TaskCreate tool calls", () => {
     const events = [
       makeUserEvent("Prompt", 0),
-      makeAssistantEvent(1),
-    ];
-    const turns = groupEventsIntoTurns(events as SessionEvent[]);
-
-    render(
-      <ConversationView
-        events={events}
-        turns={turns}
-        metrics={makeMetricsWithTasks({ total: 5, completed: 2, inProgress: 1, pending: 2 })}
-      />
-    );
-
-    const progressbar = screen.getByRole("progressbar");
-    expect(progressbar).toBeTruthy();
-    expect(progressbar.getAttribute("aria-valuenow")).toBe("2");
-    expect(progressbar.getAttribute("aria-valuemax")).toBe("5");
-    expect(screen.getByText("2/5")).toBeTruthy();
-    expect(screen.getByText("Tasks")).toBeTruthy();
-  });
-
-  it("does not render ProgressBar when metrics is null", () => {
-    const events = [
-      makeUserEvent("Prompt", 0),
-      makeAssistantEvent(1),
+      makeAssistantWithTaskCreate(1, "Build feature"),
+      makeAssistantWithTaskCreate(2, "Write tests"),
     ];
     const turns = groupEventsIntoTurns(events as SessionEvent[]);
 
@@ -266,10 +240,15 @@ describe("ConversationView ProgressBar", () => {
       />
     );
 
-    expect(screen.queryByRole("progressbar")).toBeNull();
+    const progressbar = screen.getByRole("progressbar");
+    expect(progressbar).toBeTruthy();
+    expect(progressbar.getAttribute("aria-valuenow")).toBe("0");
+    expect(progressbar.getAttribute("aria-valuemax")).toBe("2");
+    expect(screen.getByText("0/2")).toBeTruthy();
+    expect(screen.getByText("Tasks")).toBeTruthy();
   });
 
-  it("does not render ProgressBar when tasks.total is 0", () => {
+  it("does not render ProgressBar when no task tool calls exist", () => {
     const events = [
       makeUserEvent("Prompt", 0),
       makeAssistantEvent(1),
@@ -280,7 +259,7 @@ describe("ConversationView ProgressBar", () => {
       <ConversationView
         events={events}
         turns={turns}
-        metrics={makeMetricsWithTasks({ total: 0, completed: 0, inProgress: 0, pending: 0 })}
+        metrics={null}
       />
     );
 

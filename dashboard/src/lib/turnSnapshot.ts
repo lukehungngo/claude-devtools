@@ -124,6 +124,8 @@ function isTurnBoundary(event: SessionEvent): event is UserEvent {
   if (userEvent.userType !== "external") return false;
   // isMeta marks system-injected content: skill expansions, image refs, local command output
   if (userEvent.isMeta) return false;
+  // toolUseResult indicates this is a tool result response, not a user turn
+  if (userEvent.toolUseResult) return false;
 
   // Must have at least one TextContent item
   const content = userEvent.message?.content;

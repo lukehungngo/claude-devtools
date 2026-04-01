@@ -21,6 +21,14 @@ export function useStreamingState(): UseStreamingStateReturn {
   const handleSSEEvent = useCallback((data: { type: string; [key: string]: unknown }) => {
     setState((prev) => {
       switch (data.type) {
+        case "stdout": {
+          const text = data.text as string;
+          return {
+            ...prev,
+            responseText: prev.responseText + text,
+          };
+        }
+
         case "thinking": {
           const text = data.text as string;
           return {
@@ -151,6 +159,21 @@ export function useStreamingState(): UseStreamingStateReturn {
             compactResult: metadata
               ? { trigger: metadata.trigger ?? "unknown", preTokens: metadata.pre_tokens ?? 0 }
               : null,
+          };
+        }
+
+        case "session_state_changed": {
+          return {
+            ...prev,
+            sessionState: data.state as string,
+          };
+        }
+
+        case "result": {
+          // Result is the terminal event from the SDK — session is idle
+          return {
+            ...prev,
+            sessionState: "idle",
           };
         }
 

@@ -57,6 +57,7 @@ interface DiscoveryAgent {
 export function useDiscoveryCommands(sessionId: string | undefined): DashboardSlashCommand[] {
   const [commands, setCommands] = useState<DashboardSlashCommand[]>(FALLBACK_COMMANDS);
   const fetchedForRef = useRef<string | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!sessionId) {
@@ -65,34 +66,51 @@ export function useDiscoveryCommands(sessionId: string | undefined): DashboardSl
       return;
     }
 
-    // Already fetched for this sessionId -- skip
+    // Already fetched authoritative commands for this sessionId -- skip
     if (fetchedForRef.current === sessionId) return;
 
     let cancelled = false;
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
+    const sid = sessionId; // narrowed to string after guard
 
-    fetch(`/api/sessions/${sessionId}/commands`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data: { commands?: Array<{ name: string; description: string }> }) => {
-        if (cancelled) return;
-        if (data.commands && Array.isArray(data.commands) && data.commands.length > 0) {
-          // SDK commands have name without leading slash; add it for dashboard format
-          const mapped = data.commands.map((c) => ({
-            name: c.name.startsWith("/") ? c.name : "/" + c.name,
-            description: c.description,
-          }));
-          setCommands(mapped);
-          fetchedForRef.current = sessionId;
-        }
-      })
-      .catch(() => {
-        // Keep fallback on error -- do not update state
-      });
+    function fetchCommands() {
+      fetch(`/api/sessions/${sid}/commands`)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then((data: { commands?: Array<{ name: string; description: string }>; source?: string }) => {
+          if (cancelled) return;
+          if (data.commands && Array.isArray(data.commands) && data.commands.length > 0) {
+            const mapped = data.commands.map((c) => ({
+              name: c.name.startsWith("/") ? c.name : "/" + c.name,
+              description: c.description,
+            }));
+            setCommands(mapped);
+
+            // Only mark as "done" if we got SDK or cached commands (not fallback)
+            if (data.source === "sdk" || data.source === "cached") {
+              fetchedForRef.current = sid;
+            } else if (retryCount < MAX_RETRIES) {
+              // Got fallback — retry after 3s (server may cache SDK commands after first message)
+              retryCount++;
+              retryTimerRef.current = setTimeout(() => {
+                if (!cancelled) fetchCommands();
+              }, 3000);
+            }
+          }
+        })
+        .catch(() => {
+          // Keep fallback on error
+        });
+    }
+
+    fetchCommands();
 
     return () => {
       cancelled = true;
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     };
   }, [sessionId]);
 

@@ -69,7 +69,7 @@ function analyzeEvents(events: SessionEvent[]): {
           if (content.name.startsWith("mcp__")) {
             mcpToolCalls++;
           }
-          if (content.name === "Agent") {
+          if (content.name === "Agent" || content.name === "Task") {
             const desc = (content.input as Record<string, unknown>).description as string;
             if (desc) agentDescriptions.push(desc);
           }

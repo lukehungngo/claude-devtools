@@ -184,4 +184,52 @@ describe("useStreamingState", () => {
     });
     expect(result.current.state.tools.size).toBe(0);
   });
+
+  it("accumulates stdout text into responseText", () => {
+    const { result } = renderHook(() => useStreamingState());
+    expect(result.current.state.responseText).toBe("");
+
+    act(() => {
+      result.current.actions.handleSSEEvent({ type: "stdout", text: "Hello " });
+      result.current.actions.handleSSEEvent({ type: "stdout", text: "world!" });
+    });
+    expect(result.current.state.responseText).toBe("Hello world!");
+  });
+
+  it("clears responseText on reset", () => {
+    const { result } = renderHook(() => useStreamingState());
+    act(() => {
+      result.current.actions.handleSSEEvent({ type: "stdout", text: "Some text" });
+      result.current.actions.reset();
+    });
+    expect(result.current.state.responseText).toBe("");
+  });
+
+  it("tracks session_state_changed events", () => {
+    const { result } = renderHook(() => useStreamingState());
+    expect(result.current.state.sessionState).toBeNull();
+
+    act(() => {
+      result.current.actions.handleSSEEvent({ type: "session_state_changed", state: "running" });
+    });
+    expect(result.current.state.sessionState).toBe("running");
+
+    act(() => {
+      result.current.actions.handleSSEEvent({ type: "session_state_changed", state: "idle" });
+    });
+    expect(result.current.state.sessionState).toBe("idle");
+  });
+
+  it("sets sessionState to idle on result event", () => {
+    const { result } = renderHook(() => useStreamingState());
+    act(() => {
+      result.current.actions.handleSSEEvent({ type: "session_state_changed", state: "running" });
+    });
+    expect(result.current.state.sessionState).toBe("running");
+
+    act(() => {
+      result.current.actions.handleSSEEvent({ type: "result", is_error: false });
+    });
+    expect(result.current.state.sessionState).toBe("idle");
+  });
 });

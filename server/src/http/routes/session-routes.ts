@@ -337,12 +337,14 @@ export function createSessionRoutes({ state }: RouteContext): Router {
   // Permission request from hook script
   router.post("/permissions/request", (req, res) => {
     try {
-      const { toolName, input, sessionId, agentId } = req.body;
+      const { toolName, input, sessionId, agentId, blockedPath, decisionReason } = req.body;
       const permission = addPermissionRequest({
         sessionId: sessionId || "",
         agentId: agentId || "main",
         toolName: toolName || "unknown",
         input: input || {},
+        blockedPath,
+        decisionReason,
       });
 
       // Broadcast via WebSocket

@@ -191,13 +191,7 @@ export function SessionPage() {
   const handleTurnClick = useCallback((turnIndex: number) => {
     setSelectedTurnIndex(turnIndex);
     setHighlightedTurnIndex(turnIndex);
-    // Scroll conversation to the clicked turn's divider
-    requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-turn-index="${turnIndex}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
+    // Scroll is handled by VirtualizedTurnList reacting to highlightedTurnIndex change
   }, []);
 
   // Register turn click handler for TurnHistoryPanel (rendered in AppLayout)

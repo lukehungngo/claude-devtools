@@ -109,6 +109,30 @@ describe("parseJsonlFile", () => {
     expect(result).toEqual([]);
   });
 
+  it("filters out unknown event types (file-history-snapshot, last-prompt, pr-link)", () => {
+    const filePath = join(TEST_DIR, "unknown-types.jsonl");
+    const knownEvent = {
+      type: "user",
+      uuid: "u1",
+      timestamp: "2026-03-23T10:00:00Z",
+      sessionId: "s1",
+      userType: "external",
+      message: { role: "user", content: [] },
+    };
+    const unknownEvents = [
+      { type: "file-history-snapshot", uuid: "fhs1", timestamp: "2026-03-23T10:00:01Z", sessionId: "s1" },
+      { type: "last-prompt", uuid: "lp1", timestamp: "2026-03-23T10:00:02Z", sessionId: "s1" },
+      { type: "pr-link", uuid: "pr1", timestamp: "2026-03-23T10:00:03Z", sessionId: "s1" },
+    ];
+    const lines = [knownEvent, ...unknownEvents].map((e) => JSON.stringify(e)).join("\n") + "\n";
+    writeFileSync(filePath, lines);
+
+    const result = parseJsonlFile(filePath);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("user");
+  });
+
   it("parses system events", () => {
     const filePath = join(TEST_DIR, "system-event.jsonl");
     const systemEvent = {

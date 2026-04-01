@@ -2,6 +2,19 @@ import { readFileSync, existsSync, openSync, fstatSync, readSync, closeSync } fr
 import type { SessionEvent } from "../types.js";
 import { parserLog } from "../logger.js";
 
+/** Event types we process. Others (file-history-snapshot, last-prompt, pr-link) are silently skipped. */
+const KNOWN_EVENT_TYPES = new Set([
+  "user",
+  "assistant",
+  "system",
+  "progress",
+  "queue-operation",
+]);
+
+function isKnownEvent(parsed: Record<string, unknown>): boolean {
+  return typeof parsed.type === "string" && KNOWN_EVENT_TYPES.has(parsed.type);
+}
+
 export function parseJsonlFile(filePath: string): SessionEvent[] {
   if (!existsSync(filePath)) return [];
 
@@ -12,8 +25,9 @@ export function parseJsonlFile(filePath: string): SessionEvent[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
-      const event = JSON.parse(trimmed) as SessionEvent;
-      events.push(event);
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      if (!isKnownEvent(parsed)) continue;
+      events.push(parsed as unknown as SessionEvent);
     } catch (err) {
       // Skip malformed lines — fail safe per architecture invariant
       parserLog.warn({ filePath, error: String(err) }, "parseJsonlFile: skipped malformed line");
@@ -53,7 +67,9 @@ export function parseJsonlIncremental(
       const trimmed = line.trim();
       if (!trimmed) continue;
       try {
-        events.push(JSON.parse(trimmed) as SessionEvent);
+        const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+        if (!isKnownEvent(parsed)) continue;
+        events.push(parsed as unknown as SessionEvent);
       } catch (err) {
         // Skip malformed lines — fail safe per architecture invariant
         parserLog.warn({ filePath, fromOffset, error: String(err) }, "parseJsonlIncremental: skipped malformed line");

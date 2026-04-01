@@ -134,13 +134,21 @@ export function createDiscoveryRoutes({ state }: RouteContext): Router {
       return res.status(404).json({ error: "Session not found" });
     }
 
+    // Try live SDK query first (includes marketplace/skill commands)
     if (session.activeQuery?.supportedCommands) {
       try {
         const commands = await session.activeQuery.supportedCommands();
+        // Cache for when activeQuery is cleared (idle session)
+        session.cachedCommands = commands as Array<{ name: string; description: string; argumentHint?: string }>;
         return res.json({ commands, source: "sdk" });
       } catch {
-        return res.json({ commands: FALLBACK_COMMANDS, source: "fallback" });
+        return res.json({ commands: session.cachedCommands ?? FALLBACK_COMMANDS, source: session.cachedCommands ? "cached" : "fallback" });
       }
+    }
+
+    // Serve cached commands if available (from previous activeQuery)
+    if (session.cachedCommands) {
+      return res.json({ commands: session.cachedCommands, source: "cached" });
     }
 
     res.json({ commands: FALLBACK_COMMANDS, source: "fallback" });

@@ -1,0 +1,4 @@
+[      59ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:21550
+[      90ms] [WARNING] WebSocket connection to 'ws://localhost:5180/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:5180/src/hooks/useUnifiedWebSocket.ts:67
+[    1874ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:21550
+[    1896ms] [WARNING] WebSocket connection to 'ws://localhost:5180/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:5180/src/hooks/useUnifiedWebSocket.ts:67

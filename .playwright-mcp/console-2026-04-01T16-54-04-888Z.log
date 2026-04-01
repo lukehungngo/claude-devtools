@@ -1,0 +1,222 @@
+[     103ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:21550
+[     137ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5180/favicon.ico:0
+[     148ms] [WARNING] WebSocket connection to 'ws://localhost:5180/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:5180/src/hooks/useUnifiedWebSocket.ts:67
+[    9260ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5180/api/sessions/a5cbf0f8-5151-4e62-bb1b-e4e2a0f442c1/commands:0
+[    9260ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5180/api/sessions/a5cbf0f8-5151-4e62-bb1b-e4e2a0f442c1/commands:0
+[  278188ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:21550
+[  278257ms] [WARNING] WebSocket connection to 'ws://localhost:5180/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:5180/src/hooks/useUnifiedWebSocket.ts:67
+[  278427ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5180/api/sessions/a5cbf0f8-5151-4e62-bb1b-e4e2a0f442c1/commands:0
+[  278427ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5180/api/sessions/a5cbf0f8-5151-4e62-bb1b-e4e2a0f442c1/commands:0
+[  756270ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:21550
+[  756324ms] [WARNING] WebSocket connection to 'ws://localhost:5180/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:5180/src/hooks/useUnifiedWebSocket.ts:67
+[ 1028260ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:21550
+[ 1028320ms] [WARNING] WebSocket connection to 'ws://localhost:5180/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:5180/src/hooks/useUnifiedWebSocket.ts:67
+[ 1077805ms] TypeError: Cannot read properties of undefined (reading 'length')
+    at StreamingTurnArea (http://localhost:5180/src/components/conversation/StreamingTurnArea.tsx?t=1775063522639:50:42)
+    at renderWithHooks (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:11548:26)
+    at updateFunctionComponent (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:14582:28)
+    at beginWork (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:15924:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:3699:24)
+    at invokeGuardedCallback (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:3733:39)
+    at beginWork$1 (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:19765:15)
+    at performUnitOfWork (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:19198:20)
+    at workLoopSync (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:19137:13)
+[ 1077808ms] TypeError: Cannot read properties of undefined (reading 'length')
+    at StreamingTurnArea (http://localhost:5180/src/components/conversation/StreamingTurnArea.tsx?t=1775063522639:50:42)
+    at renderWithHooks (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:11548:26)
+    at updateFunctionComponent (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:14582:28)
+    at beginWork (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:15924:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:3699:24)
+    at invokeGuardedCallback (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:3733:39)
+    at beginWork$1 (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:19765:15)
+    at performUnitOfWork (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:19198:20)
+    at workLoopSync (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:19137:13)
+[ 1077809ms] [ERROR] The above error occurred in the <StreamingTurnArea> component:
+
+    at StreamingTurnArea (http://localhost:5180/src/components/conversation/StreamingTurnArea.tsx?t=1775063522639:47:37)
+    at div
+    at VirtualizedTurnList (http://localhost:5180/src/components/conversation/ConversationView.tsx?t=1775063493113:150:3)
+    at div
+    at ConversationView (http://localhost:5180/src/components/conversation/ConversationView.tsx?t=1775063493113:362:3)
+    at SessionPage (http://localhost:5180/src/routes/SessionPage.tsx?t=1775062699206:29:35)
+    at Lazy
+    at MatchInnerImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7198:59)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at MatchView (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7140:22)
+    at MatchImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7088:49)
+    at OutletImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7321:18)
+    at div
+    at main
+    at div
+    at div
+    at Layout (http://localhost:5180/src/components/Layout.tsx:18:3)
+    at AppLayout (http://localhost:5180/src/routes/AppLayout.tsx:38:20)
+    at MatchInnerImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7198:59)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at MatchView (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7140:22)
+    at MatchImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7088:49)
+    at Suspense
+    at OutletImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7321:18)
+    at SetupGate (http://localhost:5180/src/components/SetupGate.tsx:19:29)
+    at ThemeProvider (http://localhost:5180/src/contexts/ThemeContext.tsx:36:33)
+    at RootLayout
+    at MatchInnerImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7198:59)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at MatchView (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7140:22)
+    at MatchImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7088:49)
+    at CatchBoundaryImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:5510:5)
+    at CatchBoundary (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:5495:32)
+    at MatchesInner (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7469:18)
+    at Suspense
+    at Matches (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7459:18)
+    at RouterContextProvider (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7570:34)
+    at RouterProvider (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7586:27)
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl. @ http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:14031
+[ 1077809ms] [WARNING] Warning: The following error wasn't caught by any route! At the very least, consider setting an 'errorComponent' in your RootRoute! @ http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7479
+[ 1077809ms] [WARNING] Warning: Cannot read properties of undefined (reading 'length') @ http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7480
+[ 1126153ms] [WARNING] WebSocket connection to 'ws://localhost:5180/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:5180/src/hooks/useUnifiedWebSocket.ts:67
+[ 2125923ms] [ERROR] Warning: React has detected a change in the order of Hooks called by %s. This will lead to bugs and errors if not fixed. For more information, read the Rules of Hooks: https://reactjs.org/link/rules-of-hooks
+
+   Previous render            Next render
+   ------------------------------------------------------
+%s   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+%s PromptInput 1. useState                   useState
+2. useState                   useState
+3. useState                   useState
+4. useRef                     useRef
+5. useEffect                  useRef
+ 
+    at PromptInput (http://localhost:5180/src/components/conversation/PromptInput.tsx?t=1775064570759:40:31)
+    at div
+    at ConversationView (http://localhost:5180/src/components/conversation/ConversationView.tsx?t=1775063570970:362:3)
+    at SessionPage (http://localhost:5180/src/routes/SessionPage.tsx?t=1775063570970:29:35)
+    at Lazy
+    at MatchInnerImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7198:59)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at MatchView (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7140:22)
+    at MatchImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7088:49)
+    at OutletImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7321:18)
+    at div
+    at main
+    at div
+    at div
+    at Layout (http://localhost:5180/src/components/Layout.tsx:18:3)
+    at AppLayout (http://localhost:5180/src/routes/AppLayout.tsx:38:20)
+    at MatchInnerImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7198:59)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at MatchView (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7140:22)
+    at MatchImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7088:49)
+    at Suspense
+    at OutletImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7321:18)
+    at SetupGate (http://localhost:5180/src/components/SetupGate.tsx:19:29)
+    at ThemeProvider (http://localhost:5180/src/contexts/ThemeContext.tsx:36:33)
+    at RootLayout
+    at MatchInnerImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7198:59)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at MatchView (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7140:22)
+    at MatchImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7088:49)
+    at CatchBoundaryImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:5510:5)
+    at CatchBoundary (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:5495:32)
+    at MatchesInner (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7469:18)
+    at Suspense
+    at Matches (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7459:18)
+    at RouterContextProvider (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7570:34)
+    at RouterProvider (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7586:27) @ http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:520
+[ 2125924ms] Error: Should have a queue. This is likely a bug in React. Please file an issue.
+    at updateReducer (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:11730:19)
+    at updateState (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:12021:18)
+    at Object.useState (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:12753:24)
+    at useState (http://localhost:5180/node_modules/.vite/deps/chunk-HDWYUXML.js?v=d0f9dc76:1066:29)
+    at useCommandHistory (http://localhost:5180/src/hooks/useCommandHistory.ts:19:43)
+    at PromptInput (http://localhost:5180/src/components/conversation/PromptInput.tsx?t=1775064570759:45:94)
+    at renderWithHooks (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:11548:26)
+    at updateFunctionComponent (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:14582:28)
+    at beginWork (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:15924:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:3674:22)
+[ 2125924ms] Error: Should have a queue. This is likely a bug in React. Please file an issue.
+    at updateReducer (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:11730:19)
+    at updateState (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:12021:18)
+    at Object.useState (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:12753:24)
+    at useState (http://localhost:5180/node_modules/.vite/deps/chunk-HDWYUXML.js?v=d0f9dc76:1066:29)
+    at useCommandHistory (http://localhost:5180/src/hooks/useCommandHistory.ts:19:43)
+    at PromptInput (http://localhost:5180/src/components/conversation/PromptInput.tsx?t=1775064570759:45:94)
+    at renderWithHooks (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:11548:26)
+    at updateFunctionComponent (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:14582:28)
+    at beginWork (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:15924:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:3674:22)
+[ 2125926ms] [ERROR] The above error occurred in the <PromptInput> component:
+
+    at PromptInput (http://localhost:5180/src/components/conversation/PromptInput.tsx?t=1775064570759:40:31)
+    at div
+    at ConversationView (http://localhost:5180/src/components/conversation/ConversationView.tsx?t=1775063570970:362:3)
+    at SessionPage (http://localhost:5180/src/routes/SessionPage.tsx?t=1775063570970:29:35)
+    at Lazy
+    at MatchInnerImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7198:59)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at MatchView (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7140:22)
+    at MatchImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7088:49)
+    at OutletImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7321:18)
+    at div
+    at main
+    at div
+    at div
+    at Layout (http://localhost:5180/src/components/Layout.tsx:18:3)
+    at AppLayout (http://localhost:5180/src/routes/AppLayout.tsx:38:20)
+    at MatchInnerImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7198:59)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at MatchView (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7140:22)
+    at MatchImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7088:49)
+    at Suspense
+    at OutletImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7321:18)
+    at SetupGate (http://localhost:5180/src/components/SetupGate.tsx:19:29)
+    at ThemeProvider (http://localhost:5180/src/contexts/ThemeContext.tsx:36:33)
+    at RootLayout
+    at MatchInnerImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7198:59)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at SafeFragment (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7053:87)
+    at MatchView (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7140:22)
+    at MatchImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7088:49)
+    at CatchBoundaryImpl (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:5510:5)
+    at CatchBoundary (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:5495:32)
+    at MatchesInner (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7469:18)
+    at Suspense
+    at Matches (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7459:18)
+    at RouterContextProvider (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7570:34)
+    at RouterProvider (http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7586:27)
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl. @ http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:14031
+[ 2125926ms] [WARNING] Warning: The following error wasn't caught by any route! At the very least, consider setting an 'errorComponent' in your RootRoute! @ http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7479
+[ 2125926ms] [WARNING] Warning: Should have a queue. This is likely a bug in React. Please file an issue. @ http://localhost:5180/node_modules/.vite/deps/@tanstack_react-router.js?v=d0f9dc76:7480
+[ 2131926ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:21550
+[ 2132005ms] [WARNING] WebSocket connection to 'ws://localhost:5180/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:5180/src/hooks/useUnifiedWebSocket.ts:67
+[ 2361637ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5180/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:21550
+[ 2361747ms] [WARNING] WebSocket connection to 'ws://localhost:5180/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:5180/src/hooks/useUnifiedWebSocket.ts:67

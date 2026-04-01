@@ -37,6 +37,8 @@ export function addPermissionRequest(data: {
   agentId: string;
   toolName: string;
   input: Record<string, unknown>;
+  blockedPath?: string;
+  decisionReason?: string;
 }): PermissionRequest {
   // Check if tool is already allowed for this session
   const autoApproved = isToolAllowedForSession(data.sessionId, data.toolName);
@@ -49,6 +51,8 @@ export function addPermissionRequest(data: {
     input: data.input,
     timestamp: new Date().toISOString(),
     status: autoApproved ? "approved" : "pending",
+    blockedPath: data.blockedPath,
+    decisionReason: data.decisionReason,
   };
 
   pendingPermissions.set(permission.id, permission);

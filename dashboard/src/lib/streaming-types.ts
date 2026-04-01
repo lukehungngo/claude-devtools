@@ -36,6 +36,10 @@ export interface StreamingState {
   isCompacting: boolean;
   /** Metadata from the last compact event, cleared after display timeout */
   compactResult: CompactMetadata | null;
+  /** SDK session state from session_state_changed event ("idle" | "running" | "requires_action" | null) */
+  sessionState: string | null;
+  /** Accumulated response text from stdout events */
+  responseText: string;
 }
 
 export function createInitialStreamingState(): StreamingState {
@@ -47,6 +51,8 @@ export function createInitialStreamingState(): StreamingState {
     status: null,
     isCompacting: false,
     compactResult: null,
+    sessionState: null,
+    responseText: "",
   };
 }
 

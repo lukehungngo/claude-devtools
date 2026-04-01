@@ -132,6 +132,22 @@ describe("TurnCard — completion indicator", () => {
     expect(indicator!.textContent).toContain("Completed");
     expect(indicator!.textContent).not.toContain("Completed in");
   });
+
+  it("shows 'Completed' when turn.status is running but sessionIsRunning is false (stale session)", () => {
+    const evts = [makeAssistantEvent("Working...")] as SessionEvent[];
+    const { turn, allEvents } = makeTurnAndEvents(
+      { status: "running", durationMs: null, endTime: "", completedAt: "" },
+      evts,
+    );
+    const { container } = render(
+      <TurnCard turn={turn} allEvents={allEvents} sessionIsRunning={false} />,
+    );
+
+    const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.textContent).toContain("Completed");
+    expect(indicator!.textContent).not.toContain("Generating...");
+  });
 });
 
 describe("TurnCard — CostFooter wiring", () => {
