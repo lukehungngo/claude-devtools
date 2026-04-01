@@ -5,6 +5,7 @@ import { getManualChunk } from "./src/buildConfig/manualChunks";
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: 24183,
     proxy: {
       "/api/sessions": {
         target: "http://localhost:3142",

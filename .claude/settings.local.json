@@ -105,7 +105,13 @@
       "Bash(lsof -ti:3142)",
       "Bash(xargs kill:*)",
       "Bash(curl -s http://localhost:3142/api/debug/sessions)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "mcp__claude-devtools__open-dashboard",
+      "Bash(open:*)",
+      "mcp__plugin_everything-claude-code_playwright__browser_navigate",
+      "Bash(npx:*)",
+      "mcp__plugin_everything-claude-code_playwright__browser_snapshot",
+      "Bash(cat ~/.claude/plugins/cache/everything-claude-code/*/*/plugin.json)"
     ],
     "deny": [
       "Read:.env*",

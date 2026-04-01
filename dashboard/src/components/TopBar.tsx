@@ -1,6 +1,8 @@
 import { X } from "lucide-react";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
 import type { SessionMetrics } from "../lib/types";
+import type { PermissionMode } from "./conversation/permissionModeTypes";
+import { cyclePermissionMode } from "./conversation/PermissionModeBadge";
 
 interface Props {
   metrics: SessionMetrics | null;
@@ -8,9 +10,29 @@ interface Props {
   hasPermissionPending?: boolean;
   viewingTurnNumber?: number;
   onClearViewingTurn?: () => void;
+  permissionMode?: PermissionMode;
+  onPermissionModeChange?: (mode: PermissionMode) => void;
 }
 
-export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn }: Props) {
+const MODE_LABELS: Record<PermissionMode, string> = {
+  default: "Default",
+  acceptEdits: "Accept Edits",
+  plan: "Plan",
+  auto: "Auto",
+  dontAsk: "Don't Ask",
+  bypassPermissions: "YOLO",
+};
+
+const MODE_COLORS: Record<PermissionMode, { bg: string; fg: string }> = {
+  default: { bg: "var(--bg-h)", fg: "var(--t2)" },
+  acceptEdits: { bg: "color-mix(in srgb, var(--amb) 15%, transparent)", fg: "var(--amb)" },
+  plan: { bg: "color-mix(in srgb, var(--teal) 15%, transparent)", fg: "var(--teal)" },
+  auto: { bg: "color-mix(in srgb, var(--grn) 15%, transparent)", fg: "var(--grn)" },
+  dontAsk: { bg: "color-mix(in srgb, var(--amb) 15%, transparent)", fg: "var(--amb)" },
+  bypassPermissions: { bg: "color-mix(in srgb, var(--red) 15%, transparent)", fg: "var(--red)" },
+};
+
+export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange }: Props) {
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
@@ -71,6 +93,24 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
           {statusLabel}
         </span>
       </div>
+
+      {/* Permission mode pill */}
+      {onPermissionModeChange && (
+        <>
+          <button
+            onClick={() => onPermissionModeChange(cyclePermissionMode(permissionMode))}
+            className="shrink-0 cursor-pointer border-none font-mono font-semibold text-[10px] px-2 py-[3px] rounded-lg tracking-wide"
+            style={{
+              background: MODE_COLORS[permissionMode].bg,
+              color: MODE_COLORS[permissionMode].fg,
+            }}
+            title={`Mode: ${permissionMode}. Click to cycle.`}
+          >
+            {MODE_LABELS[permissionMode]}
+          </button>
+          <HudSep />
+        </>
+      )}
 
       {viewingTurnNumber != null && (
         <>

@@ -59,7 +59,7 @@ describe("RepoList", () => {
       );
 
       expect(screen.getByText("Connection")).toBeDefined();
-      expect(screen.getByText("Usage (7 day)")).toBeDefined();
+      expect(screen.getByText("Usage")).toBeDefined();
       expect(screen.getByText("Repositories")).toBeDefined();
     });
 

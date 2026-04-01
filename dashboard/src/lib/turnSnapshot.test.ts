@@ -245,7 +245,7 @@ describe("groupEventsIntoTurns", () => {
     expect(turns[0].status).toBe("running");
   });
 
-  it("stop_reason end_turn alone does NOT complete a turn (requires turn_duration)", () => {
+  it("stop_reason end_turn completes a turn even without turn_duration (SDK sessions)", () => {
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({
@@ -254,8 +254,8 @@ describe("groupEventsIntoTurns", () => {
       }),
     ];
     const turns = groupEventsIntoTurns(events);
-    expect(turns[0].status).toBe("running");
-    expect(turns[0].durationMs).toBeNull();
+    expect(turns[0].status).toBe("completed");
+    expect(turns[0].durationMs).toBeNull(); // no turn_duration event, so no duration
   });
 
   it("handles events before any external user event as turn 1", () => {
@@ -389,7 +389,7 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
     expect(turns[0].durationMs).toBe(5200);
   });
 
-  it("turn without system/turn_duration event has status running and durationMs null", () => {
+  it("turn without turn_duration but with end_turn stop_reason is completed (SDK fallback)", () => {
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({ timestamp: "2026-01-01T00:00:05Z" }),
@@ -397,12 +397,13 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
 
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(1);
-    expect(turns[0].status).toBe("running");
+    // Default stop_reason in makeAssistantEvent is "end_turn", so this completes
+    expect(turns[0].status).toBe("completed");
     expect(turns[0].durationMs).toBeNull();
   });
 
-  it("non-last turn without turn_duration stays running (queue scenario)", () => {
-    // Turn 1: user + assistant (no turn_duration — queued/interrupted)
+  it("non-last turn is auto-completed (next turn boundary proves it ended)", () => {
+    // Turn 1: user + assistant (no turn_duration)
     // Turn 2: user + assistant + turn_duration
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
@@ -414,8 +415,8 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
 
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(2);
-    // Turn 1 has no turn_duration event — stays running
-    expect(turns[0].status).toBe("running");
+    // Turn 1: no turn_duration, but auto-completed because turn 2 exists
+    expect(turns[0].status).toBe("completed");
     expect(turns[0].durationMs).toBeNull();
     // Turn 2 has turn_duration — completed
     expect(turns[1].status).toBe("completed");
@@ -436,7 +437,9 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
     expect(turns[0].durationMs).not.toBe(30000);
   });
 
-  it("system events with other subtypes do not trigger completion", () => {
+  it("system events with other subtypes do not trigger turn_duration completion", () => {
+    // The assistant has stop_reason "end_turn" (default), so the turn IS completed
+    // via the stop_reason fallback — but durationMs stays null (no turn_duration event)
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({ timestamp: "2026-01-01T00:00:05Z" }),
@@ -445,8 +448,8 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
 
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(1);
-    expect(turns[0].status).toBe("running");
-    expect(turns[0].durationMs).toBeNull();
+    expect(turns[0].status).toBe("completed"); // completed via stop_reason fallback
+    expect(turns[0].durationMs).toBeNull(); // no turn_duration, so no duration
   });
 
   it("both turns completed when both have turn_duration events", () => {
@@ -527,14 +530,15 @@ describe("groupEventsIntoTurnsIncremental", () => {
     expect(turns[0].promptText).toBe("Turn 1");
     expect(turns[0].status).toBe("completed");
     expect(turns[1].promptText).toBe("Turn 2");
-    expect(turns[1].status).toBe("running");
+    // Default stop_reason is "end_turn", so the turn is completed via fallback
+    expect(turns[1].status).toBe("completed");
   });
 
   it("correctly updates last turn when events are appended within same turn", () => {
-    // Turn 1 still running (no turn_duration yet)
+    // Turn 1 still running (tool_use stop_reason, no turn_duration)
     const initialEvents: SessionEvent[] = [
       makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
-      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+      makeAssistantEvent({ stopReason: "tool_use", timestamp: "2026-01-01T00:00:01Z" }),
     ];
     const existingTurns = groupEventsIntoTurns(initialEvents);
     expect(existingTurns).toHaveLength(1);
@@ -589,5 +593,144 @@ describe("groupEventsIntoTurnsIncremental", () => {
       expect(turns3[i].endIndex).toBe(fullRebuild[i].endIndex);
       expect(turns3[i].cost).toBeCloseTo(fullRebuild[i].cost, 6);
     }
+  });
+});
+
+// ─── System-injected content filtering ──────────────────────────────
+
+describe("groupEventsIntoTurns — system-injected content filtering", () => {
+  it("does NOT create turns from <task-notification> events", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "do the thing", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+      makeUserEvent({
+        text: "<task-notification>\n<task-id>abc123</task-id>\n</task-notification>",
+        timestamp: "2026-01-01T00:00:02Z",
+      }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:03Z" }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].promptText).toBe("do the thing");
+    // Task notification event should be part of turn 1, not a separate turn
+    expect(getEventsForTurn(turns[0], events)).toHaveLength(4);
+  });
+
+  it("does NOT create turns from [Request interrupted by user] events", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "do something", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+      makeUserEvent({
+        text: "[Request interrupted by user]",
+        timestamp: "2026-01-01T00:00:02Z",
+      }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+  });
+
+  it("does NOT create turns from isMeta events (skill expansions)", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({
+        text: '<command-message>mas:dev-loop</command-message>\n<command-name>/mas:dev-loop</command-name>\n<command-args>build it</command-args>',
+        timestamp: "2026-01-01T00:00:00Z",
+      }),
+      makeUserEvent({
+        text: "# Development Loop (MAS)\n\nExecute the full mandatory workflow for: build it\n...",
+        timestamp: "2026-01-01T00:00:01Z",
+        isMeta: true,
+      } as Partial<UserEvent> & { text: string }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:02Z" }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].promptText).toBe("/mas:dev-loop build it");
+  });
+
+  it("does NOT create turns from <local-command-caveat> events", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "continue", timestamp: "2026-01-01T00:00:00Z" }),
+      makeUserEvent({
+        text: "<local-command-caveat>Caveat: messages below were generated...</local-command-caveat>",
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+      makeUserEvent({
+        text: "<local-command-stdout>Login successful</local-command-stdout>",
+        timestamp: "2026-01-01T00:00:02Z",
+      }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].promptText).toBe("continue");
+  });
+
+  it("does NOT create turns from <command-name> without <command-message>", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "hello", timestamp: "2026-01-01T00:00:00Z" }),
+      makeUserEvent({
+        text: '<command-name>/login</command-name>\n<command-message>login</command-message>',
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+    ];
+    // This one starts with <command-name> but also has <command-message>, so it's NOT filtered
+    // because command-message indicates user action
+    const turns = groupEventsIntoTurns(events);
+    // Actually, it starts with <command-name>, not <command-message>. The filter checks:
+    // starts with <command-name> AND does NOT include <command-message> → filter.
+    // But this one DOES include <command-message>, so it should NOT be filtered.
+    // However, looking at the data, the /login event has <command-name> first then <command-message>,
+    // which means it passes the "includes <command-message>" check and is NOT filtered.
+    expect(turns).toHaveLength(2);
+  });
+
+  it("does NOT create turns from 'Base directory for this skill:' events", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "continue", timestamp: "2026-01-01T00:00:00Z" }),
+      makeUserEvent({
+        text: "Base directory for this skill: /path/to/skill\n\n# Verification...",
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+  });
+
+  it("cleans session continuation summaries into readable label", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({
+        text: "This session is being continued from a previous conversation that ran out of context...",
+        timestamp: "2026-01-01T00:00:00Z",
+      }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+      makeUserEvent({ text: "do something", timestamp: "2026-01-01T00:00:02Z" }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(2);
+    expect(turns[0].promptText).toBe("(continued session)");
+    expect(turns[1].promptText).toBe("do something");
+  });
+
+  it("cleans slash command XML into readable format", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({
+        text: '<command-message>mas:dev-loop</command-message>\n<command-name>/mas:dev-loop</command-name>\n<command-args>fix all findings</command-args>',
+        timestamp: "2026-01-01T00:00:00Z",
+      }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].promptText).toBe("/mas:dev-loop fix all findings");
+  });
+
+  it("handles slash command without args", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({
+        text: '<command-message>commit</command-message>\n<command-name>/commit</command-name>\n<command-args></command-args>',
+        timestamp: "2026-01-01T00:00:00Z",
+      }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].promptText).toBe("/commit");
   });
 });

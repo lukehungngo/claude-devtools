@@ -61,33 +61,86 @@ export function getEventsForTurn(turn: TurnSnapshot, allEvents: SessionEvent[]):
   return allEvents.slice(turn.startIndex, turn.endIndex);
 }
 
+// ─── System-injected content detection ───────────────────────────────
+
+/**
+ * Detect content injected by the system (not typed by the human).
+ * These messages are tagged userType:"external" in JSONL but are system-generated:
+ * - <task-notification> — background task completion
+ * - <local-command-caveat/stdout> — local command output
+ * - <command-name> WITHOUT <command-message> — system echo of /commands
+ * - [Request interrupted by user] — interruption markers
+ * - Skill metadata/expansion — "Base directory for this skill:" and long skill content
+ * - Session continuation summaries
+ */
+function isSystemInjectedText(text: string): boolean {
+  const t = text.trimStart();
+  return (
+    t.startsWith("<task-notification>") ||
+    t.startsWith("<local-command-caveat>") ||
+    t.startsWith("<local-command-stdout>") ||
+    (t.startsWith("<command-name>") && !t.includes("<command-message>")) ||
+    t.startsWith("[Request interrupted") ||
+    t.startsWith("Base directory for this skill:")
+  );
+}
+
+/**
+ * Extract human-readable prompt text from raw event content.
+ * Handles <command-message>/<command-args> XML format used by slash commands.
+ */
+function cleanPromptText(raw: string): string {
+  // Slash command format: <command-message>X</command-message>...<command-args>Y</command-args>
+  if (raw.includes("<command-message>")) {
+    const cmdMatch = /<command-name>([^<]*)<\/command-name>/.exec(raw);
+    const argsMatch = /<command-args>([\s\S]*?)<\/command-args>/.exec(raw);
+    const cmd = cmdMatch?.[1]?.trim() ?? "";
+    const args = argsMatch?.[1]?.trim() ?? "";
+    if (cmd) return args ? `${cmd} ${args}` : cmd;
+  }
+  // Session continuation summaries
+  if (raw.trimStart().startsWith("This session is being continued")) {
+    return "(continued session)";
+  }
+  return raw;
+}
+
 // ─── Turn boundary detection ─────────────────────────────────────────
+
+function getTextFromContent(content: ContentItem[] | string | undefined): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  const textItem = content.find(
+    (item: ContentItem) => item.type === "text" && "text" in item,
+  );
+  return textItem && "text" in textItem ? textItem.text : "";
+}
 
 function isTurnBoundary(event: SessionEvent): event is UserEvent {
   if (event.type !== "user") return false;
   if (event.isSidechain) return false; // Subagent prompts are not turn boundaries
   const userEvent = event as UserEvent;
   if (userEvent.userType !== "external") return false;
+  // isMeta marks system-injected content: skill expansions, image refs, local command output
+  if (userEvent.isMeta) return false;
 
   // Must have at least one TextContent item
   const content = userEvent.message?.content;
   if (!content) return false;
-  if (typeof content === "string") return content.trim().length > 0;
-  if (!Array.isArray(content)) return false;
-  return content.some(
-    (item: ContentItem) => item.type === "text" && "text" in item && (item.text ?? "").trim().length > 0
-  );
+
+  const text = getTextFromContent(content);
+  if (!text.trim()) return false;
+
+  // Reject system-injected content not marked with isMeta
+  if (isSystemInjectedText(text)) return false;
+
+  return true;
 }
 
 function extractPromptText(event: UserEvent): string {
-  const content = event.message?.content;
-  if (!content) return "";
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  const textItem = content.find(
-    (item: ContentItem) => item.type === "text"
-  );
-  return textItem && "text" in textItem ? textItem.text : "";
+  const raw = getTextFromContent(event.message?.content);
+  return cleanPromptText(raw);
 }
 
 // ─── Build turn from accumulated events ──────────────────────────────
@@ -173,8 +226,9 @@ function buildTurn(
     }
   }
 
-  // Turn status is determined solely by the presence of a system/turn_duration event.
-  // No fallback to stop_reason or next-boundary detection.
+  // Turn status: check system/turn_duration first (CLI sessions), then fall back
+  // to stop_reason === "end_turn" on the last assistant event (web/SDK sessions
+  // where turn_duration is never emitted).
   let status: "running" | "completed" = "running";
   let durationMs: number | null = null;
   for (const event of events) {
@@ -182,6 +236,18 @@ function buildTurn(
       status = "completed";
       durationMs = (event as SystemEvent).durationMs ?? null;
       break;
+    }
+  }
+  if (status === "running") {
+    // Find last assistant event and check stop_reason
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i].type === "assistant") {
+        const asst = events[i] as AssistantEvent;
+        if (asst.message?.stop_reason === "end_turn") {
+          status = "completed";
+        }
+        break;
+      }
     }
   }
 
@@ -322,10 +388,13 @@ export function groupEventsIntoTurns(
   }
 
   // Finalize completed turns: set completedAt and agent statuses.
-  // Turn status is already determined by buildTurn() from turn_duration events.
-  for (const turn of turns) {
-    if (turn.status === "completed") {
-      finalizeTurn(turn);
+  // Any non-last turn is definitively completed (a next turn boundary exists).
+  for (let i = 0; i < turns.length; i++) {
+    if (i < turns.length - 1 && turns[i].status === "running") {
+      turns[i].status = "completed";
+    }
+    if (turns[i].status === "completed") {
+      finalizeTurn(turns[i]);
     }
   }
 

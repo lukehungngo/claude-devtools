@@ -27,23 +27,6 @@ export function Titlebar({ repoName, branch }: TitlebarProps) {
         borderBottom: "1px solid var(--bd)",
       }}
     >
-      {/* Traffic light dots */}
-      <div className="flex gap-[7px]">
-        <div
-          className="rounded-full"
-          style={{ width: 11, height: 11, background: "var(--dots-r)" }}
-        />
-        <div
-          className="rounded-full"
-          style={{ width: 11, height: 11, background: "var(--dots-y)" }}
-        />
-        <div
-          className="rounded-full"
-          style={{ width: 11, height: 11, background: "var(--dots-g)" }}
-        />
-      </div>
-
-      {/* Center text */}
       <div
         className="flex-1 text-center"
         style={{

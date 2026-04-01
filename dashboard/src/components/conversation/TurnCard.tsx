@@ -10,7 +10,8 @@ import { normalizeContent } from "../../lib/normalizeContent";
 import { formatDuration } from "../../lib/cost";
 import { AgentPills } from "./AgentPills";
 import { CollapsiblePrompt } from "./CollapsiblePrompt";
-import { ThinkingBlock } from "../viewer/ThinkingBlock";
+import { ThinkingGroup } from "../viewer/ThinkingBlock";
+import { NarrationGroup } from "./NarrationGroup";
 import { ResponseBlock } from "../viewer/ResponseBlock";
 import { ToolEntries } from "./ToolEntries";
 import { CostFooter } from "./CostFooter";
@@ -26,19 +27,38 @@ interface TurnCardProps {
 
 // ─── Content renderers ───────────────────────────────────────────────
 
-function extractResponseContent(events: SessionEvent[]): ContentItem[] {
-  const items: ContentItem[] = [];
-  for (const event of events) {
-    if (event.type === "assistant") {
-      const asst = event as AssistantEvent;
-      for (const content of normalizeContent(asst.message?.content)) {
-        if (content.type === "text" || content.type === "thinking") {
-          items.push(content);
-        }
+interface TaggedContent {
+  item: ContentItem;
+  /** True when this text block precedes tool calls — narration, not final response */
+  isNarration: boolean;
+}
+
+function extractResponseContent(events: SessionEvent[]): TaggedContent[] {
+  // First pass: collect text/thinking items with their event index
+  const items: { item: ContentItem; eventIdx: number }[] = [];
+  // Track which event indices contain tool_use
+  let lastToolUseIdx = -1;
+
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i];
+    if (event.type !== "assistant" || event.isSidechain) continue;
+    const asst = event as AssistantEvent;
+    const content = normalizeContent(asst.message?.content);
+    const hasToolUse = content.some((c) => c.type === "tool_use");
+    if (hasToolUse) lastToolUseIdx = i;
+    for (const c of content) {
+      if (c.type === "text" || c.type === "thinking") {
+        items.push({ item: c, eventIdx: i });
       }
     }
   }
-  return items;
+
+  // Second pass: a text item is narration if any later event has tool_use
+  // We find the last event index that has a tool_use, then all text before it is narration
+  return items.map(({ item, eventIdx }) => ({
+    item,
+    isNarration: item.type === "text" && eventIdx < lastToolUseIdx,
+  }));
 }
 
 // ─── TurnFooter (elapsed / completed duration) ─────────────────────
@@ -188,20 +208,33 @@ export function TurnCard({
             {/* Agent pills */}
             <AgentPills agents={turn.agents} onPillClick={onAgentPillClick} />
 
-            {/* Response text + tool groups interleaved */}
-            {responseContent.map((item, i) =>
-              item.type === "thinking" && "thinking" in item ? (
-                <ThinkingBlock key={`thinking-${i}`} content={item} />
-              ) : item.type === "text" && "text" in item ? (
+            {/* Thinking group (collapsed by default) */}
+            <ThinkingGroup items={responseContent.filter((t) => t.item.type === "thinking" && "thinking" in t.item).map((t) => t.item)} />
+
+            {/* Narration text (collapsed by default) — working notes before tool calls */}
+            <NarrationGroup
+              items={responseContent
+                .filter((t) => t.isNarration && t.item.type === "text" && "text" in t.item)
+                .map((t) => (t.item as ContentItem & { text: string }).text)}
+            />
+
+            {/* Final response text — only non-narration text blocks */}
+            {responseContent
+              .filter((tagged) => !tagged.isNarration && tagged.item.type === "text" && "text" in tagged.item)
+              .map((tagged, i) => (
                 <div
                   key={`text-${i}`}
                   className="msg-text"
-                  style={{ fontSize: 13, color: "var(--t1)", lineHeight: 1.65, marginTop: i > 0 ? 10 : 0 }}
+                  style={{
+                    fontSize: 13,
+                    color: "var(--t1)",
+                    lineHeight: 1.65,
+                    marginTop: i > 0 ? 10 : 0,
+                  }}
                 >
-                  <ResponseBlock text={item.text} />
+                  <ResponseBlock text={(tagged.item as ContentItem & { text: string }).text} />
                 </div>
-              ) : null,
-            )}
+              ))}
 
             {/* Tool entries (grouped card) -- click opens bottom panel tool-call tab */}
             <ToolEntries events={turnEvents} onToolClick={onToolClick} />

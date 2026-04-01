@@ -37,6 +37,8 @@ export interface ActiveSession {
   createdAt: string;
   /** Active SDK Query object for mid-session control (setModel, setPermissionMode, rewindFiles) */
   activeQuery?: Query;
+  /** True for sessions created via startSession(), false for resumed JSONL sessions */
+  isNew: boolean;
 }
 
 // Broadcast function type (injected to avoid circular deps)
@@ -95,6 +97,7 @@ export class SessionManager {
       permissionResolvers: new Map(),
       questionResolvers: new Map(),
       createdAt: new Date().toISOString(),
+      isNew: true,
     };
     this.activeSessions.set(sessionId, session);
     sessionLog.info({ sessionId, cwd }, "session created");
@@ -145,7 +148,11 @@ export class SessionManager {
         options: {
           abortController: session.abortController,
           cwd: session.cwd,
-          resume: sessionId,
+          // New sessions: use sessionId to assign the UUID.
+          // Resumed sessions: use resume to load conversation history from JSONL.
+          ...(session.isNew
+            ? { sessionId }
+            : { resume: sessionId }),
           forkSession: false,
           includePartialMessages: true,
           enableFileCheckpointing: true,
@@ -179,6 +186,8 @@ export class SessionManager {
       sessionLog.info({ sessionId }, "sendMessage: streaming completed");
       session.activeQuery = undefined;
       session.status = "idle";
+      // After first successful message, session has a JSONL file — subsequent messages should resume
+      if (session.isNew) session.isNew = false;
     } catch (err) {
       session.activeQuery = undefined;
       if (err instanceof Error && err.message === "Aborted") {
@@ -316,6 +325,7 @@ export class SessionManager {
       permissionResolvers: new Map(),
       questionResolvers: new Map(),
       createdAt: new Date().toISOString(),
+      isNew: false,
     };
     this.activeSessions.set(sessionId, session);
     sessionLog.info({ sessionId, cwd }, "session resumed");

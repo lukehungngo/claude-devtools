@@ -46,6 +46,8 @@ function createMockContextValue(overrides?: Partial<LayoutContextValue>): Layout
     setHasSubagents: () => {},
     viewingTurnNumber: undefined,
     setViewingTurnNumber: () => {},
+    permissionMode: "default",
+    setPermissionMode: () => {},
     turnHistoryOpen: true,
     setTurnHistoryOpen: () => {},
     onClearViewingTurnRef: { current: null },

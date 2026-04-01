@@ -53,6 +53,20 @@ function baseComponents(): Components {
   };
 }
 
+/** Classify inline code text to apply different colors */
+const FILE_EXT_RE = /\.\w{1,5}$/;
+const PATH_RE = /[/\\]/;
+
+function classifyInlineCode(text: string): string {
+  if (!text) return "";
+  // File paths or file names (contains / or ends with extension)
+  if (PATH_RE.test(text) || FILE_EXT_RE.test(text)) return "text-dt-teal";
+  // CLI commands / flags
+  if (text.startsWith("-") || text.startsWith("/") || text.startsWith("$")) return "text-dt-yellow";
+  // Default: component names, symbols, etc. — keep accent color
+  return "";
+}
+
 type CodeVariant = "default" | "editor";
 
 export function createMarkdownComponents(variant: CodeVariant = "default"): Components {
@@ -63,10 +77,10 @@ export function createMarkdownComponents(variant: CodeVariant = "default"): Comp
       ? "block bg-dt-bg3 p-3.5 rounded-dt border border-dt-border/50 font-mono text-sm overflow-x-auto shadow-dt-sm"
       : "block bg-dt-bg3 p-3 rounded-md font-mono text-sm overflow-x-auto";
 
-  const inlineClass =
+  const inlineBase =
     variant === "editor"
-      ? "bg-dt-bg3 px-1.5 py-0.5 rounded-dt-xs text-dt-accent font-mono text-sm"
-      : "bg-dt-bg3 px-1 py-0.5 rounded text-dt-accent font-mono text-sm";
+      ? "bg-dt-bg3 px-1.5 py-0.5 rounded-dt-xs font-mono text-sm"
+      : "bg-dt-bg3 px-1 py-0.5 rounded font-mono text-sm";
 
   components.code = ({ className, children }) => {
     const isBlock = className?.includes("language-") || className?.includes("hljs") || false;
@@ -77,8 +91,12 @@ export function createMarkdownComponents(variant: CodeVariant = "default"): Comp
         </code>
       );
     }
+    // Color-code inline code by content type:
+    // files → teal, CLI flags → yellow, symbols → accent (default)
+    const text = typeof children === "string" ? children : "";
+    const colorClass = classifyInlineCode(text) || "text-dt-accent";
     return (
-      <code className={inlineClass}>
+      <code className={`${inlineBase} ${colorClass}`}>
         {children}
       </code>
     );

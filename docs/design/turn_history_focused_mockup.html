@@ -1,0 +1,212 @@
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg0:#1a1714;--bg1:#211e19;--bg2:#2a2620;--bg3:#332f28;
+--t1:#e8e0d4;--t2:#a89e90;--t3:#6b6358;
+--bd:#3a352e;--bd2:#4a443c;
+--acc:#c9a55a;--acc-bg:#2d2820;
+--grn:#5cc47c;--grn-bg:#1e2e22;
+--red:#e85d5d;--red-bg:#2e1e1e;
+--blu:#5b9bd5;--blu-bg:#1e2430;
+--teal:#4dbf99;--teal-bg:#1e2d28;
+--amb:#d4a642;--amb-bg:#2d2618;
+--pur:#a78bfa;--pur-bg:#252030;
+--coral:#e0845a;--coral-bg:#2d2118;
+--fm:'SF Mono','Fira Code',monospace;--fs:system-ui,sans-serif;
+}
+.mock{font-family:var(--fs);background:var(--bg0);color:var(--t1);display:flex;flex-direction:column;border-radius:10px;overflow:hidden;border:1px solid var(--bd)}
+
+.label-bar{background:var(--bg1);padding:6px 12px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px}
+.label-bar span{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px}
+.label-badge{font-size:9px;padding:2px 8px;border-radius:4px;background:var(--acc-bg);color:var(--acc);font-weight:600}
+
+.demo{display:flex;height:560px;overflow:hidden}
+
+.th{display:flex;flex-direction:column;border-right:1px solid var(--bd);background:var(--bg0);overflow:hidden;transition:width .25s ease,min-width .25s ease}
+.th.open{width:260px;min-width:260px}
+.th.closed{width:0;min-width:0;border-right:none}
+.th-head{display:flex;align-items:center;height:30px;padding:0 8px;border-bottom:1px solid var(--bd);background:var(--bg1);flex-shrink:0}
+.th-t{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);flex:1}
+.th-x{width:20px;height:20px;border:none;background:transparent;color:var(--t3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;border-radius:4px;transition:all .1s}
+.th-x:hover{background:var(--bg2);color:var(--t1)}
+.th-body{flex:1;overflow-y:auto}
+
+.ti{padding:8px 10px;border-bottom:1px solid var(--bd);cursor:pointer;transition:all .12s;border-left:3px solid transparent}
+.ti:hover{background:var(--bg2)}
+.ti.act{background:var(--acc-bg);border-left-color:var(--acc)}
+.ti.act .tn{color:var(--acc)}
+.ti-row1{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+.tn{font-family:var(--fm);font-size:10px;font-weight:600;color:var(--t2)}
+.ti-p{font-size:11px;color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ti-time{font-size:9px;color:var(--t3);font-family:var(--fm);flex-shrink:0}
+.ti-row2{display:flex;align-items:center;gap:3px}
+.ti-ag{display:flex;gap:2px}
+.ti-dot{width:14px;height:14px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:600}
+.ti-meta{margin-left:auto;display:flex;gap:6px;font-size:9px;font-family:var(--fm);color:var(--t3)}
+.ti-c{color:var(--amb)}
+.ti-run{width:5px;height:5px;border-radius:50%;background:var(--grn);animation:p 1.5s infinite;margin-left:4px}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+
+.right{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.cv-head{display:flex;align-items:center;height:30px;padding:0 10px;background:var(--bg1);border-bottom:1px solid var(--bd);flex-shrink:0}
+.cv-head.hidden{display:none}
+.cv-open{width:20px;height:20px;border:none;background:transparent;color:var(--t3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;border-radius:4px;margin-right:6px;transition:all .1s}
+.cv-open:hover{background:var(--bg2);color:var(--t1)}
+.cv-title{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+
+.conv{flex:1;overflow-y:auto;padding:12px 14px}
+.cdiv{display:flex;align-items:center;gap:6px;margin:12px 0 6px;padding:3px 0;border-bottom:1px solid var(--bd);cursor:pointer;transition:opacity .15s}
+.cdiv:first-child{margin-top:0}
+.cdiv:hover{opacity:1!important}
+.cdiv-p{font-size:10px;color:var(--t3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg{padding:4px 0;display:flex;gap:7px}
+.av{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0;margin-top:1px}
+.av-u{background:var(--blu-bg);color:var(--blu)}
+.av-c{background:var(--pur-bg);color:var(--pur)}
+.mb{font-size:12px;line-height:1.5;color:var(--t1)}
+.mb code{font-family:var(--fm);font-size:11px;background:var(--bg3);padding:1px 4px;border-radius:3px;color:var(--acc)}
+
+.bp-mock{height:130px;border-top:1px solid var(--bd);background:var(--bg1);display:flex;flex-direction:column;flex-shrink:0}
+.bp-tabs{display:flex;align-items:center;border-bottom:1px solid var(--bd);padding:0 8px;height:26px;flex-shrink:0}
+.bpt{padding:4px 10px;font-size:11px;font-weight:500;color:var(--t3);cursor:default;border-bottom:2px solid transparent}
+.bpt.act{color:var(--acc);border-bottom-color:var(--acc)}
+.bp-sc{margin-left:auto;font-size:10px;color:var(--t3);display:flex;align-items:center;gap:3px}
+.bp-sp{font-family:var(--fm);font-size:10px;font-weight:600;color:var(--acc);background:var(--acc-bg);padding:1px 5px;border-radius:3px}
+.bp-content{flex:1;overflow-y:auto;padding:6px 10px}
+.tr{display:flex;align-items:center;height:30px;padding:0 4px;border-radius:5px}
+.tr:first-child{background:var(--bg2)}
+.tr-l{width:90px;display:flex;align-items:center;gap:4px;flex-shrink:0}
+.tr-i{width:16px;height:16px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700}
+.tr-n{font-size:11px;font-weight:500;color:var(--t1)}
+.tr-ba{flex:1;height:18px;position:relative;margin:0 6px}
+.tr-b{position:absolute;height:100%;border-radius:4px;font-size:9px;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap}
+.tr-m{display:flex;gap:6px;font-family:var(--fm);font-size:10px;color:var(--t3);min-width:80px;justify-content:flex-end}
+
+.note{padding:8px 12px;font-size:10px;color:var(--t3);background:var(--bg1);border-top:1px solid var(--bd);line-height:1.5;display:flex;gap:6px;align-items:flex-start}
+.note-icon{color:var(--acc);font-size:12px;flex-shrink:0}
+</style>
+
+<div class="mock">
+  <div class="label-bar">
+    <span>Mockup — turn history feature only</span>
+    <span class="label-badge">What changes</span>
+  </div>
+
+  <div class="demo">
+    <div class="th open" id="thP">
+      <div class="th-head">
+        <span class="th-t">Turn history</span>
+        <button class="th-x" onclick="tog()" title="Collapse">&#10094;</button>
+      </div>
+      <div class="th-body" id="thL"></div>
+    </div>
+
+    <div class="right">
+      <div class="cv-head hidden" id="cvH">
+        <button class="cv-open" onclick="tog()" title="Open turn history">&#9776;</button>
+        <span class="cv-title">Conversation</span>
+      </div>
+      <div class="conv" id="cv"></div>
+      <div class="bp-mock">
+        <div class="bp-tabs">
+          <div class="bpt act">Agent Graph</div>
+          <div class="bpt">Tool Call</div>
+          <div class="bpt">Raw Log</div>
+          <div class="bpt">Cost</div>
+          <div class="bp-sc">Scoped to <span class="bp-sp" id="bpS">T65</span></div>
+        </div>
+        <div class="bp-content" id="bpC"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <span class="note-icon">&#9670;</span>
+    <span>Click turns in the left panel — conversation scrolls to that turn, bottom panel re-scopes. Click &#10094; to collapse the panel. Click &#9776; to reopen. Panel is <b>visible by default</b>, persisted in localStorage. No tool call chips in turn items — only agent dots for multi-agent turns.</span>
+  </div>
+</div>
+
+<script>
+const D=[
+  {id:59,p:"add dark theme with CSS variables",d:"3m 40s",c:"$0.94",t:"7h",ag:[{n:"PM",c:"var(--pur)",bg:"var(--pur-bg)"}],
+   u:"Add dark theme support using CSS custom properties",cl:"Created <code>theme.css</code> with CSS variables and <code>dark.css</code> with dark palette.",
+   tr:[{n:"PM",r:"Main",c:"var(--pur)",bg:"var(--pur-bg)",s:0,w:100,d:"3m 40s",co:"$0.94"}]},
+  {id:60,p:"set up MCP server connection handler",d:"1m 20s",c:"$0.31",t:"6h",ag:[{n:"PM",c:"var(--pur)",bg:"var(--pur-bg)"}],
+   u:"Set up the MCP server connection handler with error handling",cl:"Created <code>handler.ts</code> with reconnection logic and <code>types.ts</code>.",
+   tr:[{n:"PM",r:"Main",c:"var(--pur)",bg:"var(--pur-bg)",s:0,w:100,d:"1m 20s",co:"$0.31"}]},
+  {id:61,p:"implement event stream parser",d:"2m 45s",c:"$0.64",t:"5h",ag:[{n:"PM",c:"var(--pur)",bg:"var(--pur-bg)"},{n:"SWE",c:"var(--blu)",bg:"var(--blu-bg)"}],
+   u:"Implement the event stream parser based on the event spec",cl:"Built SSE parser in <code>stream.ts</code>. Fixed buffer logic. All 12 tests pass.",
+   tr:[{n:"PM",r:"Main",c:"var(--pur)",bg:"var(--pur-bg)",s:0,w:100,d:"2m 45s",co:"$0.64"},{n:"SWE",r:"Engineer",c:"var(--blu)",bg:"var(--blu-bg)",s:10,w:70,d:"1m 55s",co:"$0.42"}]},
+  {id:62,p:"add agent graph rendering with D3",d:"8m 10s",c:"$2.84",t:"4h",ag:[{n:"PM",c:"var(--pur)",bg:"var(--pur-bg)"},{n:"S1",c:"var(--blu)",bg:"var(--blu-bg)"},{n:"S2",c:"var(--teal)",bg:"var(--teal-bg)"}],
+   u:"Add the agent graph rendering using D3 with proper DAG layout",cl:"Built <code>AgentGraph.tsx</code> with D3 force layout. Fixed test failure. Graph renders parent-child properly.",
+   tr:[{n:"PM",r:"Orchestrator",c:"var(--pur)",bg:"var(--pur-bg)",s:0,w:100,d:"8m 10s",co:"$2.84"},{n:"S1",r:"Frontend",c:"var(--blu)",bg:"var(--blu-bg)",s:5,w:65,d:"5m 18s",co:"$1.62"},{n:"S2",r:"Layout",c:"var(--teal)",bg:"var(--teal-bg)",s:50,w:45,d:"3m 40s",co:"$0.89"}]},
+  {id:63,p:"fix trace bar min-width distortion",d:"45s",c:"$0.12",t:"3h",ag:[{n:"PM",c:"var(--pur)",bg:"var(--pur-bg)"}],
+   u:"Fix trace bar min-width — short tasks look same width as long ones",cl:"Changed <code>Math.max(0.3, ...)</code> to <code>Math.max(0, ...)</code>. Bars are now proportional.",
+   tr:[{n:"PM",r:"Main",c:"var(--pur)",bg:"var(--pur-bg)",s:0,w:100,d:"45s",co:"$0.12"}]},
+  {id:64,p:"audit current UI against design spec",d:"3m 30s",c:"$1.42",t:"1h",ag:[{n:"PM",c:"var(--pur)",bg:"var(--pur-bg)"},{n:"EX",c:"var(--coral)",bg:"var(--coral-bg)"}],
+   u:"Audit the current UI against the design spec — what's missing?",cl:"16/18 spec items implemented. Two gaps: trace bar min-width and turn stepper.",
+   tr:[{n:"PM",r:"Orchestrator",c:"var(--pur)",bg:"var(--pur-bg)",s:0,w:100,d:"3m 30s",co:"$1.42"},{n:"EX",r:"Auditor",c:"var(--coral)",bg:"var(--coral-bg)",s:15,w:80,d:"2m 48s",co:"$1.08"}]},
+  {id:65,p:"implement turn stepper in topbar",d:"40s",c:"$0.26",t:"now",run:1,ag:[{n:"PM",c:"var(--pur)",bg:"var(--pur-bg)"},{n:"EX",c:"var(--coral)",bg:"var(--coral-bg)"}],
+   u:"Implement the turn stepper in the topbar replacing ViewingTurnPill",cl:"Replacing ViewingTurnPill with TurnStepper. Wiring to existing <code>selectedTurnIndex</code>...",
+   tr:[{n:"PM",r:"Main",c:"var(--pur)",bg:"var(--pur-bg)",s:0,w:100,d:"40s",co:"$0.26"},{n:"EX",r:"Auditor",c:"var(--coral)",bg:"var(--coral-bg)",s:20,w:75,d:"30s",co:"$0.18"}]}
+];
+
+let cur=D.length-1;let isOpen=true;
+
+function tog(){
+  isOpen=!isOpen;
+  document.getElementById('thP').className='th '+(isOpen?'open':'closed');
+  document.getElementById('cvH').className='cv-head'+(isOpen?' hidden':'');
+}
+
+function rL(){
+  document.getElementById('thL').innerHTML=D.map((t,i)=>`
+    <div class="ti${i===cur?' act':''}" onclick="sel(${i})">
+      <div class="ti-row1">
+        <span class="tn">T${t.id}</span>
+        <span class="ti-p">${t.p}</span>
+        <span class="ti-time">${t.t}</span>
+        ${t.run?'<div class="ti-run"></div>':''}
+      </div>
+      <div class="ti-row2">
+        ${t.ag.length>1?`<div class="ti-ag">${t.ag.map(a=>`<div class="ti-dot" style="background:${a.bg};color:${a.c}">${a.n}</div>`).join('')}</div>`:''}
+        <span class="ti-meta"><span class="ti-c">${t.c}</span><span>${t.d}</span></span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function rC(){
+  let h='';
+  D.forEach((t,i)=>{
+    const a=i===cur;
+    h+=`<div class="cdiv" id="cd${i}" style="opacity:${a?'1':'.35'}" onclick="sel(${i})">
+      <span class="tn">T${t.id}</span><span class="cdiv-p">${t.p}</span>
+    </div>
+    <div class="msg"><div class="av av-u">U</div><div class="mb">${t.u}</div></div>
+    <div class="msg"><div class="av av-c">C</div><div class="mb">${t.cl}</div></div>`;
+  });
+  document.getElementById('cv').innerHTML=h;
+}
+
+function rB(){
+  const t=D[cur];
+  document.getElementById('bpS').textContent='T'+t.id;
+  document.getElementById('bpC').innerHTML=t.tr.map((a,i)=>`
+    <div class="tr">
+      <div class="tr-l"><div class="tr-i" style="background:${a.bg};color:${a.c}">${a.n}</div><span class="tr-n">${a.r}</span></div>
+      <div class="tr-ba"><div class="tr-b" style="left:${a.s}%;width:${a.w}%;background:${a.bg};color:${a.c}">${a.r}</div></div>
+      <div class="tr-m"><span>${a.d}</span><span style="color:var(--amb)">${a.co}</span></div>
+    </div>
+  `).join('');
+}
+
+function sel(i){
+  cur=i;rL();rC();rB();
+  const el=document.getElementById('cd'+i);
+  if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+  document.getElementById('thL').querySelector('.ti.act')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+rL();rC();rB();
+</script>

@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import type { MutableRefObject } from "react";
 import type { RepoGroup, PermissionRequest, UsageInfo, CostSummary, SessionEvent, SessionMetrics, AgentDAG } from "../lib/types";
 import type { TurnSnapshot } from "../lib/turnSnapshot";
+import type { PermissionMode } from "../components/conversation/permissionModeTypes";
 
 /** Maps repoSlug -> projectHash */
 export type SlugMap = Map<string, string>;
@@ -61,6 +62,10 @@ export interface LayoutContextValue {
   setCurrentSelectedAgent: (agentId: string | null) => void;
   hasSubagents: boolean;
   setHasSubagents: (v: boolean) => void;
+
+  // Permission mode (set via TopBar, used by PromptInput for next message)
+  permissionMode: PermissionMode;
+  setPermissionMode: (mode: PermissionMode) => void;
 
   // Turn history panel state
   turnHistoryOpen: boolean;

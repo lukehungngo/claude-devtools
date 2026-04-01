@@ -43,7 +43,7 @@ function extractToolEntries(events: SessionEvent[]): ExtractResult {
   let sawTextSinceLastTool = false;
 
   for (const event of events) {
-    if (event.type === "assistant") {
+    if (event.type === "assistant" && !event.isSidechain) {
       const asst = event as AssistantEvent;
       for (const content of normalizeContent(asst.message?.content)) {
         if (content.type === "text" && "text" in content) {
@@ -85,7 +85,7 @@ function extractToolEntries(events: SessionEvent[]): ExtractResult {
           entries.push(entry);
         }
       }
-    } else if (event.type === "user") {
+    } else if (event.type === "user" && !event.isSidechain) {
       const userEvent = event as UserEvent;
       for (const content of normalizeContent(userEvent.message?.content)) {
         if (content.type === "tool_result") {
@@ -402,7 +402,7 @@ const ToolEntryRow = memo(function ToolEntryRow({ entry, isLast, onToolClick }: 
     );
   }
 
-  // Collapsed by default — only show one-line summary. Expand on click to reveal result.
+  // Collapsed by default — only show one-line summary. Auto-expand errors.
   const [isExpanded, setIsExpanded] = useState(entry.status === "error");
 
   const icon = STATUS_ICONS[entry.status];

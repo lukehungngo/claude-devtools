@@ -57,6 +57,8 @@ function makeLayoutCtx(overrides?: Partial<LayoutContextValue>): LayoutContextVa
     setHasSubagents: () => {},
     viewingTurnNumber: undefined,
     setViewingTurnNumber: () => {},
+    permissionMode: "default",
+    setPermissionMode: () => {},
     turnHistoryOpen: true,
     setTurnHistoryOpen: () => {},
     onClearViewingTurnRef: { current: null },

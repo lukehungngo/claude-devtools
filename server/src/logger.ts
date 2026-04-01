@@ -13,9 +13,11 @@ fs.mkdirSync(LOG_DIR, { recursive: true });
 
 const logFile = path.join(LOG_DIR, "server.log");
 
+const consoleLevel = process.env.LOG_LEVEL || "warn";
+
 const streams: pino.StreamEntry[] = [
-  // Pretty console output in dev
-  { level: "info", stream: process.stdout },
+  // Console: warn+ by default, override with LOG_LEVEL env var
+  { level: consoleLevel as pino.Level, stream: process.stdout },
   // File output — all levels including debug
   {
     level: "debug",

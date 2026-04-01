@@ -7,7 +7,7 @@ import { normalizeContent } from "../../lib/normalizeContent";
 import { buildSearchIndex, updateSearchIndex, filterTurnsByQuery } from "../../lib/searchIndex";
 import { getEventsForTurn } from "../../lib/turnSnapshot";
 import { PermissionBlock } from "./PermissionBlock";
-import { PermissionModeBadge, cyclePermissionMode } from "./PermissionModeBadge";
+import { cyclePermissionMode } from "./PermissionModeBadge";
 import type { PermissionMode } from "./permissionModeTypes";
 import { QuestionBlock } from "./QuestionBlock";
 import { PromptInput } from "./PromptInput";
@@ -340,9 +340,9 @@ export function ConversationView({
   const [showSearch, setShowSearch] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showScrollDown, setShowScrollDown] = useState(false);
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>(
-    (metrics?.permissionMode as PermissionMode) || "default"
-  );
+  // Permission mode managed in AppLayout via LayoutContext
+  const permissionMode = layoutCtx?.permissionMode ?? "default";
+  const setPermissionMode = layoutCtx?.setPermissionMode;
 
   const { state: streamingState, actions: streamingActions } = useStreamingState();
 
@@ -465,28 +465,6 @@ export function ConversationView({
     setShowScrollDown(!atBottom);
   }, []);
 
-  // Handle permission mode change -- POST to server, update local state
-  const handlePermissionModeChange = useCallback(
-    async (newMode: PermissionMode) => {
-      const targetId = activeSessionId;
-      if (!targetId) return;
-
-      try {
-        const res = await fetch(`/api/sessions/${targetId}/permission-mode`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: newMode }),
-        });
-        if (res.ok) {
-          setPermissionMode(newMode);
-        }
-      } catch {
-        // Silently fail -- badge stays at current mode
-      }
-    },
-    [activeSessionId]
-  );
-
   // Handle Ctrl+F to open search and Shift+Tab to cycle permission mode
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -503,13 +481,12 @@ export function ConversationView({
       // Shift+Tab to cycle permission mode
       if (e.shiftKey && e.key === "Tab") {
         e.preventDefault();
-        const next = cyclePermissionMode(permissionMode);
-        handlePermissionModeChange(next);
+        setPermissionMode?.(cyclePermissionMode(permissionMode));
       }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [showSearch, permissionMode, handlePermissionModeChange]);
+  }, [showSearch, permissionMode, setPermissionMode]);
 
   // Filter turns by search query using pre-built search index
   const filteredTurns = useMemo(

@@ -46,6 +46,33 @@ export function createDiscoveryRoutes({ state }: RouteContext): Router {
   router.get("/repos", (_req, res) => {
     try {
       const repos = discoverRepoGroups();
+
+      // Cross-reference with SessionManager for accurate isRunning status.
+      // The JSONL mtime heuristic (2-min threshold) is unreliable — use the
+      // actual in-memory session status as the source of truth.
+      const sessionManager = state?.sessionManager;
+      if (sessionManager) {
+        const activeStatuses = new Map<string, string>();
+        for (const s of sessionManager.getActiveSessions()) {
+          activeStatuses.set(s.sessionId, s.status);
+        }
+        for (const repo of repos) {
+          for (const session of repo.sessions) {
+            const mgrStatus = activeStatuses.get(session.id);
+            if (mgrStatus) {
+              // Session is tracked by SessionManager — use its precise status
+              session.isRunning = mgrStatus === "streaming" || mgrStatus === "waiting-permission";
+            } else {
+              // Not tracked by SessionManager — check if a CLI session is actively writing.
+              // Keep the mtime heuristic but tighten to 30s (SDK writes frequently during streaming).
+              const ageMs = Date.now() - new Date(session.lastModified).getTime();
+              session.isRunning = ageMs < 30_000;
+            }
+          }
+          repo.hasActiveSessions = repo.sessions.some((s) => s.isRunning);
+        }
+      }
+
       res.json({ repos });
     } catch (err) {
       res.status(500).json({ error: "Failed to discover repos" });

@@ -62,15 +62,15 @@ describe("PhaseGroup", () => {
     expect(container.querySelector('[data-testid="phase-body"]')).toBeNull();
   });
 
-  it("auto-expands when phase status is error", () => {
+  it("renders collapsed by default even when phase status is error", () => {
     const { container } = render(
       <PhaseGroup phase={makePhase({ status: "error" })}>
         <div data-testid="child-content">inner</div>
       </PhaseGroup>,
     );
 
-    expect(container.querySelector('[data-testid="phase-body"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="child-content"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="phase-body"]')).toBeNull();
+    expect(container.querySelector('[data-testid="child-content"]')).toBeNull();
   });
 
   it("renders pill badges for each tool in toolCounts", () => {
@@ -149,7 +149,7 @@ describe("PhaseGroup", () => {
     expect(chevron.style.transform).toBe("rotate(90deg)");
   });
 
-  it("auto-expands when phase transitions from running to error", () => {
+  it("stays collapsed when phase transitions from running to error", () => {
     const runningPhase = makePhase({ status: "running" });
     const { container, rerender } = render(
       <PhaseGroup phase={runningPhase}>
@@ -168,9 +168,9 @@ describe("PhaseGroup", () => {
       </PhaseGroup>,
     );
 
-    // Should auto-expand on error transition
-    expect(container.querySelector('[data-testid="phase-body"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="child-content"]')).toBeTruthy();
+    // Should stay collapsed (no auto-expand on error)
+    expect(container.querySelector('[data-testid="phase-body"]')).toBeNull();
+    expect(container.querySelector('[data-testid="child-content"]')).toBeNull();
   });
 
   it("renders empty toolCounts without pills", () => {

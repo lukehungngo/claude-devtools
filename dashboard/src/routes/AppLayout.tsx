@@ -18,6 +18,7 @@ import { LayoutContext } from "../contexts/LayoutContext";
 import { buildSlugMap, buildProjectHashToSlugMap } from "../lib/repoSlug";
 import type { SessionWsHandlers, QuestionItem } from "../contexts/LayoutContext";
 import type { SessionMetrics, SessionEvent, AgentDAG } from "../lib/types";
+import type { PermissionMode } from "../components/conversation/permissionModeTypes";
 import type { TurnSnapshot } from "../lib/turnSnapshot";
 
 
@@ -29,7 +30,32 @@ export function AppLayout() {
   const { costs } = useCosts();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [activeSessionId, setActiveSessionIdRaw] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("activeSessionId");
+    } catch {
+      return null;
+    }
+  });
+  const setActiveSessionId = useCallback((id: string | null) => {
+    setActiveSessionIdRaw(id);
+    try {
+      if (id) localStorage.setItem("activeSessionId", id);
+      else localStorage.removeItem("activeSessionId");
+    } catch { /* noop */ }
+  }, []);
+
+  // Validate restored activeSessionId is still alive on the server
+  useEffect(() => {
+    if (!activeSessionId) return;
+    fetch("/api/sessions/active")
+      .then((r) => r.json())
+      .then((data: { sessions: Array<{ sessionId: string }> }) => {
+        const alive = data.sessions?.some((s) => s.sessionId === activeSessionId);
+        if (!alive) setActiveSessionId(null);
+      })
+      .catch(() => setActiveSessionId(null));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Turn history panel collapse state with localStorage persistence
   const [turnHistoryOpen, setTurnHistoryOpen] = useState(() => {
@@ -79,6 +105,35 @@ export function AppLayout() {
     setViewingTurnNumber(undefined);
     onClearViewingTurnRef.current?.();
   }, []);
+
+  // Permission mode state — managed here, displayed in TopBar, applied by PromptInput
+  const [permissionMode, setPermissionModeRaw] = useState<PermissionMode>(
+    (currentMetrics?.permissionMode as PermissionMode) || "default",
+  );
+  const setPermissionMode = useCallback(
+    async (mode: PermissionMode) => {
+      setPermissionModeRaw(mode);
+      const targetId = activeSessionId;
+      if (!targetId) return;
+      try {
+        await fetch(`/api/sessions/${targetId}/permission-mode`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode }),
+        });
+      } catch {
+        // Silently fail — badge stays at new mode optimistically
+      }
+    },
+    [activeSessionId],
+  );
+
+  // Sync permission mode from metrics when session changes
+  useEffect(() => {
+    if (currentMetrics?.permissionMode) {
+      setPermissionModeRaw(currentMetrics.permissionMode as PermissionMode);
+    }
+  }, [currentMetrics?.permissionMode]);
 
   // Question state for AskUserQuestion
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
@@ -207,6 +262,8 @@ export function AppLayout() {
     setCurrentSelectedAgent,
     hasSubagents,
     setHasSubagents,
+    permissionMode,
+    setPermissionMode,
     turnHistoryOpen,
     setTurnHistoryOpen,
     viewingTurnNumber,
@@ -234,6 +291,8 @@ export function AppLayout() {
             hasPermissionPending={permissions.length > 0}
             viewingTurnNumber={viewingTurnNumber}
             onClearViewingTurn={handleClearViewingTurn}
+            permissionMode={permissionMode}
+            onPermissionModeChange={setPermissionMode}
           />
         }
         sidebar={

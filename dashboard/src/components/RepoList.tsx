@@ -148,26 +148,10 @@ export function RepoList({
       )}
 
       {/* Usage section */}
-      <SectionTitle>Usage (7 day)</SectionTitle>
+      <SectionTitle>Usage</SectionTitle>
       <div style={{ padding: "8px 14px", borderBottom: "1px solid var(--bd)" }}>
-        <UsageRow label="Session limit" value={sessionPct} />
-        <UsageRow label="Rate limit (5h)" value={ratePct} />
-        <div className="flex gap-[10px]" style={{ marginTop: 4 }}>
-          <div>
-            <span style={{ fontSize: 9, color: "var(--t3)" }}>Total in</span>
-            <br />
-            <span className="font-mono font-medium" style={{ fontSize: 11, color: "var(--teal)" }}>
-              {usage?.fiveHour.utilization != null ? `${Math.round((usage.fiveHour.utilization / 100) * 50)}K` : "--"}
-            </span>
-          </div>
-          <div>
-            <span style={{ fontSize: 9, color: "var(--t3)" }}>Total out</span>
-            <br />
-            <span className="font-mono font-medium" style={{ fontSize: 11, color: "var(--pur)" }}>
-              {usage?.sevenDay.utilization != null ? `${Math.round((usage.sevenDay.utilization / 100) * 500)}K` : "--"}
-            </span>
-          </div>
-        </div>
+        <UsageRow label="Session limit (5h)" value={sessionPct} resetsAt={usage?.fiveHour.resetsAt} />
+        <UsageRow label="Rate limit (7d)" value={ratePct} resetsAt={usage?.sevenDay.resetsAt} />
       </div>
 
       {/* Repositories section */}
@@ -352,16 +336,54 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function UsageRow({ label, value }: { label: string; value: number | null }) {
+function formatCountdown(resetsAt: string | null): string {
+  if (!resetsAt) return "";
+  const diffMs = new Date(resetsAt).getTime() - Date.now();
+  if (diffMs <= 0) return "resetting...";
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(diffMs / 3_600_000);
+  const remainMins = Math.floor((diffMs % 3_600_000) / 60_000);
+  if (hours < 24) return remainMins > 0 ? `${hours}h ${remainMins}m` : `${hours}h`;
+  const days = Math.floor(diffMs / 86_400_000);
+  const remainHours = Math.floor((diffMs % 86_400_000) / 3_600_000);
+  return remainHours > 0 ? `${days}d ${remainHours}h` : `${days}d`;
+}
+
+function UsageRow({
+  label,
+  value,
+  resetsAt,
+}: {
+  label: string;
+  value: number | null;
+  resetsAt?: string | null;
+}) {
   const pct = value ?? 0;
-  const barColor = pct > 80 ? "var(--red)" : pct > 50 ? "var(--amb)" : "var(--grn)";
+  const remaining = value != null ? Math.max(0, 100 - pct) : null;
+  const barColor =
+    pct > 80 ? "var(--red)" : pct > 50 ? "var(--amb)" : "var(--grn)";
+  const countdown = formatCountdown(resetsAt ?? null);
 
   return (
     <div style={{ marginBottom: 10 }}>
-      <div className="flex justify-between" style={{ marginBottom: 4 }}>
+      <div
+        className="flex justify-between items-baseline"
+        style={{ marginBottom: 4 }}
+      >
         <span style={{ fontSize: 10, color: "var(--t3)" }}>{label}</span>
-        <span className="font-mono font-medium" style={{ fontSize: 11, color: "var(--t1)" }}>
-          {value != null ? `${pct}%` : "--"}
+        <span
+          className="font-mono font-medium flex items-baseline gap-1"
+          style={{ fontSize: 11 }}
+        >
+          {remaining != null ? (
+            <>
+              <span style={{ color: "var(--t1)" }}>{remaining}%</span>
+              <span style={{ fontSize: 9, color: "var(--t3)" }}>left</span>
+            </>
+          ) : (
+            <span style={{ color: "var(--t3)" }}>--</span>
+          )}
         </span>
       </div>
       <div
@@ -383,6 +405,14 @@ function UsageRow({ label, value }: { label: string; value: number | null }) {
           />
         )}
       </div>
+      {countdown && (
+        <div
+          className="font-mono"
+          style={{ fontSize: 9, color: "var(--t3)", marginTop: 2 }}
+        >
+          resets in {countdown}
+        </div>
+      )}
     </div>
   );
 }

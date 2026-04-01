@@ -32,6 +32,8 @@ export interface UserEvent extends BaseEvent {
   sourceToolAssistantUUID?: string;
   toolUseResult?: Record<string, unknown>;
   permissionMode?: string;
+  /** System-injected content (skill expansions, local command output, image refs) */
+  isMeta?: boolean;
 }
 
 export interface AssistantEvent extends BaseEvent {

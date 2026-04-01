@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { Phase } from "../../lib/phaseGrouping";
 import { getToolBadgeColors } from "./ToolEntries";
@@ -22,13 +22,7 @@ function shallowEqualToolCounts(
 }
 
 function PhaseGroupInner({ phase, children }: PhaseGroupProps) {
-  const [isExpanded, setIsExpanded] = useState(phase.status === "error");
-
-  useEffect(() => {
-    if (phase.status === "error") {
-      setIsExpanded(true);
-    }
-  }, [phase.status]);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const toolEntries = Object.entries(phase.toolCounts);
 

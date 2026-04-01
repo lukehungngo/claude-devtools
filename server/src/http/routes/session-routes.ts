@@ -22,6 +22,7 @@ import { buildLifecycleRecords } from "../../debug/lifecycle-builder.js";
 import { SessionManager } from "../../session/session-manager.js";
 import type { SessionEvent } from "../../types.js";
 import { broadcast } from "../server.js";
+import { buildNewEventsMessage } from "../watcher.js";
 import { mapSdkMessageToSSEEvents } from "../sse-event-handler.js";
 import { metricsCache } from "./route-context.js";
 import type { RouteContext } from "./route-context.js";
@@ -509,11 +510,20 @@ export function createSessionRoutes({ state }: RouteContext): Router {
         : undefined;
 
       for await (const message of sessionManager.sendMessage(sessionId, prompt, parsedImages)) {
-        const sseEvents = mapSdkMessageToSSEEvents(
-          message as { type: string; [key: string]: unknown }
-        );
+        const msg = message as { type: string; uuid?: string; [key: string]: unknown };
+        const sseEvents = mapSdkMessageToSSEEvents(msg);
         for (const sseEvent of sseEvents) {
           res.write(`data: ${JSON.stringify(sseEvent)}\n\n`);
+        }
+
+        // Immediately broadcast session events (assistant/user) via WebSocket
+        // so all panels update without waiting for the file watcher's 200ms delay.
+        // The client's UUID dedup handles the later watcher duplicate.
+        if (state && (msg.type === "assistant" || msg.type === "user") && msg.uuid) {
+          broadcast(state, buildNewEventsMessage(
+            `live://${sessionId}`,
+            [msg as unknown as SessionEvent],
+          ));
         }
       }
 
@@ -923,7 +933,7 @@ export function createSessionRoutes({ state }: RouteContext): Router {
       if (!session?.activeQuery) {
         return res.status(404).json({ error: "No active query for session" });
       }
-      const query = session.activeQuery as Record<string, unknown>;
+      const query = session.activeQuery as unknown as Record<string, unknown>;
       if (typeof query.stopTask === "function") {
         (query.stopTask as (id: string) => void)(taskId);
         res.json({ success: true });
