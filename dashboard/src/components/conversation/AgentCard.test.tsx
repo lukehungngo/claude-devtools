@@ -21,8 +21,68 @@ describe("AgentCard", () => {
     expect(getByLabelText("engineer subagent")).toBeTruthy();
   });
 
-  it("shows stats line with duration when provided", () => {
-    const { getByText } = render(
+  it("renders AGENT label badge with purple theme", () => {
+    const { container } = render(
+      <AgentCard
+        agentName="engineer"
+        description="Some task"
+        status="success"
+      />,
+    );
+
+    const badge = container.querySelector("[data-testid='agent-label-badge']");
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toBe("AGENT");
+    expect(badge!.getAttribute("style")).toContain("var(--pur-bg)");
+    expect(badge!.getAttribute("style")).toContain("var(--pur)");
+  });
+
+  it("has PhaseGroup-style outer container with left margin", () => {
+    const { container } = render(
+      <AgentCard
+        agentName="engineer"
+        description="Some task"
+        status="success"
+      />,
+    );
+
+    const card = container.firstElementChild as HTMLElement;
+    expect(card.style.border).toBe("1px solid var(--bd)");
+    expect(card.style.borderRadius).toBe("var(--radius)");
+    expect(card.style.overflow).toBe("hidden");
+    expect(card.style.marginLeft).toBe("16px");
+    expect(card.style.marginBottom).toBe("2px");
+  });
+
+  it("has PhaseGroup-style header with bg2 background", () => {
+    const { container } = render(
+      <AgentCard
+        agentName="engineer"
+        description="Some task"
+        status="success"
+      />,
+    );
+
+    const header = container.querySelector("[data-testid='agent-card-header']") as HTMLElement;
+    expect(header.style.padding).toBe("9px 14px");
+    expect(header.style.background).toBe("var(--bg2)");
+  });
+
+  it("always shows chevron regardless of children", () => {
+    const { container } = render(
+      <AgentCard
+        agentName="engineer"
+        description="Some task"
+        status="success"
+      />,
+    );
+
+    const chevron = container.querySelector("[data-testid='agent-card-chevron']");
+    expect(chevron).not.toBeNull();
+  });
+
+  it("shows duration inline in header when provided", () => {
+    const { container } = render(
       <AgentCard
         agentName="researcher"
         description="Analyze codebase patterns"
@@ -31,10 +91,16 @@ describe("AgentCard", () => {
       />,
     );
 
-    expect(getByText(/2m 14s/)).toBeTruthy();
+    // Duration should be in the header, not a separate stats line
+    const header = container.querySelector("[data-testid='agent-card-header']");
+    expect(header!.textContent).toContain("2m 14s");
+
+    // No separate stats line should exist
+    const statsLine = container.querySelector("[data-testid='agent-card-stats']");
+    expect(statsLine).toBeNull();
   });
 
-  it("renders toolStats as pill badges with correct text", () => {
+  it("renders toolStats as pill badges with getToolBadgeColors styling", () => {
     const { container } = render(
       <AgentCard
         agentName="researcher"
@@ -49,8 +115,8 @@ describe("AgentCard", () => {
 
     const badges = container.querySelectorAll("[data-testid='agent-stat-badge']");
     expect(badges.length).toBe(2);
-    expect(badges[0].textContent).toBe("Read \u00d711");
-    expect(badges[1].textContent).toBe("Grep \u00d76");
+    expect(badges[0].textContent).toBe("Read 11");
+    expect(badges[1].textContent).toBe("Grep 6");
   });
 
   it("renders cost badge with formatted value", () => {
@@ -69,7 +135,7 @@ describe("AgentCard", () => {
   });
 
   it("shows running status with amber indicator", () => {
-    const { container, getByLabelText } = render(
+    const { getByLabelText } = render(
       <AgentCard
         agentName="bugfixer"
         description="Fix the broken test"
@@ -79,8 +145,7 @@ describe("AgentCard", () => {
 
     const indicator = getByLabelText("Running");
     expect(indicator).toBeTruthy();
-    // The running dot should have amber color
-    expect(indicator.style.background).toBe("var(--amb)");
+    expect(indicator.classList.contains("running-dot")).toBe(true);
   });
 
   it("shows success status with green check", () => {
@@ -125,7 +190,7 @@ describe("AgentCard", () => {
     expect(text).toContain("A".repeat(60));
   });
 
-  it("does not show stats line when no optional props provided", () => {
+  it("does not show duration or cost when not provided", () => {
     const { container } = render(
       <AgentCard
         agentName="engineer"
@@ -134,28 +199,33 @@ describe("AgentCard", () => {
       />,
     );
 
-    // Stats line should not be present
-    const statsLine = container.querySelector("[data-testid='agent-card-stats']");
-    expect(statsLine).toBeNull();
+    const costBadge = container.querySelector("[data-testid='agent-cost']");
+    expect(costBadge).toBeNull();
+    const durationBadge = container.querySelector("[data-testid='agent-duration']");
+    expect(durationBadge).toBeNull();
+  });
+
+  it("applies pulse-opacity class to description when running", () => {
+    const { container } = render(
+      <AgentCard
+        agentName="engineer"
+        description="Working on it"
+        status="running"
+      />,
+    );
+
+    const description = container.querySelector("[data-testid='agent-description']");
+    expect(description).not.toBeNull();
+    expect(description!.classList.contains("pulse-opacity")).toBe(true);
   });
 });
 
 describe("AgentCard expand/collapse", () => {
   afterEach(cleanup);
 
-  it("does not show chevron when no children provided", () => {
+  it("shows chevron even when no children provided", () => {
     const { container } = render(
       <AgentCard agentName="engineer" description="Some task" status="success" />,
-    );
-    const chevron = container.querySelector("[data-testid='agent-card-chevron']");
-    expect(chevron).toBeNull();
-  });
-
-  it("shows chevron when children are provided", () => {
-    const { container } = render(
-      <AgentCard agentName="engineer" description="Some task" status="success">
-        <div>Nested tool</div>
-      </AgentCard>,
     );
     const chevron = container.querySelector("[data-testid='agent-card-chevron']");
     expect(chevron).not.toBeNull();
@@ -179,8 +249,8 @@ describe("AgentCard expand/collapse", () => {
     expect(getByText("Nested tool content")).toBeTruthy();
 
     // Chevron should be rotated
-    const chevron = container.querySelector("[data-testid='agent-card-chevron']") as HTMLElement;
-    expect(chevron.style.transform).toBe("rotate(90deg)");
+    const chevronWrap = container.querySelector("[data-testid='agent-card-chevron']") as HTMLElement;
+    expect(chevronWrap.style.transform).toBe("rotate(90deg)");
   });
 
   it("collapses children on second click", () => {
@@ -201,11 +271,11 @@ describe("AgentCard expand/collapse", () => {
     expect(queryByText("Nested tool content")).toBeNull();
 
     // Chevron should be back to default rotation
-    const chevron = container.querySelector("[data-testid='agent-card-chevron']") as HTMLElement;
-    expect(chevron.style.transform).toBe("rotate(0deg)");
+    const chevronWrap = container.querySelector("[data-testid='agent-card-chevron']") as HTMLElement;
+    expect(chevronWrap.style.transform).toBe("rotate(0deg)");
   });
 
-  it("toggles aria-expanded attribute when children present", () => {
+  it("toggles aria-expanded attribute", () => {
     const { container } = render(
       <AgentCard agentName="engineer" description="Some task" status="success">
         <div>Child</div>
@@ -220,16 +290,19 @@ describe("AgentCard expand/collapse", () => {
     expect(card.getAttribute("aria-expanded")).toBe("true");
   });
 
-  it("still shows running status pulsing dot correctly with children", () => {
-    const { getByLabelText } = render(
-      <AgentCard agentName="bugfixer" description="Fix the test" status="running">
+  it("shows expanded body with border-top separator", () => {
+    const { container } = render(
+      <AgentCard agentName="engineer" description="Some task" status="success">
         <div>Child content</div>
       </AgentCard>,
     );
 
-    const indicator = getByLabelText("Running");
-    expect(indicator).toBeTruthy();
-    expect(indicator.style.background).toBe("var(--amb)");
+    const header = container.querySelector("[data-testid='agent-card-header']")!;
+    fireEvent.click(header);
+
+    const detail = container.querySelector("[data-testid='agent-card-detail']") as HTMLElement;
+    expect(detail).not.toBeNull();
+    expect(detail.style.borderTop).toBe("1px solid var(--bd)");
   });
 });
 
@@ -274,34 +347,6 @@ function makeUserEvent(toolUseId: string, resultContent: string): UserEvent {
     },
   };
 }
-
-describe("AgentCard group-hover hint visibility (P1 bug)", () => {
-  afterEach(cleanup);
-
-  it("has 'group' class on an ancestor of the expand hint so group-hover works", () => {
-    const { container } = render(
-      <AgentCard agentName="engineer" description="Some task" status="success">
-        <div>Child</div>
-      </AgentCard>,
-    );
-
-    const allHints = container.querySelectorAll("span[aria-hidden='true']");
-    const hint = Array.from(allHints).find((el) => el.textContent === "click to expand") as HTMLElement | undefined;
-    expect(hint).not.toBeUndefined();
-
-    // Walk up from the hint to find a parent with 'group' class
-    let el: HTMLElement | null = hint!.parentElement;
-    let foundGroup = false;
-    while (el) {
-      if (el.classList.contains("group")) {
-        foundGroup = true;
-        break;
-      }
-      el = el.parentElement;
-    }
-    expect(foundGroup).toBe(true);
-  });
-});
 
 describe("AgentCard integration in ToolEntries", () => {
   afterEach(cleanup);

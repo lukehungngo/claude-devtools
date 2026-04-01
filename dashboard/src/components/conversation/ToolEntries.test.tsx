@@ -543,9 +543,13 @@ describe("ToolEntries - agent dispatch children wiring", () => {
     const events = makeAgentDispatchEvents(); // no result
     const { container } = render(<ToolEntries events={events} />);
 
-    // AgentCard should NOT have a chevron (no children)
+    // AgentCard always shows chevron (PhaseGroup pattern)
     const chevron = container.querySelector("[data-testid='agent-card-chevron']");
-    expect(chevron).toBeNull();
+    expect(chevron).not.toBeNull();
+
+    // But no detail panel should be visible even if expanded (no children to show)
+    const detail = container.querySelector("[data-testid='agent-card-detail']");
+    expect(detail).toBeNull();
   });
 
   it("renders AgentCard with array resultContent extracting text items", () => {
