@@ -36,64 +36,43 @@ function AgentCardInner({
     <div
       aria-label={`${agentName} subagent`}
       aria-expanded={isExpanded}
-      style={{
-        border: "1px solid var(--bd)",
-        borderRadius: "var(--radius)",
-        overflow: "hidden",
-        marginLeft: 16,
-        marginBottom: 2,
-      }}
+      className="border border-[var(--bd)] rounded-dt overflow-hidden ml-4 mb-[2px]"
     >
       {/* Header — matches PhaseGroup phase-head */}
       <div
         data-testid="agent-card-header"
         role="button"
         onClick={() => setIsExpanded((v) => !v)}
-        className="flex items-center cursor-pointer"
-        style={{
-          padding: "9px 14px",
-          background: "var(--bg2)",
-          gap: 8,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "var(--bg3)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "var(--bg2)";
-        }}
+        className="flex items-center cursor-pointer px-3.75 py-[9px] bg-[var(--bg2)] gap-2 hover:bg-[var(--bg3)]"
       >
         {/* 1. Chevron — always shown */}
         <span
           data-testid="agent-card-chevron"
-          className="shrink-0 flex items-center"
+          className="shrink-0 flex items-center transition-transform duration-[150ms] ease-out"
           style={{
             transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
-            transition: "transform 0.15s ease",
           }}
         >
-          <ChevronRight size={12} style={{ color: "var(--t3)" }} />
+          <ChevronRight size={12} className="text-[var(--t3)]" />
         </span>
 
         {/* 2. Status icon */}
         {status === "running" ? (
           <span
             aria-label="Running"
-            className="running-dot shrink-0"
-            style={{ color: "var(--amb)" }}
+            className="running-dot shrink-0 text-[var(--amb)]"
           />
         ) : status === "success" ? (
           <span
             aria-label="Success"
-            className="shrink-0"
-            style={{ fontSize: 12, color: "var(--grn)" }}
+            className="shrink-0 text-md text-[var(--grn)]"
           >
             {"\u2713"}
           </span>
         ) : (
           <span
             aria-label="Error"
-            className="shrink-0"
-            style={{ fontSize: 12, color: "var(--red)" }}
+            className="shrink-0 text-md text-[var(--red)]"
           >
             {"\u2717"}
           </span>
@@ -102,45 +81,21 @@ function AgentCardInner({
         {/* 3. AGENT label badge */}
         <span
           data-testid="agent-label-badge"
-          className="shrink-0"
-          style={{
-            fontSize: 9,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            padding: "1px 6px",
-            borderRadius: 3,
-            background: "var(--pur-bg)",
-            color: "var(--pur)",
-          }}
+          className="shrink-0 text-xs font-semibold uppercase tracking-[0.05em] px-1.75 py-[1px] rounded-[3px] bg-[var(--pur-bg)] text-[var(--pur)]"
         >
           AGENT
         </span>
 
         {/* 4. Agent initials badge */}
         <span
-          className="shrink-0 inline-flex items-center justify-center"
-          style={{
-            width: 20,
-            height: 20,
-            borderRadius: 5,
-            fontSize: 9,
-            fontWeight: 600,
-            background: "var(--acc-bg)",
-            color: "var(--acc)",
-          }}
+          className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-dt-sm text-xs font-semibold bg-[var(--acc-bg)] text-[var(--acc)]"
         >
           {initials}
         </span>
 
         {/* 5. Agent name */}
         <span
-          className="shrink-0"
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: "var(--t0)",
-          }}
+          className="shrink-0 text-lg font-semibold text-[var(--t0)]"
         >
           {agentName}
         </span>
@@ -148,31 +103,22 @@ function AgentCardInner({
         {/* 6. Description — quoted, truncated, mono */}
         <span
           data-testid="agent-description"
-          className={`font-mono overflow-hidden text-ellipsis whitespace-nowrap${status === "running" ? " pulse-opacity" : ""}`}
-          style={{
-            fontSize: 11,
-            color: "var(--t2)",
-            flex: 1,
-            minWidth: 0,
-          }}
+          className={`font-mono overflow-hidden text-ellipsis whitespace-nowrap text-base text-[var(--t2)] flex-1 min-w-0${status === "running" ? " pulse-opacity" : ""}`}
         >
           {"\u201C"}{truncate(description, 60)}{"\u201D"}
         </span>
 
         {/* 7. Tool stat pills — same as PhaseGroup */}
         {toolStats != null && toolStats.length > 0 && (
-          <div className="flex items-center shrink-0" style={{ gap: 4 }}>
+          <div className="flex items-center shrink-0 gap-1">
             {toolStats.map((stat) => {
               const colors = getToolBadgeColors(stat.name);
               return (
                 <span
                   key={stat.name}
                   data-testid="agent-stat-badge"
+                  className="font-mono text-xs px-[7px] py-[2px] rounded-[10px]"
                   style={{
-                    fontFamily: "var(--mono)",
-                    fontSize: 9,
-                    padding: "2px 7px",
-                    borderRadius: 10,
                     background: colors.bg,
                     color: colors.text,
                   }}
@@ -188,12 +134,7 @@ function AgentCardInner({
         {cost != null && (
           <span
             data-testid="agent-cost"
-            className="shrink-0"
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              color: "var(--amb)",
-            }}
+            className="shrink-0 font-mono text-base text-[var(--amb)]"
           >
             {formatCost(cost)}
           </span>
@@ -203,12 +144,7 @@ function AgentCardInner({
         {durationMs != null && (
           <span
             data-testid="agent-duration"
-            className="shrink-0"
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              color: "var(--t3)",
-            }}
+            className="shrink-0 font-mono text-sm text-[var(--t3)]"
           >
             {formatDuration(durationMs)}
           </span>
@@ -219,13 +155,9 @@ function AgentCardInner({
       {isExpanded && hasChildren && (
         <div
           data-testid="agent-card-detail"
-          style={{ borderTop: "1px solid var(--bd)" }}
+          className="border-t border-[var(--bd)]"
         >
-          <div
-            style={{
-              padding: "8px 10px",
-            }}
-          >
+          <div className="p-[8px_10px]">
             {children}
           </div>
         </div>

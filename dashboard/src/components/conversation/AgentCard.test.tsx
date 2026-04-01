@@ -33,8 +33,9 @@ describe("AgentCard", () => {
     const badge = container.querySelector("[data-testid='agent-label-badge']");
     expect(badge).not.toBeNull();
     expect(badge!.textContent).toBe("AGENT");
-    expect(badge!.getAttribute("style")).toContain("var(--pur-bg)");
-    expect(badge!.getAttribute("style")).toContain("var(--pur)");
+    // Purple theme applied via Tailwind arbitrary value classes
+    expect(badge!.className).toContain("bg-[var(--pur-bg)]");
+    expect(badge!.className).toContain("text-[var(--pur)]");
   });
 
   it("has PhaseGroup-style outer container with left margin", () => {
@@ -47,11 +48,13 @@ describe("AgentCard", () => {
     );
 
     const card = container.firstElementChild as HTMLElement;
-    expect(card.style.border).toBe("1px solid var(--bd)");
-    expect(card.style.borderRadius).toBe("var(--radius)");
-    expect(card.style.overflow).toBe("hidden");
-    expect(card.style.marginLeft).toBe("16px");
-    expect(card.style.marginBottom).toBe("2px");
+    // All static styles now via Tailwind classes
+    expect(card.className).toContain("border");
+    expect(card.className).toContain("border-[var(--bd)]");
+    expect(card.className).toContain("rounded-dt");
+    expect(card.className).toContain("overflow-hidden");
+    expect(card.className).toContain("ml-4");
+    expect(card.className).toContain("mb-[2px]");
   });
 
   it("has PhaseGroup-style header with bg2 background", () => {
@@ -64,8 +67,9 @@ describe("AgentCard", () => {
     );
 
     const header = container.querySelector("[data-testid='agent-card-header']") as HTMLElement;
-    expect(header.style.padding).toBe("9px 14px");
-    expect(header.style.background).toBe("var(--bg2)");
+    // Static styles now via Tailwind classes
+    expect(header.className).toContain("bg-[var(--bg2)]");
+    expect(header.className).toContain("hover:bg-[var(--bg3)]");
   });
 
   it("always shows chevron regardless of children", () => {
@@ -218,6 +222,73 @@ describe("AgentCard", () => {
     expect(description).not.toBeNull();
     expect(description!.classList.contains("pulse-opacity")).toBe(true);
   });
+
+  it("uses Tailwind classes instead of static inline styles", () => {
+    const { container } = render(
+      <AgentCard
+        agentName="engineer"
+        description="Some task"
+        status="success"
+        cost={1.5}
+        durationMs={5000}
+        toolStats={[{ name: "Read", count: 3 }]}
+      >
+        <div>Child</div>
+      </AgentCard>,
+    );
+
+    // The outer container should use Tailwind classes, not inline border/overflow/margin
+    const card = container.firstElementChild as HTMLElement;
+    expect(card.style.border).toBe("");
+    expect(card.style.overflow).toBe("");
+    expect(card.style.marginLeft).toBe("");
+    expect(card.classList.contains("overflow-hidden")).toBe(true);
+    expect(card.classList.contains("ml-4")).toBe(true);
+
+    // The header should use Tailwind classes, not inline padding/background/gap
+    const header = container.querySelector("[data-testid='agent-card-header']") as HTMLElement;
+    expect(header.style.padding).toBe("");
+    expect(header.style.background).toBe("");
+    expect(header.style.gap).toBe("");
+
+    // The AGENT badge should use Tailwind classes, not inline fontSize/fontWeight/etc
+    const badge = container.querySelector("[data-testid='agent-label-badge']") as HTMLElement;
+    expect(badge.style.fontSize).toBe("");
+    expect(badge.style.fontWeight).toBe("");
+    expect(badge.style.background).toBe("");
+    expect(badge.classList.contains("uppercase")).toBe(true);
+
+    // Cost and duration should use font-mono class, not fontFamily style
+    const costEl = container.querySelector("[data-testid='agent-cost']") as HTMLElement;
+    expect(costEl.style.fontFamily).toBe("");
+    expect(costEl.classList.contains("font-mono")).toBe(true);
+
+    const durationEl = container.querySelector("[data-testid='agent-duration']") as HTMLElement;
+    expect(durationEl.style.fontFamily).toBe("");
+    expect(durationEl.classList.contains("font-mono")).toBe(true);
+
+    // Stat badges should use font-mono class, not fontFamily style
+    const statBadge = container.querySelector("[data-testid='agent-stat-badge']") as HTMLElement;
+    expect(statBadge.style.fontFamily).toBe("");
+    expect(statBadge.classList.contains("font-mono")).toBe(true);
+  });
+
+  it("uses Tailwind hover class instead of imperative mouse handlers", () => {
+    const { container } = render(
+      <AgentCard
+        agentName="engineer"
+        description="Some task"
+        status="success"
+      />,
+    );
+
+    const header = container.querySelector("[data-testid='agent-card-header']") as HTMLElement;
+    // Should not change background on hover via JS — Tailwind hover: handles it
+    const bgBefore = header.style.background;
+    fireEvent.mouseEnter(header);
+    const bgAfter = header.style.background;
+    expect(bgBefore).toBe(bgAfter);
+  });
 });
 
 describe("AgentCard expand/collapse", () => {
@@ -302,7 +373,9 @@ describe("AgentCard expand/collapse", () => {
 
     const detail = container.querySelector("[data-testid='agent-card-detail']") as HTMLElement;
     expect(detail).not.toBeNull();
-    expect(detail.style.borderTop).toBe("1px solid var(--bd)");
+    // Border-top now via Tailwind classes
+    expect(detail.className).toContain("border-t");
+    expect(detail.className).toContain("border-[var(--bd)]");
   });
 });
 
