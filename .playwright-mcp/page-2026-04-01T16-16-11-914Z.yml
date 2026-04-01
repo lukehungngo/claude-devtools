@@ -1,0 +1,10 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - img [ref=e4]
+    - heading "Dana Desktop" [level=1] [ref=e7]
+    - generic [ref=e10]: Loading…
+  - generic [ref=e12]:
+    - heading "Something went wrong" [level=2] [ref=e13]
+    - paragraph [ref=e14]: Cannot read properties of undefined (reading 'setup')
+    - button "Try Again" [ref=e15] [cursor=pointer]
+    - button "Export Logs" [ref=e16] [cursor=pointer]

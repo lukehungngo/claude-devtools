@@ -133,7 +133,7 @@ function DetailTabInner({ turns, allEvents, activeTurnIndex }: DetailTabProps) {
     if (!activeTurn || activeTurn.agents.length === 0) return null;
     const agent = activeTurn.agents[0];
     const color = getSpanColor(agent.agentType);
-    const icon = getSpanIcon(agent.agentType, 0);
+    const icon = getSpanIcon(agent.agentType);
     return { icon, color };
   }, [activeTurn]);
 

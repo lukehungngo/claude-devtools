@@ -1,0 +1,5 @@
+[      46ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:24183/node_modules/.vite/deps/chunk-A4PLE5AR.js?v=d0f9dc76:21550
+[      93ms] [WARNING] WebSocket connection to 'ws://localhost:24183/ws' failed: WebSocket is closed before the connection is established. @ http://localhost:24183/src/hooks/useUnifiedWebSocket.ts:67
+[     327ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:24183/api/sessions/e35225d6-66d0-4183-b6cd-01dabf28d2d5/commands:0
+[     327ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:24183/api/sessions/e35225d6-66d0-4183-b6cd-01dabf28d2d5/commands:0
+[    2522ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:24183/api/sessions/9b3e701f-ccc8-44de-a7cc-7da06f632009/commands:0

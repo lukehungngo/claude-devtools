@@ -28,7 +28,8 @@ export interface TraceTabProps {
 
 // ── Color mapping ──
 
-const SPAN_COLORS: Record<string, { bg: string; text: string }> = {
+/** Known agent types get dedicated palette slots; everything else cycles through a palette. */
+const KNOWN_COLORS: Record<string, { bg: string; text: string }> = {
   orchestrator: { bg: "var(--span-pm)", text: "var(--span-pm-t)" },
   main:         { bg: "var(--span-pm)", text: "var(--span-pm-t)" },
   engineer:     { bg: "var(--span-swe)", text: "var(--span-swe-t)" },
@@ -39,28 +40,44 @@ const SPAN_COLORS: Record<string, { bg: string; text: string }> = {
   qa:           { bg: "var(--span-qa)", text: "var(--span-qa-t)" },
 };
 
-const FALLBACK_COLOR = { bg: "var(--span-swe2)", text: "var(--span-swe2-t)" };
+/** Palette for unknown agent types — cycles deterministically via string hash. */
+const PALETTE: Array<{ bg: string; text: string }> = [
+  { bg: "var(--span-swe)", text: "var(--span-swe-t)" },
+  { bg: "var(--span-swe2)", text: "var(--span-swe2-t)" },
+  { bg: "var(--span-rev)", text: "var(--span-rev-t)" },
+  { bg: "var(--span-doc)", text: "var(--span-doc-t)" },
+  { bg: "var(--span-qa)", text: "var(--span-qa-t)" },
+  { bg: "var(--span-bug)", text: "var(--span-bug-t)" },
+];
 
-export function getSpanColor(type: string): { bg: string; text: string } {
-  return SPAN_COLORS[type] ?? FALLBACK_COLOR;
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
 }
 
-// ── Icon mapping ──
+export function getSpanColor(type: string): { bg: string; text: string } {
+  return KNOWN_COLORS[type] ?? PALETTE[hashString(type) % PALETTE.length];
+}
 
-const SPAN_ICONS: Record<string, string> = {
-  orchestrator: "PM",
-  main: "PM",
-  reviewer: "CR",
-  "bug-fixer": "BF",
-  researcher: "RS",
-  tester: "QA",
-  qa: "QA",
-};
+// ── Icon / abbreviation ──
 
-export function getSpanIcon(type: string, engineerIndex: number): string {
-  if (type === "engineer") return `S${engineerIndex + 1}`;
-  if (SPAN_ICONS[type]) return SPAN_ICONS[type];
-  // Fallback: first 2 chars uppercased
+/**
+ * Derive a 2-char abbreviation from any agent type string.
+ * Handles hyphenated ("bug-fixer" → "BF"), camelCase ("codeFixer" → "CF"),
+ * and single-word ("researcher" → "RE") types.
+ */
+export function getSpanIcon(type: string): string {
+  // Split on hyphens, underscores, or camelCase boundaries
+  const parts = type
+    .replace(/([a-z])([A-Z])/g, "$1-$2")
+    .split(/[-_]+/)
+    .filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
   const clean = type.replace(/[^a-zA-Z]/g, "");
   return (clean.slice(0, 2) || "??").toUpperCase();
 }
@@ -170,6 +187,7 @@ interface TraceGroup {
 function buildTraceGroups(
   dag: AgentDAG,
   timeline: Timeline,
+  maxDepth?: number,
 ): TraceGroup[] {
   const { nodes, edges } = dag;
   const { sessionStartMs, totalMs } = timeline;
@@ -189,9 +207,6 @@ function buildTraceGroups(
   // If no clear roots, treat all as roots
   const rootNodes = roots.length > 0 ? roots : nodes;
 
-  // Track engineer index for numbering
-  let engineerIdx = 0;
-
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
   // Compute aggregate cost for a node + all its descendants
@@ -207,7 +222,7 @@ function buildTraceGroups(
   }
 
   function buildRow(node: AgentNode, depth: number, isRoot: boolean): TraceRow {
-    const icon = getSpanIcon(node.type, node.type === "engineer" ? engineerIdx++ : 0);
+    const icon = getSpanIcon(node.type);
     const color = getSpanColor(node.type);
     const bar = computeBarPosition(node, sessionStartMs, totalMs);
 
@@ -231,6 +246,8 @@ function buildTraceGroups(
   }
 
   function collectChildren(parentId: string, depth: number): TraceGroup[] {
+    if (maxDepth !== undefined && depth > maxDepth) return [];
+
     const childIds = childrenOf.get(parentId) ?? [];
     const children = childIds
       .map((id) => nodeMap.get(id))
@@ -322,6 +339,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
         <div
           className="trace-icon"
           style={{ background: color.bg, color: color.text }}
+          title={node.type}
         >
           {icon}
         </div>
@@ -364,6 +382,7 @@ function TraceTabInner({
   const [labelWidth, setLabelWidth] = useState(DEFAULT_LABEL_WIDTH);
   const [durationWidth, setDurationWidth] = useState(DURATION_COL_WIDTH);
   const [costWidth, setCostWidth] = useState(COST_COL_WIDTH);
+  const [showAllDepths, setShowAllDepths] = useState(false);
   const dragRef = useRef<{ startX: number; startWidth: number; setter: (w: number) => void } | null>(null);
 
   const activeTurn =
@@ -380,14 +399,21 @@ function TraceTabInner({
   const isEmpty = !filteredDag || filteredDag.nodes.length === 0;
   const contentHeight = panelHeight - TAB_BAR_HEIGHT;
 
-  const { timeline, groups } = useMemo(() => {
+  // Default depth limit: 2 (root=0, children=1, sub-agents=2). Toggle reveals all.
+  const maxDepth = showAllDepths ? undefined : 2;
+
+  const { timeline, groups, hasDeepNodes } = useMemo(() => {
     if (!filteredDag || filteredDag.nodes.length === 0) {
-      return { timeline: null, groups: [] };
+      return { timeline: null, groups: [], hasDeepNodes: false };
     }
     const tl = computeTimeline(filteredDag.nodes);
-    const gr = buildTraceGroups(filteredDag, tl);
-    return { timeline: tl, groups: gr };
-  }, [filteredDag]);
+    const gr = buildTraceGroups(filteredDag, tl, maxDepth);
+    // Check if there are deeper nodes that were hidden
+    const allGr = maxDepth !== undefined ? buildTraceGroups(filteredDag, tl) : gr;
+    const totalRows = allGr.reduce((sum, g) => sum + g.rows.length, 0);
+    const visibleRows = gr.reduce((sum, g) => sum + g.rows.length, 0);
+    return { timeline: tl, groups: gr, hasDeepNodes: totalRows > visibleRows };
+  }, [filteredDag, maxDepth]);
 
   // Generic drag-to-resize for any column
   const makeResizeHandler = useCallback(
@@ -454,6 +480,17 @@ function TraceTabInner({
       <div className="trace-header">
         <div className="trace-header-label" style={{ width: labelWidth }}>
           Agent
+          {hasDeepNodes && (
+            <button
+              data-testid="trace-depth-toggle"
+              onClick={() => setShowAllDepths((v) => !v)}
+              className="ml-1.5 cursor-pointer bg-transparent border-none font-mono"
+              style={{ fontSize: 9, color: "var(--t3)", padding: "0 3px" }}
+              title={showAllDepths ? "Collapse tool calls" : "Show all tool calls"}
+            >
+              {showAllDepths ? "▾ less" : "▸ more"}
+            </button>
+          )}
         </div>
         <div className="trace-col-duration trace-col-header" style={{ width: durationWidth }}>Duration</div>
         <div className="trace-col-cost trace-col-header" style={{ width: costWidth }}>Cost</div>

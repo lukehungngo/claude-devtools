@@ -135,8 +135,8 @@ describe("TraceTab", () => {
         panelHeight={300}
       />,
     );
-    expect(screen.getByText("PM")).toBeDefined();
-    expect(screen.getByText("CR")).toBeDefined();
+    expect(screen.getByText("OR")).toBeDefined();
+    expect(screen.getByText("RE")).toBeDefined();
   });
 
   it("shows 'running' in duration column for active agents", () => {
@@ -426,17 +426,90 @@ describe("TraceTab row heights", () => {
   });
 });
 
+describe("TraceTab depth limit", () => {
+  afterEach(cleanup);
+
+  it("hides nodes deeper than 3 levels by default", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "root",
+          type: "orchestrator",
+          description: "Root",
+          startTime: "2026-01-01T00:00:00Z",
+          endTime: "2026-01-01T00:10:00Z",
+        }),
+        makeNode({
+          id: "agent-1",
+          type: "engineer",
+          description: "Agent1",
+          parentId: "root",
+          startTime: "2026-01-01T00:01:00Z",
+          endTime: "2026-01-01T00:05:00Z",
+        }),
+        makeNode({
+          id: "sub-1",
+          type: "reviewer",
+          description: "SubAgent1",
+          parentId: "agent-1",
+          startTime: "2026-01-01T00:02:00Z",
+          endTime: "2026-01-01T00:03:00Z",
+        }),
+        makeNode({
+          id: "deep-1",
+          type: "engineer",
+          description: "DeepTool",
+          parentId: "sub-1",
+          startTime: "2026-01-01T00:02:30Z",
+          endTime: "2026-01-01T00:02:45Z",
+        }),
+      ],
+      edges: [
+        { source: "root", target: "agent-1" },
+        { source: "agent-1", target: "sub-1" },
+        { source: "sub-1", target: "deep-1" },
+      ],
+    };
+    const { container } = render(
+      <TraceTab
+        dag={dag}
+        turns={[mockTurn]}
+        activeTurnIndex={null}
+        selectedAgent={null}
+        panelHeight={400}
+      />,
+    );
+    // 3 levels visible (depth 0, 1, 2), depth 3 hidden
+    const rows = container.querySelectorAll(".trace-row");
+    expect(rows.length).toBe(3);
+    expect(container.textContent).toContain("Root");
+    expect(container.textContent).toContain("Agent1");
+    expect(container.textContent).toContain("SubAgent1");
+    expect(container.textContent).not.toContain("DeepTool");
+    // Toggle button should be visible
+    expect(container.querySelector("[data-testid='trace-depth-toggle']")).not.toBeNull();
+  });
+});
+
 describe("getSpanIcon", () => {
-  it("returns PM for orchestrator", () => {
-    expect(getSpanIcon("orchestrator", 0)).toBe("PM");
+  it("derives abbreviation from hyphenated types", () => {
+    expect(getSpanIcon("bug-fixer")).toBe("BF");
+    expect(getSpanIcon("custom-agent")).toBe("CA");
+    expect(getSpanIcon("code-reviewer")).toBe("CR");
   });
 
-  it("numbers engineers", () => {
-    expect(getSpanIcon("engineer", 0)).toBe("S1");
-    expect(getSpanIcon("engineer", 1)).toBe("S2");
+  it("derives abbreviation from camelCase types", () => {
+    expect(getSpanIcon("codeFixer")).toBe("CF");
   });
 
-  it("returns first 2 chars for unknown types", () => {
-    expect(getSpanIcon("custom-agent", 0)).toBe("CU");
+  it("derives abbreviation from single-word types", () => {
+    expect(getSpanIcon("orchestrator")).toBe("OR");
+    expect(getSpanIcon("engineer")).toBe("EN");
+    expect(getSpanIcon("researcher")).toBe("RE");
+    expect(getSpanIcon("main")).toBe("MA");
+  });
+
+  it("handles underscore-separated types", () => {
+    expect(getSpanIcon("my_agent")).toBe("MA");
   });
 });

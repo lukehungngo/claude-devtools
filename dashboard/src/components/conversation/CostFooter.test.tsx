@@ -5,62 +5,80 @@ import { CostFooter } from "./CostFooter";
 afterEach(cleanup);
 
 describe("CostFooter", () => {
-  const sampleProps = {
-    totalCost: 9.63,
-    mainCost: 2.96,
-    mainTurns: 6,
-    agentCost: 6.67,
-    agentCalls: 44,
-  };
-
-  it("renders all cost sections with sample data", () => {
-    const { getByText } = render(<CostFooter {...sampleProps} />);
-
-    expect(getByText("Total:")).toBeTruthy();
-    expect(getByText("Main:")).toBeTruthy();
-    expect(getByText("Agent:")).toBeTruthy();
-  });
-
-  it("formats costs using formatCost", () => {
-    const { container } = render(<CostFooter {...sampleProps} />);
-    const text = container.textContent!;
-
-    // formatCost(9.63) = "$9.63", formatCost(2.96) = "$2.96", formatCost(6.67) = "$6.67"
-    expect(text).toContain("$9.63");
-    expect(text).toContain("$2.96");
-    expect(text).toContain("$6.67");
-  });
-
-  it("displays turn and call counts correctly", () => {
-    const { container } = render(<CostFooter {...sampleProps} />);
-    const text = container.textContent!;
-
-    expect(text).toContain("6 turns");
-    expect(text).toContain("44 calls");
-  });
-
-  it("has aria-label for accessibility", () => {
-    const { container } = render(<CostFooter {...sampleProps} />);
-    const el = container.querySelector('[aria-label="Cost breakdown"]');
-
-    expect(el).toBeTruthy();
-  });
-
-  it("renders $0.0000 for zero costs (honest numbers)", () => {
+  it("shows total + breakdown when both main and agent have cost", () => {
     const { container } = render(
       <CostFooter
-        totalCost={0}
-        mainCost={0}
-        mainTurns={0}
-        agentCost={0}
-        agentCalls={0}
-      />
+        totalCost={9.63}
+        mainCost={2.96}
+        mainTurns={6}
+        agentCost={6.67}
+        agentCalls={44}
+      />,
     );
     const text = container.textContent!;
 
-    // formatCost(0) = "$0.0000" (cost < 0.01 branch)
-    expect(text).toContain("$0.0000");
-    expect(text).toContain("0 turns");
-    expect(text).toContain("0 calls");
+    expect(text).toContain("$9.63");
+    expect(text).toContain("main $2.96");
+    expect(text).toContain("agents $6.67 (44)");
+  });
+
+  it("shows total + agent count when main cost is zero", () => {
+    const { container } = render(
+      <CostFooter
+        totalCost={1.52}
+        mainCost={0}
+        mainTurns={1}
+        agentCost={1.52}
+        agentCalls={1}
+      />,
+    );
+    const text = container.textContent!;
+
+    expect(text).toContain("$1.52");
+    expect(text).toContain("1 agent");
+    expect(text).not.toContain("main");
+  });
+
+  it("pluralizes agent count", () => {
+    const { container } = render(
+      <CostFooter
+        totalCost={3.0}
+        mainCost={0}
+        mainTurns={1}
+        agentCost={3.0}
+        agentCalls={4}
+      />,
+    );
+    expect(container.textContent).toContain("4 agents");
+  });
+
+  it("shows only total when no agents", () => {
+    const { container } = render(
+      <CostFooter
+        totalCost={0.50}
+        mainCost={0.50}
+        mainTurns={1}
+        agentCost={0}
+        agentCalls={0}
+      />,
+    );
+    const text = container.textContent!;
+
+    expect(text).toContain("$0.50");
+    expect(text).not.toContain("main");
+    expect(text).not.toContain("agent");
+  });
+
+  it("has aria-label for accessibility", () => {
+    const { container } = render(
+      <CostFooter
+        totalCost={1.0}
+        mainCost={1.0}
+        mainTurns={1}
+        agentCost={0}
+        agentCalls={0}
+      />,
+    );
+    expect(container.querySelector('[aria-label="Cost breakdown"]')).toBeTruthy();
   });
 });

@@ -177,15 +177,19 @@ function TurnHistoryPanelInner({
             No turns yet
           </div>
         ) : (
-          turns.map((turn, i) => (
-            <TurnItem
-              key={turn.turnNumber}
-              turn={turn}
-              index={i}
-              isActive={activeTurnIndex === i}
-              onClick={handleSelectTurn}
-            />
-          ))
+          turns.map((_, i) => {
+            const ri = turns.length - 1 - i;
+            const turn = turns[ri];
+            return (
+              <TurnItem
+                key={turn.turnNumber}
+                turn={turn}
+                index={ri}
+                isActive={activeTurnIndex === ri}
+                onClick={handleSelectTurn}
+              />
+            );
+          })
         )}
       </div>
     </div>

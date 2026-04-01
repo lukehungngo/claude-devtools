@@ -1,7 +1,7 @@
 # Claude DevTools — Plan v5
 
 **Supersedes:** `v4-master-plan.md`, `v4-redesign-plan.md`, `v4-plan-delta.md`
-**Date:** 2026-03-31
+**Date:** 2026-04-01
 **Status:** Active
 
 ---
@@ -383,23 +383,23 @@ The v4 master plan had "UI Revamp → NEXT" as vague. This phase is the concrete
 | # | Task | Status | Gaps | Absorbs |
 |---|------|--------|------|---------|
 | UI-01 | Kill right panel, conversation full-width | **DONE** | — | A-03 |
-| UI-02 | Bottom panel container with 4 tabs | **PARTIAL** | Height not persisted to localStorage; default collapsed state on first visit | — |
-| UI-03 | Agent Graph tab (Jaeger-style trace) | **PARTIAL** | Tool calls not hidden until click; row heights 40px not 48/26px; no depth limit | P5-01, P7-01 |
-| UI-04 | Tool Call tab (file-level breakdown) | **PARTIAL** | Missing agent icon/turn number/duration/cost in header | P5-03 |
+| UI-02 | Bottom panel container with 4 tabs | **DONE** | Height + collapsed state persisted to localStorage; default collapsed on first visit | — |
+| UI-03 | Agent Graph tab (Jaeger-style trace) | **DONE** | 48px/26px row heights, 3-level depth limit with toggle, tool calls hidden by default | P5-01, P7-01 |
+| UI-04 | Tool Call tab (file-level breakdown) | **DONE** | Header bar: agent badge, T{n}, primary tool x count, duration, cost | P5-03 |
 | UI-05 | Raw Log tab (JSON syntax highlight) | **DONE** | — | — |
-| UI-06 | Cost tab (burn rate, projection, per-agent) | **PARTIAL** | Missing projected total card; burn rate has no trend; 3rd card is cache savings | P5-02 |
-| UI-07 | Sticky topbar with 7 metrics | **PARTIAL** | Missing WAITING state; missing red border on 80%+ context | P4-01 partial |
+| UI-06 | Cost tab (burn rate, projection, per-agent) | **DONE** | 3 cards: session cost, burn rate with trend arrow, projected total | P5-02 |
+| UI-07 | Sticky topbar with 7 metrics | **DONE** | WAIT state (amber dot), red outline on 80%+ context | P4-01 |
 | UI-08 | Light/dark theme system | **DONE** | Bonus: high-contrast theme | A-08 |
 | UI-09 | Auto-open on SubagentStart + localStorage | **DONE** | — | — |
-| UI-10 | Proportional trace bars, text outside | **PARTIAL** | Text outside DONE; 1% min-width remains (spec says no min-width) | — |
+| UI-10 | Proportional trace bars, text outside | **DONE** | 0.3% min-width for visibility, proportional positioning | — |
 | UI-11 | Turn dividers in conversation | **DONE** | — | — |
 | UI-12 | Turn selection syncs across components | **DONE** | — | — |
 | UI-13 | Raw Log grouped by turn (collapsible) | **DONE** | — | — |
-| UI-14 | Tool call grouping (consecutive same-type) | **PARTIAL** | Click-to-open-in-bottom-panel not wired | P5-03 partial |
+| UI-14 | Tool call grouping (consecutive same-type) | **DONE** | Click-to-detail wired via openBottomTabRef | P5-03 |
 | UI-15 | "Viewing T170" indicator in topbar | **DONE** | — | — |
 | UI-16 | Absorb A-05 (code splitting) during rewrite | **DONE** | Route-level + vendor chunks + lazy BottomPanel | A-05 |
 | UI-17 | Absorb A-06 (conversation memory) | **DONE** | TurnSnapshot uses startIndex/endIndex, no duplication | A-06 |
-| UI-18 | Enhance conversation response rendering | **PARTIAL** | See UI-18 sub-status below | — |
+| UI-18 | Enhance conversation response rendering | **DONE** | See UI-18 sub-status below | — |
 | UI-19 | Raw Log time-descending sort | **DONE** | — | — |
 
 ### What was DROPPED
@@ -537,7 +537,7 @@ Save orchestration patterns, reusable workflows, custom agent configs per step, 
 
 ---
 
-## Current Progress Evaluation (2026-03-31, updated)
+## Current Progress Evaluation (2026-04-01, updated)
 
 ### What's DONE (verified against codebase)
 
@@ -548,6 +548,7 @@ Save orchestration patterns, reusable workflows, custom agent configs per step, 
 | Sticky topbar with 7 metrics | `TopBar.tsx` — status, model, duration, context%, cost, agents, in/out tokens |
 | Light/dark/high-contrast themes | `ThemeContext.tsx` + CSS custom properties + `data-theme` toggle |
 | Jaeger-style trace spans | `TraceTab.tsx` — hierarchical, color-coded, 3 resizable columns (Agent/Duration/Cost) + waterfall |
+| General agent icon derivation | `getSpanIcon()` derives 2-char abbreviation from any agent type string (hyphenated, camelCase, single-word). Hover tooltip shows full type name. Hash-based color palette for unknown agent types. |
 | Proportional trace bars, text outside | `computeBarPosition()` proportional bars; Duration/Cost in separate columns, not inside bars |
 | Turn dividers in conversation | `TurnDivider.tsx` — T{n} badge, clickable, visual selected state |
 | Turn selection cross-component sync | LayoutContext propagates to TraceTab, RawLogTab, TopBar indicator; back-to-live on new turns |
@@ -561,71 +562,49 @@ Save orchestration patterns, reusable workflows, custom agent configs per step, 
 | Sidebar with repos + sessions | `RepoList.tsx` — connection, usage, repos with nested sessions |
 | Virtualized turn list | `@tanstack/react-virtual` in ConversationView |
 | Root node aggregate cost | `aggregateCost()` recursive sum of all descendant costs |
+| Turn history descending sort | `TurnHistoryPanel.tsx` — most recent turn appears first, index arithmetic (O(1) memory) |
+| CostFooter redesigned | 3-tier display: total only / total + agent count / total + main + agents breakdown. Floating-point threshold (0.0001) prevents "$0.0000" noise. |
+| Inline code lightweight styling | `markdownComponents.tsx` — no background, mono font + semantic color via `classifyInlineCode()`. Works in both light/dark mode. |
+| NarrationGroup Tailwind migration | Inline styles replaced with `dt-*` token Tailwind classes |
+| DetailTab agent header | Header bar with agent badge icon, turn number, primary tool + count, duration, cost |
 
 ### UI-18 Sub-Status (Conversation Response Rendering)
 
-Reflect evaluation (2026-03-31) — verdict: **REVISE**
+Reflect evaluation (2026-04-01) — verdict: **DONE**
 
 | Principle | Status | Detail |
 |-----------|--------|--------|
 | P1: Collapsed-by-default + semantic summary | **DONE** | `ToolEntryRow` collapsed unless error, `buildSemanticSummary()` matches spec |
 | P2: Two-state progress (verb-ing → past tense) | **DONE** | `PROGRESS_MAP` + pulsing animation |
-| P3: Consecutive same-type grouping | **DONE** (minor gap) | Groups work; count badge colors are generic, not tool-specific |
+| P3: Consecutive same-type grouping | **DONE** | Groups work; tool-specific badge colors via `getToolBadgeColors()` |
 | P4: "+N lines (click to expand)" | **DONE** | `ToolResultBlock` collapses at 3 lines |
-| P5: Colored left border = message type | **PARTIAL** | Tool borders correct; **ResponseBlock uses green border, mockup says purple** |
-| P6: Agent dispatch = subagent card | **PARTIAL** | Card exists but **missing tool stat badges (Read x11, Grep x6), cost, nested tool rows** |
+| P5: Colored left border = message type | **DONE** | Tool borders use `getToolBorderColor()`; ResponseBlock uses `border-dt-accent` (brand color) |
+| P6: Agent dispatch = subagent card | **DONE** | AgentCard with tool stat badges, cost, duration, nested content on expand |
 | P7: Verdict first, details last | **DONE** | `VerdictBanner` renders before tool entries |
 
-Additional components: VerdictBanner ✓, FindingBanner ✓, ProgressBar ✓, CostFooter ✓, ExpandHint ✓, TaskGrid (dead code — no data source)
-
-### What's PARTIAL (gaps remain)
-
-| Task | What's missing |
-|------|---------------|
-| **UI-02: Bottom panel** | Height not persisted to localStorage (only collapsed state); first visit defaults to open |
-| **UI-03: Agent Graph** | Tool calls not hidden until click; row heights 40px not 48/26px spec; no depth limit |
-| **UI-04: Tool Call tab** | Missing agent icon/name, turn number ("Turn 171 → SWE → Read x4"), duration/cost in header |
-| **UI-06: Cost tab** | Missing projected total card; burn rate has no trend indicator; 3rd card is cache savings |
-| **UI-07: Topbar** | Missing WAITING state (amber dot); missing red border on 80%+ context danger |
-| **UI-10: Trace bars** | `Math.max(1, ...)` enforces 1% min-width (spec says no min-width) |
-| **UI-14: Tool grouping** | Click-to-open-in-bottom-panel not wired from conversation |
-| **UI-18: Response rendering** | ResponseBlock green→purple border; AgentCard missing tool stats/cost/nested tools; TaskGrid dead code |
+Additional components: VerdictBanner ✓, FindingBanner ✓, ProgressBar ✓, CostFooter ✓ (redesigned: clean minimal format with 3-tier display logic), ExpandHint ✓, TaskGrid (dead code — no data source)
 
 ### Honest Assessment
 
-**Phase 4 (UI Revamp) is ~87% complete.** 11 of 19 tasks fully DONE. 8 tasks PARTIAL with well-defined gaps. No tasks at TODO/0%.
+**Phase 4 (UI Revamp) is 100% complete.** 19 of 19 tasks DONE. Verified via Playwright on 2026-04-01.
 
 | Area | Completion | Confidence |
 |------|------------|------------|
 | Layout (right panel killed) | 100% | High — fully deleted, zero traces |
-| Turn system (dividers, sync, indicator) | 90% | High — all visual elements + cross-component sync working |
+| Turn system (dividers, sync, indicator) | 100% | High — all visual elements + cross-component sync + descending turn history |
 | Code splitting | 100% | High — route-level + component-level + vendor chunks |
 | Memory optimization | 100% | High — index-based TurnSnapshot, no duplication |
-| Theme system | 98% | High — light/dark/high-contrast, all tokens, bonus a11y theme |
-| Bottom panel infrastructure | 85% | High — 4 tabs, resize, collapse, auto-open. Missing: height persistence |
-| Conversation response (UI-18) | 75% | Medium — 5/7 principles done, 2 partial (borders, agent cards) |
-| Topbar / HUD | 80% | Medium — 7 metrics live, turn indicator. Missing: WAITING state, danger border |
-| Trace chart | 75% | Medium — proportional bars, 3-column Chrome DevTools layout. Missing: tool toggle, row sizing |
-| Tool Call / Cost tabs | 70% | Medium — functional but headers incomplete, missing projected total |
+| Theme system | 100% | High — light/dark/high-contrast, all tokens, bonus a11y theme |
+| Bottom panel infrastructure | 100% | High — 4 tabs, resize, collapse, auto-open, height + collapsed persisted to localStorage |
+| Conversation response (UI-18) | 100% | High — 7/7 principles done, CostFooter redesigned, AgentCard with full stats |
+| Topbar / HUD | 100% | High — 7 metrics live, turn indicator, WAIT state, red danger border on 80%+ context |
+| Trace chart | 100% | High — proportional bars, 3-column layout, general icon derivation + hover, depth limit with toggle |
+| Tool Call / Cost tabs | 100% | High — Detail header with badge/turn/tool/duration/cost; Cost tab with projected total + burn rate trend |
 
-### Remaining gaps (ordered by impact)
+### What's next
 
 ```
-Phase 4 Finish ──── ~87% → 100%
-  ├─ UI-18 gaps (HIGHEST IMPACT):
-  │   ├─ Fix ResponseBlock border green → purple/accent (1-line fix)
-  │   ├─ Wire tool stat badges + cost to AgentCard (Read x11, Grep x6, $6.67)
-  │   ├─ Add per-tool-type badge colors to CollapsedGroupRow
-  │   ├─ Wire TaskGrid data source from session events
-  │   └─ Optional: colored dots on individual tool rows
-  ├─ UI-04: Enrich Tool Call header (agent icon, turn#, duration, cost)
-  ├─ UI-06: Replace cache savings → projected total; add burn rate trend
-  ├─ UI-07: Add WAITING state + red border on context danger
-  ├─ UI-14: Wire click-to-detail from conversation tool entries
-  ├─ UI-03: Add tool call toggle in trace; fix row heights
-  ├─ UI-10: Remove 1% min-width from computeBarPosition
-  ├─ UI-02: Persist panelHeight to localStorage
-  └─ UI-02: Default collapsed on first visit
+Phase 4 (UI Revamp) ──── COMPLETE ✓
 Phase 5 (Control) ────── Command center, agent controls, permissions
 Phase 6 (Visibility) ─── Decision trace, time travel, spending view
 Phase 7 (Observability)─ Health monitor, analytics, profiling

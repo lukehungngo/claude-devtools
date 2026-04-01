@@ -135,8 +135,8 @@ describe("DetailTab", () => {
     };
     render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
 
-    // Agent badge: engineer -> S1 (via getSpanIcon)
-    expect(screen.getByTestId("detail-header-badge").textContent).toContain("S1");
+    // Agent badge: engineer -> EN (via getSpanIcon)
+    expect(screen.getByTestId("detail-header-badge").textContent).toContain("EN");
     // Turn number
     expect(screen.getByTestId("detail-header-turn").textContent).toContain("T5");
   });

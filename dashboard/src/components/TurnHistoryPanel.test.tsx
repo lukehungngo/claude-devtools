@@ -57,13 +57,12 @@ describe("TurnHistoryPanel", () => {
       <TurnHistoryPanel {...defaultProps} turns={turns} activeTurnIndex={1} />,
     );
 
-    const items = container.querySelectorAll("[data-testid^='turn-item-']");
-    expect(items).toHaveLength(2);
-
     // Active item (index 1) should have accent border class
-    expect(items[1].className).toContain("border-l-dt-accent");
+    const active = container.querySelector("[data-testid='turn-item-1']")!;
+    expect(active.className).toContain("border-l-dt-accent");
     // Inactive item (index 0) should have transparent border
-    expect(items[0].className).toContain("border-l-transparent");
+    const inactive = container.querySelector("[data-testid='turn-item-0']")!;
+    expect(inactive.className).toContain("border-l-transparent");
   });
 
   it("empty state shows 'No turns yet' when turns=[]", () => {

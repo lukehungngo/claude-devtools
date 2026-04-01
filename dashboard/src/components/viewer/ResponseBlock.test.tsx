@@ -140,6 +140,6 @@ describe("ResponseBlock", () => {
     );
     expect(inlineCode).not.toBeUndefined();
     expect(inlineCode!.className).not.toContain("hljs");
-    expect(inlineCode!.className).toContain("bg-dt-bg3");
+    expect(inlineCode!.className).toContain("font-mono");
   });
 });

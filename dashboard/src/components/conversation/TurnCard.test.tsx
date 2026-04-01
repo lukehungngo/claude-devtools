@@ -161,8 +161,8 @@ describe("TurnCard — CostFooter wiring", () => {
 
     const costFooter = container.querySelector('[aria-label="Cost breakdown"]');
     expect(costFooter).not.toBeNull();
-    expect(costFooter!.textContent).toContain("Total:");
-    expect(costFooter!.textContent).toContain("Agent:");
+    expect(costFooter!.textContent).toContain("$0.0035");
+    expect(costFooter!.textContent).toContain("agents");
   });
 
   it("does NOT render CostFooter when turn.cost is 0", () => {

@@ -18,9 +18,10 @@ export function computeSuggestion(
     return "Describe what you'd like to build...";
   }
 
-  if (context.lastTurnHadError) {
-    return "Fix the error above";
-  }
+  // TODO: No need, because context.lastTurnHadError have a very high error rate, so it's not useful to show.
+  // if (context.lastTurnHadError) {
+  // return "Fix the error above";
+  // }
 
   return "Continue with next steps...";
 }

@@ -33,6 +33,10 @@ interface TaggedContent {
   isNarration: boolean;
 }
 
+function isTextItem(item: ContentItem): item is ContentItem & { text: string } {
+  return item.type === "text" && "text" in item;
+}
+
 function extractResponseContent(events: SessionEvent[]): TaggedContent[] {
   // First pass: collect text/thinking items with their event index
   const items: { item: ContentItem; eventIdx: number }[] = [];
@@ -214,13 +218,14 @@ export function TurnCard({
             {/* Narration text (collapsed by default) — working notes before tool calls */}
             <NarrationGroup
               items={responseContent
-                .filter((t) => t.isNarration && t.item.type === "text" && "text" in t.item)
+                .filter((t) => t.isNarration && isTextItem(t.item))
                 .map((t) => (t.item as ContentItem & { text: string }).text)}
             />
 
             {/* Final response text — only non-narration text blocks */}
             {responseContent
-              .filter((tagged) => !tagged.isNarration && tagged.item.type === "text" && "text" in tagged.item)
+              .filter((tagged): tagged is TaggedContent & { item: ContentItem & { text: string } } =>
+                !tagged.isNarration && isTextItem(tagged.item))
               .map((tagged, i) => (
                 <div
                   key={`text-${i}`}
@@ -232,7 +237,7 @@ export function TurnCard({
                     marginTop: i > 0 ? 10 : 0,
                   }}
                 >
-                  <ResponseBlock text={(tagged.item as ContentItem & { text: string }).text} />
+                  <ResponseBlock text={tagged.item.text} />
                 </div>
               ))}
 

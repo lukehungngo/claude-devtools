@@ -77,10 +77,9 @@ export function createMarkdownComponents(variant: CodeVariant = "default"): Comp
       ? "block bg-dt-bg3 p-3.5 rounded-dt border border-dt-border/50 font-mono text-sm overflow-x-auto shadow-dt-sm"
       : "block bg-dt-bg3 p-3 rounded-md font-mono text-sm overflow-x-auto";
 
-  const inlineBase =
-    variant === "editor"
-      ? "bg-dt-bg3 px-1.5 py-0.5 rounded-dt-xs font-mono text-sm"
-      : "bg-dt-bg3 px-1 py-0.5 rounded font-mono text-sm";
+  // Inline code: no background, just mono font + semantic color.
+  // Lightweight enough for dense text; works in both light and dark mode.
+  const inlineBase = "font-mono text-md";
 
   components.code = ({ className, children }) => {
     const isBlock = className?.includes("language-") || className?.includes("hljs") || false;
