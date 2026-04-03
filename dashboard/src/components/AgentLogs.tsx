@@ -507,10 +507,13 @@ export function AgentLogs({
         <div className="flex gap-1">
           <button
             onClick={handleExport}
-            className="w-7 h-7 flex items-center justify-center rounded-dt-sm text-dt-text2 cursor-pointer border-none bg-transparent hover:bg-dt-bg3/50 transition-all duration-150 text-sm"
+            className="h-6 px-2 flex items-center gap-1 rounded-dt-sm text-[11px] font-medium text-dt-text2 cursor-pointer border border-dt-border bg-dt-bg2 hover:bg-dt-bg3 transition-all duration-150"
             title="Export agent log as JSON"
           >
-            &#x2913;
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2v9M4.5 7.5 8 11l3.5-3.5M3 14h10" />
+            </svg>
+            Export
           </button>
           {!autoScroll && (
             <button
