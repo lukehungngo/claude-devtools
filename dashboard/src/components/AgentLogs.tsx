@@ -10,6 +10,7 @@ import type {
 import { normalizeContent } from "../lib/normalizeContent";
 import { formatTime } from "../lib/formatTime";
 import { formatCost, formatDuration, calculateTurnCost } from "../lib/cost";
+import { getAgentBadgeStyle } from "../lib/agentColors";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -27,140 +28,54 @@ export interface LogEntry {
   cost: number;
 }
 
-interface AggregatedLogEntry extends LogEntry {
-  count: number;
-}
-
-interface InvocationGroup {
+export interface TimelineGroup {
   agentId: string;
   agentType: string;
-  invocationNumber: number;
-  entries: AggregatedLogEntry[];
+  depth: number;
+  entries: LogEntry[];
   startTime: string;
   endTime: string;
-  /** Duration in milliseconds */
   durationMs: number;
-  /** Estimated cost (sonnet pricing) */
   cost: number;
 }
 
-
 type FlatItem =
-  | { kind: "header"; group: InvocationGroup; groupKey: string }
-  | { kind: "entry"; entry: AggregatedLogEntry; groupKey: string };
-
-function computeGroupDuration(startTime: string, endTime: string): number {
-  try {
-    return new Date(endTime).getTime() - new Date(startTime).getTime();
-  } catch {
-    return 0;
-  }
-}
-function groupByInvocation(entries: AggregatedLogEntry[]): InvocationGroup[] {
-  if (entries.length === 0) return [];
-  const groups: InvocationGroup[] = [];
-  const agentInvocationCounts = new Map<string, number>();
-  let currentGroup: InvocationGroup | null = null;
-
-  for (const entry of entries) {
-    if (!currentGroup || currentGroup.agentId !== entry.agentId) {
-      // Start a new group
-      const count = (agentInvocationCounts.get(entry.agentId) ?? 0) + 1;
-      agentInvocationCounts.set(entry.agentId, count);
-      currentGroup = {
-        agentId: entry.agentId,
-        agentType: entry.agentType,
-        invocationNumber: count,
-        entries: [entry],
-        startTime: entry.timestamp,
-        endTime: entry.timestamp,
-        durationMs: 0,
-        cost: entry.cost,
-      };
-      groups.push(currentGroup);
-    } else {
-      currentGroup.entries.push(entry);
-      currentGroup.endTime = entry.timestamp;
-      currentGroup.cost += entry.cost;
-    }
-  }
-  // Compute duration for each group
-  for (const group of groups) {
-    group.durationMs = computeGroupDuration(group.startTime, group.endTime);
-  }
-  return groups;
-}
-
-
-// Fixed tabs that always appear
-const FIXED_TABS = ["All", "Errors"] as const;
-
-// ─── Agent type colors ───────────────────────────────────────────────
-
-import { getAgentBadgeStyle } from "../lib/agentColors";
+  | { kind: "agent-header"; group: TimelineGroup; groupIndex: number }
+  | { kind: "entry"; entry: LogEntry; depth: number; groupIndex: number; entryIndex: number };
 
 // ─── Action badge colors ─────────────────────────────────────────────
 
 function getActionBadgeStyle(toolName: string | null): {
-  background: string;
+  border: string;
   color: string;
   label: string;
 } {
   if (!toolName) {
-    return {
-      background: "var(--bg-4)",
-      color: "var(--text-2)",
-      label: "msg",
-    };
+    return { border: "var(--text-2)", color: "var(--text-2)", label: "msg" };
   }
 
   const name = toolName.toLowerCase();
   if (name === "read" || name === "grep" || name === "glob") {
-    return {
-      background: "var(--cyan-dim)",
-      color: "var(--cyan)",
-      label: toolName,
-    };
+    return { border: "var(--cyan)", color: "var(--cyan)", label: toolName };
   }
   if (name === "write" || name === "edit") {
-    return {
-      background: "var(--green-dim)",
-      color: "var(--green)",
-      label: toolName,
-    };
+    return { border: "var(--green)", color: "var(--green)", label: toolName };
   }
   if (name === "bash") {
-    return {
-      background: "var(--orange)",
-      color: "#000",
-      label: toolName,
-    };
+    return { border: "var(--orange)", color: "var(--orange)", label: toolName };
   }
   if (name === "thinking" || name === "think") {
-    return {
-      background: "var(--purple)",
-      color: "#000",
-      label: "think",
-    };
+    return { border: "var(--purple)", color: "var(--purple)", label: "think" };
   }
   if (name === "error") {
-    return {
-      background: "var(--red-dim)",
-      color: "var(--red)",
-      label: "error",
-    };
+    return { border: "var(--red)", color: "var(--red)", label: "error" };
   }
   if (name === "spawn" || name === "completed") {
-    return {
-      background: "var(--green-dim)",
-      color: "var(--green)",
-      label: toolName,
-    };
+    return { border: "var(--green)", color: "var(--green)", label: toolName };
   }
-  // Default for MCP or unknown tools
   return {
-    background: "var(--orange)",
-    color: "#000",
+    border: "var(--orange)",
+    color: "var(--orange)",
     label: toolName.length > 12 ? toolName.slice(0, 12) + "\u2026" : toolName,
   };
 }
@@ -189,10 +104,7 @@ function extractToolInfo(
       ? name.split("__").pop() || name
       : name;
     const input = (content.input || {}) as Record<string, unknown>;
-    const filePath =
-      input.file_path ||
-      input.path ||
-      input.command;
+    const filePath = input.file_path || input.path || input.command;
     const preview = filePath
       ? `${shortName}: ${String(filePath).slice(0, 80)}`
       : shortName;
@@ -235,7 +147,6 @@ export function eventsToLogEntries(
 
     if (event.type === "assistant") {
       const assistantEvent = event as AssistantEvent;
-      // Compute event cost from token usage
       const usage = assistantEvent.message?.usage;
       const model = assistantEvent.message?.model || "";
       const eventCost = usage
@@ -269,7 +180,6 @@ export function eventsToLogEntries(
         }
       }
     } else if (event.type === "user") {
-      // User events: tool results or user messages
       for (const content of normalizeContent(event.message?.content)) {
         if (content.type === "tool_result") {
           entries.push({
@@ -307,40 +217,85 @@ export function eventsToLogEntries(
         cost: 0,
       });
     }
-    // Skip progress events for cleaner log
   }
 
   return entries;
 }
 
-// ─── Aggregate consecutive identical log entries ──────────────────────
+// ─── Build depth map from DAG ────────────────────────────────────────
 
-function aggregateLogEntries(entries: LogEntry[]): AggregatedLogEntry[] {
-  const result: AggregatedLogEntry[] = [];
-  for (const entry of entries) {
-    const prev = result[result.length - 1];
-    if (
-      prev &&
-      prev.message === entry.message &&
-      prev.agentId === entry.agentId &&
-      prev.toolName === entry.toolName
-    ) {
-      prev.count++;
-      continue;
+function buildDepthMap(agents: AgentNode[]): Map<string, number> {
+  const depthMap = new Map<string, number>();
+  const parentMap = new Map<string, string>();
+
+  for (const agent of agents) {
+    if (agent.parentId) {
+      parentMap.set(agent.id, agent.parentId);
     }
-    result.push({ ...entry, count: 1 });
   }
-  return result;
+
+  function getDepth(id: string): number {
+    if (depthMap.has(id)) return depthMap.get(id)!;
+    const parent = parentMap.get(id);
+    const depth = parent ? getDepth(parent) + 1 : 0;
+    depthMap.set(id, depth);
+    return depth;
+  }
+
+  for (const agent of agents) {
+    getDepth(agent.id);
+  }
+
+  return depthMap;
+}
+
+// ─── Group consecutive entries by agent into timeline groups ─────────
+
+function buildTimelineGroups(
+  entries: LogEntry[],
+  depthMap: Map<string, number>
+): TimelineGroup[] {
+  if (entries.length === 0) return [];
+
+  const groups: TimelineGroup[] = [];
+  let current: TimelineGroup | null = null;
+
+  for (const entry of entries) {
+    if (!current || current.agentId !== entry.agentId) {
+      current = {
+        agentId: entry.agentId,
+        agentType: entry.agentType,
+        depth: depthMap.get(entry.agentId) ?? (entry.agentId === "main" ? 0 : 1),
+        entries: [entry],
+        startTime: entry.timestamp,
+        endTime: entry.timestamp,
+        durationMs: 0,
+        cost: entry.cost,
+      };
+      groups.push(current);
+    } else {
+      current.entries.push(entry);
+      current.endTime = entry.timestamp;
+      current.cost += entry.cost;
+    }
+  }
+
+  for (const group of groups) {
+    try {
+      group.durationMs = new Date(group.endTime).getTime() - new Date(group.startTime).getTime();
+    } catch {
+      group.durationMs = 0;
+    }
+  }
+
+  return groups;
 }
 
 // ─── Inline highlighting for messages ────────────────────────────────
 
 function highlightMessage(msg: string): React.ReactNode {
-  // Simple pattern: file paths and tool call names
   const parts: React.ReactNode[] = [];
-  // Match file-like references: word/word.ext or ./path/to/file
-  const regex =
-    /(\b[\w.-]+\/[\w./-]+\.\w+\b|`[^`]+`)/g;
+  const regex = /(\b[\w.-]+\/[\w./-]+\.\w+\b|`[^`]+`)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -354,14 +309,11 @@ function highlightMessage(msg: string): React.ReactNode {
         key={match.index}
         onClick={(e) => {
           e.stopPropagation();
-          // Open file in editor via server API
           fetch("/api/open-file", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ filePath: text }),
-          }).catch(() => {
-            // Silently fail -- editor may not be available
-          });
+          }).catch(() => {});
         }}
         className="text-dt-cyan font-mono text-[10px] cursor-pointer no-underline hover:underline"
         title={text}
@@ -375,6 +327,28 @@ function highlightMessage(msg: string): React.ReactNode {
     parts.push(msg.slice(lastIndex));
   }
   return parts.length > 0 ? <>{parts}</> : msg;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+function normalizeAgentTypeLabel(type: string): string {
+  if (type === "general-purpose") return "General";
+  return type;
+}
+
+// ─── Timeline line colors by depth ───────────────────────────────────
+
+const DEPTH_COLORS = [
+  "var(--accent)",
+  "var(--cyan)",
+  "var(--green)",
+  "var(--orange)",
+  "var(--purple)",
+  "var(--pink)",
+];
+
+function getDepthColor(depth: number): string {
+  return DEPTH_COLORS[depth % DEPTH_COLORS.length];
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -396,12 +370,11 @@ export function AgentLogs({
   selectedAgent,
   toolFilter,
   onSelectAgent,
-  onSwitchToGraph,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("All");
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
 
   const toggleExpand = useCallback((uuid: string) => {
@@ -419,88 +392,76 @@ export function AgentLogs({
     [events, agents, subagentMeta]
   );
 
-  // Build dynamic filter tabs from unique agent types
+  // Build depth map from DAG
+  const depthMap = useMemo(() => buildDepthMap(agents), [agents]);
+
+  // Build filter tabs
   const filterTabs = useMemo(() => {
     const agentTypes = new Set<string>();
     for (const entry of allEntries) {
-      const label = normalizeAgentTypeLabel(entry.agentType);
-      agentTypes.add(label);
+      agentTypes.add(normalizeAgentTypeLabel(entry.agentType));
     }
-    // Fixed tabs first, then dynamic agent tabs
-    const dynamicTabs = Array.from(agentTypes).sort();
-    return ["All", ...dynamicTabs, "Errors"];
+    return ["All", ...Array.from(agentTypes).sort(), "Errors"];
   }, [allEntries]);
 
   // Apply filters
   const filteredEntries = useMemo(() => {
     let result = allEntries;
-
-    if (activeFilter === "All") {
-      // No filter
-    } else if (activeFilter === "Errors") {
+    if (activeFilter === "Errors") {
       result = result.filter((e) => e.isError);
-    } else {
-      // Dynamic agent type filter
-      result = result.filter((e) => {
-        const label = normalizeAgentTypeLabel(e.agentType);
-        return label === activeFilter;
-      });
+    } else if (activeFilter !== "All") {
+      result = result.filter((e) => normalizeAgentTypeLabel(e.agentType) === activeFilter);
     }
-
-    // Tool filter from TopBar
     if (toolFilter) {
       result = result.filter(
-        (e) =>
-          e.toolName?.toLowerCase() === toolFilter.toLowerCase()
+        (e) => e.toolName?.toLowerCase() === toolFilter.toLowerCase()
       );
     }
-
     return result;
   }, [allEntries, activeFilter, toolFilter]);
 
-  // Aggregate consecutive identical entries
-  const aggregatedEntries = useMemo(
-    () => aggregateLogEntries(filteredEntries),
-    [filteredEntries]
+  // Build timeline groups
+  const timelineGroups = useMemo(
+    () => buildTimelineGroups(filteredEntries, depthMap),
+    [filteredEntries, depthMap]
   );
 
-  // Build invocation groups
-  const invocationGroups = useMemo(
-    () => groupByInvocation(aggregatedEntries),
-    [aggregatedEntries]
-  );
-
-  // Flatten groups into a list of renderable items for virtualization
+  // Flatten for virtualizer
   const flatItems: FlatItem[] = useMemo(() => {
     const items: FlatItem[] = [];
-    for (const group of invocationGroups) {
-      const groupKey = `${group.agentId}-inv${group.invocationNumber}`;
-      items.push({ kind: "header", group, groupKey });
-      if (!collapsedGroups.has(groupKey)) {
-        for (const entry of group.entries) {
-          items.push({ kind: "entry", entry, groupKey });
+    for (let gi = 0; gi < timelineGroups.length; gi++) {
+      const group = timelineGroups[gi];
+      items.push({ kind: "agent-header", group, groupIndex: gi });
+      if (expandedGroups.has(gi)) {
+        for (let ei = 0; ei < group.entries.length; ei++) {
+          items.push({
+            kind: "entry",
+            entry: group.entries[ei],
+            depth: group.depth,
+            groupIndex: gi,
+            entryIndex: ei,
+          });
         }
       }
     }
     return items;
-  }, [invocationGroups, collapsedGroups]);
+  }, [timelineGroups, expandedGroups]);
 
   // Virtualizer
   const virtualizer = useVirtualizer({
     count: flatItems.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index: number) => flatItems[index]?.kind === "header" ? 28 : 32,
+    estimateSize: (index: number) => flatItems[index]?.kind === "agent-header" ? 28 : 22,
     overscan: 20,
   });
 
-  // Auto-scroll using virtualizer
+  // Auto-scroll
   useEffect(() => {
     if (autoScroll && flatItems.length > 0) {
       virtualizer.scrollToIndex(flatItems.length - 1, { align: "end" });
     }
   }, [flatItems.length, autoScroll, virtualizer]);
 
-  // Detect scroll position to toggle auto-scroll
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return;
     const el = scrollRef.current;
@@ -517,19 +478,13 @@ export function AgentLogs({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Panel header */}
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-dt-border shrink-0 bg-dt-bg2/80">
         <div className="text-sm font-semibold uppercase tracking-[0.5px] text-dt-text2 flex items-center gap-2">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-            className="opacity-50"
-          >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="opacity-50">
             <path d="M1.5 1.75V13.5h13.75a.75.75 0 010 1.5H.75a.75.75 0 01-.75-.75V1.75a.75.75 0 011.5 0z" />
           </svg>
-          Agents Log
+          Agent Timeline
           <span className="text-xs px-1.5 py-0.5 rounded-full font-semibold bg-dt-accent-dim text-dt-accent">
             {agents.length} agents
           </span>
@@ -547,7 +502,7 @@ export function AgentLogs({
         </div>
       </div>
 
-      {/* Filter bar -- dynamic tabs */}
+      {/* Filter bar */}
       <div className="flex gap-1.5 px-4 py-2 border-b border-dt-border/50 bg-dt-bg2/60 shrink-0 overflow-x-auto [scrollbar-width:none] dt-scrollbar">
         {filterTabs.map((tab) => {
           const isActive = activeFilter === tab;
@@ -572,19 +527,19 @@ export function AgentLogs({
         )}
       </div>
 
-      {/* Log entries - virtualized */}
+      {/* Timeline content - virtualized */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto overflow-x-hidden p-0 relative dt-scrollbar"
       >
-        {aggregatedEntries.length === 0 ? (
+        {filteredEntries.length === 0 ? (
           events.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-dt-text2 text-base gap-2">
               <svg width="32" height="32" viewBox="0 0 16 16" fill="currentColor" className="opacity-30">
                 <path d="M1.5 1.75V13.5h13.75a.75.75 0 010 1.5H.75a.75.75 0 01-.75-.75V1.75a.75.75 0 011.5 0z" />
               </svg>
-              <span>Select a session to view agent logs</span>
+              <span>Select a session to view agent timeline</span>
             </div>
           ) : (
             <div className="p-5 text-center text-dt-text2 text-base">
@@ -603,10 +558,12 @@ export function AgentLogs({
               const item = flatItems[virtualRow.index];
               if (!item) return null;
 
-              if (item.kind === "header") {
-                const { group, groupKey } = item;
-                const isCollapsed = collapsedGroups.has(groupKey);
+              if (item.kind === "agent-header") {
+                const { group, groupIndex } = item;
+                const isExpanded = expandedGroups.has(groupIndex);
                 const badgeStyle = getAgentBadgeStyle(group.agentType);
+                const depthColor = getDepthColor(group.depth);
+                const indent = group.depth * 20;
 
                 return (
                   <div
@@ -623,19 +580,26 @@ export function AgentLogs({
                   >
                     <div
                       onClick={() => {
-                        setCollapsedGroups((prev) => {
+                        setExpandedGroups((prev) => {
                           const next = new Set(prev);
-                          if (next.has(groupKey)) next.delete(groupKey);
-                          else next.add(groupKey);
+                          if (next.has(groupIndex)) next.delete(groupIndex);
+                          else next.add(groupIndex);
                           return next;
                         });
                       }}
-                      className="flex items-center gap-2 px-3.5 py-2 text-[11px] bg-dt-bg2 border-b border-white/[0.04] cursor-pointer select-none transition-colors duration-150"
+                      className="flex items-center gap-2 py-1 cursor-pointer select-none border-b border-white/[0.03]"
+                      style={{ paddingLeft: 12 + indent }}
                     >
-                      <span className={`text-[8px] text-dt-text2 transition-transform duration-150 ${isCollapsed ? "-rotate-90" : "rotate-0"}`}>
+                      {/* Timeline dot */}
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ background: depthColor }}
+                      />
+                      {/* Collapse arrow */}
+                      <span className={`text-[8px] text-dt-text2 transition-transform duration-150 ${isExpanded ? "rotate-0" : "-rotate-90"}`}>
                         {"\u25BC"}
                       </span>
-                      {/* Dynamic badge colors must stay inline */}
+                      {/* Agent badge */}
                       <span
                         className="px-1.5 py-px rounded-[3px] font-semibold text-[10px] cursor-pointer"
                         style={{ background: badgeStyle.background, color: badgeStyle.color }}
@@ -646,15 +610,14 @@ export function AgentLogs({
                       >
                         {normalizeAgentTypeLabel(group.agentType)}
                       </span>
-                      <span className="text-dt-text2 text-[10px]">
-                        inv #{group.invocationNumber}
-                      </span>
-                      <span className="text-dt-text2 text-[10px]">
-                        {formatTime(group.startTime)} - {formatTime(group.endTime)}
+                      {/* Time range */}
+                      <span className="text-dt-text2 text-[10px] font-mono">
+                        {formatTime(group.startTime)}
+                        {group.durationMs > 0 && ` \u2014 ${formatTime(group.endTime)}`}
                       </span>
                       {group.durationMs > 0 && (
-                        <span className="text-dt-text2 text-[10px] font-mono">
-                          {formatDuration(group.durationMs)}
+                        <span className="text-dt-text3 text-[10px] font-mono">
+                          ({formatDuration(group.durationMs)})
                         </span>
                       )}
                       {group.cost > 0 && (
@@ -671,13 +634,14 @@ export function AgentLogs({
               }
 
               // Entry row
-              const { entry } = item;
+              const { entry, depth } = item;
               const actionStyle = getActionBadgeStyle(entry.toolName);
               const isHighlighted = selectedAgent && entry.agentId === selectedAgent;
-              const badgeStyle = getAgentBadgeStyle(entry.agentType);
               const isExpanded = expandedEntries.has(entry.uuid);
               const hasMore = entry.rawMessage && entry.rawMessage !== entry.message;
               const displayMessage = isExpanded ? (entry.rawMessage || entry.message) : entry.message;
+              const indent = depth * 20;
+              const depthColor = getDepthColor(depth);
 
               return (
                 <div
@@ -693,55 +657,49 @@ export function AgentLogs({
                   }}
                 >
                   <div
-                    className={`grid grid-cols-[68px_80px_1fr_auto] gap-2 px-3.5 py-2 text-[11px] border-b border-white/[0.04] items-start transition-colors duration-150 ${isHighlighted ? "bg-dt-bg2" : ""}`}
+                    className={`flex items-start gap-2 py-0.5 pr-3 text-[11px] border-b border-white/[0.02] transition-colors duration-150 ${isHighlighted ? "bg-dt-bg2" : ""}`}
+                    style={{ paddingLeft: 16 + indent }}
                   >
-                    <div className="font-mono text-dt-text2 text-[10px]">
+                    {/* Timeline line segment */}
+                    <div className="flex flex-col items-center shrink-0 pt-0.5" style={{ width: 8 }}>
+                      <span
+                        className="w-px h-full min-h-[16px]"
+                        style={{ background: depthColor, opacity: 0.3 }}
+                      />
+                    </div>
+
+                    {/* Timestamp */}
+                    <span className="font-mono text-dt-text3 text-[10px] shrink-0 w-[58px]">
                       {formatTime(entry.timestamp)}
-                    </div>
-                    {/* Dynamic badge colors must stay inline */}
-                    <div
-                      onClick={() => onSwitchToGraph?.(entry.agentId)}
-                      className="font-mono text-[10px] font-semibold px-1.5 py-px rounded-[3px] whitespace-nowrap overflow-hidden text-ellipsis text-center cursor-pointer"
-                      style={{ background: badgeStyle.background, color: badgeStyle.color }}
-                    >
-                      {normalizeAgentTypeLabel(entry.agentType)}
-                    </div>
-                    <div
-                      onClick={() => hasMore && toggleExpand(entry.uuid)}
-                      className={`text-dt-text1 leading-[1.4] overflow-hidden flex gap-1.5 ${
-                        isExpanded
-                          ? "whitespace-pre-wrap break-all items-start"
-                          : "whitespace-nowrap text-ellipsis items-center"
-                      } ${hasMore ? "cursor-pointer" : "cursor-default"}`}
-                    >
-                      <span className={isExpanded ? "overflow-visible shrink" : "overflow-hidden text-ellipsis"}>
-                        {highlightMessage(displayMessage)}
-                      </span>
-                      {entry.count > 1 && (
-                        <span className="text-[10px] px-[5px] py-px rounded-full font-semibold bg-dt-bg4 text-dt-text2 shrink-0">
-                          x{entry.count}
-                        </span>
-                      )}
-                      {hasMore && !isExpanded && (
-                        <span className="text-[9px] text-dt-accent shrink-0 opacity-70">
-                          {"\u25B6"}
-                        </span>
-                      )}
-                      {isExpanded && (
-                        <span className="text-[9px] text-dt-accent shrink-0 opacity-70">
-                          {"\u25BC"}
-                        </span>
-                      )}
-                    </div>
-                    {/* Dynamic action badge colors must stay inline */}
+                    </span>
+
+                    {/* Action badge */}
                     {entry.toolName && (
-                      <div
-                        className="text-[10px] px-[5px] py-px rounded-[3px] whitespace-nowrap font-semibold"
-                        style={{ background: actionStyle.background, color: actionStyle.color }}
+                      <span
+                        className="text-[10px] px-[5px] py-px rounded-[3px] whitespace-nowrap font-medium shrink-0"
+                        style={{ border: `1px solid ${actionStyle.border}`, color: actionStyle.color, background: "transparent" }}
                       >
                         {actionStyle.label}
-                      </div>
+                      </span>
                     )}
+
+                    {/* Message */}
+                    <span
+                      onClick={() => hasMore && toggleExpand(entry.uuid)}
+                      className={`text-dt-text1 leading-[1.3] flex-1 min-w-0 ${
+                        isExpanded
+                          ? "whitespace-pre-wrap break-all"
+                          : "truncate"
+                      } ${hasMore ? "cursor-pointer" : "cursor-default"}`}
+                    >
+                      {highlightMessage(displayMessage)}
+                      {hasMore && !isExpanded && (
+                        <span className="text-[9px] text-dt-accent ml-1 opacity-70">{"\u25B6"}</span>
+                      )}
+                      {isExpanded && (
+                        <span className="text-[9px] text-dt-accent ml-1 opacity-70">{"\u25BC"}</span>
+                      )}
+                    </span>
                   </div>
                 </div>
               );
@@ -751,10 +709,4 @@ export function AgentLogs({
       </div>
     </div>
   );
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-function normalizeAgentTypeLabel(type: string): string {
-  if (type === "general-purpose") return "General";
-  return type;
 }
