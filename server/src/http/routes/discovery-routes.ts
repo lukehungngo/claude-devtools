@@ -10,7 +10,14 @@ import {
 import { getAnthropicUsage } from "../../api/usage-client.js";
 import { aggregateCosts } from "../../analyzer/cost-aggregator.js";
 import { logger } from "../../logger.js";
+import { CommandCache } from "../../discovery/command-cache.js";
 import type { RouteContext } from "./route-context.js";
+
+/** Global command cache — survives across sessions, persisted to disk */
+const commandCache = new CommandCache();
+
+// Bootstrap in background (non-blocking) — filesystem scan is fast (<100ms)
+setTimeout(() => commandCache.bootstrap(), 500);
 
 // Fallback model list when SDK Query is not available
 const FALLBACK_MODELS = [
@@ -19,24 +26,41 @@ const FALLBACK_MODELS = [
   { value: "claude-haiku-4-5-20251001", displayName: "Claude Haiku 4.5", description: "Fastest model" },
 ];
 
-// Fallback slash commands when SDK Query is not available
+// Fallback slash commands when SDK Query is not available.
+// SDK supportedCommands() is authoritative — this list is used only as a last resort.
+// Keep in sync with Claude Code CLI commands (see: sdk.d.ts SlashCommand type).
 const FALLBACK_COMMANDS = [
-  { name: "help", description: "Show available commands", argumentHint: "" },
+  { name: "add-dir", description: "Add a directory to the session context", argumentHint: "<path>" },
+  { name: "agents", description: "Show available subagents", argumentHint: "" },
+  { name: "bug", description: "Report a bug", argumentHint: "" },
   { name: "clear", description: "Clear context (starts new session)", argumentHint: "" },
   { name: "compact", description: "Compact the conversation context", argumentHint: "" },
   { name: "context", description: "Show context window usage", argumentHint: "" },
   { name: "cost", description: "Show session cost summary", argumentHint: "" },
   { name: "diff", description: "Show git diff (uncommitted changes)", argumentHint: "" },
+  { name: "doctor", description: "Run system diagnostics", argumentHint: "" },
   { name: "effort", description: "Set effort level", argumentHint: "<low|medium|high>" },
   { name: "fast", description: "Toggle fast mode", argumentHint: "<on|off>" },
+  { name: "help", description: "Show available commands", argumentHint: "" },
   { name: "hooks", description: "View configured hooks", argumentHint: "" },
   { name: "init", description: "Initialize CLAUDE.md in project", argumentHint: "" },
+  { name: "login", description: "Log in to your Anthropic account", argumentHint: "" },
+  { name: "logout", description: "Log out of your Anthropic account", argumentHint: "" },
   { name: "mcp", description: "Show connected MCP servers and tools", argumentHint: "" },
   { name: "memory", description: "View CLAUDE.md content", argumentHint: "" },
   { name: "model", description: "Show or switch model", argumentHint: "<model>" },
+  { name: "output-style", description: "Set output style", argumentHint: "<concise|verbose|markdown>" },
   { name: "permissions", description: "Show permission mode and allowances", argumentHint: "" },
   { name: "plan", description: "Switch to plan mode (read-only)", argumentHint: "" },
+  { name: "rename", description: "Rename the current session", argumentHint: "<name>" },
+  { name: "resume", description: "Resume a previous session", argumentHint: "[session-id]" },
+  { name: "review", description: "Review a PR or diff", argumentHint: "" },
   { name: "rewind", description: "Rewind conversation", argumentHint: "[N turns]" },
+  { name: "settings", description: "View session settings", argumentHint: "" },
+  { name: "shortcuts", description: "Show keyboard shortcuts", argumentHint: "" },
+  { name: "stats", description: "Show usage statistics", argumentHint: "" },
+  { name: "tasks", description: "Show task summary", argumentHint: "" },
+  { name: "usage", description: "Show rate limit utilization", argumentHint: "" },
 ];
 
 export function createDiscoveryRoutes({ state }: RouteContext): Router {
@@ -127,31 +151,47 @@ export function createDiscoveryRoutes({ state }: RouteContext): Router {
   router.get("/sessions/:sessionId/commands", async (req, res) => {
     const sessionManager = state?.sessionManager;
     if (!sessionManager) {
-      return res.json({ commands: FALLBACK_COMMANDS, source: "fallback" });
+      const cached = commandCache.get();
+      return res.json({ commands: cached ?? FALLBACK_COMMANDS, source: cached ? "global-cache" : "fallback" });
     }
     const session = sessionManager.getStatus(req.params.sessionId);
     if (!session) {
       return res.status(404).json({ error: "Session not found" });
     }
 
-    // Try live SDK query first (includes marketplace/skill commands)
+    // Tier 1: Live SDK query (includes marketplace/skill/plugin commands)
     if (session.activeQuery?.supportedCommands) {
       try {
         const commands = await session.activeQuery.supportedCommands();
-        // Cache for when activeQuery is cleared (idle session)
-        session.cachedCommands = commands as Array<{ name: string; description: string; argumentHint?: string }>;
+        const typed = commands as Array<{ name: string; description: string; argumentHint?: string }>;
+        // Cache per-session and globally
+        session.cachedCommands = typed;
+        commandCache.update(typed);
         return res.json({ commands, source: "sdk" });
       } catch {
-        return res.json({ commands: session.cachedCommands ?? FALLBACK_COMMANDS, source: session.cachedCommands ? "cached" : "fallback" });
+        return res.json({ commands: session.cachedCommands ?? commandCache.get() ?? FALLBACK_COMMANDS, source: session.cachedCommands ? "cached" : "fallback" });
       }
     }
 
-    // Serve cached commands if available (from previous activeQuery)
+    // Tier 2: Per-session cache (from previous activeQuery)
     if (session.cachedCommands) {
       return res.json({ commands: session.cachedCommands, source: "cached" });
     }
 
+    // Tier 3: Global cache (from any previous session's SDK query)
+    const globalCached = commandCache.get();
+    if (globalCached) {
+      return res.json({ commands: globalCached, source: "global-cache" });
+    }
+
+    // Tier 4: Static fallback
     res.json({ commands: FALLBACK_COMMANDS, source: "fallback" });
+  });
+
+  // Get all known commands (no session required) — uses global cache or fallback
+  router.get("/commands", (_req, res) => {
+    const cached = commandCache.get();
+    res.json({ commands: cached ?? FALLBACK_COMMANDS, source: cached ? "global-cache" : "fallback" });
   });
 
   // Get supported agents for a session

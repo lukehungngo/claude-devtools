@@ -76,6 +76,18 @@ function extractResponseContent(events: SessionEvent[]): TaggedContent[] {
   }));
 }
 
+// ─── Fallback duration from timestamps ──────────────────────────────
+
+function computeFallbackDuration(startTime: string, endTime: string): number | null {
+  if (!startTime || !endTime) return null;
+  try {
+    const elapsed = new Date(endTime).getTime() - new Date(startTime).getTime();
+    return elapsed > 0 ? elapsed : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── TurnFooter (elapsed / completed duration) ─────────────────────
 
 function TurnFooter({ turn, sessionIsRunning }: { turn: TurnSnapshot; sessionIsRunning?: boolean }) {
@@ -100,21 +112,14 @@ function TurnFooter({ turn, sessionIsRunning }: { turn: TurnSnapshot; sessionIsR
   return (
     <div
       data-testid="turn-completion-indicator"
-      className="flex items-center gap-1.5 font-mono"
-      style={{ marginTop: 10, fontSize: 10, color: "var(--t3)" }}
+      className="flex items-center gap-1.5 font-mono mt-2.5 text-[10px]"
+      style={{ color: "var(--t3)" }}
     >
       {isStreaming ? (
         <>
           <span
-            className="shrink-0"
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "var(--amb)",
-              animation: "pulse 1.5s infinite",
-              display: "inline-block",
-            }}
+            className="shrink-0 inline-block w-1.5 h-1.5 rounded-full"
+            style={{ background: "var(--amb)", animation: "pulse 1.5s infinite" }}
           />
           <span>Generating...</span>
           <span>{formatDuration(elapsed)}</span>
@@ -123,9 +128,12 @@ function TurnFooter({ turn, sessionIsRunning }: { turn: TurnSnapshot; sessionIsR
         <>
           <span style={{ color: "var(--grn)" }}>&#10003;</span>
           <span data-testid="turn-completion-timestamp">
-            {turn.durationMs != null
-              ? `Completed in ${formatDuration(turn.durationMs)}`
-              : "Completed"}
+            {(() => {
+              const duration = turn.durationMs ?? computeFallbackDuration(turn.startTime, turn.endTime);
+              return duration != null
+                ? `Completed in ${formatDuration(duration)}`
+                : "Completed";
+            })()}
           </span>
         </>
       )}
@@ -176,32 +184,23 @@ export function TurnCard({
 
   return (
     <div
-      className={`conv-turn ${isHighlighted ? "highlighted" : ""}`}
+      className={`conv-turn flex flex-col gap-5 ${isHighlighted ? "highlighted" : ""}`}
       onClick={onTurnClick}
-      style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
       {/* ── User message (hidden when no prompt) ── */}
       {turn.promptText.trim() && (
-        <div className="flex items-start" style={{ gap: 10 }}>
+        <div className="flex items-start gap-2.5">
           <div
-            className="flex items-center justify-center shrink-0"
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 7,
-              fontSize: 11,
-              fontWeight: 600,
-              background: "var(--bg-h)",
-              color: "var(--t2)",
-            }}
+            className="flex items-center justify-center shrink-0 w-7 h-7 rounded-[7px] text-[11px] font-semibold"
+            style={{ background: "var(--bg-h)", color: "var(--t2)" }}
           >
             U
           </div>
           <div className="flex-1 min-w-0">
-            <div style={{ fontSize: 10, color: "var(--t3)", marginBottom: 3, fontWeight: 500 }}>
+            <div className="text-[10px] font-medium mb-0.5" style={{ color: "var(--t3)" }}>
               You
             </div>
-            <div style={{ fontSize: 13, color: "var(--t1)", lineHeight: 1.65 }}>
+            <div className="text-[13px] leading-[1.65]" style={{ color: "var(--t1)" }}>
               <CollapsiblePrompt text={turn.promptText} />
             </div>
           </div>
@@ -210,23 +209,15 @@ export function TurnCard({
 
       {/* ── Claude message ── */}
       {(responseContent.length > 0 || turnEvents.length > 0) && (
-        <div className="flex items-start" style={{ gap: 10 }}>
+        <div className="flex items-start gap-2.5">
           <div
-            className="flex items-center justify-center shrink-0"
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 7,
-              fontSize: 11,
-              fontWeight: 600,
-              background: "var(--acc-bg)",
-              color: "var(--acc)",
-            }}
+            className="flex items-center justify-center shrink-0 w-7 h-7 rounded-[7px] text-[11px] font-semibold"
+            style={{ background: "var(--acc-bg)", color: "var(--acc)" }}
           >
             C
           </div>
           <div className="flex-1 min-w-0">
-            <div style={{ fontSize: 10, color: "var(--t3)", marginBottom: 3, fontWeight: 500 }}>
+            <div className="text-[10px] font-medium mb-0.5" style={{ color: "var(--t3)" }}>
               Claude
             </div>
 
@@ -250,13 +241,8 @@ export function TurnCard({
               .map((tagged, i) => (
                 <div
                   key={`text-${i}`}
-                  className="msg-text"
-                  style={{
-                    fontSize: 13,
-                    color: "var(--t1)",
-                    lineHeight: 1.65,
-                    marginTop: i > 0 ? 10 : 0,
-                  }}
+                  className={`msg-text text-[13px] leading-[1.65]${i > 0 ? " mt-2.5" : ""}`}
+                  style={{ color: "var(--t1)" }}
                 >
                   <ResponseBlock text={tagged.item.text} />
                 </div>
@@ -267,7 +253,7 @@ export function TurnCard({
 
             {/* Task progress (only shown on turns that executed task tool calls) */}
             {tasks && tasks.length > 0 && (
-              <div style={{ marginTop: 8 }}>
+              <div className="mt-2">
                 <ProgressBar
                   label="Tasks"
                   completed={tasks.filter((t) => t.status === "done").length}
@@ -290,20 +276,10 @@ export function TurnCard({
 
             {/* Running indicator */}
             {isRunning && (
-              <div
-                className="flex items-center"
-                style={{ marginTop: 8, fontSize: 13, color: "var(--t2)", gap: 6 }}
-              >
+              <div className="flex items-center mt-2 text-[13px] gap-1.5" style={{ color: "var(--t2)" }}>
                 <span
-                  className="shrink-0"
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: "var(--amb)",
-                    animation: "pulse 1.5s infinite",
-                    display: "inline-block",
-                  }}
+                  className="shrink-0 inline-block w-1.5 h-1.5 rounded-full"
+                  style={{ background: "var(--amb)", animation: "pulse 1.5s infinite" }}
                 />
                 <span>Working...</span>
               </div>

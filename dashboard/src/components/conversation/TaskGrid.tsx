@@ -34,9 +34,10 @@ export const TaskGrid = memo(function TaskGrid({
       <button
         type="button"
         aria-expanded={expanded}
+        aria-label={`Expand ${tasks.length} tasks`}
         onClick={() => setExpanded((prev) => !prev)}
-        className="font-mono hover:underline"
-        style={{ fontSize: 10, color: "var(--acc)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+        className="font-mono hover:underline text-[10px] bg-transparent border-none cursor-pointer p-0"
+        style={{ color: "var(--acc)" }}
       >
         +{tasks.length} tasks (click to expand)
       </button>

@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import type { MutableRefObject } from "react";
-import type { RepoGroup, PermissionRequest, UsageInfo, CostSummary, SessionEvent, SessionMetrics, AgentDAG } from "../lib/types";
+import type { RepoGroup, PermissionRequest, UsageInfo, CostSummary, SessionEvent, SessionMetrics, AgentDAG, SubagentMeta } from "../lib/types";
 import type { TurnSnapshot } from "../lib/turnSnapshot";
 import type { PermissionMode } from "../components/conversation/permissionModeTypes";
 
@@ -62,6 +62,8 @@ export interface LayoutContextValue {
   setCurrentSelectedAgent: (agentId: string | null) => void;
   hasSubagents: boolean;
   setHasSubagents: (v: boolean) => void;
+  currentSubagentMeta: SubagentMeta | null;
+  setCurrentSubagentMeta: (meta: SubagentMeta | null) => void;
 
   // Permission mode (set via TopBar, used by PromptInput for next message)
   permissionMode: PermissionMode;

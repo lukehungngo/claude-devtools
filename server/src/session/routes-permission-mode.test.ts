@@ -42,6 +42,7 @@ vi.mock("../logger.js", () => ({
     debug: vi.fn(),
   },
   permissionLog: { info: vi.fn(), warn: vi.fn() },
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })) },
 }));
 
 import request from "supertest";

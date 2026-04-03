@@ -112,13 +112,12 @@ describe("ResponseBlock", () => {
     expect(container.textContent).toContain("\u2713");
   });
 
-  it("preserves the accent left border container", () => {
+  it("renders text content in a wrapper without blockquote border", () => {
     const { container } = render(<ResponseBlock text="Hello world" />);
     const wrapper = container.firstElementChild as HTMLElement;
     expect(wrapper).not.toBeNull();
-    expect(wrapper.className).toContain("border-l-2");
-    expect(wrapper.className).toContain("border-dt-accent");
-    expect(wrapper.className).toContain("pl-2");
+    expect(wrapper.className).toContain("mb-1.5");
+    expect(wrapper.className).not.toContain("border-l-2");
   });
 
   it("applies hljs class to code blocks with a language", () => {

@@ -10,11 +10,12 @@ const AGENT_ROW_HEIGHT = 48;
 const TOOL_ROW_HEIGHT = 26;
 const ROW_MARGIN = 2;
 const DEFAULT_LABEL_WIDTH = 140;
-const MIN_LABEL_WIDTH = 80;
+const MIN_LABEL_WIDTH = 60;
 const MAX_LABEL_WIDTH = 400;
+const NAME_COL_WIDTH = 60;
 const DURATION_COL_WIDTH = 72;
 const COST_COL_WIDTH = 64;
-const DATA_COLS_WIDTH = DURATION_COL_WIDTH + COST_COL_WIDTH;
+const DATA_COLS_WIDTH = NAME_COL_WIDTH + DURATION_COL_WIDTH + COST_COL_WIDTH;
 
 export interface TraceTabProps {
   dag: AgentDAG | null;
@@ -31,13 +32,13 @@ export interface TraceTabProps {
 /** Known agent types get dedicated palette slots; everything else cycles through a palette. */
 const KNOWN_COLORS: Record<string, { bg: string; text: string }> = {
   orchestrator: { bg: "var(--span-pm)", text: "var(--span-pm-t)" },
-  main:         { bg: "var(--span-pm)", text: "var(--span-pm-t)" },
-  engineer:     { bg: "var(--span-swe)", text: "var(--span-swe-t)" },
-  reviewer:     { bg: "var(--span-rev)", text: "var(--span-rev-t)" },
-  "bug-fixer":  { bg: "var(--span-bug)", text: "var(--span-bug-t)" },
-  researcher:   { bg: "var(--span-doc)", text: "var(--span-doc-t)" },
-  tester:       { bg: "var(--span-qa)", text: "var(--span-qa-t)" },
-  qa:           { bg: "var(--span-qa)", text: "var(--span-qa-t)" },
+  main: { bg: "var(--span-pm)", text: "var(--span-pm-t)" },
+  engineer: { bg: "var(--span-swe)", text: "var(--span-swe-t)" },
+  reviewer: { bg: "var(--span-rev)", text: "var(--span-rev-t)" },
+  "bug-fixer": { bg: "var(--span-bug)", text: "var(--span-bug-t)" },
+  researcher: { bg: "var(--span-doc)", text: "var(--span-doc-t)" },
+  tester: { bg: "var(--span-qa)", text: "var(--span-qa-t)" },
+  qa: { bg: "var(--span-qa)", text: "var(--span-qa-t)" },
 };
 
 /** Palette for unknown agent types — cycles deterministically via string hash. */
@@ -302,6 +303,7 @@ interface TraceRowComponentProps {
   selected: boolean;
   onSelect?: (id: string) => void;
   labelWidth: number;
+  nameWidth: number;
   durationWidth: number;
   costWidth: number;
 }
@@ -311,6 +313,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
   selected,
   onSelect,
   labelWidth,
+  nameWidth,
   durationWidth,
   costWidth,
 }: TraceRowComponentProps) {
@@ -345,6 +348,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
         </div>
         <div className="trace-name">{label}</div>
       </div>
+      <div className="trace-col-name" style={{ width: nameWidth }}>{node.type}</div>
       <div className="trace-col-duration" style={{ width: durationWidth }}>{isActive ? "running" : durationStr}</div>
       <div className="trace-col-cost" style={{ width: costWidth }}>{costStr}</div>
       <div className="trace-track">
@@ -380,6 +384,7 @@ function TraceTabInner({
 }: TraceTabProps) {
   const prevFilteredRef = useRef<AgentDAG | null>(null);
   const [labelWidth, setLabelWidth] = useState(DEFAULT_LABEL_WIDTH);
+  const [nameWidth, setNameWidth] = useState(NAME_COL_WIDTH);
   const [durationWidth, setDurationWidth] = useState(DURATION_COL_WIDTH);
   const [costWidth, setCostWidth] = useState(COST_COL_WIDTH);
   const [showAllDepths, setShowAllDepths] = useState(false);
@@ -449,6 +454,10 @@ function TraceTabInner({
     (e: React.MouseEvent) => makeResizeHandler(labelWidth, setLabelWidth)(e),
     [labelWidth, makeResizeHandler],
   );
+  const handleNameResize = useCallback(
+    (e: React.MouseEvent) => makeResizeHandler(nameWidth, setNameWidth)(e),
+    [nameWidth, makeResizeHandler],
+  );
   const handleDurationResize = useCallback(
     (e: React.MouseEvent) => makeResizeHandler(durationWidth, setDurationWidth)(e),
     [durationWidth, makeResizeHandler],
@@ -458,7 +467,7 @@ function TraceTabInner({
     [costWidth, makeResizeHandler],
   );
 
-  const dataCols = durationWidth + costWidth;
+  const dataCols = nameWidth + durationWidth + costWidth;
 
   if (isEmpty || !timeline) {
     return (
@@ -492,6 +501,7 @@ function TraceTabInner({
             </button>
           )}
         </div>
+        <div className="trace-col-name trace-col-header" style={{ width: nameWidth }}>Name</div>
         <div className="trace-col-duration trace-col-header" style={{ width: durationWidth }}>Duration</div>
         <div className="trace-col-cost trace-col-header" style={{ width: costWidth }}>Cost</div>
         <div className="trace-ticks">
@@ -515,7 +525,12 @@ function TraceTabInner({
         />
         <div
           className="trace-resize-handle"
-          style={{ left: labelWidth + durationWidth - 2 }}
+          style={{ left: labelWidth + nameWidth - 2 }}
+          onMouseDown={handleNameResize}
+        />
+        <div
+          className="trace-resize-handle"
+          style={{ left: labelWidth + nameWidth + durationWidth - 2 }}
           onMouseDown={handleDurationResize}
         />
         <div
@@ -543,6 +558,7 @@ function TraceTabInner({
                     selected={selectedAgent === row.node.id}
                     onSelect={onSelectAgent}
                     labelWidth={labelWidth}
+                    nameWidth={nameWidth}
                     durationWidth={durationWidth}
                     costWidth={costWidth}
                   />
@@ -557,6 +573,7 @@ function TraceTabInner({
               selected={selectedAgent === row.node.id}
               onSelect={onSelectAgent}
               labelWidth={labelWidth}
+              nameWidth={nameWidth}
               durationWidth={durationWidth}
               costWidth={costWidth}
             />

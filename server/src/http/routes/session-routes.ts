@@ -89,15 +89,24 @@ export function createSessionRoutes({ state }: RouteContext): Router {
         return res.status(404).json({ error: "Session not found" });
       }
 
-      // Try metrics cache (keyed by filePath + size + mtime)
+      // Try metrics cache (keyed by filePath + size + mtime + subagentCount)
       let metrics!: ReturnType<typeof computeMetrics>;
       let allEvents!: SessionEvent[];
       let subagentMeta!: Map<string, { agentType: string; description: string }>;
       let cacheHit = false;
 
+      // Count subagent files so cache invalidates when new subagents appear
+      const subagentDir = join(session.path.replace(/\.jsonl$/, ""), "subagents");
+      let subagentFileCount = 0;
+      try {
+        if (existsSync(subagentDir)) {
+          subagentFileCount = readdirSync(subagentDir).filter(f => f.endsWith(".jsonl")).length;
+        }
+      } catch { /* ignore */ }
+
       try {
         const stat = statSync(session.path);
-        const cacheKey = { filePath: session.path, size: stat.size, mtimeMs: stat.mtimeMs };
+        const cacheKey = { filePath: session.path, size: stat.size, mtimeMs: stat.mtimeMs, subagentCount: subagentFileCount };
         const cached = metricsCache.get(cacheKey);
 
         if (cached) {
@@ -135,7 +144,7 @@ export function createSessionRoutes({ state }: RouteContext): Router {
         try {
           const stat = statSync(session.path);
           metricsCache.set(
-            { filePath: session.path, size: stat.size, mtimeMs: stat.mtimeMs },
+            { filePath: session.path, size: stat.size, mtimeMs: stat.mtimeMs, subagentCount: subagentFileCount },
             { metrics, events: allEvents, subagentMeta }
           );
         } catch {
@@ -195,6 +204,22 @@ export function createSessionRoutes({ state }: RouteContext): Router {
           );
         } catch (err) {
           logger.warn({ error: String(err) }, "debug-db: failed to store lifecycle data");
+        }
+      }
+
+      // Cross-reference with SessionManager for accurate isRunning status,
+      // same as /repos endpoint. Without this, the session-cache's 2-min mtime
+      // heuristic can show "Completed" while the CLI session is still active.
+      const sessionManager = state?.sessionManager;
+      if (sessionManager) {
+        const activeSession = sessionManager.getStatus(sessionId);
+        if (activeSession) {
+          metrics.session.isRunning =
+            activeSession.status === "streaming" || activeSession.status === "waiting-permission";
+        } else {
+          // Not tracked by SessionManager — tighten mtime heuristic to 30s
+          const ageMs = Date.now() - new Date(session.lastModified).getTime();
+          metrics.session.isRunning = ageMs < 30_000;
         }
       }
 
@@ -566,7 +591,7 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     }
 
     if (!SessionManager.isValidPermissionMode(mode)) {
-      return res.status(400).json({ error: `Invalid mode: ${mode}. Must be one of: default, acceptEdits, bypassPermissions, plan, dontAsk` });
+      return res.status(400).json({ error: `Invalid mode: ${mode}. Must be one of: default, acceptEdits, bypassPermissions, plan, auto, dontAsk` });
     }
 
     const sessionManager = state?.sessionManager;

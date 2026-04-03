@@ -39,7 +39,7 @@ function makeTurn(agents: { agentId: string }[]): TurnSnapshot {
     })),
     status: "running",
     cost: 0,
-    costBreakdown: { total: 0, tokensIn: 0, tokensOut: 0 },
+    costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
     durationMs: null,
     startTime: "2026-01-01T00:00:00Z",
     completedAt: "",
@@ -139,7 +139,7 @@ describe("filterDagForTurn", () => {
       ],
       status: "completed",
       cost: 1.25,
-      costBreakdown: { total: 1.25, tokensIn: 8000, tokensOut: 3000 },
+      costBreakdown: { total: 1.25, inputCost: 0.75, outputCost: 0.50 },
       durationMs: 5000,
       startTime: "2026-01-01T00:00:00Z",
       completedAt: "2026-01-01T00:00:05Z",
@@ -159,5 +159,43 @@ describe("filterDagForTurn", () => {
     expect(agentNode.tokenUsage.totalCost).toBeCloseTo(0.8);
     expect(agentNode.tokenUsage.inputTokens).toBe(3000);
     expect(agentNode.tokenUsage.outputTokens).toBe(1000);
+  });
+
+  it("overrides startTime/endTime with turn-scoped values", () => {
+    const dagWithTimes: AgentDAG = {
+      nodes: [
+        { ...makeNode("main"), startTime: "2026-01-01T00:00:00Z", endTime: "2026-01-01T01:00:00Z" },
+        { ...makeNode("agent-1"), startTime: "2026-01-01T00:05:00Z", endTime: "2026-01-01T00:55:00Z" },
+      ],
+      edges: [{ source: "main", target: "agent-1" }],
+    };
+
+    const turn: TurnSnapshot = {
+      turnNumber: 5,
+      promptText: "test",
+      startIndex: 0,
+      endIndex: 10,
+      agents: [
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0.1, tokensIn: 100, tokensOut: 50, tools: [] },
+        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0.2, tokensIn: 200, tokensOut: 100, tools: [] },
+      ],
+      status: "completed",
+      cost: 0.3,
+      costBreakdown: { total: 0.3, inputCost: 0.2, outputCost: 0.1 },
+      durationMs: 180000,
+      startTime: "2026-01-01T00:30:00Z",
+      completedAt: "2026-01-01T00:33:00Z",
+      endTime: "2026-01-01T00:33:00Z",
+    };
+
+    const result = filterDagForTurn(dagWithTimes, turn)!;
+    const mainNode = result.nodes.find((n) => n.id === "main")!;
+    const agentNode = result.nodes.find((n) => n.id === "agent-1")!;
+
+    // Both nodes should have turn-scoped times, not session-wide times
+    expect(mainNode.startTime).toBe("2026-01-01T00:30:00Z");
+    expect(mainNode.endTime).toBe("2026-01-01T00:33:00Z");
+    expect(agentNode.startTime).toBe("2026-01-01T00:30:00Z");
+    expect(agentNode.endTime).toBe("2026-01-01T00:33:00Z");
   });
 });

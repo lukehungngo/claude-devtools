@@ -94,6 +94,7 @@ export function BashOutputBlock({ command, stdout, stderr, exitCode }: BashOutpu
             {hiddenCount > 0 && (
               <button
                 onClick={() => setExpanded(true)}
+                aria-label={`Show ${hiddenCount} more output lines`}
                 className="mt-1 text-dt-accent text-xs cursor-pointer bg-transparent border-none hover:underline"
               >
                 {hiddenCount} more lines...

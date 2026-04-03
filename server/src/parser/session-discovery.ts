@@ -156,12 +156,26 @@ export function loadFullSession(sessionInfo: SessionInfo): {
             readFileSync(join(subagentDir, file), "utf-8")
           );
           subagentMeta.set(agentId, {
-            agentType: meta.agentType || "unknown",
-            description: meta.description || "",
+            agentType: meta.agentType || agentId,
+            description: meta.description || agentId,
           });
         } catch {
           // ignore
         }
+      }
+    }
+
+    // Infer agent type from filename for agents without .meta.json.
+    // Claude Code internal agents use pattern: agent-a<type>-<hex>.jsonl
+    // e.g. agent-acompact-4787973a.jsonl → type "compact"
+    for (const agentId of subagentEvents.keys()) {
+      if (!subagentMeta.has(agentId)) {
+        const match = agentId.match(/^a([a-z_]+)-[0-9a-f]+$/);
+        const inferredType = match ? match[1] : agentId;
+        subagentMeta.set(agentId, {
+          agentType: inferredType,
+          description: inferredType.replace(/_/g, " "),
+        });
       }
     }
   }

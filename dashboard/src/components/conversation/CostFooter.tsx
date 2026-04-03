@@ -15,14 +15,13 @@ export const CostFooter = memo(function CostFooter({
   agentCost,
   agentCalls,
 }: CostFooterProps) {
-  const hasMain = mainCost > 0.0001;
+  const hasMain = mainCost > 0;
   const hasAgent = agentCalls > 0 && agentCost > 0;
 
   return (
     <div
       aria-label="Cost breakdown"
-      className="flex flex-row items-center gap-1.5 font-mono text-dt-text2"
-      style={{ marginTop: 8, fontSize: 10 }}
+      className="flex flex-row items-center gap-1.5 font-mono text-dt-text2 mt-2 text-[10px]"
     >
       <span className="text-dt-text1">{formatCost(totalCost)}</span>
       {hasMain && hasAgent && (

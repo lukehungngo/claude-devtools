@@ -11,6 +11,7 @@ This directory is the **canonical reference** for building claude-devtools. Read
 5. **[permission-system.md](permission-system.md)** — 5 permission modes, rules syntax, canUseTool callback, our implementation
 6. **[configuration.md](configuration.md)** — Settings, hooks, MCP, CLAUDE.md, permission rules — all config file formats
 7. **[gap-matrix.md](gap-matrix.md)** — What the CLI has vs what we've built, with SDK evidence for each gap
+8. **[command-discovery.md](command-discovery.md)** — How slash commands are discovered, the 3-tier fallback, and why the dashboard shows fewer commands than CLI
 
 ## Source Material
 

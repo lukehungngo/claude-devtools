@@ -43,7 +43,7 @@ function makeTurn(turnNumber: number, promptText: string, startIndex: number, en
     status: "completed",
     durationMs: null,
     cost: 0,
-    costBreakdown: { total: 0, tokensIn: 0, tokensOut: 0 },
+    costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
     startTime: "",
     completedAt: "",
     endTime: "",

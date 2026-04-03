@@ -46,6 +46,10 @@ export function filterDagForTurn(
       if (summary) {
         return {
           ...n,
+          // Override time bounds with turn-scoped values so duration
+          // reflects the turn, not the entire session
+          startTime: activeTurn.startTime || n.startTime,
+          endTime: activeTurn.endTime || n.endTime,
           tokenUsage: {
             ...n.tokenUsage,
             inputTokens: summary.tokensIn,
@@ -55,7 +59,12 @@ export function filterDagForTurn(
           toolCalls: summary.tools.length,
         };
       }
-      return n;
+      // Nodes without a summary still need turn-scoped time bounds
+      return {
+        ...n,
+        startTime: activeTurn.startTime || n.startTime,
+        endTime: activeTurn.endTime || n.endTime,
+      };
     });
 
   return {

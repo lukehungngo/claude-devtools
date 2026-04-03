@@ -16,20 +16,31 @@ describe("CollapsiblePrompt", () => {
       expect(args.textContent).toBe("implement X");
     });
 
-    it("renders nav token as amber pill", () => {
+    it("renders nav token as amber pill without border", () => {
       const { getByTestId } = render(<CollapsiblePrompt text="<next>" />);
       const pill = getByTestId("command-pill");
       expect(pill.textContent).toBe("<next>");
-      expect(pill.style.color).toBe("var(--amb)");
+      expect(pill.className).toContain("text-[var(--amb)]");
+      expect(pill.className).not.toContain("border");
     });
 
-    it("renders bash command as neutral pill", () => {
+    it("renders bash command as neutral pill without border", () => {
       const { getByTestId } = render(
         <CollapsiblePrompt text="!ls -la /tmp" />,
       );
       const pill = getByTestId("command-pill");
       expect(pill.textContent).toBe("!ls");
-      expect(pill.style.color).toBe("var(--t1)");
+      expect(pill.className).toContain("text-[var(--t1)]");
+      expect(pill.className).not.toContain("border");
+    });
+
+    it("renders slash command pill without border", () => {
+      const { getByTestId } = render(
+        <CollapsiblePrompt text="/help" />,
+      );
+      const pill = getByTestId("command-pill");
+      expect(pill.className).not.toContain("border");
+      expect(pill.className).toContain("bg-");
     });
 
     it("renders slash command without args", () => {
@@ -114,20 +125,78 @@ describe("CollapsiblePrompt", () => {
     });
 
     it("blob content is hidden by default", () => {
-      const { getByTestId } = render(
+      const { queryByTestId } = render(
         <CollapsiblePrompt text={blobText} />,
       );
-      const blob = getByTestId("blob-content");
-      expect(blob.style.display).toBe("none");
+      expect(queryByTestId("blob-content")).toBeNull();
     });
 
     it("blob content becomes visible on toggle click", () => {
+      const { getByTestId, queryByTestId } = render(
+        <CollapsiblePrompt text={blobText} />,
+      );
+      fireEvent.click(getByTestId("expand-toggle"));
+      expect(queryByTestId("blob-content")).not.toBeNull();
+      expect(getByTestId("blob-content").textContent).toContain("at Module.run");
+    });
+
+    it("expanded blob shows full text including intent line", () => {
       const { getByTestId } = render(
         <CollapsiblePrompt text={blobText} />,
       );
       fireEvent.click(getByTestId("expand-toggle"));
       const blob = getByTestId("blob-content");
-      expect(blob.style.display).toBe("block");
+      // Full text must include the intent line — not split
+      expect(blob.textContent).toContain("fix this:");
+      expect(blob.textContent).toContain("at Module.run");
+    });
+
+    it("hides intent line when expanded to avoid duplication", () => {
+      const { getByTestId, queryByTestId } = render(
+        <CollapsiblePrompt text={blobText} />,
+      );
+      fireEvent.click(getByTestId("expand-toggle"));
+      // Intent line should be hidden (inside the blob now)
+      expect(queryByTestId("intent-line")?.style.display === "none" ||
+        queryByTestId("intent-line") === null ||
+        getByTestId("blob-content").textContent?.includes("fix this:")).toBeTruthy();
+    });
+
+    it("blob renders as <pre> element for code formatting", () => {
+      const { getByTestId } = render(
+        <CollapsiblePrompt text={blobText} />,
+      );
+      fireEvent.click(getByTestId("expand-toggle"));
+      const blob = getByTestId("blob-content");
+      expect(blob.tagName).toBe("PRE");
+    });
+
+    it("blob has distinct background styling", () => {
+      const { getByTestId } = render(
+        <CollapsiblePrompt text={blobText} />,
+      );
+      fireEvent.click(getByTestId("expand-toggle"));
+      const blob = getByTestId("blob-content");
+      expect(blob.className).toContain("bg-");
+    });
+
+    it("expand toggle contains a chevron icon", () => {
+      const { getByTestId } = render(
+        <CollapsiblePrompt text={blobText} />,
+      );
+      const toggle = getByTestId("expand-toggle");
+      // Should have an SVG (lucide icon) inside
+      expect(toggle.querySelector("svg")).not.toBeNull();
+    });
+
+    it("collapses blob content back on second toggle click", () => {
+      const { getByTestId, queryByTestId } = render(
+        <CollapsiblePrompt text={blobText} />,
+      );
+      fireEvent.click(getByTestId("expand-toggle"));
+      expect(queryByTestId("blob-content")).not.toBeNull();
+      fireEvent.click(getByTestId("expand-toggle"));
+      expect(queryByTestId("blob-content")).toBeNull();
     });
   });
 

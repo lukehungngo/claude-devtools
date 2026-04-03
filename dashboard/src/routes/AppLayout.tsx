@@ -17,7 +17,7 @@ import { useCosts } from "../hooks/useCosts";
 import { LayoutContext } from "../contexts/LayoutContext";
 import { buildSlugMap, buildProjectHashToSlugMap } from "../lib/repoSlug";
 import type { SessionWsHandlers, QuestionItem } from "../contexts/LayoutContext";
-import type { SessionMetrics, SessionEvent, AgentDAG } from "../lib/types";
+import type { SessionMetrics, SessionEvent, AgentDAG, SubagentMeta } from "../lib/types";
 import type { PermissionMode } from "../components/conversation/permissionModeTypes";
 import type { TurnSnapshot } from "../lib/turnSnapshot";
 
@@ -92,6 +92,7 @@ export function AppLayout() {
   const [currentActiveTurnIndex, setCurrentActiveTurnIndex] = useState<number | null>(null);
   const [currentSelectedAgent, setCurrentSelectedAgent] = useState<string | null>(null);
   const [hasSubagents, setHasSubagents] = useState(false);
+  const [currentSubagentMeta, setCurrentSubagentMeta] = useState<SubagentMeta | null>(null);
   const [viewingTurnNumber, setViewingTurnNumber] = useState<number | undefined>(undefined);
   const onClearViewingTurnRef = useRef<(() => void) | null>(null);
   const onTurnClickRef = useRef<((turnIndex: number) => void) | null>(null);
@@ -262,6 +263,8 @@ export function AppLayout() {
     setCurrentSelectedAgent,
     hasSubagents,
     setHasSubagents,
+    currentSubagentMeta,
+    setCurrentSubagentMeta,
     permissionMode,
     setPermissionMode,
     turnHistoryOpen,
@@ -345,7 +348,7 @@ export function AppLayout() {
               metrics={currentMetrics}
               turns={currentTurns}
               events={currentEvents}
-              liveEvents={currentLiveEvents}
+
               dag={currentDag}
               activeTurnIndex={currentActiveTurnIndex}
               selectedAgent={currentSelectedAgent}
@@ -353,6 +356,7 @@ export function AppLayout() {
               sessionId={selected?.sessionId ?? ""}
               isLive={isLive}
               hasSubagents={hasSubagents}
+              subagentMeta={currentSubagentMeta}
               viewingTurnNumber={viewingTurnNumber}
               openBottomTabRef={openBottomTabRef}
             />

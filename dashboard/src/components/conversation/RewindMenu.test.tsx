@@ -37,7 +37,7 @@ function makeTurnAndEvents(
       status: "completed",
       durationMs: 5000,
       cost: 0.04,
-      costBreakdown: { total: 0.04, tokensIn: 1000, tokensOut: 500 },
+      costBreakdown: { total: 0.04, inputCost: 0.025, outputCost: 0.015 },
       startTime: "2026-03-29T12:30:00Z",
       completedAt: "2026-03-29T12:30:05Z",
       endTime: "2026-03-29T12:30:05Z",

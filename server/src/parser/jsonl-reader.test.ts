@@ -109,7 +109,7 @@ describe("parseJsonlFile", () => {
     expect(result).toEqual([]);
   });
 
-  it("filters out unknown event types (file-history-snapshot, last-prompt, pr-link)", () => {
+  it("filters out metadata event types (file-history-snapshot, last-prompt, pr-link)", () => {
     const filePath = join(TEST_DIR, "unknown-types.jsonl");
     const knownEvent = {
       type: "user",
@@ -131,6 +131,21 @@ describe("parseJsonlFile", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].type).toBe("user");
+  });
+
+  it("passes through new/unrecognized SDK event types (deny-list not allow-list)", () => {
+    const filePath = join(TEST_DIR, "new-sdk-types.jsonl");
+    const events = [
+      { type: "tool_progress", uuid: "tp1", timestamp: "2026-03-23T10:00:00Z", sessionId: "s1" },
+      { type: "tool_use_summary", uuid: "ts1", timestamp: "2026-03-23T10:00:01Z", sessionId: "s1" },
+      { type: "rate_limit_event", uuid: "rl1", timestamp: "2026-03-23T10:00:02Z", sessionId: "s1" },
+      { type: "auth_status", uuid: "as1", timestamp: "2026-03-23T10:00:03Z", sessionId: "s1" },
+    ];
+    writeFileSync(filePath, events.map((e) => JSON.stringify(e)).join("\n") + "\n");
+
+    const result = parseJsonlFile(filePath);
+
+    expect(result).toHaveLength(4);
   });
 
   it("parses system events", () => {

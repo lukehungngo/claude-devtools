@@ -4,6 +4,8 @@ export interface MetricsCacheKey {
   filePath: string;
   size: number;
   mtimeMs: number;
+  /** Number of subagent JSONL files — invalidates cache when new subagents appear */
+  subagentCount?: number;
 }
 
 export interface MetricsCacheValue {
@@ -41,8 +43,8 @@ export class MetricsCache {
     const entry = this.entries.get(key.filePath);
     if (!entry) return null;
 
-    // Validate key match (size + mtime must match)
-    if (entry.key.size !== key.size || entry.key.mtimeMs !== key.mtimeMs) {
+    // Validate key match (size + mtime + subagent count must match)
+    if (entry.key.size !== key.size || entry.key.mtimeMs !== key.mtimeMs || entry.key.subagentCount !== key.subagentCount) {
       this.entries.delete(key.filePath);
       return null;
     }

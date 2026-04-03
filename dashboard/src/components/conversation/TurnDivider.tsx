@@ -7,60 +7,37 @@ export interface TurnDividerProps {
   onClick: () => void;
 }
 
-const lineStyle = {
-  borderTop: "1px solid var(--bd)",
-} as const;
-
-const lineSelectedStyle = {
-  borderTop: "1px solid var(--acc)",
-} as const;
-
-const badgeBaseStyle = {
-  fontFamily: "monospace",
-  fontSize: "10px",
-  fontWeight: 500,
-  padding: "2px 8px",
-  borderRadius: "10px",
-  cursor: "pointer",
-  lineHeight: 1.4,
-} as const;
-
-const badgeDefaultStyle = {
-  ...badgeBaseStyle,
-  background: "var(--bg)",
-  color: "var(--t3)",
-  border: "1px solid var(--bd)",
-} as const;
-
-const badgeSelectedStyle = {
-  ...badgeBaseStyle,
-  background: "var(--acc-bg)",
-  color: "var(--acc)",
-  border: "1px solid var(--acc)",
-} as const;
-
 function TurnDividerInner({ turnNumber, turnIndex, isSelected, onClick }: TurnDividerProps) {
-  const currentLineStyle = isSelected ? lineSelectedStyle : lineStyle;
-  const currentBadgeStyle = isSelected ? badgeSelectedStyle : badgeDefaultStyle;
-
   return (
     <div
-      className="flex items-center"
-      style={{ margin: "16px 0 12px 0" }}
+      className="flex items-center mt-4 mb-3"
       data-turn-index={turnIndex}
     >
-      <div className="flex-1" style={currentLineStyle} />
+      <div
+        className="flex-1 border-t"
+        style={{ borderColor: isSelected ? "var(--acc)" : "var(--bd)" }}
+      />
       <button
         type="button"
         onClick={onClick}
         aria-label={`Go to turn ${turnNumber}`}
         aria-pressed={isSelected}
-        className="dt-focus-ring shrink-0 mx-2"
-        style={currentBadgeStyle}
+        className={`dt-focus-ring shrink-0 mx-2 font-mono text-[10px] font-medium px-2 py-0.5 rounded-[10px] leading-[1.4] cursor-pointer border ${
+          isSelected
+            ? "border-[var(--acc)]"
+            : "border-[var(--bd)]"
+        }`}
+        style={{
+          background: isSelected ? "var(--acc-bg)" : "var(--bg)",
+          color: isSelected ? "var(--acc)" : "var(--t3)",
+        }}
       >
         {`T${turnNumber}`}
       </button>
-      <div className="flex-1" style={currentLineStyle} />
+      <div
+        className="flex-1 border-t"
+        style={{ borderColor: isSelected ? "var(--acc)" : "var(--bd)" }}
+      />
     </div>
   );
 }

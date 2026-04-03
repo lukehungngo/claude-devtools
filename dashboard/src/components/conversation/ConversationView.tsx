@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback, useMemo, useContext } from "react";
+import { useRef, useState, useEffect, useCallback, useMemo, useContext, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { SessionEvent, SessionMetrics, PermissionRequest, AssistantEvent } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
@@ -76,62 +76,43 @@ interface VirtualizedTurnListProps {
   sessionIsRunning?: boolean;
 }
 
-/** Render a single turn with its permissions and questions */
-function TurnRow({
-  turn,
-  filteredIndex,
-  filteredTurns,
-  turns,
-  allEvents,
-  highlightedTurnIndex,
-  onAgentPillClick,
-  onTurnClick,
-  onToolClick,
-  permissions,
-  onPermissionDecide,
-  onDecideSession,
-  questions,
-  onSubmitAnswer,
-  tasksByTurn,
-  sessionIsRunning,
-}: {
+/** Props for TurnRow — pre-computed values to avoid per-row work */
+interface TurnRowProps {
   turn: TurnSnapshot;
   filteredIndex: number;
-  filteredTurns: TurnSnapshot[];
-  turns: TurnSnapshot[];
+  unfilteredIndex: number;
   allEvents: SessionEvent[];
   highlightedTurnIndex?: number;
   onAgentPillClick?: (agentId: string) => void;
   onTurnClick?: (turnIndex: number) => void;
   onToolClick?: (toolName: string) => void;
-  permissions?: PermissionRequest[];
+  turnPerms: PermissionRequest[];
   onPermissionDecide?: (id: string, decision: "approved" | "denied") => void;
   onDecideSession?: (id: string) => void;
-  questions?: QuestionItem[];
+  turnQuestions: QuestionItem[];
   onSubmitAnswer?: (questionId: string, answer: string) => void;
-  tasksByTurn?: Map<number, TaskItem[]>;
+  tasks?: TaskItem[];
   sessionIsRunning?: boolean;
-}) {
-  const unfilteredIndex = turns.indexOf(turn);
-  const nextTurn = filteredTurns[filteredIndex + 1];
-  const nextTurnStart = nextTurn?.startTime;
+}
 
-  const turnPerms = permissions && onPermissionDecide
-    ? permissions.filter((p) => {
-        const pt = p.timestamp;
-        if (!pt) return false;
-        return pt >= turn.startTime && (!nextTurnStart || pt < nextTurnStart);
-      })
-    : [];
-
-  const turnQuestions = questions && onSubmitAnswer
-    ? questions.filter((q) => {
-        const qt = q.timestamp;
-        if (!qt) return false;
-        return qt >= turn.startTime && (!nextTurnStart || qt < nextTurnStart);
-      })
-    : [];
-
+/** Render a single turn with its permissions and questions */
+function TurnRow({
+  turn,
+  filteredIndex,
+  unfilteredIndex,
+  allEvents,
+  highlightedTurnIndex,
+  onAgentPillClick,
+  onTurnClick,
+  onToolClick,
+  turnPerms,
+  onPermissionDecide,
+  onDecideSession,
+  turnQuestions,
+  onSubmitAnswer,
+  tasks,
+  sessionIsRunning,
+}: TurnRowProps) {
   return (
     <>
       {filteredIndex > 0 && (
@@ -149,7 +130,7 @@ function TurnRow({
         onAgentPillClick={onAgentPillClick}
         onTurnClick={onTurnClick ? () => onTurnClick(unfilteredIndex) : undefined}
         onToolClick={onToolClick}
-        tasks={tasksByTurn?.get(turn.turnNumber)}
+        tasks={tasks}
         sessionIsRunning={sessionIsRunning}
       />
       {turnPerms.map((perm) => (
@@ -173,6 +154,34 @@ function TurnRow({
     </>
   );
 }
+
+/** Custom comparator — checks fields that affect TurnRow rendering */
+function turnRowAreEqual(prev: Readonly<TurnRowProps>, next: Readonly<TurnRowProps>): boolean {
+  return (
+    prev.turn.turnNumber === next.turn.turnNumber &&
+    prev.turn.status === next.turn.status &&
+    prev.turn.endIndex === next.turn.endIndex &&
+    prev.turn.durationMs === next.turn.durationMs &&
+    prev.turn.cost === next.turn.cost &&
+    prev.turn.agents.length === next.turn.agents.length &&
+    prev.filteredIndex === next.filteredIndex &&
+    prev.unfilteredIndex === next.unfilteredIndex &&
+    prev.highlightedTurnIndex === next.highlightedTurnIndex &&
+    prev.onAgentPillClick === next.onAgentPillClick &&
+    prev.onTurnClick === next.onTurnClick &&
+    prev.onToolClick === next.onToolClick &&
+    prev.turnPerms.length === next.turnPerms.length &&
+    prev.turnQuestions.length === next.turnQuestions.length &&
+    prev.tasks === next.tasks &&
+    prev.sessionIsRunning === next.sessionIsRunning
+  );
+}
+
+const MemoTurnRow = memo(TurnRow, turnRowAreEqual);
+
+// Stable empty arrays to avoid creating new refs on every render
+const emptyPerms: PermissionRequest[] = [];
+const emptyQuestions: QuestionItem[] = [];
 
 function VirtualizedTurnList({
   scrollRef,
@@ -201,6 +210,54 @@ function VirtualizedTurnList({
     overscan: 5,
   });
 
+  // O(1) lookup: turn object -> unfiltered index (avoids O(n) indexOf per row)
+  const turnIndexMap = useMemo(() => {
+    const map = new Map<TurnSnapshot, number>();
+    turns.forEach((t, i) => map.set(t, i));
+    return map;
+  }, [turns]);
+
+  // Pre-group permissions by turn (avoids O(perms) filter per row)
+  const permsByTurn = useMemo(() => {
+    const map = new Map<number, PermissionRequest[]>();
+    if (!permissions || permissions.length === 0) return map;
+    for (const p of permissions) {
+      if (!p.timestamp) continue;
+      // Find which turn this permission belongs to by timestamp range
+      for (let i = 0; i < filteredTurns.length; i++) {
+        const t = filteredTurns[i];
+        const nextStart = filteredTurns[i + 1]?.startTime;
+        if (p.timestamp >= t.startTime && (!nextStart || p.timestamp < nextStart)) {
+          const arr = map.get(i) || [];
+          arr.push(p);
+          map.set(i, arr);
+          break;
+        }
+      }
+    }
+    return map;
+  }, [permissions, filteredTurns]);
+
+  // Pre-group questions by turn (same pattern)
+  const questionsByTurn = useMemo(() => {
+    const map = new Map<number, QuestionItem[]>();
+    if (!questions || questions.length === 0) return map;
+    for (const q of questions) {
+      if (!q.timestamp) continue;
+      for (let i = 0; i < filteredTurns.length; i++) {
+        const t = filteredTurns[i];
+        const nextStart = filteredTurns[i + 1]?.startTime;
+        if (q.timestamp >= t.startTime && (!nextStart || q.timestamp < nextStart)) {
+          const arr = map.get(i) || [];
+          arr.push(q);
+          map.set(i, arr);
+          break;
+        }
+      }
+    }
+    return map;
+  }, [questions, filteredTurns]);
+
   // Auto-scroll to bottom when new turns arrive
   useEffect(() => {
     if (autoScroll && filteredTurns.length > 0) {
@@ -213,9 +270,9 @@ function VirtualizedTurnList({
   // Scroll to highlighted turn using virtualizer (DOM queries fail for off-screen items)
   useEffect(() => {
     if (highlightedTurnIndex == null) return;
-    // Map unfiltered turn index to filtered virtualizer index
+    // O(1) lookup via turnIndexMap instead of O(n^2) findIndex+indexOf
     const filteredIdx = filteredTurns.findIndex(
-      (t) => turns.indexOf(t) === highlightedTurnIndex
+      (t) => turnIndexMap.get(t) === highlightedTurnIndex
     );
     if (filteredIdx >= 0) {
       virtualizer.scrollToIndex(filteredIdx, { align: "start", behavior: "smooth" });
@@ -244,35 +301,30 @@ function VirtualizedTurnList({
         >
           {virtualItems.map((virtualItem) => {
             const turn = filteredTurns[virtualItem.index];
+            const unfilteredIdx = turnIndexMap.get(turn) ?? 0;
             return (
               <div
                 key={turn.turnNumber}
                 data-index={virtualItem.index}
                 ref={virtualizer.measureElement}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualItem.start}px)`,
-                }}
+                className="absolute top-0 left-0 w-full"
+                style={{ transform: `translateY(${virtualItem.start}px)` }}
               >
-                <TurnRow
+                <MemoTurnRow
                   turn={turn}
                   filteredIndex={virtualItem.index}
-                  filteredTurns={filteredTurns}
-                  turns={turns}
+                  unfilteredIndex={unfilteredIdx}
                   allEvents={allEvents}
                   highlightedTurnIndex={highlightedTurnIndex}
                   onAgentPillClick={onAgentPillClick}
                   onTurnClick={onTurnClick}
                   onToolClick={onToolClick}
-                  permissions={permissions}
+                  turnPerms={permsByTurn.get(virtualItem.index) || emptyPerms}
                   onPermissionDecide={onPermissionDecide}
                   onDecideSession={onDecideSession}
-                  questions={questions}
+                  turnQuestions={questionsByTurn.get(virtualItem.index) || emptyQuestions}
                   onSubmitAnswer={onSubmitAnswer}
-                  tasksByTurn={tasksByTurn}
+                  tasks={tasksByTurn?.get(turn.turnNumber)}
                   sessionIsRunning={sessionIsRunning}
                 />
               </div>
@@ -281,28 +333,30 @@ function VirtualizedTurnList({
         </div>
       ) : (
         /* Non-virtualized fallback (jsdom / SSR / 0-height container) */
-        filteredTurns.map((turn, filteredIndex) => (
-          <div key={turn.turnNumber}>
-            <TurnRow
-              turn={turn}
-              filteredIndex={filteredIndex}
-              filteredTurns={filteredTurns}
-              turns={turns}
-              allEvents={allEvents}
-              highlightedTurnIndex={highlightedTurnIndex}
-              onAgentPillClick={onAgentPillClick}
-              onTurnClick={onTurnClick}
-              onToolClick={onToolClick}
-              permissions={permissions}
-              onPermissionDecide={onPermissionDecide}
-              onDecideSession={onDecideSession}
-              questions={questions}
-              onSubmitAnswer={onSubmitAnswer}
-              tasksByTurn={tasksByTurn}
-              sessionIsRunning={sessionIsRunning}
-            />
-          </div>
-        ))
+        filteredTurns.map((turn, filteredIndex) => {
+          const unfilteredIdx = turnIndexMap.get(turn) ?? 0;
+          return (
+            <div key={turn.turnNumber}>
+              <MemoTurnRow
+                turn={turn}
+                filteredIndex={filteredIndex}
+                unfilteredIndex={unfilteredIdx}
+                allEvents={allEvents}
+                highlightedTurnIndex={highlightedTurnIndex}
+                onAgentPillClick={onAgentPillClick}
+                onTurnClick={onTurnClick}
+                onToolClick={onToolClick}
+                turnPerms={permsByTurn.get(filteredIndex) || emptyPerms}
+                onPermissionDecide={onPermissionDecide}
+                onDecideSession={onDecideSession}
+                turnQuestions={questionsByTurn.get(filteredIndex) || emptyQuestions}
+                onSubmitAnswer={onSubmitAnswer}
+                tasks={tasksByTurn?.get(turn.turnNumber)}
+                sessionIsRunning={sessionIsRunning}
+              />
+            </div>
+          );
+        })
       )}
 
       {/* Permissions/questions without timestamps or before any turn -- fallback */}

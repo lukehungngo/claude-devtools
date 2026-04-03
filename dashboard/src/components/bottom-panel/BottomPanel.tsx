@@ -1,18 +1,19 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { MutableRefObject } from "react";
-import type { SessionMetrics, AgentDAG, SessionEvent } from "../../lib/types";
+import type { SessionMetrics, AgentDAG, SessionEvent, SubagentMeta } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { TraceTab } from "./TraceTab";
 import { CostTab } from "./CostTab";
 import { DetailTab } from "./DetailTab";
-import { RawLogTab } from "./RawLogTab";
 
-export type BottomTab = "agent-graph" | "tool-call" | "raw-log" | "cost";
+import { AgentLogTab } from "./AgentLogTab";
+
+export type BottomTab = "agent-graph" | "tool-call" | "agent-log" | "cost";
 
 const TABS: { id: BottomTab; label: string }[] = [
   { id: "agent-graph", label: "Agent Graph" },
   { id: "tool-call", label: "Tool Call" },
-  { id: "raw-log", label: "Raw Log" },
+  { id: "agent-log", label: "Agent Log" },
   { id: "cost", label: "Cost" },
 ];
 
@@ -22,7 +23,7 @@ export interface BottomPanelProps {
   metrics?: SessionMetrics | null;
   turns?: TurnSnapshot[];
   events?: SessionEvent[];
-  liveEvents?: SessionEvent[];
+
   dag?: AgentDAG | null;
   activeTurnIndex?: number | null;
   selectedAgent?: string | null;
@@ -32,6 +33,7 @@ export interface BottomPanelProps {
   hasSubagents?: boolean;
   /** Currently viewed turn number — drives the scope pill in the tab bar */
   viewingTurnNumber?: number;
+  subagentMeta?: SubagentMeta | null;
   /** Ref-based callback to switch tab programmatically without re-renders */
   openBottomTabRef?: MutableRefObject<((tab: string) => void) | null>;
 }
@@ -44,7 +46,7 @@ export function BottomPanel({
   metrics = null,
   turns = [],
   events = [],
-  liveEvents = [],
+
   dag = null,
   activeTurnIndex = null,
   selectedAgent = null,
@@ -53,6 +55,7 @@ export function BottomPanel({
   isLive,
   hasSubagents,
   viewingTurnNumber,
+  subagentMeta = null,
   openBottomTabRef,
 }: BottomPanelProps) {
   const [activeTab, setActiveTab] = useState<BottomTab>("agent-graph");
@@ -256,14 +259,13 @@ export function BottomPanel({
               />
             ) : activeTab === "tool-call" ? (
               <DetailTab turns={turns} allEvents={events} activeTurnIndex={activeTurnIndex} />
-            ) : activeTab === "raw-log" ? (
-              <RawLogTab
-                turns={turns}
+            ) : activeTab === "agent-log" ? (
+              <AgentLogTab
                 allEvents={events}
-                activeTurnIndex={activeTurnIndex}
-                events={events}
-                liveEvents={liveEvents}
-                isLive={isLive}
+                dag={dag}
+                subagentMeta={subagentMeta}
+                selectedAgent={selectedAgent}
+                onSelectAgent={onSelectAgent}
               />
             ) : activeTab === "cost" ? (
               <CostTab metrics={metrics} />

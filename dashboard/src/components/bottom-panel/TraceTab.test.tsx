@@ -36,7 +36,7 @@ const mockTurn: TurnSnapshot = {
   status: "completed",
   durationMs: 1000,
   cost: 0.5,
-  costBreakdown: { total: 0.5, tokensIn: 0.3, tokensOut: 0.2 },
+  costBreakdown: { total: 0.5, inputCost: 0.3, outputCost: 0.2 },
   startTime: "2026-01-01T00:00:00Z",
   completedAt: "2026-01-01T00:00:01Z",
   endTime: "2026-01-01T00:00:01Z",
@@ -488,6 +488,110 @@ describe("TraceTab depth limit", () => {
     expect(container.textContent).not.toContain("DeepTool");
     // Toggle button should be visible
     expect(container.querySelector("[data-testid='trace-depth-toggle']")).not.toBeNull();
+  });
+});
+
+describe("TraceTab Name column", () => {
+  afterEach(cleanup);
+
+  it("renders Name column header", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "main",
+          type: "orchestrator",
+          description: "Orchestrator",
+          startTime: "2026-01-01T00:00:00Z",
+          endTime: "2026-01-01T00:10:00Z",
+        }),
+      ],
+      edges: [],
+    };
+    const { container } = render(
+      <TraceTab
+        dag={dag}
+        turns={[mockTurn]}
+        activeTurnIndex={null}
+        selectedAgent={null}
+        panelHeight={300}
+      />,
+    );
+    const headers = container.querySelectorAll(".trace-col-header");
+    const headerTexts = Array.from(headers).map((h) => h.textContent);
+    expect(headerTexts).toContain("Name");
+  });
+
+  it("renders agent type name in Name column for each row", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "main",
+          type: "orchestrator",
+          description: "Orchestrator",
+          startTime: "2026-01-01T00:00:00Z",
+          endTime: "2026-01-01T00:10:00Z",
+        }),
+        makeNode({
+          id: "agent-1",
+          type: "bug-fixer",
+          description: "Fix login bug",
+          parentId: "main",
+          startTime: "2026-01-01T00:01:00Z",
+          endTime: "2026-01-01T00:05:00Z",
+        }),
+      ],
+      edges: [{ source: "main", target: "agent-1" }],
+    };
+    const { container } = render(
+      <TraceTab
+        dag={dag}
+        turns={[mockTurn]}
+        activeTurnIndex={null}
+        selectedAgent={null}
+        panelHeight={300}
+      />,
+    );
+    const nameCols = container.querySelectorAll(".trace-col-name");
+    // Header + 2 data rows = 3
+    expect(nameCols.length).toBe(3);
+    // Data rows show the agent type
+    const dataNames = Array.from(nameCols)
+      .filter((el) => !el.classList.contains("trace-col-header"))
+      .map((el) => el.textContent);
+    expect(dataNames).toContain("orchestrator");
+    expect(dataNames).toContain("bug-fixer");
+  });
+
+  it("Name column appears between Agent label and Duration", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "main",
+          type: "orchestrator",
+          description: "Orchestrator",
+          startTime: "2026-01-01T00:00:00Z",
+          endTime: "2026-01-01T00:10:00Z",
+        }),
+      ],
+      edges: [],
+    };
+    const { container } = render(
+      <TraceTab
+        dag={dag}
+        turns={[mockTurn]}
+        activeTurnIndex={null}
+        selectedAgent={null}
+        panelHeight={300}
+      />,
+    );
+    const header = container.querySelector(".trace-header");
+    const children = Array.from(header!.children).map((c) => c.textContent);
+    // Order: Agent label, Name header, Duration header, Cost header, ticks
+    const nameIdx = children.findIndex((t) => t === "Name");
+    const durationIdx = children.findIndex((t) => t === "Duration");
+    expect(nameIdx).toBeGreaterThan(-1);
+    expect(durationIdx).toBeGreaterThan(-1);
+    expect(nameIdx).toBeLessThan(durationIdx);
   });
 });
 

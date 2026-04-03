@@ -14,15 +14,33 @@ afterEach(() => {
 });
 
 describe("useDiscoveryCommands", () => {
-  it("returns hardcoded fallback when no sessionId", () => {
+  it("fetches from /api/commands when no sessionId", async () => {
+    const serverCommands = [
+      { name: "help", description: "Show help" },
+      { name: "compact", description: "Compact context" },
+      { name: "commit", description: "Commit changes" },
+    ];
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ commands: serverCommands, source: "global-cache" }),
+    });
+
     const { result } = renderHook(() => useDiscoveryCommands(undefined));
-    expect(result.current.length).toBeGreaterThan(0);
-    expect(result.current[0]).toHaveProperty("name");
-    expect(result.current[0]).toHaveProperty("description");
-    expect(fetchMock).not.toHaveBeenCalled();
+
+    // Initially has client fallback + dashboard-only commands
+    expect(result.current.length).toBeGreaterThan(30);
+
+    await waitFor(() => {
+      // After fetch, should have server commands + dashboard-only merged
+      expect(fetchMock).toHaveBeenCalledWith("/api/commands");
+    });
+
+    const names = result.current.map((c) => c.name);
+    expect(names).toContain("/help");
+    expect(names).toContain("/copy");
   });
 
-  it("fetches commands from server when sessionId is provided", async () => {
+  it("fetches commands from server and merges dashboard-only commands", async () => {
     const sdkCommands = [
       { name: "help", description: "Show help", argumentHint: "" },
       { name: "compact", description: "Compact context", argumentHint: "" },
@@ -35,12 +53,17 @@ describe("useDiscoveryCommands", () => {
     const { result } = renderHook(() => useDiscoveryCommands("session-123"));
 
     await waitFor(() => {
-      expect(result.current.length).toBe(2);
+      // 2 SDK commands + dashboard-only commands (copy, export, analytics, shortcuts, exit)
+      expect(result.current.length).toBeGreaterThan(2);
     });
 
-    expect(result.current).toEqual(
-      sdkCommands.map((c) => ({ name: "/" + c.name, description: c.description }))
-    );
+    // SDK commands should be present with "/" prefix
+    const names = result.current.map((c) => c.name);
+    expect(names).toContain("/help");
+    expect(names).toContain("/compact");
+    // Dashboard-only commands should be merged in
+    expect(names).toContain("/copy");
+    expect(names).toContain("/export");
     expect(fetchMock).toHaveBeenCalledWith("/api/sessions/session-123/commands");
   });
 
@@ -49,8 +72,8 @@ describe("useDiscoveryCommands", () => {
 
     const { result } = renderHook(() => useDiscoveryCommands("session-456"));
 
-    // Should still have the fallback commands immediately
-    expect(result.current.length).toBeGreaterThan(0);
+    // Should still have the full fallback commands immediately (CLI + dashboard-only)
+    expect(result.current.length).toBeGreaterThan(30);
     expect(result.current[0]).toHaveProperty("name");
   });
 
@@ -67,8 +90,8 @@ describe("useDiscoveryCommands", () => {
       expect(fetchMock).toHaveBeenCalled();
     });
 
-    // Should still have fallback commands
-    expect(result.current.length).toBeGreaterThan(0);
+    // Should still have full fallback commands (CLI + dashboard-only)
+    expect(result.current.length).toBeGreaterThan(30);
   });
 
   it("does not refetch when sessionId stays the same", async () => {
@@ -86,7 +109,8 @@ describe("useDiscoveryCommands", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.length).toBe(1);
+      // 1 SDK command + 5 dashboard-only commands
+      expect(result.current.length).toBe(6);
     });
 
     // Rerender with same sessionId
@@ -119,14 +143,16 @@ describe("useDiscoveryCommands", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.length).toBe(1);
+      // 1 SDK command + 5 dashboard-only commands
+      expect(result.current.length).toBe(6);
     });
 
     // Change sessionId
     rerender({ id: "session-b" });
 
     await waitFor(() => {
-      expect(result.current.length).toBe(2);
+      // 2 SDK commands + 5 dashboard-only commands
+      expect(result.current.length).toBe(7);
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);

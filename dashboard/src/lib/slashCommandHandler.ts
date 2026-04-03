@@ -2,7 +2,9 @@ import type { SessionMetrics, UsageInfo, CostSummary, SessionEvent } from "./typ
 import { formatCostCommand, formatUsageCommand, formatDiffCommand, formatMcpCommand, formatTasksCommand, formatAnalyticsCommand, formatContextCommand, formatPermissionsCommand } from "./commandFormatters";
 import { generateMarkdownExport, generateJsonExport, triggerDownload } from "./exportSession";
 
-/** Model name shortcuts for /model command */
+/** Model name shortcuts for /model command.
+ * Keep in sync with server FALLBACK_MODEL_PRICING (server/src/analyzer/metrics.ts).
+ * The full model ID can always be typed directly — these are convenience aliases. */
 const MODEL_SHORTCUTS: Record<string, string> = {
   opus: "claude-opus-4-6",
   sonnet: "claude-sonnet-4-6",
@@ -24,6 +26,8 @@ export interface SlashCommandContext {
   getAssistantResponses?: (count: number) => string[];
   onSessionStarted?: (sessionId: string) => void;
   onOpenPanel?: (panel: string) => void;
+  /** Discovered slash commands (from SDK + dashboard merge) for dynamic /help */
+  discoveredCommands?: Array<{ name: string; description: string }>;
 }
 
 export type ShowOutputFn = (msg: string) => void;
@@ -598,15 +602,37 @@ export async function handleSlashCommand(
     return true;
   }
 
-  // Unknown command
-  showOutput(getCommandOutput(command));
+  // /help — always handled locally (shows command list)
+  if (command === "/help") {
+    showOutput(getCommandOutput(command, ctx.discoveredCommands));
+    return true;
+  }
+
+  // /exit — local-only dashboard command
+  if (command === "/exit") {
+    showOutput(getCommandOutput(command, ctx.discoveredCommands));
+    return true;
+  }
+
+  // Check if this is a known skill/plugin command — forward to SDK
+  if (ctx.discoveredCommands?.some((c) => c.name === command)) {
+    return false; // Forward to SDK as a message
+  }
+
+  // Truly unknown command
+  showOutput(getCommandOutput(command, ctx.discoveredCommands));
   return true;
 }
 
-function getCommandOutput(command: string): string {
+function getCommandOutput(command: string, discoveredCommands?: Array<{ name: string }>): string {
   switch (command) {
-    case "/help":
+    case "/help": {
+      if (discoveredCommands && discoveredCommands.length > 0) {
+        const sorted = [...discoveredCommands].sort((a, b) => a.name.localeCompare(b.name));
+        return "Available commands: " + sorted.map((c) => c.name).join(", ");
+      }
       return "Available commands: /add-dir, /agents, /analytics, /clear, /compact, /context, /copy, /cost, /diff, /doctor, /effort, /export, /fast, /help, /hooks, /init, /login, /logout, /mcp, /memory, /model, /output-style, /permissions, /plan, /rename, /resume, /review, /rewind, /settings, /shortcuts, /stats, /tasks, /usage, /exit";
+    }
     case "/clear":
       return "";
     case "/cost":

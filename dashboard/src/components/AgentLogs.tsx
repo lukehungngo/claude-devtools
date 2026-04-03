@@ -11,6 +11,7 @@ import { normalizeContent } from "../lib/normalizeContent";
 import { formatTime } from "../lib/formatTime";
 import { formatCost, formatDuration, calculateTurnCost } from "../lib/cost";
 import { getAgentBadgeStyle } from "../lib/agentColors";
+import { buildExportPayload, downloadJson } from "../lib/exportAgentLog";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -80,6 +81,12 @@ function getActionBadgeStyle(toolName: string | null): {
   };
 }
 
+/** Extract first non-empty line as a single-line preview. */
+function firstLine(text: string): string {
+  const line = text.split("\n").find((l) => l.trim()) || "";
+  return line.slice(0, 200);
+}
+
 // ─── Transform SessionEvents to LogEntries ───────────────────────────
 
 function resolveAgentType(
@@ -118,17 +125,17 @@ function extractToolInfo(
     const rawMessage = typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
     return {
       toolName: content.is_error ? "error" : "result",
-      message: rawMessage.slice(0, 120),
+      message: firstLine(rawMessage),
       rawMessage,
     };
   }
   if (content.type === "thinking") {
     const rawMessage = content.thinking || "";
-    return { toolName: "thinking", message: rawMessage.slice(0, 120), rawMessage };
+    return { toolName: "thinking", message: firstLine(rawMessage), rawMessage };
   }
   if (content.type === "text") {
     const rawMessage = content.text || "";
-    return { toolName: "", message: rawMessage.slice(0, 120), rawMessage };
+    return { toolName: "", message: firstLine(rawMessage), rawMessage };
   }
   return null;
 }
@@ -187,7 +194,8 @@ export function eventsToLogEntries(
             timestamp: event.timestamp,
             agentId,
             agentType,
-            message: (typeof content.content === "string" ? content.content : JSON.stringify(content.content)).slice(0, 120),
+            message: firstLine(typeof content.content === "string" ? content.content : JSON.stringify(content.content)),
+            rawMessage: typeof content.content === "string" ? content.content : JSON.stringify(content.content, null, 2),
             toolName: content.is_error ? "error" : "result",
             isError: !!content.is_error,
             cost: 0,
@@ -198,7 +206,8 @@ export function eventsToLogEntries(
             timestamp: event.timestamp,
             agentId,
             agentType,
-            message: (content.text || "").slice(0, 120),
+            message: firstLine(content.text || ""),
+            rawMessage: content.text || "",
             toolName: null,
             isError: false,
             cost: 0,
@@ -374,7 +383,7 @@ export function AgentLogs({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("All");
-  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+  const [collapsedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
 
   const toggleExpand = useCallback((uuid: string) => {
@@ -432,7 +441,7 @@ export function AgentLogs({
     for (let gi = 0; gi < timelineGroups.length; gi++) {
       const group = timelineGroups[gi];
       items.push({ kind: "agent-header", group, groupIndex: gi });
-      if (expandedGroups.has(gi)) {
+      if (!collapsedGroups.has(gi)) {
         for (let ei = 0; ei < group.entries.length; ei++) {
           items.push({
             kind: "entry",
@@ -445,7 +454,7 @@ export function AgentLogs({
       }
     }
     return items;
-  }, [timelineGroups, expandedGroups]);
+  }, [timelineGroups, collapsedGroups]);
 
   // Virtualizer
   const virtualizer = useVirtualizer({
@@ -476,6 +485,12 @@ export function AgentLogs({
     }
   }, []);
 
+  const handleExport = useCallback(() => {
+    const payload = buildExportPayload(filteredEntries, timelineGroups);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    downloadJson(payload, `agent-log-${timestamp}.json`);
+  }, [filteredEntries, timelineGroups]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -490,6 +505,13 @@ export function AgentLogs({
           </span>
         </div>
         <div className="flex gap-1">
+          <button
+            onClick={handleExport}
+            className="w-7 h-7 flex items-center justify-center rounded-dt-sm text-dt-text2 cursor-pointer border-none bg-transparent hover:bg-dt-bg3/50 transition-all duration-150 text-sm"
+            title="Export agent log as JSON"
+          >
+            &#x2913;
+          </button>
           {!autoScroll && (
             <button
               onClick={resumeAutoScroll}
@@ -560,7 +582,7 @@ export function AgentLogs({
 
               if (item.kind === "agent-header") {
                 const { group, groupIndex } = item;
-                const isExpanded = expandedGroups.has(groupIndex);
+                const isCollapsed = collapsedGroups.has(groupIndex);
                 const badgeStyle = getAgentBadgeStyle(group.agentType);
                 const depthColor = getDepthColor(group.depth);
                 const indent = group.depth * 20;
@@ -587,7 +609,7 @@ export function AgentLogs({
                           return next;
                         });
                       }}
-                      className="flex items-center gap-2 py-1 cursor-pointer select-none border-b border-white/[0.03]"
+                      className="flex items-center gap-2 py-1 cursor-pointer select-none border-b border-dt-border/30"
                       style={{ paddingLeft: 12 + indent }}
                     >
                       {/* Timeline dot */}
@@ -596,7 +618,7 @@ export function AgentLogs({
                         style={{ background: depthColor }}
                       />
                       {/* Collapse arrow */}
-                      <span className={`text-[8px] text-dt-text2 transition-transform duration-150 ${isExpanded ? "rotate-0" : "-rotate-90"}`}>
+                      <span className={`text-[8px] text-dt-text2 transition-transform duration-150 ${isCollapsed ? "-rotate-90" : "rotate-0"}`}>
                         {"\u25BC"}
                       </span>
                       {/* Agent badge */}
@@ -657,7 +679,7 @@ export function AgentLogs({
                   }}
                 >
                   <div
-                    className={`flex items-start gap-2 py-0.5 pr-3 text-[11px] border-b border-white/[0.02] transition-colors duration-150 ${isHighlighted ? "bg-dt-bg2" : ""}`}
+                    className={`flex items-start gap-2 py-0.5 pr-3 text-[11px] border-b border-dt-border/20 transition-colors duration-150 ${isHighlighted ? "bg-dt-bg2" : ""}`}
                     style={{ paddingLeft: 16 + indent }}
                   >
                     {/* Timeline line segment */}

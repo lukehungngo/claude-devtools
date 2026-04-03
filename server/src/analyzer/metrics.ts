@@ -13,8 +13,10 @@ import { buildAgentDAG } from "./dag-builder.js";
 import { buildToolStats } from "./tool-stats.js";
 import { normalizeContent } from "../lib/normalizeContent.js";
 
-// Pricing per million tokens (March 2026)
-const MODEL_PRICING: Record<
+// Fallback pricing per million tokens — used ONLY when SDK authoritative cost is unavailable
+// (e.g., historical sessions parsed from JSONL without a result event).
+// Prefer SDK `result.modelUsage[model].costUSD` or `result.total_cost_usd` when available.
+const FALLBACK_MODEL_PRICING: Record<
   string,
   { input: number; output: number; cacheWrite: number; cacheRead: number }
 > = {
@@ -23,8 +25,8 @@ const MODEL_PRICING: Record<
   "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheWrite: 1, cacheRead: 0.08 },
 };
 
-// Context window sizes per model
-const CONTEXT_WINDOW_SIZES: Record<string, number> = {
+// Fallback context window sizes — prefer SDK `result.modelUsage[model].contextWindow`
+const FALLBACK_CONTEXT_WINDOW_SIZES: Record<string, number> = {
   "claude-opus-4-6": 200_000,
   "claude-sonnet-4-6": 200_000,
   "claude-haiku-4-5": 200_000,
@@ -34,9 +36,9 @@ export function calculateTokenCost(
   model: string,
   tokens: { inputTokens: number; outputTokens: number; cacheWriteTokens: number; cacheReadTokens: number }
 ): number {
-  const pricing = Object.entries(MODEL_PRICING).find(([key]) =>
+  const pricing = Object.entries(FALLBACK_MODEL_PRICING).find(([key]) =>
     model.includes(key.split("-").slice(0, -1).join("-")) || model.includes(key)
-  )?.[1] || MODEL_PRICING["claude-sonnet-4-6"];
+  )?.[1] || FALLBACK_MODEL_PRICING["claude-sonnet-4-6"];
 
   return (
     (tokens.inputTokens * pricing.input) / 1_000_000 +
@@ -51,7 +53,7 @@ function getContextWindowSize(model: string): number {
   if (model.includes("1m") || model.includes("1M")) {
     return 1_000_000;
   }
-  for (const [key, size] of Object.entries(CONTEXT_WINDOW_SIZES)) {
+  for (const [key, size] of Object.entries(FALLBACK_CONTEXT_WINDOW_SIZES)) {
     if (model.includes(key)) return size;
   }
   return 200_000; // default
@@ -218,8 +220,12 @@ export function computeMetrics(
     totalTokens.cacheReadTokens += cacheRead;
     totalTokens.totalCost += cost;
 
-    // Track last input tokens (this represents context window usage for that turn)
-    lastInputTokens = input + cacheRead;
+    // Track last input tokens (this represents context window usage for that turn).
+    // All three categories consume context window space:
+    //   input = non-cache input tokens
+    //   cacheWrite = tokens newly written to cache (part of this request's input)
+    //   cacheRead = tokens served from cache (part of this request's input)
+    lastInputTokens = input + cacheWrite + cacheRead;
 
     if (!tokensByModel[model]) {
       tokensByModel[model] = {

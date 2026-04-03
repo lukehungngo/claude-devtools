@@ -7,9 +7,9 @@ describe("computeSuggestion", () => {
     expect(result).toBe("Describe what you'd like to build...");
   });
 
-  it("returns fix suggestion after error", () => {
+  it("returns continue suggestion after error (error hint disabled due to high false-positive rate)", () => {
     const result = computeSuggestion("", { hasMessages: true, lastTurnHadError: true });
-    expect(result).toBe("Fix the error above");
+    expect(result).toBe("Continue with next steps...");
   });
 
   it("returns continue suggestion after successful turn", () => {

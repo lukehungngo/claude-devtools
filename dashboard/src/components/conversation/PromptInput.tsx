@@ -250,6 +250,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         getAssistantResponses,
         onSessionStarted,
         onOpenPanel,
+        discoveredCommands,
       }, showOutput);
       if (handled) return;
       // Not handled means forward as message (e.g., /compact, /rewind)

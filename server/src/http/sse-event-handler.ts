@@ -157,6 +157,20 @@ export interface SSESessionStateChangedEvent {
   state: string;
 }
 
+export interface SSEAuthStatusEvent {
+  type: "auth_status";
+  isAuthenticating: boolean;
+  error?: string;
+}
+
+export interface SSEApiRetryEvent {
+  type: "api_retry";
+  attempt: number;
+  maxRetries: number;
+  retryDelayMs: number;
+  errorStatus?: number;
+}
+
 export type SSEEvent =
   | SSETextEvent
   | SSEThinkingEvent
@@ -180,7 +194,9 @@ export type SSEEvent =
   | SSEHookResponseEvent
   | SSEPromptSuggestionEvent
   | SSECommandOutputEvent
-  | SSESessionStateChangedEvent;
+  | SSESessionStateChangedEvent
+  | SSEAuthStatusEvent
+  | SSEApiRetryEvent;
 
 /**
  * Maps an SDK message to zero or more SSE events.
@@ -235,7 +251,7 @@ export function mapSdkMessageToSSEEvents(msg: {
     }
   }
 
-  // Assistant message (complete) — extract text blocks
+  // Assistant message (complete) — extract text blocks and error field
   if (msg.type === "assistant" && msg.message?.content) {
     const content = msg.message.content;
     if (Array.isArray(content)) {
@@ -244,6 +260,10 @@ export function mapSdkMessageToSSEEvents(msg: {
           events.push({ type: "stdout", text: block.text });
         }
       }
+    }
+    // SDK assistant messages can include an error field (rate_limit, billing_error, etc.)
+    if (msg.message.error) {
+      events.push({ type: "error", message: `Assistant error: ${msg.message.error}` });
     }
   }
 
@@ -311,6 +331,26 @@ export function mapSdkMessageToSSEEvents(msg: {
   // Session state changed (official SDK signal for running/idle/requires_action)
   if (msg.type === "system" && msg.subtype === "session_state_changed") {
     events.push({ type: "session_state_changed", state: msg.state });
+  }
+
+  // Auth status (SDK auth flow visibility)
+  if (msg.type === "auth_status") {
+    events.push({
+      type: "auth_status",
+      isAuthenticating: !!msg.isAuthenticating,
+      error: msg.error,
+    });
+  }
+
+  // API retry (SDK retry progress during rate limiting / transient errors)
+  if (msg.type === "system" && msg.subtype === "api_retry") {
+    events.push({
+      type: "api_retry",
+      attempt: msg.attempt ?? 0,
+      maxRetries: msg.max_retries ?? 0,
+      retryDelayMs: msg.retry_delay_ms ?? 0,
+      errorStatus: msg.error_status ?? undefined,
+    });
   }
 
   // System hook events

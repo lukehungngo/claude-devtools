@@ -223,11 +223,15 @@ describe("PromptInput", () => {
       fireEvent.change(textarea, { target: { value: "/help " } });
       fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
 
+      // Flush the async handleSlashCommand promise chain
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
       // fetch should NOT have been called
       expect(fetchMock).not.toHaveBeenCalled();
 
       // Should show some output message
-      await act(async () => {});
       const output = container.querySelector(".text-xs.text-dt-text2.px-1.pt-1.font-mono");
       expect(output).not.toBeNull();
       expect(output!.textContent).toContain("Available commands");

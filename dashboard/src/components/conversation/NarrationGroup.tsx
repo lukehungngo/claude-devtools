@@ -33,24 +33,15 @@ export function NarrationGroup({ items }: NarrationGroupProps) {
         className="flex items-center gap-2 cursor-pointer select-none px-2.5 py-1.5"
       >
         <span
-          className="shrink-0 inline-block transition-transform duration-150 text-dt-text2 w-3 text-center"
-          style={{
-            fontSize: 9,
-            transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
-          }}
+          className="shrink-0 inline-block transition-transform duration-150 text-dt-text2 w-3 text-center text-[9px]"
+          style={{ transform: expanded ? "rotate(90deg)" : "rotate(0deg)" }}
         >
           &#9656;
         </span>
-        <span
-          className="font-mono font-semibold uppercase tracking-wide text-dt-text2"
-          style={{ fontSize: 10 }}
-        >
+        <span className="font-mono font-semibold uppercase tracking-wide text-dt-text2 text-[10px]">
           Working
         </span>
-        <span
-          className="font-mono text-dt-text2"
-          style={{ fontSize: 10 }}
-        >
+        <span className="font-mono text-dt-text2 text-[10px]">
           {nonEmpty.length > 1
             ? `${nonEmpty.length} steps \u00b7 ${totalChars} chars`
             : `${totalChars} chars`}
@@ -65,10 +56,7 @@ export function NarrationGroup({ items }: NarrationGroupProps) {
               key={i}
               className="border-l-2 border-dt-border pl-2 my-1"
             >
-              <div
-                className="font-mono leading-relaxed whitespace-pre-wrap break-words text-dt-text2"
-                style={{ fontSize: 11 }}
-              >
+              <div className="font-mono leading-relaxed whitespace-pre-wrap break-words text-dt-text2 text-[11px]">
                 {text}
               </div>
             </div>

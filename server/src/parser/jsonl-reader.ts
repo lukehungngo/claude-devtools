@@ -2,17 +2,22 @@ import { readFileSync, existsSync, openSync, fstatSync, readSync, closeSync } fr
 import type { SessionEvent } from "../types.js";
 import { parserLog } from "../logger.js";
 
-/** Event types we process. Others (file-history-snapshot, last-prompt, pr-link) are silently skipped. */
-const KNOWN_EVENT_TYPES = new Set([
-  "user",
-  "assistant",
-  "system",
-  "progress",
-  "queue-operation",
+/**
+ * Event types that are NOT session conversation events (metadata, snapshots, bookmarks).
+ * We skip these to avoid inflating event counts and confusing the parser.
+ * Everything else is passed through — the SDK may add new event types and we should not
+ * silently drop them.
+ */
+const IGNORED_EVENT_TYPES = new Set([
+  "file-history-snapshot",
+  "last-prompt",
+  "pr-link",
 ]);
 
-function isKnownEvent(parsed: Record<string, unknown>): boolean {
-  return typeof parsed.type === "string" && KNOWN_EVENT_TYPES.has(parsed.type);
+function isRelevantEvent(parsed: Record<string, unknown>): boolean {
+  const type = parsed.type;
+  if (typeof type !== "string") return false;
+  return !IGNORED_EVENT_TYPES.has(type);
 }
 
 export function parseJsonlFile(filePath: string): SessionEvent[] {
@@ -26,7 +31,7 @@ export function parseJsonlFile(filePath: string): SessionEvent[] {
     if (!trimmed) continue;
     try {
       const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-      if (!isKnownEvent(parsed)) continue;
+      if (!isRelevantEvent(parsed)) continue;
       events.push(parsed as unknown as SessionEvent);
     } catch (err) {
       // Skip malformed lines — fail safe per architecture invariant
@@ -68,7 +73,7 @@ export function parseJsonlIncremental(
       if (!trimmed) continue;
       try {
         const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-        if (!isKnownEvent(parsed)) continue;
+        if (!isRelevantEvent(parsed)) continue;
         events.push(parsed as unknown as SessionEvent);
       } catch (err) {
         // Skip malformed lines — fail safe per architecture invariant

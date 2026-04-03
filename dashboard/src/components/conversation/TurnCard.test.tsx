@@ -40,7 +40,7 @@ function makeTurnAndEvents(
       startIndex: 0,
       endIndex: events.length,
       durationMs: null,
-      costBreakdown: { total: 0, tokensIn: 0, tokensOut: 0 },
+      costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
       endTime: "",
       completedAt: "",
       ...overrides,
@@ -156,7 +156,7 @@ describe("TurnCard — CostFooter wiring", () => {
     const { turn, allEvents } = makeTurnAndEvents(
       {
         cost: 0.0035,
-        costBreakdown: { total: 0.0035, tokensIn: 500, tokensOut: 200 },
+        costBreakdown: { total: 0.0035, inputCost: 0.002, outputCost: 0.0015 },
         agents: [
           {
             agentId: "agent-1",

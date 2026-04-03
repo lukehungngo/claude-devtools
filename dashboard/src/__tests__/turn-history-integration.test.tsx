@@ -19,7 +19,7 @@ function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
     status: "completed",
     durationMs: 3200,
     cost: 0.0042,
-    costBreakdown: { total: 0.0042, tokensIn: 0.001, tokensOut: 0.0032 },
+    costBreakdown: { total: 0.0042, inputCost: 0.001, outputCost: 0.0032 },
     startTime: new Date(Date.now() - 120_000).toISOString(),
     completedAt: new Date(Date.now() - 116_800).toISOString(),
     endTime: new Date(Date.now() - 116_800).toISOString(),

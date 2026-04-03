@@ -75,7 +75,7 @@ const mockTurn: TurnSnapshot = {
   status: "completed",
   durationMs: 1000,
   cost: 0.5,
-  costBreakdown: { total: 0.5, tokensIn: 0.3, tokensOut: 0.2 },
+  costBreakdown: { total: 0.5, inputCost: 0.3, outputCost: 0.2 },
   startTime: "2026-01-01T00:00:00Z",
   completedAt: "2026-01-01T00:00:01Z",
   endTime: "2026-01-01T00:00:01Z",
@@ -106,8 +106,13 @@ describe("BottomPanel", () => {
     render(<BottomPanel />);
     expect(screen.getByText("Agent Graph")).toBeDefined();
     expect(screen.getByText("Tool Call")).toBeDefined();
-    expect(screen.getByText("Raw Log")).toBeDefined();
+    expect(screen.getByText("Agent Log")).toBeDefined();
     expect(screen.getByText("Cost")).toBeDefined();
+  });
+
+  it("does not render a Raw Log tab", () => {
+    render(<BottomPanel />);
+    expect(screen.queryByText("Raw Log")).toBeNull();
   });
 
   it("does not render old tabs (Live, History, Raw, Trace, Detail)", () => {
@@ -132,7 +137,6 @@ describe("BottomPanel", () => {
         metrics={mockMetrics}
         turns={[mockTurn]}
         events={[]}
-        liveEvents={[]}
         dag={mockDag}
         activeTurnIndex={0}
         selectedAgent="main"
@@ -210,13 +214,6 @@ describe("BottomPanel", () => {
     render(<BottomPanel turns={[mockTurn]} activeTurnIndex={null} />);
     fireEvent.click(screen.getByText("Tool Call"));
     expect(screen.getByText("Select a turn to see tool details")).toBeDefined();
-  });
-
-  it("renders RawLogTab when Raw Log tab is clicked", () => {
-    render(<BottomPanel turns={[mockTurn]} events={[]} liveEvents={[]} activeTurnIndex={null} />);
-    fireEvent.click(screen.getByText("Raw Log"));
-    // RawLogTab defaults to Events mode, shows "Waiting for events..." when empty
-    expect(screen.getByText("Waiting for events...")).toBeDefined();
   });
 
   it("shows detail count badge on Tool Call tab", () => {

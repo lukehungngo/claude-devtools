@@ -632,7 +632,7 @@ function renderGroups(
   return nodes;
 }
 
-export function ToolEntries({ events, onToolClick }: ToolEntriesProps) {
+export function ToolEntriesInner({ events, onToolClick }: ToolEntriesProps) {
   const { entries, textBoundaryIndices, thinkingContext } = extractToolEntries(events);
   const groups = groupToolEntries(entries);
 
@@ -714,3 +714,8 @@ export function ToolEntries({ events, onToolClick }: ToolEntriesProps) {
     </div>
   );
 }
+
+/** Memoized ToolEntries — skips re-render when events ref is stable */
+export const ToolEntries = memo(ToolEntriesInner, (prev, next) =>
+  prev.events === next.events && prev.onToolClick === next.onToolClick
+);

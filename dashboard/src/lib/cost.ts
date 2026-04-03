@@ -1,15 +1,16 @@
 /**
- * Per-model pricing table (per million tokens). March 2026.
- * Must be manually updated when Anthropic changes rates.
- * Mirrors server/src/analyzer/metrics.ts MODEL_PRICING.
+ * Fallback pricing table (per million tokens). March 2026.
+ * Used ONLY for client-side turn-level cost estimates when server metrics are unavailable.
+ * Prefer server's computeMetrics() or SDK's result.modelUsage[model].costUSD for authoritative costs.
+ * Mirrors server/src/analyzer/metrics.ts FALLBACK_MODEL_PRICING.
  */
-const MODEL_PRICING: Record<string, { input: number; output: number; cacheWrite: number; cacheRead: number }> = {
+const FALLBACK_MODEL_PRICING: Record<string, { input: number; output: number; cacheWrite: number; cacheRead: number }> = {
   "claude-opus-4-6": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
   "claude-sonnet-4-6": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
   "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheWrite: 1, cacheRead: 0.08 },
 };
 
-const DEFAULT_PRICING = MODEL_PRICING["claude-sonnet-4-6"];
+const DEFAULT_PRICING = FALLBACK_MODEL_PRICING["claude-sonnet-4-6"];
 
 /**
  * Calculate turn cost using per-model pricing (including cache tokens).
@@ -23,7 +24,7 @@ export function calculateTurnCost(
   cacheReadTokens = 0,
 ): number {
   const pricing =
-    Object.entries(MODEL_PRICING).find(
+    Object.entries(FALLBACK_MODEL_PRICING).find(
       ([key]) =>
         model.includes(key) ||
         model.includes(key.split("-").slice(0, -1).join("-"))

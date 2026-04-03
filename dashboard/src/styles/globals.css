@@ -620,7 +620,8 @@
   white-space: nowrap;
 }
 
-/* Duration & Cost columns (fixed-width, right of track) */
+/* Name, Duration & Cost columns (fixed-width, right of label) */
+.trace-col-name,
 .trace-col-duration,
 .trace-col-cost {
   flex-shrink: 0;
@@ -630,6 +631,13 @@
   white-space: nowrap;
   text-align: right;
   padding: 0 8px;
+}
+
+.trace-col-name {
+  text-align: left;
+  border-left: 1px solid var(--bd);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .trace-col-duration {

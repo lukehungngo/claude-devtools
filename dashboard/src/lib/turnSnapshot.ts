@@ -28,8 +28,10 @@ export interface AgentSummary {
 
 export interface CostBreakdown {
   total: number;
-  tokensIn: number;
-  tokensOut: number;
+  /** Cost in USD for input tokens (including cache write/read) */
+  inputCost: number;
+  /** Cost in USD for output tokens */
+  outputCost: number;
 }
 
 export interface TurnSnapshot {
@@ -295,8 +297,8 @@ function buildTurn(
     cost,
     costBreakdown: {
       total: cost,
-      tokensIn: totalInputCost,
-      tokensOut: totalOutputCost,
+      inputCost: totalInputCost,
+      outputCost: totalOutputCost,
     },
     startTime: events[0]?.timestamp ?? "",
     completedAt: "",  // Set by groupEventsIntoTurns when turn is finalized

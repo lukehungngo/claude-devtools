@@ -7,6 +7,7 @@ import { resolveSlugToProjectHash } from "../lib/repoSlug";
 import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental } from "../lib/turnSnapshot";
 import { ConversationView } from "../components/conversation/ConversationView";
 import { ReopenBar } from "../components/conversation/ReopenBar";
+import { RawLogView } from "../components/conversation/RawLogView";
 
 export function SessionPage() {
   const { repoSlug, sessionId } = useParams({ strict: false }) as {
@@ -25,6 +26,7 @@ export function SessionPage() {
     setCurrentDag,
     setCurrentSelectedAgent,
     setHasSubagents,
+    setCurrentSubagentMeta,
     toolFilter,
     setToolFilter,
     permissions,
@@ -84,10 +86,15 @@ export function SessionPage() {
     setHasSubagents((metrics?.dag?.nodes?.length ?? 0) > 1);
   }, [metrics?.dag, setCurrentDag, setHasSubagents]);
 
+  useEffect(() => {
+    setCurrentSubagentMeta(subagentMeta ?? null);
+  }, [subagentMeta, setCurrentSubagentMeta]);
+
   // Cross-panel shared state (local to session)
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [highlightedTurnIndex, setHighlightedTurnIndex] = useState<number | undefined>(undefined);
   const [selectedTurnIndex, setSelectedTurnIndex] = useState<number | null>(null);
+  const [mainTab, setMainTab] = useState<"conversation" | "raw-log">("conversation");
 
   // Background REST sync every 30 seconds (replaces per-event debounced refetch)
   // Use ref for liveEvents length to avoid interval teardown on every event batch
@@ -218,9 +225,10 @@ export function SessionPage() {
       setCurrentSelectedAgent(null);
       setCurrentActiveTurnIndex(null);
       setHasSubagents(false);
+      setCurrentSubagentMeta(null);
       setViewingTurnNumber(undefined);
     };
-  }, [setCurrentMetrics, setCurrentEvents, setCurrentLiveEvents, setCurrentTurns, setCurrentDag, setCurrentSelectedAgent, setCurrentActiveTurnIndex, setHasSubagents, setViewingTurnNumber]);
+  }, [setCurrentMetrics, setCurrentEvents, setCurrentLiveEvents, setCurrentTurns, setCurrentDag, setCurrentSelectedAgent, setCurrentActiveTurnIndex, setHasSubagents, setCurrentSubagentMeta, setViewingTurnNumber]);
 
   if (metricsLoading && !metrics) {
     return (
@@ -239,28 +247,67 @@ export function SessionPage() {
   }
 
   return (
-    <>
-      {!turnHistoryOpen && <ReopenBar onReopen={handleReopenTurnHistory} />}
-      <ConversationView
-        events={allEvents}
-        turns={turns}
-        metrics={metrics}
-        isLive={isLive}
-        sessionCwd={metrics.session.cwd}
-        sessionId={metrics.session.id}
-        projectHash={projectHash}
-        activeSessionId={activeSessionId ?? undefined}
-        onSessionStarted={setActiveSessionId}
-        highlightedTurnIndex={highlightedTurnIndex}
-        permissions={permissions}
-        onPermissionDecide={decidePermission}
-        onDecideSession={decidePermissionSession}
-        questions={questions}
-        onSubmitAnswer={submitAnswer}
-        onAgentPillClick={handleAgentPillClick}
-        onTurnClick={handleTurnClick}
-        onOpenPanel={handleOpenPanel}
-      />
-    </>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Tab bar */}
+      <div className="flex shrink-0 border-b border-dt-border bg-dt-bg">
+        {(["conversation", "raw-log"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setMainTab(tab)}
+            className="bg-transparent border-none cursor-pointer"
+            style={{
+              padding: "8px 16px",
+              fontSize: 11,
+              color: mainTab === tab ? "var(--acc)" : "var(--t3)",
+              borderBottom: `2px solid ${mainTab === tab ? "var(--acc)" : "transparent"}`,
+              transition: "all .12s",
+            }}
+          >
+            {tab === "conversation" ? "Conversation" : "Raw Log"}
+          </button>
+        ))}
+        {mainTab === "raw-log" && selectedTurnIndex != null && (
+          <div className="ml-auto flex items-center gap-[3px] text-[10px] text-dt-text3 pr-2">
+            Scoped to{" "}
+            <span className="font-mono text-[10px] font-semibold text-dt-accent bg-dt-accent-bg px-[5px] py-[1px] rounded-[3px]">
+              T{turns[selectedTurnIndex]?.turnNumber}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Tab content */}
+      {mainTab === "conversation" ? (
+        <>
+          {!turnHistoryOpen && <ReopenBar onReopen={handleReopenTurnHistory} />}
+          <ConversationView
+            events={allEvents}
+            turns={turns}
+            metrics={metrics}
+            isLive={isLive}
+            sessionCwd={metrics.session.cwd}
+            sessionId={metrics.session.id}
+            projectHash={projectHash}
+            activeSessionId={activeSessionId ?? undefined}
+            onSessionStarted={setActiveSessionId}
+            highlightedTurnIndex={highlightedTurnIndex}
+            permissions={permissions}
+            onPermissionDecide={decidePermission}
+            onDecideSession={decidePermissionSession}
+            questions={questions}
+            onSubmitAnswer={submitAnswer}
+            onAgentPillClick={handleAgentPillClick}
+            onTurnClick={handleTurnClick}
+            onOpenPanel={handleOpenPanel}
+          />
+        </>
+      ) : (
+        <RawLogView
+          turns={turns}
+          allEvents={allEvents}
+          activeTurnIndex={selectedTurnIndex}
+        />
+      )}
+    </div>
   );
 }

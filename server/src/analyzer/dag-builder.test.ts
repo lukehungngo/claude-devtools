@@ -181,7 +181,7 @@ describe("buildAgentDAG", () => {
     expect(dag.nodes[0].toolCalls).toBe(0);
   });
 
-  it("uses 'unknown' type when subagentMeta is missing", () => {
+  it("uses agentId as type when subagentMeta is missing (never 'unknown')", () => {
     const subagentEvents = new Map<string, SessionEvent[]>([
       ["agent-1", [makeAssistantEvent()]],
     ]);
@@ -193,7 +193,8 @@ describe("buildAgentDAG", () => {
     );
 
     const agentNode = dag.nodes.find((n) => n.id === "agent-1");
-    expect(agentNode!.type).toBe("unknown");
+    expect(agentNode!.type).toBe("agent-1");
+    expect(agentNode!.type).not.toBe("unknown");
   });
 
   it("does not create duplicate edges when Agent is invoked multiple times with same description", () => {

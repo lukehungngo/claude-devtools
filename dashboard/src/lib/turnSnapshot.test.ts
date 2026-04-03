@@ -308,10 +308,10 @@ describe("groupEventsIntoTurns — cache token cost calculation", () => {
 
     // Input cost should include cache write and cache read (both are input-side costs)
     // (1000*3 + 2000*3.75 + 3000*0.3) / 1_000_000 = (3000+7500+900)/1M = 0.0114
-    expect(turns[0].costBreakdown.tokensIn).toBeCloseTo(0.0114, 6);
+    expect(turns[0].costBreakdown.inputCost).toBeCloseTo(0.0114, 6);
 
     // Output cost: (500*15) / 1_000_000 = 0.0075
-    expect(turns[0].costBreakdown.tokensOut).toBeCloseTo(0.0075, 6);
+    expect(turns[0].costBreakdown.outputCost).toBeCloseTo(0.0075, 6);
   });
 
   it("defaults cache tokens to zero when not present in usage", () => {

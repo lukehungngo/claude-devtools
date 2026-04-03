@@ -19,17 +19,14 @@ export const ProgressBar = memo(function ProgressBar({
   const isComplete = completed === total;
 
   return (
-    <div style={{ margin: "8px 0", padding: "0 8px" }}>
-      <div className="flex items-center justify-between" style={{ marginBottom: 2 }}>
-        <span style={{ fontSize: 11, color: "var(--t2)", flex: 1 }}>
+    <div className="my-2 px-2">
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-[11px] flex-1" style={{ color: "var(--t2)" }}>
           {label}
         </span>
         <span
-          style={{
-            fontSize: 11,
-            color: isComplete ? "var(--grn)" : "var(--t2)",
-            textAlign: "right",
-          }}
+          className="text-[11px] text-right"
+          style={{ color: isComplete ? "var(--grn)" : "var(--t2)" }}
         >
           {completed}/{total}
         </span>
@@ -39,18 +36,14 @@ export const ProgressBar = memo(function ProgressBar({
         aria-valuenow={completed}
         aria-valuemin={0}
         aria-valuemax={total}
-        style={{
-          height: 4,
-          background: "var(--bg-h)",
-          borderRadius: 2,
-        }}
+        className="h-1 rounded-sm"
+        style={{ background: "var(--bg-h)" }}
       >
         <div
+          className="h-1 rounded-sm"
           style={{
             width: `${percent}%`,
-            height: 4,
             background: "var(--grn)",
-            borderRadius: 2,
           }}
         />
       </div>

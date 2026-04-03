@@ -55,6 +55,8 @@ function makeLayoutCtx(overrides?: Partial<LayoutContextValue>): LayoutContextVa
     setCurrentSelectedAgent: () => {},
     hasSubagents: false,
     setHasSubagents: () => {},
+    currentSubagentMeta: null,
+    setCurrentSubagentMeta: () => {},
     viewingTurnNumber: undefined,
     setViewingTurnNumber: () => {},
     permissionMode: "default",
@@ -207,6 +209,6 @@ describe("GROUP-5: ghost text props wiring", () => {
     );
 
     const ghost = getByTestId("ghost-suggestion");
-    expect(ghost.textContent).toBe("Fix the error above");
+    expect(ghost.textContent).toBe("Continue with next steps...");
   });
 });

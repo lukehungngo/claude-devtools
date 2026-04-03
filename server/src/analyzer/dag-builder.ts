@@ -162,7 +162,7 @@ export function buildAgentDAG(
 
     nodes.push({
       id: agentId,
-      type: meta?.agentType || "unknown",
+      type: meta?.agentType || agentId,
       description: meta?.description || agentId,
       parentId: "main",
       tokenUsage: analysis.tokens,
