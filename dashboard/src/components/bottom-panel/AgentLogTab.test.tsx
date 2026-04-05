@@ -1,9 +1,35 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi, type Mock } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { AgentLogTab } from "./AgentLogTab";
 import type { SessionEvent, AssistantEvent, SubagentMeta } from "../../lib/types";
+import type { TurnSnapshot } from "../../lib/turnSnapshot";
 
-afterEach(cleanup);
+// Capture events passed to AgentLogs so we can verify filtering
+// without relying on virtualized DOM rendering.
+let capturedEvents: SessionEvent[] = [];
+vi.mock("../AgentLogs", () => ({
+  AgentLogs: (props: { events: SessionEvent[] }) => {
+    capturedEvents = props.events;
+    if (props.events.length === 0) {
+      return <div>Select a session to view agent timeline</div>;
+    }
+    const agentIds = new Set(props.events.map((e) => e.agentId || "main"));
+    return (
+      <div>
+        <span>Agent Timeline</span>
+        <span>{agentIds.size} agents</span>
+        {Array.from(agentIds).map((id) => (
+          <span key={id}>{id}</span>
+        ))}
+      </div>
+    );
+  },
+}));
+
+afterEach(() => {
+  cleanup();
+  capturedEvents = [];
+});
 
 function makeAssistantEvent(
   overrides: Partial<AssistantEvent> = {},
@@ -62,5 +88,84 @@ describe("AgentLogTab", () => {
     };
     render(<AgentLogTab allEvents={events} dag={dag} />);
     expect(screen.getByText("1 agents")).toBeTruthy();
+  });
+
+  it("filters events to selected turn when activeTurnIndex and turns are provided", () => {
+    // Create events from two different agents so we can verify filtering
+    // by checking the agent count in the rendered header.
+    // Turn 1: agent "alpha" (index 0)
+    // Turn 2: agent "beta" (index 1)
+    const turn1Event = makeAssistantEvent({
+      agentId: "alpha",
+      uuid: "evt-turn1",
+      timestamp: "2026-04-01T10:00:00.000Z",
+    });
+    const turn2Event = makeAssistantEvent({
+      agentId: "beta",
+      uuid: "evt-turn2",
+      timestamp: "2026-04-01T10:01:00.000Z",
+    });
+
+    const allEvents: SessionEvent[] = [turn1Event, turn2Event];
+
+    const turns: TurnSnapshot[] = [
+      {
+        turnNumber: 1,
+        promptText: "Turn 1",
+        startIndex: 0,
+        endIndex: 1,
+        agents: [],
+        status: "completed",
+        durationMs: 1000,
+        cost: 0,
+        costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+        startTime: "2026-04-01T10:00:00.000Z",
+        completedAt: "2026-04-01T10:00:01.000Z",
+        endTime: "2026-04-01T10:00:01.000Z",
+      },
+      {
+        turnNumber: 2,
+        promptText: "Turn 2",
+        startIndex: 1,
+        endIndex: 2,
+        agents: [],
+        status: "completed",
+        durationMs: 1000,
+        cost: 0,
+        costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+        startTime: "2026-04-01T10:01:00.000Z",
+        completedAt: "2026-04-01T10:01:01.000Z",
+        endTime: "2026-04-01T10:01:01.000Z",
+      },
+    ];
+
+    // Select turn 2 (index 1) — should only pass agent "beta" events
+    render(
+      <AgentLogTab allEvents={allEvents} activeTurnIndex={1} turns={turns} />,
+    );
+
+    // Verify only the turn-2 event was passed to AgentLogs
+    expect(capturedEvents).toHaveLength(1);
+    expect(capturedEvents[0].agentId).toBe("beta");
+    // The mock renders agent ids — "beta" should be present, "alpha" should not
+    expect(screen.getByText("beta")).toBeTruthy();
+    expect(screen.queryByText("alpha")).toBeNull();
+  });
+
+  it("passes all events when activeTurnIndex is null", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({ agentId: "alpha", uuid: "evt-1", timestamp: "2026-04-01T10:00:00.000Z" }),
+      makeAssistantEvent({ agentId: "beta", uuid: "evt-2", timestamp: "2026-04-01T10:01:00.000Z" }),
+    ];
+
+    // When no turn is selected, AgentLogTab should pass all events through.
+    render(
+      <AgentLogTab allEvents={events} activeTurnIndex={null} turns={[]} />,
+    );
+
+    // All events should be passed to AgentLogs unfiltered
+    expect(capturedEvents).toHaveLength(2);
+    expect(screen.getByText("Agent Timeline")).toBeTruthy();
+    expect(screen.getByText("2 agents")).toBeTruthy();
   });
 });

@@ -266,6 +266,8 @@ export function BottomPanel({
                 subagentMeta={subagentMeta}
                 selectedAgent={selectedAgent}
                 onSelectAgent={onSelectAgent}
+                activeTurnIndex={activeTurnIndex}
+                turns={turns}
               />
             ) : activeTab === "cost" ? (
               <CostTab metrics={metrics} />
