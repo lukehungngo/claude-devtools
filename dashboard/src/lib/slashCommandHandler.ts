@@ -346,6 +346,12 @@ export async function handleSlashCommand(
     return true;
   }
 
+  if (command === "/permission-history" || command === "/ph") {
+    ctx.onOpenPanel?.("permission-history");
+    showOutput("Opening permission history panel...");
+    return true;
+  }
+
   if (command === "/settings") {
     ctx.onOpenPanel?.("settings");
     showOutput("Opening settings panel...");

@@ -1,6 +1,6 @@
 import { useEffect, useCallback, Suspense, lazy } from "react";
 import { X } from "lucide-react";
-import type { SessionMetrics, UsageInfo } from "../lib/types";
+import type { SessionMetrics, UsageInfo, PermissionRequest } from "../lib/types";
 
 const SettingsPanel = lazy(() =>
   import("./panels/SettingsPanel").then((m) => ({ default: m.SettingsPanel })),
@@ -28,12 +28,16 @@ const DoctorPanel = lazy(() =>
 const StatsPanel = lazy(() =>
   import("./panels/StatsPanel").then((m) => ({ default: m.StatsPanel })),
 );
+const PermissionHistory = lazy(() =>
+  import("./panels/PermissionHistory").then((m) => ({ default: m.PermissionHistory })),
+);
 
 interface PanelModalProps {
   panel: string | null;
   onClose: () => void;
   metrics?: SessionMetrics | null;
   usage?: UsageInfo | null;
+  permissions?: PermissionRequest[];
   projectHash?: string;
   sessionId?: string;
 }
@@ -47,6 +51,7 @@ const PANEL_TITLES: Record<string, string> = {
   agents: "Agents",
   doctor: "Doctor",
   stats: "Stats",
+  "permission-history": "Permission History",
 };
 
 function renderPanel(panel: string, props: PanelModalProps) {
@@ -77,6 +82,8 @@ function renderPanel(panel: string, props: PanelModalProps) {
       return <DoctorPanel />;
     case "stats":
       return <StatsPanel />;
+    case "permission-history":
+      return <PermissionHistory permissions={props.permissions ?? []} />;
     default:
       return (
         <div className="p-4 text-dt-text2">Unknown panel: {panel}</div>

@@ -66,6 +66,8 @@ function makeLayoutCtx(overrides?: Partial<LayoutContextValue>): LayoutContextVa
     onClearViewingTurnRef: { current: null },
     onTurnClickRef: { current: null },
     openBottomTabRef: { current: null },
+    sessionControl: null,
+    setSessionControl: () => {},
     ...overrides,
   };
 }
