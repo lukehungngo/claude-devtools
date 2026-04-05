@@ -8,11 +8,26 @@ import { SessionCache } from "../cache/session-cache.js";
 /** Shared session cache instance — used by discoverSessions(). */
 export const sessionCache = new SessionCache();
 
+/** TTL cache for discoverSessions() — avoids stat storms on rapid API calls. */
+const DISCOVERY_TTL_MS = 2_000;
+let discoveryCache: { sessions: SessionInfo[]; timestamp: number } | null = null;
+let repoGroupsCache: { groups: RepoGroup[]; timestamp: number } | null = null;
+
+/** Invalidate both discovery caches, forcing the next call to re-scan. */
+export function invalidateDiscoveryCache(): void {
+  discoveryCache = null;
+  repoGroupsCache = null;
+}
+
 function getClaudeProjectsDir(): string {
   return join(homedir(), ".claude", "projects");
 }
 
 export function discoverSessions(): SessionInfo[] {
+  if (discoveryCache && Date.now() - discoveryCache.timestamp < DISCOVERY_TTL_MS) {
+    return discoveryCache.sessions;
+  }
+
   const projectsDir = getClaudeProjectsDir();
   if (!existsSync(projectsDir)) return [];
 
@@ -39,6 +54,7 @@ export function discoverSessions(): SessionInfo[] {
       new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
   );
 
+  discoveryCache = { sessions, timestamp: Date.now() };
   return sessions;
 }
 
@@ -81,6 +97,10 @@ function resolveRepoRoot(cwd: string): string {
 }
 
 export function discoverRepoGroups(): RepoGroup[] {
+  if (repoGroupsCache && Date.now() - repoGroupsCache.timestamp < DISCOVERY_TTL_MS) {
+    return repoGroupsCache.groups;
+  }
+
   const sessions = discoverSessions();
   const repoMap = new Map<string, SessionInfo[]>();
 
@@ -116,6 +136,7 @@ export function discoverRepoGroups(): RepoGroup[] {
     return new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime();
   });
 
+  repoGroupsCache = { groups: repos, timestamp: Date.now() };
   return repos;
 }
 
