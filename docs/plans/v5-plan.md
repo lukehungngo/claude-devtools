@@ -37,28 +37,31 @@ The UI adapts to the situation, not the user. Same person may be Persona A on a 
 ```
 ┌────────────┬──────────────────────────────────────┐
 │            │ ●LIVE │ Model │ 37m │ 35% │ $580 │ 7 │  ← sticky topbar (HUD)
-│  Sidebar   ├──────────────────────────────────────┤
-│            │                                      │
-│  Connection│  Conversation (FULL WIDTH)            │
-│  Auth      │  Turn dividers (T170, T171)          │
-│  Usage     │  User messages + Claude responses     │
-│            │  Tool call previews (inline grouped)  │
-│  Repos     │  Permission prompts (inline)          │
-│   └Sessions│                                      │
-│            │  [prompt input ________________] Send │
-│            ├══════════════════════════════════════┤ ← resizable divider
-│            │ [Agent Graph][Tool Call][Raw Log]     │ ← bottom panel
-│            │ [Cost]                               │   (collapsed by default)
-│            │                                      │
+│  Sidebar   ├─────┬────────────────────────────────┤
+│            │Turn │ [Conversation][Raw Log][Agent Log] ← main panel tabs
+│  Connection│Hist │                                │
+│  Auth      │     │  Conversation (FULL WIDTH)     │
+│  Usage     │ T5  │  Turn dividers (T170, T171)    │
+│            │ T4  │  User messages + Claude responses
+│  Repos     │ T3  │  Tool call previews (inline)   │
+│   └Sessions│ T2  │  Permission prompts (inline)   │
+│            │ T1  │                                │
+│            │     │  [prompt input ___________] Send│
+│            ├─────┴────────────────────────────────┤ ← resizable divider
+│            │ [Agent Graph][Tool Call][Cost]        │ ← bottom panel
+│            │                                      │   (collapsed by default)
 └────────────┴──────────────────────────────────────┘
 ```
 
 ### Key layout decisions
-- **No right panel.** Everything moves to bottom panel tabs.
+- **No right panel.** Everything moves to bottom panel tabs or main panel tabs.
 - Conversation gets full width of main area (minus sidebar).
+- **Main panel has 3 tabs:** Conversation, Raw Log, Agent Log.
+- **Bottom panel has 3 tabs:** Agent Graph, Tool Call, Cost.
 - Bottom panel starts collapsed (tab bar visible, ~28px). Auto-opens on first `SubagentStart`.
 - HUD is a sticky topbar docked to top of conversation area (not floating).
 - Sidebar is the only persistent side element.
+- **Turn History** is a collapsible left panel (inside main area, right of sidebar).
 
 ---
 
@@ -252,7 +255,7 @@ For assistant responses with a conclusion (e.g., after running tests, completing
 **Default:** Collapsed (~28px tab bar). **Open:** Resizable via drag, remembers height.
 **Auto-open trigger:** First `SubagentStart` event. Respects manual override (localStorage + 5s debounce).
 
-#### 4 Tabs
+#### 3 Tabs (Agent Log + Raw Log moved to main panel 2026-04-05)
 
 **Tab 1: Agent Graph** — Jaeger-style distributed trace with nesting.
 - Default: 3 levels deep (Orchestrator → children → sub-agents). Tool calls hidden until click.
@@ -271,12 +274,7 @@ For assistant responses with a conclusion (e.g., after running tests, completing
 - Rows: file path (monospace) + line count + status badge (read/changed/created/error)
 - Triggered by clicking span in Agent Graph OR tool call card in Conversation
 
-**Tab 3: Raw Log** — Full JSON payload with syntax highlighting.
-- Keys=blue, strings=green, numbers=amber. Monospace, pre-wrapped.
-- **Grouped by turn (collapsible):** "Turn 171 (3 events), Turn 170 (18 events)"
-- Syncs to selected turn.
-
-**Tab 4: Cost** — Session-level cost intelligence.
+**Tab 3: Cost** — Session-level cost intelligence.
 - Three metric cards: session cost (amber), burn rate ($/min + trend), projected total
 - Per-agent breakdown: icon + name + proportional bar + cost + percentage
 
@@ -340,11 +338,13 @@ See `v4-redesign-plan.md` for full tables (still canonical).
 
 | Phase | Focus | Status |
 |-------|-------|--------|
-| Phase 0 | Fix broken (SSE forwarding, image paste, fast mode, diff) | **DONE** |
-| Phase 1 | Use SDK properly (setModel, setPermissionMode, rewindFiles, MCP) | **DONE** |
-| Phase 2 | Config & management (permissions editor, CLAUDE.md, hooks, MCP, settings) | **DONE** |
+| Phase 0 | Fix broken (SSE forwarding, image paste, fast mode, diff) | **DONE** ✓ (verified 2026-04-05) |
+| Phase 1 | Use SDK properly (setModel, setPermissionMode, rewindFiles, MCP) | **DONE** ✓ (verified 2026-04-05) |
+| Phase 2 | Config & management (permissions editor, CLAUDE.md, hooks, MCP, settings) | **BACKEND DONE, UI ORPHANED** ⚠️ (see note) |
 | Phase 3 | Full parity (background tasks, output styles, keyboard, /agents, search) | **DONE** (~92%) |
 | Phase 3.5 | Audit fixes (9 issues: 2 P1 fixed, 7 P2/P3 absorbed into UI revamp) | **P1s DONE** |
+
+> **Phase 2 audit note (2026-04-05):** All 6 management panels (SettingsPanel, HookEditor, MemoryEditor, PermissionRulesEditor, McpManager, AgentManager) exist as fully implemented components with tests. All backend API routes work. **However, these panels are not accessible from the UI.** They lived in the right panel which was deleted in Phase 4 (UI-01). The `handleOpenPanel` callback in SessionPage.tsx is a no-op. Slash commands like `/settings`, `/hooks`, `/mcp` call `onOpenPanel()` which does nothing. **Users cannot reach any Phase 2 management UI.** This needs to be re-wired — either as new main panel tabs, a modal/dialog system, or sidebar sections.
 
 ### Inventory at Phase 3.5 completion
 
@@ -372,7 +372,7 @@ The v4 master plan had "UI Revamp → NEXT" as vague. This phase is the concrete
 | Key Result | Target | Metric |
 |------------|--------|--------|
 | KR1: Right panel eliminated | Done | Conversation gets full main width |
-| KR2: Bottom DevTools panel | 4 tabs working | Agent Graph, Tool Call, Raw Log, Cost |
+| KR2: Bottom DevTools panel | 3 tabs working | Agent Graph, Tool Call, Cost (Agent Log + Raw Log moved to main panel) |
 | KR3: Sticky topbar | 7 metrics live-updating | Status, model, duration, context, cost, agents, tokens |
 | KR4: Turn system | Cross-component sync | Turn dividers, selection syncs graph+log+detail |
 | KR5: Trace bars proportional | No min-width | Bar width = actual duration, text outside |
@@ -383,7 +383,7 @@ The v4 master plan had "UI Revamp → NEXT" as vague. This phase is the concrete
 | # | Task | Status | Gaps | Absorbs |
 |---|------|--------|------|---------|
 | UI-01 | Kill right panel, conversation full-width | **DONE** | — | A-03 |
-| UI-02 | Bottom panel container with 4 tabs | **DONE** | Height + collapsed state persisted to localStorage; default collapsed on first visit | — |
+| UI-02 | Bottom panel container with 3 tabs | **DONE** | Height + collapsed state persisted to localStorage; default collapsed on first visit. Agent Log moved to main panel (2026-04-05). | — |
 | UI-03 | Agent Graph tab (Jaeger-style trace) | **DONE** | 48px/26px row heights, 3-level depth limit with toggle, tool calls hidden by default | P5-01, P7-01 |
 | UI-04 | Tool Call tab (file-level breakdown) | **DONE** | Header bar: agent badge, T{n}, primary tool x count, duration, cost | P5-03 |
 | UI-05 | Raw Log tab (JSON syntax highlight) | **DONE** | — | — |
@@ -410,7 +410,7 @@ The v4 master plan had "UI Revamp → NEXT" as vague. This phase is the concrete
 | DAG as primary view (old P7-01) | Replaced by trace chart in bottom panel |
 | Keyboard-first (old P3-03) | Monitoring tool, not code editor |
 | Hardcoded dark-only theme | Replaced by light/dark toggle |
-| 6 bottom tabs → 4 | History + Live merged; Detail renamed Tool Call |
+| 6 bottom tabs → 3 | History + Live merged; Detail renamed Tool Call; Agent Log + Raw Log moved to main panel |
 
 ---
 
@@ -426,7 +426,6 @@ The v4 master plan had "UI Revamp → NEXT" as vague. This phase is the concrete
 |------------|--------|--------|
 | KR1: Live controls | 5+ | Real-time actions during streaming |
 | KR2: Mode switching latency | <100ms | Click to SDK mode change |
-| KR3: Multi-agent control | Implemented | Per-agent cancel, inspect |
 
 ### Features
 
@@ -439,19 +438,13 @@ Split from old P4-01. Topbar is read-only metrics (done in Phase 4). This adds w
 - Context gauge with one-click compact
 - All changes via SDK mid-stream
 
-#### P5-02: Agent Orchestration Controls
-Per-agent controls in Trace tab / Tool Call tab:
-- Cancel individual agents (`query.stopTask()`)
-- Inspect agent context (events, tools, cost)
-- Action buttons in Tool Call tab header, not on trace chart
-
-#### P5-03: Live Permission Dashboard
+#### P5-02: Live Permission Dashboard
 - Permission history log
 - Batch approve/deny
 - "Trust this tool for this session"
 - Permission analytics (which tools ask most → suggest rules)
 
-#### P5-04: Session Lifecycle Controls
+#### P5-03: Session Lifecycle Controls
 - Fork session
 - Session templates
 - Session comparison
@@ -537,14 +530,15 @@ Save orchestration patterns, reusable workflows, custom agent configs per step, 
 
 ---
 
-## Current Progress Evaluation (2026-04-01, updated)
+## Current Progress Evaluation (2026-04-05, updated)
 
 ### What's DONE (verified against codebase)
 
 | Feature | Evidence |
 |---------|----------|
 | Right panel eliminated, full-width conversation | `right-panel/` deleted, `Layout.tsx` has no right panel slot |
-| Bottom panel with 4 tabs | `BottomPanel.tsx` — Agent Graph, Tool Call, Raw Log, Cost |
+| Main panel with 3 tabs | `SessionPage.tsx` — Conversation, Raw Log, Agent Log |
+| Bottom panel with 3 tabs | `BottomPanel.tsx` — Agent Graph, Tool Call, Cost |
 | Sticky topbar with 7 metrics | `TopBar.tsx` — status, model, duration, context%, cost, agents, in/out tokens |
 | Light/dark/high-contrast themes | `ThemeContext.tsx` + CSS custom properties + `data-theme` toggle |
 | Jaeger-style trace spans | `TraceTab.tsx` — hierarchical, color-coded, 3 resizable columns (Agent/Duration/Cost) + waterfall |
@@ -586,30 +580,64 @@ Additional components: VerdictBanner ✓, FindingBanner ✓, ProgressBar ✓, Co
 
 ### Honest Assessment
 
-**Phase 4 (UI Revamp) is 100% complete.** 19 of 19 tasks DONE. Verified via Playwright on 2026-04-01.
+**Phase 4 (UI Revamp) is 100% complete.** 19 of 19 tasks DONE. Verified via Playwright on 2026-04-01, 5 post-launch bugs fixed 2026-04-05.
 
 | Area | Completion | Confidence |
 |------|------------|------------|
 | Layout (right panel killed) | 100% | High — fully deleted, zero traces |
-| Turn system (dividers, sync, indicator) | 100% | High — all visual elements + cross-component sync + descending turn history |
+| Turn system (dividers, sync, indicator) | 100% | High — 3 sync bugs fixed 2026-04-05, all panels now update consistently |
 | Code splitting | 100% | High — route-level + component-level + vendor chunks |
 | Memory optimization | 100% | High — index-based TurnSnapshot, no duplication |
 | Theme system | 100% | High — light/dark/high-contrast, all tokens, bonus a11y theme |
-| Bottom panel infrastructure | 100% | High — 4 tabs, resize, collapse, auto-open, height + collapsed persisted to localStorage |
+| Main panel tabs | 100% | High — 3 tabs: Conversation, Raw Log, Agent Log (moved from bottom 2026-04-05) |
+| Bottom panel infrastructure | 100% | High — 3 tabs, resize, collapse, auto-open, height + collapsed persisted to localStorage |
 | Conversation response (UI-18) | 100% | High — 7/7 principles done, CostFooter redesigned, AgentCard with full stats |
 | Topbar / HUD | 100% | High — 7 metrics live, turn indicator, WAIT state, red danger border on 80%+ context |
-| Trace chart | 100% | High — proportional bars, 3-column layout, general icon derivation + hover, depth limit with toggle |
+| Trace chart | 100% | High — proportional bars, 3-column layout, child bars show actual timing (fixed 2026-04-05) |
 | Tool Call / Cost tabs | 100% | High — Detail header with badge/turn/tool/duration/cost; Cost tab with projected total + burn rate trend |
+
+### Post-Phase-4 fixes (2026-04-05)
+
+| Fix | Commit | Impact |
+|-----|--------|--------|
+| filterDagForTurn stale data on same-agent turns | `78817c2` | Agent Graph showed wrong token/cost when switching turns with same agents |
+| AgentLogTab didn't filter by selected turn | `075f410` | Agent Log showed all events regardless of selected turn |
+| RawLogView/ConversationView inconsistent turn default | `300647e` | Raw Log showed "Select a turn" while other panels showed last turn |
+| Agent Log moved to main panel | `e92afa1` | More vertical space; bottom panel now 3 tabs |
+| Child agent bars spanned full parent width | `417311b` | filterDagForTurn was overriding all nodes' times with turn bounds |
 
 ### What's next
 
 ```
 Phase 4 (UI Revamp) ──── COMPLETE ✓
-Phase 5 (Control) ────── Command center, agent controls, permissions
-Phase 6 (Visibility) ─── Decision trace, time travel, spending view
-Phase 7 (Observability)─ Health monitor, analytics, profiling
-Phase 8 (Abstraction) ── Agent-first mode, task trees, workflows
+Phase 5 (Control) ────── ~15% — permission mode cycling works; rest NOT STARTED
+Phase 6 (Visibility) ─── NOT STARTED
+Phase 7 (Observability)─ NOT STARTED
+Phase 8 (Abstraction) ── NOT STARTED
 ```
+
+### Phase 2 Debt: Orphaned Management Panels
+
+**Priority: Must fix before Phase 5.** These panels exist, are tested, and have working backends — but users can't access them since the right panel was deleted.
+
+| Panel | Component | Backend | Slash command | User can access? |
+|-------|-----------|---------|---------------|-----------------|
+| Settings | `SettingsPanel.tsx` (378 lines) | `/api/settings` routes | `/settings` | **NO** — onOpenPanel is no-op |
+| Hooks | `HookEditor.tsx` (544 lines) | `/api/settings/hooks` | `/hooks` | **NO** |
+| CLAUDE.md | `MemoryEditor.tsx` (203 lines) | `/api/sessions/{hash}/{id}/memory` | `/memory` | **NO** |
+| Permissions | `PermissionRulesEditor.tsx` (213 lines) | `/api/settings/permissions` | `/permissions` | **NO** |
+| MCP | `McpManager.tsx` (397 lines) | `/api/mcp/*` routes | `/mcp` | **NO** |
+| Agents | `AgentManager.tsx` | `/api/agents` | `/agents` | **NO** |
+
+**Fix options:** (1) Add as sidebar sections, (2) Add as main panel tabs, (3) Modal/dialog system triggered by slash commands, (4) Dedicated settings route.
+
+### Phase 5 Current Status (2026-04-05)
+
+| Feature | Status | What exists | What's missing |
+|---------|--------|-------------|----------------|
+| P5-01: Command Center | **40%** | Permission mode cycling in TopBar; model/effort in SettingsPanel (orphaned); /fast and /effort slash commands | No topbar model switcher, fast mode toggle, context compact button, or live mid-stream controls |
+| P5-02: Permission Dashboard | **0%** | Inline PermissionBlock for individual approvals; PermissionRulesEditor (orphaned) | No permission history log, batch approve/deny, "trust tool for session", or analytics |
+| P5-03: Session Lifecycle | **20%** | RewindMenu with dry-run preview | No fork UI, session templates, session comparison, or batch ops |
 
 ---
 

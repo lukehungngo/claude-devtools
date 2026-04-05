@@ -44,3 +44,17 @@ docs/bugs/
 !!docs/plans/
 !!docs/design/
 .worktrees/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright-mcp/
+
+# Claude local settings
+.claude/PRPs/
+.claude/settings.local.json
+dashboard/.claude/
+
+# Dashboard build output (rebuilt from source)
+dashboard/dist/

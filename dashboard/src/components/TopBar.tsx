@@ -1,4 +1,5 @@
-import { X } from "lucide-react";
+import { Home, X } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
 import type { SessionMetrics } from "../lib/types";
 import type { PermissionMode } from "./conversation/permissionModeTypes";
@@ -33,6 +34,7 @@ const MODE_COLORS: Record<PermissionMode, { bg: string; fg: string }> = {
 };
 
 export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange }: Props) {
+  const navigate = useNavigate();
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
@@ -67,6 +69,32 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
         outlineOffset: -2,
       }}
     >
+      {/* Home button */}
+      <button
+        onClick={() => navigate({ to: "/" })}
+        className="flex items-center justify-center shrink-0 cursor-pointer bg-transparent border-none rounded"
+        style={{
+          width: 28,
+          height: 28,
+          color: "var(--t2)",
+          marginRight: -4,
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.color = "var(--acc)";
+          (e.currentTarget as HTMLElement).style.background = "var(--bg-h)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.color = "var(--t2)";
+          (e.currentTarget as HTMLElement).style.background = "transparent";
+        }}
+        title="Back to home"
+        data-testid="home-button"
+      >
+        <Home size={15} />
+      </button>
+
+      <HudSep />
+
       {/* Live status */}
       <div
         className="flex items-center gap-[5px] shrink-0"

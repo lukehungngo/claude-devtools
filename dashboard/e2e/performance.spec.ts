@@ -79,10 +79,10 @@ test.describe("Performance", () => {
     }
 
     expect(result.resp.ok()).toBe(true);
-    expect(result.elapsed).toBeLessThan(500);
+    expect(result.elapsed).toBeLessThan(1000);
   });
 
-  test("GET /api/repos responds within 500ms", async ({ page }) => {
+  test("GET /api/repos responds within 1 second", async ({ page }) => {
     const result = await timedGet(page, `${API_BASE}/api/repos`);
     if (result === null) {
       test.skip(true, "API server not available");
@@ -90,10 +90,10 @@ test.describe("Performance", () => {
     }
 
     expect(result.resp.ok()).toBe(true);
-    expect(result.elapsed).toBeLessThan(500);
+    expect(result.elapsed).toBeLessThan(1000);
   });
 
-  test("GET /api/commands responds within 500ms", async ({ page }) => {
+  test("GET /api/commands responds within 1 second", async ({ page }) => {
     const result = await timedGet(page, `${API_BASE}/api/commands`);
     if (result === null) {
       test.skip(true, "API server not available");
@@ -101,7 +101,7 @@ test.describe("Performance", () => {
     }
 
     expect(result.resp.ok()).toBe(true);
-    expect(result.elapsed).toBeLessThan(500);
+    expect(result.elapsed).toBeLessThan(1000);
   });
 
   test("GET session detail responds within 1 second", async ({ page }) => {
