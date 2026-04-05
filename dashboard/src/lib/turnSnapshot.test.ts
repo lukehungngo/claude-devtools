@@ -558,6 +558,70 @@ describe("groupEventsIntoTurnsIncremental", () => {
     expect(turns[0].endIndex).toBe(4);
   });
 
+  it("fast path: no turn boundary in new events rebuilds only last turn", () => {
+    // Turn 1 is running (tool_use, no turn_duration) with many events
+    const initialEvents: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ stopReason: "tool_use", timestamp: "2026-01-01T00:00:01Z" }),
+      makeUserEvent({ toolResult: true, userType: "external", timestamp: "2026-01-01T00:00:02Z" }),
+      makeAssistantEvent({ stopReason: "tool_use", timestamp: "2026-01-01T00:00:03Z" }),
+      makeUserEvent({ toolResult: true, userType: "external", timestamp: "2026-01-01T00:00:04Z" }),
+    ];
+    const existingTurns = groupEventsIntoTurns(initialEvents);
+    expect(existingTurns).toHaveLength(1);
+    expect(existingTurns[0].status).toBe("running");
+
+    // New events: more assistant/tool responses, NO turn boundary
+    const allEvents: SessionEvent[] = [
+      ...initialEvents,
+      makeAssistantEvent({ stopReason: "tool_use", timestamp: "2026-01-01T00:00:05Z" }),
+      makeUserEvent({ toolResult: true, userType: "external", timestamp: "2026-01-01T00:00:06Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:07Z" }), // end_turn
+    ];
+
+    const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 3);
+    const fullRebuild = groupEventsIntoTurns(allEvents);
+
+    expect(turns).toHaveLength(1);
+    expect(turns[0].promptText).toBe(fullRebuild[0].promptText);
+    expect(turns[0].startIndex).toBe(fullRebuild[0].startIndex);
+    expect(turns[0].endIndex).toBe(fullRebuild[0].endIndex);
+    expect(turns[0].status).toBe(fullRebuild[0].status);
+    expect(turns[0].cost).toBeCloseTo(fullRebuild[0].cost, 6);
+  });
+
+  it("slow path: turn boundary in new events creates new turns", () => {
+    // Turn 1 complete
+    const initialEvents: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+      makeTurnDurationEvent(1000, { timestamp: "2026-01-01T00:00:02Z" }),
+    ];
+    const existingTurns = groupEventsIntoTurns(initialEvents);
+    expect(existingTurns).toHaveLength(1);
+
+    // New events include a turn boundary (external user with text)
+    const allEvents: SessionEvent[] = [
+      ...initialEvents,
+      makeUserEvent({ text: "Turn 2", timestamp: "2026-01-01T00:01:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:01:01Z" }),
+      makeUserEvent({ text: "Turn 3", timestamp: "2026-01-01T00:02:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:02:01Z" }),
+    ];
+
+    const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 4);
+    const fullRebuild = groupEventsIntoTurns(allEvents);
+
+    expect(turns).toHaveLength(fullRebuild.length);
+    for (let i = 0; i < fullRebuild.length; i++) {
+      expect(turns[i].turnNumber).toBe(fullRebuild[i].turnNumber);
+      expect(turns[i].promptText).toBe(fullRebuild[i].promptText);
+      expect(turns[i].startIndex).toBe(fullRebuild[i].startIndex);
+      expect(turns[i].endIndex).toBe(fullRebuild[i].endIndex);
+      expect(turns[i].cost).toBeCloseTo(fullRebuild[i].cost, 6);
+    }
+  });
+
   it("produces identical results to full rebuild", () => {
     // Build a 3-turn session incrementally
     const events1: SessionEvent[] = [

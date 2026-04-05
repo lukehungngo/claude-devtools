@@ -306,6 +306,170 @@ function buildTurn(
   };
 }
 
+/**
+ * Extend an existing TurnSnapshot with new events, without re-processing old events.
+ * Only iterates the newEvents slice — O(newEvents) not O(allTurnEvents).
+ */
+function extendTurn(
+  existing: TurnSnapshot,
+  newEvents: SessionEvent[],
+  newEndIndex: number,
+  agentMeta?: SubagentMeta
+): TurnSnapshot {
+  // Start from existing aggregated values
+  let cost = existing.cost;
+  let totalInputCost = existing.costBreakdown.inputCost;
+  let totalOutputCost = existing.costBreakdown.outputCost;
+
+  // Rebuild agent map from existing summaries so we can extend it
+  const agentMap = new Map<
+    string,
+    { count: number; agentType: string; lastEvent: SessionEvent | null; cost: number; tokensIn: number; tokensOut: number; tools: Set<string> }
+  >();
+  for (const agent of existing.agents) {
+    agentMap.set(agent.agentId, {
+      count: agent.invocationCount,
+      agentType: agent.agentType,
+      lastEvent: null, // will be updated if new events arrive for this agent
+      cost: agent.cost,
+      tokensIn: agent.tokensIn,
+      tokensOut: agent.tokensOut,
+      tools: new Set(agent.tools),
+    });
+  }
+
+  // Process only the new events
+  for (const event of newEvents) {
+    const agentId = event.agentId ?? "main";
+
+    let eventCost = 0;
+    let eventTokensIn = 0;
+    let eventTokensOut = 0;
+    const eventTools: string[] = [];
+
+    if (event.type === "assistant") {
+      const asst = event as AssistantEvent;
+      const usage = asst.message?.usage;
+      if (usage) {
+        eventTokensIn = usage.input_tokens ?? 0;
+        eventTokensOut = usage.output_tokens ?? 0;
+        const cacheWrite = usage.cache_creation_input_tokens ?? 0;
+        const cacheRead = usage.cache_read_input_tokens ?? 0;
+        const model = asst.message?.model || "";
+        eventCost = calculateTurnCost(model, eventTokensIn, eventTokensOut, cacheWrite, cacheRead);
+        cost += eventCost;
+        totalInputCost += calculateTurnCost(model, eventTokensIn, 0, cacheWrite, cacheRead);
+        totalOutputCost += calculateTurnCost(model, 0, eventTokensOut);
+      }
+      const contentArr = asst.message?.content;
+      if (Array.isArray(contentArr)) {
+        for (const item of contentArr) {
+          if (item.type === "tool_use" && "name" in item) {
+            eventTools.push(item.name);
+          }
+        }
+      }
+    }
+
+    const entry = agentMap.get(agentId);
+    if (entry) {
+      if (event.type === "assistant") {
+        entry.count++;
+        entry.cost += eventCost;
+        entry.tokensIn += eventTokensIn;
+        entry.tokensOut += eventTokensOut;
+      }
+      for (const t of eventTools) entry.tools.add(t);
+      entry.lastEvent = event;
+    } else {
+      agentMap.set(agentId, {
+        count: event.type === "assistant" ? 1 : 0,
+        agentType: agentMeta?.[agentId]?.agentType ?? (agentId === "main" ? "main" : agentId),
+        lastEvent: event,
+        cost: eventCost,
+        tokensIn: eventTokensIn,
+        tokensOut: eventTokensOut,
+        tools: new Set(eventTools),
+      });
+    }
+  }
+
+  // Re-derive status: check new events for turn_duration first
+  let status = existing.status;
+  let durationMs = existing.durationMs;
+  for (const event of newEvents) {
+    if (event.type === "system" && (event as SystemEvent).subtype === "turn_duration") {
+      status = "completed";
+      durationMs = (event as SystemEvent).durationMs ?? null;
+      break;
+    }
+  }
+  if (status === "running") {
+    // Check last assistant event across ALL new events for stop_reason
+    for (let i = newEvents.length - 1; i >= 0; i--) {
+      if (newEvents[i].type === "assistant") {
+        const asst = newEvents[i] as AssistantEvent;
+        if (asst.message?.stop_reason === "end_turn") {
+          status = "completed";
+        }
+        break;
+      }
+    }
+  }
+
+  // Build agent summaries
+  const agents: AgentSummary[] = [];
+  for (const [agentId, info] of agentMap) {
+    if (info.count === 0 && agentId !== "main") continue;
+    // Determine agent status from the last event we know about
+    let agentStatus: "running" | "completed" | "error";
+    if (info.lastEvent && info.lastEvent.type === "assistant") {
+      const lastAsst = info.lastEvent as AssistantEvent;
+      agentStatus = lastAsst.message?.stop_reason === "end_turn" ? "completed" : "running";
+    } else if (info.lastEvent === null) {
+      // No new events for this agent — preserve status from existing summary
+      const existingAgent = existing.agents.find(a => a.agentId === agentId);
+      agentStatus = existingAgent?.status ?? "completed";
+    } else {
+      agentStatus = "completed";
+    }
+
+    agents.push({
+      agentId,
+      agentType: info.agentType,
+      displayName: agentMeta?.[agentId]?.description || info.agentType,
+      invocationCount: info.count,
+      status: agentStatus,
+      cost: info.cost,
+      tokensIn: info.tokensIn,
+      tokensOut: info.tokensOut,
+      tools: Array.from(info.tools),
+    });
+  }
+
+  const lastNewEvent = newEvents[newEvents.length - 1];
+  const endTime = lastNewEvent?.timestamp ?? existing.endTime;
+
+  return {
+    turnNumber: existing.turnNumber,
+    promptText: existing.promptText,
+    startIndex: existing.startIndex,
+    endIndex: newEndIndex,
+    agents,
+    status,
+    durationMs,
+    cost,
+    costBreakdown: {
+      total: cost,
+      inputCost: totalInputCost,
+      outputCost: totalOutputCost,
+    },
+    startTime: existing.startTime,
+    completedAt: status === "completed" ? endTime : "",
+    endTime,
+  };
+}
+
 // ─── Main function ───────────────────────────────────────────────────
 
 function finalizeTurn(turn: TurnSnapshot): void {
@@ -338,19 +502,38 @@ export function groupEventsIntoTurnsIncremental(
     return groupEventsIntoTurns(allEvents, subagentMeta);
   }
 
-  // Only re-process from the last turn's start index onward
-  const lastTurnStartIndex = existingTurns[existingTurns.length - 1].startIndex;
-  const eventsToProcess = allEvents.slice(lastTurnStartIndex);
+  const newStartIndex = allEvents.length - newEventCount;
 
-  // Re-group just the tail portion
+  // Check if any new event is a turn boundary
+  let hasBoundary = false;
+  for (let i = newStartIndex; i < allEvents.length; i++) {
+    if (isTurnBoundary(allEvents[i])) {
+      hasBoundary = true;
+      break;
+    }
+  }
+
+  const lastTurn = existingTurns[existingTurns.length - 1];
+
+  if (!hasBoundary) {
+    // Fast path: no new turn boundary — extend the last turn with only the new events.
+    // Cost is O(newEventCount) not O(allEventsFromLastTurnStart).
+    // During streaming, 99% of incoming events are assistant/tool events within the same turn.
+    const newEvents = allEvents.slice(newStartIndex);
+    const extended = extendTurn(lastTurn, newEvents, allEvents.length, subagentMeta);
+    return [...existingTurns.slice(0, -1), extended];
+  }
+
+  // Slow path: turn boundary found — rebuild from last turn's start
+  const eventsToProcess = allEvents.slice(lastTurn.startIndex);
   const rebuiltTurns = groupEventsIntoTurns(eventsToProcess, subagentMeta);
 
   // Fix turn numbers and startIndex/endIndex to be relative to the full array
   const baseTurnNumber = existingTurns.length; // last existing turn will be replaced
   for (let i = 0; i < rebuiltTurns.length; i++) {
     rebuiltTurns[i].turnNumber = baseTurnNumber + i;
-    rebuiltTurns[i].startIndex += lastTurnStartIndex;
-    rebuiltTurns[i].endIndex += lastTurnStartIndex;
+    rebuiltTurns[i].startIndex += lastTurn.startIndex;
+    rebuiltTurns[i].endIndex += lastTurn.startIndex;
   }
 
   // Replace last turn with rebuilt turns (may be 1 or more if new turn boundaries appeared)
