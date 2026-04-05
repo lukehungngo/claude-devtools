@@ -156,12 +156,16 @@ export function SessionPage() {
     setCurrentTurns(turns);
   }, [turns, setCurrentTurns]);
 
-  // Push active turn index to layout context for BottomPanel (Detail/Raw/Trace tabs)
   // Default to last turn so panels show data immediately without requiring a click
+  const effectiveTurnIndex = useMemo(
+    () => selectedTurnIndex ?? (turns.length > 0 ? turns.length - 1 : null),
+    [selectedTurnIndex, turns.length],
+  );
+
+  // Push active turn index to layout context for BottomPanel (Detail/Raw/Trace tabs)
   useEffect(() => {
-    const effectiveIndex = selectedTurnIndex ?? (turns.length > 0 ? turns.length - 1 : null);
-    setCurrentActiveTurnIndex(effectiveIndex);
-  }, [selectedTurnIndex, turns.length, setCurrentActiveTurnIndex]);
+    setCurrentActiveTurnIndex(effectiveTurnIndex);
+  }, [effectiveTurnIndex, setCurrentActiveTurnIndex]);
 
   // Register callback for TopBar dismiss button to clear local selectedTurnIndex
   useEffect(() => {
@@ -290,7 +294,7 @@ export function SessionPage() {
             projectHash={projectHash}
             activeSessionId={activeSessionId ?? undefined}
             onSessionStarted={setActiveSessionId}
-            highlightedTurnIndex={highlightedTurnIndex}
+            highlightedTurnIndex={highlightedTurnIndex ?? effectiveTurnIndex ?? undefined}
             permissions={permissions}
             onPermissionDecide={decidePermission}
             onDecideSession={decidePermissionSession}
@@ -305,7 +309,7 @@ export function SessionPage() {
         <RawLogView
           turns={turns}
           allEvents={allEvents}
-          activeTurnIndex={selectedTurnIndex}
+          activeTurnIndex={effectiveTurnIndex}
         />
       )}
     </div>
