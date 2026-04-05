@@ -1,9 +1,11 @@
 import { Home, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
-import type { SessionMetrics } from "../lib/types";
+import type { SessionMetrics, EffortLevel } from "../lib/types";
 import type { PermissionMode } from "./conversation/permissionModeTypes";
 import { cyclePermissionMode } from "./conversation/PermissionModeBadge";
+import { ControlsZone } from "./controls/ControlsZone";
+import type { ModelOption } from "./controls/ModelSwitcher";
 
 interface Props {
   metrics: SessionMetrics | null;
@@ -13,6 +15,14 @@ interface Props {
   onClearViewingTurn?: () => void;
   permissionMode?: PermissionMode;
   onPermissionModeChange?: (mode: PermissionMode) => void;
+  // P5-01 control props
+  availableModels?: ModelOption[];
+  fastMode?: boolean;
+  effort?: EffortLevel;
+  onModelSelect?: (modelId: string) => void;
+  onFastToggle?: () => void;
+  onEffortChange?: (level: EffortLevel) => void;
+  onCompact?: () => void;
 }
 
 const MODE_LABELS: Record<PermissionMode, string> = {
@@ -33,7 +43,7 @@ const MODE_COLORS: Record<PermissionMode, { bg: string; fg: string }> = {
   bypassPermissions: { bg: "color-mix(in srgb, var(--red) 15%, transparent)", fg: "var(--red)" },
 };
 
-export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange }: Props) {
+export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange, availableModels, fastMode, effort, onModelSelect, onFastToggle, onEffortChange, onCompact }: Props) {
   const navigate = useNavigate();
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
@@ -152,49 +162,72 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
 
       {metrics ? (
         <>
-          <HudMetric label="Model" value={modelName} />
-          <HudSep />
+          {isLive && onModelSelect && availableModels && onFastToggle && effort && onEffortChange && onCompact ? (
+            <>
+              <ControlsZone
+                currentModel={metrics.models[0] ?? null}
+                models={availableModels}
+                onModelSelect={onModelSelect}
+                fastMode={fastMode ?? false}
+                onFastToggle={onFastToggle}
+                effort={effort}
+                onEffortChange={onEffortChange}
+                contextPercent={contextPct}
+                onCompact={onCompact}
+                isLive={isLive}
+              />
+            </>
+          ) : (
+            <>
+              <HudMetric label="Model" value={modelName} />
+              <HudSep />
+            </>
+          )}
           <HudMetric label="Duration" value={formatDuration(metrics.duration)} />
           <HudSep />
 
-          {/* Context with mini bar */}
-          <div className="flex flex-col items-center gap-[2px]">
-            <span
-              className="uppercase"
-              style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
-            >
-              Context
-            </span>
-            <div className="flex items-center gap-1">
-              <span
-                className="font-mono font-medium"
-                style={{ fontSize: 12, color: "var(--t1)" }}
-              >
-                {contextPct}%
-              </span>
-              <div
-                style={{
-                  width: 42,
-                  height: 4,
-                  borderRadius: 2,
-                  background: "var(--bd)",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${contextPct}%`,
-                    borderRadius: 2,
-                    background: contextColor,
-                    transition: "width .3s, background .3s",
-                  }}
-                />
+          {/* Context — only show static when controls are NOT active */}
+          {!(isLive && onModelSelect) && (
+            <>
+              <div className="flex flex-col items-center gap-[2px]">
+                <span
+                  className="uppercase"
+                  style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
+                >
+                  Context
+                </span>
+                <div className="flex items-center gap-1">
+                  <span
+                    className="font-mono font-medium"
+                    style={{ fontSize: 12, color: "var(--t1)" }}
+                  >
+                    {contextPct}%
+                  </span>
+                  <div
+                    style={{
+                      width: 42,
+                      height: 4,
+                      borderRadius: 2,
+                      background: "var(--bd)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${contextPct}%`,
+                        borderRadius: 2,
+                        background: contextColor,
+                        transition: "width .3s, background .3s",
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+              <HudSep />
+            </>
+          )}
 
-          <HudSep />
           <HudMetric label="Cost" value={formatCost(sCost)} valueColor="var(--amb)" />
           <HudSep />
           <HudMetric label="Agents" value={String(agentCount)} />

@@ -99,15 +99,25 @@ export function computeTimeline(nodes: AgentNode[]): Timeline {
   let minMs = Infinity;
   let maxMs = -Infinity;
 
-  for (const n of nodes) {
-    if (n.startTime) {
-      const t = new Date(n.startTime).getTime();
-      if (t < minMs) minMs = t;
-      if (t > maxMs) maxMs = t;
-    }
-    if (n.endTime) {
-      const t = new Date(n.endTime).getTime();
-      if (t > maxMs) maxMs = t;
+  // If a "main" node exists, use its (turn-scoped) times as timeline bounds
+  const mainNode = nodes.find((n) => n.id === "main");
+  if (mainNode?.startTime) {
+    minMs = new Date(mainNode.startTime).getTime();
+    maxMs = mainNode.endTime
+      ? new Date(mainNode.endTime).getTime()
+      : Date.now();
+  } else {
+    // Fallback: scan all nodes (no main node or no times)
+    for (const n of nodes) {
+      if (n.startTime) {
+        const t = new Date(n.startTime).getTime();
+        if (t < minMs) minMs = t;
+        if (t > maxMs) maxMs = t;
+      }
+      if (n.endTime) {
+        const t = new Date(n.endTime).getTime();
+        if (t > maxMs) maxMs = t;
+      }
     }
   }
 
@@ -228,10 +238,7 @@ function buildTraceGroups(
     const bar = computeBarPosition(node, sessionStartMs, totalMs);
 
     let durationMs = 0;
-    if (isRoot) {
-      // Root node: use full timeline duration
-      durationMs = totalMs;
-    } else if (node.startTime) {
+    if (node.startTime) {
       const start = new Date(node.startTime).getTime();
       const end = node.endTime
         ? new Date(node.endTime).getTime()
