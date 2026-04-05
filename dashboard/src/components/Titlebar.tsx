@@ -1,4 +1,5 @@
 import { Sun, Moon } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { useTheme } from "../contexts/ThemeContext";
 
 interface TitlebarProps {
@@ -8,14 +9,15 @@ interface TitlebarProps {
 
 export function Titlebar({ repoName, branch }: TitlebarProps) {
   const { theme, setTheme } = useTheme();
+  const navigate = useNavigate();
 
   const toggleTheme = () => {
     setTheme(theme === "light" ? "dark" : "light");
   };
 
-  const titleText = repoName
-    ? `Claude DevTools — ${repoName}${branch ? ` @ ${branch}` : ""}`
-    : "Claude DevTools";
+  const suffix = repoName
+    ? `${repoName}${branch ? ` @ ${branch}` : ""}`
+    : "";
 
   return (
     <div
@@ -27,6 +29,23 @@ export function Titlebar({ repoName, branch }: TitlebarProps) {
         borderBottom: "1px solid var(--bd)",
       }}
     >
+      <button
+        onClick={() => navigate({ to: "/" })}
+        className="cursor-pointer bg-transparent border-none font-semibold shrink-0"
+        style={{
+          fontSize: 12,
+          color: "var(--acc)",
+          padding: 0,
+          letterSpacing: ".2px",
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.8"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+        title="Back to home"
+        data-testid="home-button"
+      >
+        Claude DevTools
+      </button>
+
       <div
         className="flex-1 text-center"
         style={{
@@ -35,7 +54,7 @@ export function Titlebar({ repoName, branch }: TitlebarProps) {
           letterSpacing: ".2px",
         }}
       >
-        {titleText}
+        {suffix}
       </div>
 
       {/* Theme toggle */}
