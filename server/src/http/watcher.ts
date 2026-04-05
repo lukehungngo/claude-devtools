@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { broadcast, type ServerState } from "./server.js";
+import { invalidateDiscoveryCache } from "../parser/session-discovery.js";
 import { logger } from "../logger.js";
 import { parseJsonlIncremental } from "../parser/jsonl-reader.js";
 import { processNewEvents } from "../debug/lifecycle-builder.js";
@@ -119,6 +120,7 @@ export function startWatcher(state: ServerState): { close: () => Promise<void> }
     offsets.set(filePath, newOffset);
 
     if (events.length > 0) {
+      invalidateDiscoveryCache();
       broadcast(state, buildNewEventsMessage(filePath, events));
 
       storeLifecycleData(state, filePath, events);
@@ -126,6 +128,8 @@ export function startWatcher(state: ServerState): { close: () => Promise<void> }
   });
 
   watcher.on("add", (filePath) => {
+    invalidateDiscoveryCache();
+
     // For subagent files (under /subagents/), parse initial content so
     // the first batch of events isn't missed from the live WS feed.
     if (filePath.includes("/subagents/")) {
