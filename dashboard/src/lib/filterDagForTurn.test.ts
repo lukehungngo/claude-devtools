@@ -315,10 +315,11 @@ describe("filterDagForTurn", () => {
     const mainNode = result.nodes.find((n) => n.id === "main")!;
     const agentNode = result.nodes.find((n) => n.id === "agent-1")!;
 
-    // Both nodes should have turn-scoped times, not session-wide times
+    // Root (main) gets turn-scoped times to set timeline scope
     expect(mainNode.startTime).toBe("2026-01-01T00:30:00Z");
     expect(mainNode.endTime).toBe("2026-01-01T00:33:00Z");
-    expect(agentNode.startTime).toBe("2026-01-01T00:30:00Z");
-    expect(agentNode.endTime).toBe("2026-01-01T00:33:00Z");
+    // Child keeps its original times for accurate bar positioning
+    expect(agentNode.startTime).toBe("2026-01-01T00:05:00Z");
+    expect(agentNode.endTime).toBe("2026-01-01T00:55:00Z");
   });
 });
