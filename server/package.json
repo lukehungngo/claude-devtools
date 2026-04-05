@@ -9,7 +9,8 @@
     "dev:mcp": "tsx watch src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:bench": "vitest bench"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.81",
