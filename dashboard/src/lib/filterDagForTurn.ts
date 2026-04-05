@@ -8,8 +8,8 @@ import type { TurnSnapshot } from "./turnSnapshot";
  * - activeTurn is undefined (returns full dag)
  * - activeTurn has no agents yet (brand-new turn -- returns full dag)
  *
- * Accepts an optional `prev` result. If the agent ID set is unchanged,
- * returns `prev` (same reference) to avoid unnecessary React re-renders.
+ * Accepts an optional `prev` result. If the agent ID set AND token data
+ * are unchanged, returns `prev` (same reference) to avoid React re-renders.
  *
  * When filtering for a turn, each node's tokenUsage is overridden with
  * turn-specific data from the turn's AgentSummary (which computes cost
@@ -27,15 +27,23 @@ export function filterDagForTurn(
   const turnAgentIds = new Set(activeTurn.agents.map((a) => a.agentId));
   turnAgentIds.add("main");
 
-  // Check if agent set is unchanged from previous result
+  // Build lookup from turn's agent summaries (includes "main" agent)
+  const agentSummaryMap = new Map(activeTurn.agents.map((a) => [a.agentId, a]));
+
+  // Check if agent set AND data are unchanged from previous result
   if (prev && prev !== dag) {
     const prevIds = prev.nodes.map((n) => n.id).sort().join(",");
     const newIds = Array.from(turnAgentIds).sort().join(",");
-    if (prevIds === newIds) return prev;
+    // Compare ALL nodes' token data against turn summaries; if any node's
+    // tokens differ from the summary, data has changed and we must recompute
+    const sameData = prev.nodes.every((n) => {
+      const summary = agentSummaryMap.get(n.id);
+      if (!summary) return true; // node not in this turn's summary, skip
+      return n.tokenUsage.inputTokens === summary.tokensIn
+        && n.tokenUsage.outputTokens === summary.tokensOut;
+    });
+    if (prevIds === newIds && sameData) return prev;
   }
-
-  // Build lookup from turn's agent summaries (includes "main" agent)
-  const agentSummaryMap = new Map(activeTurn.agents.map((a) => [a.agentId, a]));
 
   const nodes = dag.nodes
     .filter((n) => turnAgentIds.has(n.id))

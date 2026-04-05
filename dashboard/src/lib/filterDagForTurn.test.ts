@@ -161,6 +161,129 @@ describe("filterDagForTurn", () => {
     expect(agentNode.tokenUsage.outputTokens).toBe(1000);
   });
 
+  it("returns new reference when same agent IDs but different token data", () => {
+    const dagWithCosts: AgentDAG = {
+      nodes: [
+        { ...makeNode("main"), tokenUsage: { inputTokens: 50000, outputTokens: 20000, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 5.0 } },
+        { ...makeNode("agent-1"), tokenUsage: { inputTokens: 10000, outputTokens: 5000, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 1.5 } },
+      ],
+      edges: [{ source: "main", target: "agent-1" }],
+    };
+
+    const turnA: TurnSnapshot = {
+      turnNumber: 1,
+      promptText: "turn A",
+      startIndex: 0,
+      endIndex: 5,
+      agents: [
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0.10, tokensIn: 100, tokensOut: 50, tools: ["Read"] },
+        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0.20, tokensIn: 200, tokensOut: 100, tools: ["Write"] },
+      ],
+      status: "completed",
+      cost: 0.30,
+      costBreakdown: { total: 0.30, inputCost: 0.15, outputCost: 0.15 },
+      durationMs: 1000,
+      startTime: "2026-01-01T00:00:00Z",
+      completedAt: "2026-01-01T00:00:01Z",
+      endTime: "2026-01-01T00:00:01Z",
+    };
+
+    const turnB: TurnSnapshot = {
+      turnNumber: 2,
+      promptText: "turn B",
+      startIndex: 6,
+      endIndex: 10,
+      agents: [
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 2, status: "completed", cost: 0.50, tokensIn: 500, tokensOut: 250, tools: ["Read", "Write"] },
+        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0.80, tokensIn: 400, tokensOut: 200, tools: ["Edit"] },
+      ],
+      status: "completed",
+      cost: 1.30,
+      costBreakdown: { total: 1.30, inputCost: 0.70, outputCost: 0.60 },
+      durationMs: 3000,
+      startTime: "2026-01-01T00:01:00Z",
+      completedAt: "2026-01-01T00:01:03Z",
+      endTime: "2026-01-01T00:01:03Z",
+    };
+
+    const resultA = filterDagForTurn(dagWithCosts, turnA);
+    const resultB = filterDagForTurn(dagWithCosts, turnB, resultA);
+
+    // Must be a different reference — same agents but different data
+    expect(resultB).not.toBe(resultA);
+
+    // resultB must have turnB's token data
+    const agent1B = resultB!.nodes.find((n) => n.id === "agent-1")!;
+    expect(agent1B.tokenUsage.inputTokens).toBe(400);
+    expect(agent1B.tokenUsage.outputTokens).toBe(200);
+    expect(agent1B.tokenUsage.totalCost).toBeCloseTo(0.80);
+
+    const mainB = resultB!.nodes.find((n) => n.id === "main")!;
+    expect(mainB.tokenUsage.inputTokens).toBe(500);
+    expect(mainB.tokenUsage.outputTokens).toBe(250);
+  });
+
+  it("returns new reference when main tokens are identical but sub-agent tokens differ", () => {
+    const dagWithCosts: AgentDAG = {
+      nodes: [
+        { ...makeNode("main"), tokenUsage: { inputTokens: 50000, outputTokens: 20000, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 5.0 } },
+        { ...makeNode("agent-1"), tokenUsage: { inputTokens: 10000, outputTokens: 5000, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 1.5 } },
+      ],
+      edges: [{ source: "main", target: "agent-1" }],
+    };
+
+    // turnA and turnB have IDENTICAL main tokens but DIFFERENT agent-1 tokens
+    const turnA: TurnSnapshot = {
+      turnNumber: 1,
+      promptText: "turn A",
+      startIndex: 0,
+      endIndex: 5,
+      agents: [
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0.10, tokensIn: 100, tokensOut: 50, tools: ["Read"] },
+        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0.20, tokensIn: 200, tokensOut: 100, tools: ["Write"] },
+      ],
+      status: "completed",
+      cost: 0.30,
+      costBreakdown: { total: 0.30, inputCost: 0.15, outputCost: 0.15 },
+      durationMs: 1000,
+      startTime: "2026-01-01T00:00:00Z",
+      completedAt: "2026-01-01T00:00:01Z",
+      endTime: "2026-01-01T00:00:01Z",
+    };
+
+    const turnB: TurnSnapshot = {
+      turnNumber: 2,
+      promptText: "turn B",
+      startIndex: 6,
+      endIndex: 10,
+      agents: [
+        // SAME main tokens as turnA
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0.10, tokensIn: 100, tokensOut: 50, tools: ["Read"] },
+        // DIFFERENT agent-1 tokens
+        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0.80, tokensIn: 400, tokensOut: 200, tools: ["Edit"] },
+      ],
+      status: "completed",
+      cost: 0.90,
+      costBreakdown: { total: 0.90, inputCost: 0.50, outputCost: 0.40 },
+      durationMs: 2000,
+      startTime: "2026-01-01T00:01:00Z",
+      completedAt: "2026-01-01T00:01:02Z",
+      endTime: "2026-01-01T00:01:02Z",
+    };
+
+    const resultA = filterDagForTurn(dagWithCosts, turnA);
+    const resultB = filterDagForTurn(dagWithCosts, turnB, resultA);
+
+    // Must be a different reference -- same agents, same main tokens, but different agent-1 tokens
+    expect(resultB).not.toBe(resultA);
+
+    // resultB must have turnB's agent-1 token data
+    const agent1B = resultB!.nodes.find((n) => n.id === "agent-1")!;
+    expect(agent1B.tokenUsage.inputTokens).toBe(400);
+    expect(agent1B.tokenUsage.outputTokens).toBe(200);
+    expect(agent1B.tokenUsage.totalCost).toBeCloseTo(0.80);
+  });
+
   it("overrides startTime/endTime with turn-scoped values", () => {
     const dagWithTimes: AgentDAG = {
       nodes: [
