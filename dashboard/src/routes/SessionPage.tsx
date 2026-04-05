@@ -9,6 +9,7 @@ import { ConversationView } from "../components/conversation/ConversationView";
 import { ReopenBar } from "../components/conversation/ReopenBar";
 import { RawLogView } from "../components/conversation/RawLogView";
 import { AgentLogTab } from "../components/bottom-panel/AgentLogTab";
+import { PanelModal } from "../components/PanelModal";
 
 export function SessionPage() {
   const { repoSlug, sessionId } = useParams({ strict: false }) as {
@@ -96,6 +97,7 @@ export function SessionPage() {
   const [highlightedTurnIndex, setHighlightedTurnIndex] = useState<number | undefined>(undefined);
   const [selectedTurnIndex, setSelectedTurnIndex] = useState<number | null>(null);
   const [mainTab, setMainTab] = useState<"conversation" | "raw-log" | "agent-log">("conversation");
+  const [activePanel, setActivePanel] = useState<string | null>(null);
 
   // Background REST sync every 30 seconds (replaces per-event debounced refetch)
   // Use ref for liveEvents length to avoid interval teardown on every event batch
@@ -212,8 +214,9 @@ export function SessionPage() {
     return () => { onTurnClickRef.current = null; };
   }, [onTurnClickRef, handleTurnClick]);
 
-  // No-op: previously opened a right panel tab; kept for onOpenPanel callback chain
-  const handleOpenPanel = useCallback((_panel: string) => {}, []);
+  const handleOpenPanel = useCallback((panel: string) => {
+    setActivePanel(panel);
+  }, []);
 
   const handleReopenTurnHistory = useCallback(() => {
     setTurnHistoryOpen(true);
@@ -323,6 +326,14 @@ export function SessionPage() {
           turns={turns}
         />
       )}
+      <PanelModal
+        panel={activePanel}
+        onClose={() => setActivePanel(null)}
+        metrics={metrics}
+        usage={usage}
+        projectHash={projectHash}
+        sessionId={sessionId}
+      />
     </div>
   );
 }
