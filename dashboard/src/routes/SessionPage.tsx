@@ -8,6 +8,7 @@ import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental } from "../lib/tu
 import { ConversationView } from "../components/conversation/ConversationView";
 import { ReopenBar } from "../components/conversation/ReopenBar";
 import { RawLogView } from "../components/conversation/RawLogView";
+import { AgentLogTab } from "../components/bottom-panel/AgentLogTab";
 
 export function SessionPage() {
   const { repoSlug, sessionId } = useParams({ strict: false }) as {
@@ -94,7 +95,7 @@ export function SessionPage() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [highlightedTurnIndex, setHighlightedTurnIndex] = useState<number | undefined>(undefined);
   const [selectedTurnIndex, setSelectedTurnIndex] = useState<number | null>(null);
-  const [mainTab, setMainTab] = useState<"conversation" | "raw-log">("conversation");
+  const [mainTab, setMainTab] = useState<"conversation" | "raw-log" | "agent-log">("conversation");
 
   // Background REST sync every 30 seconds (replaces per-event debounced refetch)
   // Use ref for liveEvents length to avoid interval teardown on every event batch
@@ -254,7 +255,7 @@ export function SessionPage() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tab bar */}
       <div className="flex shrink-0 border-b border-dt-border bg-dt-bg">
-        {(["conversation", "raw-log"] as const).map((tab) => (
+        {(["conversation", "raw-log", "agent-log"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setMainTab(tab)}
@@ -267,10 +268,10 @@ export function SessionPage() {
               transition: "all .12s",
             }}
           >
-            {tab === "conversation" ? "Conversation" : "Raw Log"}
+            {{ conversation: "Conversation", "raw-log": "Raw Log", "agent-log": "Agent Log" }[tab]}
           </button>
         ))}
-        {mainTab === "raw-log" && selectedTurnIndex != null && (
+        {(mainTab === "raw-log" || mainTab === "agent-log") && selectedTurnIndex != null && (
           <div className="ml-auto flex items-center gap-[3px] text-[10px] text-dt-text3 pr-2">
             Scoped to{" "}
             <span className="font-mono text-[10px] font-semibold text-dt-accent bg-dt-accent-bg px-[5px] py-[1px] rounded-[3px]">
@@ -305,11 +306,21 @@ export function SessionPage() {
             onOpenPanel={handleOpenPanel}
           />
         </>
-      ) : (
+      ) : mainTab === "raw-log" ? (
         <RawLogView
           turns={turns}
           allEvents={allEvents}
           activeTurnIndex={effectiveTurnIndex}
+        />
+      ) : (
+        <AgentLogTab
+          allEvents={allEvents}
+          dag={metrics?.dag ?? null}
+          subagentMeta={subagentMeta}
+          selectedAgent={selectedAgent}
+          onSelectAgent={handleAgentPillClick}
+          activeTurnIndex={effectiveTurnIndex}
+          turns={turns}
         />
       )}
     </div>

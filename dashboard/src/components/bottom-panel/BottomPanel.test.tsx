@@ -102,11 +102,10 @@ describe("BottomPanel", () => {
   });
   afterEach(cleanup);
 
-  it("renders 4 tabs with correct labels", () => {
+  it("renders 3 tabs with correct labels", () => {
     render(<BottomPanel />);
     expect(screen.getByText("Agent Graph")).toBeDefined();
     expect(screen.getByText("Tool Call")).toBeDefined();
-    expect(screen.getByText("Agent Log")).toBeDefined();
     expect(screen.getByText("Cost")).toBeDefined();
   });
 

@@ -5,15 +5,11 @@ import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { TraceTab } from "./TraceTab";
 import { CostTab } from "./CostTab";
 import { DetailTab } from "./DetailTab";
-
-import { AgentLogTab } from "./AgentLogTab";
-
-export type BottomTab = "agent-graph" | "tool-call" | "agent-log" | "cost";
+export type BottomTab = "agent-graph" | "tool-call" | "cost";
 
 const TABS: { id: BottomTab; label: string }[] = [
   { id: "agent-graph", label: "Agent Graph" },
   { id: "tool-call", label: "Tool Call" },
-  { id: "agent-log", label: "Agent Log" },
   { id: "cost", label: "Cost" },
 ];
 
@@ -259,16 +255,6 @@ export function BottomPanel({
               />
             ) : activeTab === "tool-call" ? (
               <DetailTab turns={turns} allEvents={events} activeTurnIndex={activeTurnIndex} />
-            ) : activeTab === "agent-log" ? (
-              <AgentLogTab
-                allEvents={events}
-                dag={dag}
-                subagentMeta={subagentMeta}
-                selectedAgent={selectedAgent}
-                onSelectAgent={onSelectAgent}
-                activeTurnIndex={activeTurnIndex}
-                turns={turns}
-              />
             ) : activeTab === "cost" ? (
               <CostTab metrics={metrics} />
             ) : null}
