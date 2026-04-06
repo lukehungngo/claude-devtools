@@ -36,7 +36,10 @@ describe("useSessionMetrics", () => {
 
     // initial fetch on mount
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith("/api/sessions/proj1/sess1");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/sessions/proj1/sess1",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
 
     await act(async () => {
       result.current.refresh();
@@ -45,7 +48,11 @@ describe("useSessionMetrics", () => {
 
     // second fetch after refresh()
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/sessions/proj1/sess1");
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/sessions/proj1/sess1",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it("does not fetch when projectHash or sessionId is null", async () => {

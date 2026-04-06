@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { EffortLevel } from "../lib/types";
 
 const API_BASE = "/api";
@@ -19,6 +19,13 @@ export function useSessionControl(
   const [model, setModelState] = useState<string | null>(null);
   const [fastMode, setFastModeState] = useState(false);
   const [effort, setEffortState] = useState<EffortLevel>("high");
+
+  // Reset state when session changes
+  useEffect(() => {
+    setModelState(null);
+    setFastModeState(false);
+    setEffortState("high");
+  }, [sessionId]);
 
   // Use ref for fastMode in toggleFastMode to read current value inside useCallback
   // without adding fastMode to the dependency array (which would break ref stability).

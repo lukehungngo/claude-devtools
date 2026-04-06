@@ -492,7 +492,7 @@ export function AgentLogs({
   }, [filteredEntries, timelineGroups]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-dt-border shrink-0 bg-dt-bg2/80">
         <div className="text-sm font-semibold uppercase tracking-[0.5px] text-dt-text2 flex items-center gap-2">
@@ -556,7 +556,7 @@ export function AgentLogs({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overflow-x-hidden p-0 relative dt-scrollbar"
+        className="flex-1 overflow-y-auto overflow-x-auto p-0 relative dt-scrollbar"
       >
         {filteredEntries.length === 0 ? (
           events.length === 0 ? (
@@ -575,7 +575,8 @@ export function AgentLogs({
           <div
             style={{
               height: virtualizer.getTotalSize(),
-              width: "100%",
+              minWidth: "100%",
+              width: "max-content",
               position: "relative",
             }}
           >
@@ -599,7 +600,7 @@ export function AgentLogs({
                       position: "absolute",
                       top: 0,
                       left: 0,
-                      width: "100%",
+                      minWidth: "100%",
                       transform: `translateY(${virtualRow.start}px)`,
                     }}
                   >
@@ -711,10 +712,10 @@ export function AgentLogs({
                     {/* Message */}
                     <span
                       onClick={() => hasMore && toggleExpand(entry.uuid)}
-                      className={`text-dt-text1 leading-[1.3] flex-1 min-w-0 ${
+                      className={`text-dt-text1 leading-[1.3] ${
                         isExpanded
                           ? "whitespace-pre-wrap break-all"
-                          : "truncate"
+                          : "whitespace-nowrap"
                       } ${hasMore ? "cursor-pointer" : "cursor-default"}`}
                     >
                       {highlightMessage(displayMessage)}

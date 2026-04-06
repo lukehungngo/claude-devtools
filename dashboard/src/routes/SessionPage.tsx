@@ -7,8 +7,8 @@ import { useSessionControl } from "../hooks/useSessionControl";
 import { resolveSlugToProjectHash } from "../lib/repoSlug";
 import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental } from "../lib/turnSnapshot";
 import { ConversationView } from "../components/conversation/ConversationView";
-import { ReopenBar } from "../components/conversation/ReopenBar";
 import { RawLogView } from "../components/conversation/RawLogView";
+import { Menu } from "lucide-react";
 import { AgentLogTab } from "../components/bottom-panel/AgentLogTab";
 import { PanelModal } from "../components/PanelModal";
 import type { ModelOption } from "../components/controls/ModelSwitcher";
@@ -140,17 +140,11 @@ export function SessionPage() {
   // Background REST sync every 30 seconds (replaces per-event debounced refetch)
   // Use ref for liveEvents length to avoid interval teardown on every event batch
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastRefreshEventCountRef = useRef(0);
-  const liveEventsLengthRef = useRef(0);
-  liveEventsLengthRef.current = liveEvents.length;
   useEffect(() => {
     if (!projectHash || !sessionId) return;
     syncIntervalRef.current = setInterval(() => {
-      if (liveEventsLengthRef.current > lastRefreshEventCountRef.current) {
-        lastRefreshEventCountRef.current = liveEventsLengthRef.current;
-        refreshMetrics();
-        clearLiveEvents();
-      }
+      refreshMetrics();
+      clearLiveEvents();
     }, 30_000);
     return () => {
       if (syncIntervalRef.current !== null) {
@@ -196,6 +190,18 @@ export function SessionPage() {
   useEffect(() => {
     setCurrentTurns(turns);
   }, [turns, setCurrentTurns]);
+
+  // Refresh metrics (including DAG) when the latest turn completes
+  const lastTurnStatusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (turns.length === 0) return;
+    const lastStatus = turns[turns.length - 1].status;
+    if (lastTurnStatusRef.current === "running" && lastStatus === "completed") {
+      refreshMetrics();
+      clearLiveEvents();
+    }
+    lastTurnStatusRef.current = lastStatus;
+  }, [turns, refreshMetrics, clearLiveEvents]);
 
   // Default to last turn so panels show data immediately without requiring a click
   const effectiveTurnIndex = useMemo(
@@ -296,7 +302,18 @@ export function SessionPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tab bar */}
-      <div className="flex shrink-0 border-b border-dt-border bg-dt-bg">
+      <div className="flex items-center shrink-0 border-b border-dt-border bg-dt-bg">
+        {/* Turn history toggle — always accessible */}
+        {!turnHistoryOpen && (
+          <button
+            onClick={handleReopenTurnHistory}
+            className="flex items-center justify-center w-7 h-7 ml-1 bg-transparent border-none text-dt-text3 rounded cursor-pointer hover:bg-dt-bg3 hover:text-dt-text0 transition-colors duration-150"
+            aria-label="Open turn history panel"
+            title="Open turn history"
+          >
+            <Menu size={14} />
+          </button>
+        )}
         {(["conversation", "raw-log", "agent-log"] as const).map((tab) => (
           <button
             key={tab}
@@ -325,9 +342,7 @@ export function SessionPage() {
 
       {/* Tab content */}
       {mainTab === "conversation" ? (
-        <>
-          {!turnHistoryOpen && <ReopenBar onReopen={handleReopenTurnHistory} />}
-          <ConversationView
+        <ConversationView
             events={allEvents}
             turns={turns}
             metrics={metrics}
@@ -347,7 +362,6 @@ export function SessionPage() {
             onTurnClick={handleTurnClick}
             onOpenPanel={handleOpenPanel}
           />
-        </>
       ) : mainTab === "raw-log" ? (
         <RawLogView
           turns={turns}

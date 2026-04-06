@@ -9,6 +9,7 @@ function makeAssistantEvent(
     content?: AssistantEvent["message"]["content"];
     usage?: Partial<AssistantEvent["message"]["usage"]>;
     model?: string;
+    stopReason?: "end_turn" | "tool_use" | null;
   } = {}
 ): AssistantEvent {
   return {
@@ -22,7 +23,7 @@ function makeAssistantEvent(
       model: overrides.model || "claude-sonnet-4-6",
       id: "msg-1",
       type: "message",
-      stop_reason: "end_turn",
+      stop_reason: overrides.stopReason ?? "end_turn",
       usage: {
         input_tokens: overrides.usage?.input_tokens ?? 100,
         output_tokens: overrides.usage?.output_tokens ?? 50,
@@ -128,17 +129,32 @@ describe("buildAgentDAG", () => {
     expect(dag.nodes[0].status).toBe("completed");
   });
 
-  it("determines active status for recent events (within 30s)", () => {
-    // Event from right now
+  it("determines active status for recent events with tool_use stop_reason", () => {
+    // Event from right now, still doing tool calls (not finished)
     const recentEvents: SessionEvent[] = [
       makeAssistantEvent({
         timestamp: new Date().toISOString(),
+        stopReason: "tool_use",
       }),
     ];
 
     const dag = buildAgentDAG(recentEvents, new Map(), new Map());
 
     expect(dag.nodes[0].status).toBe("active");
+  });
+
+  it("determines completed status for recent events with end_turn stop_reason", () => {
+    // Event from right now, but stop_reason is end_turn — definitively done
+    const recentEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        timestamp: new Date().toISOString(),
+        stopReason: "end_turn",
+      }),
+    ];
+
+    const dag = buildAgentDAG(recentEvents, new Map(), new Map());
+
+    expect(dag.nodes[0].status).toBe("completed");
   });
 
   it("counts tool calls correctly on main node", () => {

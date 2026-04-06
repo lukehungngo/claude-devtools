@@ -296,7 +296,7 @@ export function AppLayout() {
           <TopBar
             metrics={currentMetrics}
             isLive={isLive}
-            hasPermissionPending={permissions.length > 0}
+            hasPermissionPending={permissions.some(p => p.status === "pending")}
             viewingTurnNumber={viewingTurnNumber}
             onClearViewingTurn={handleClearViewingTurn}
             permissionMode={permissionMode}

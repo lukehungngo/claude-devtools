@@ -16,7 +16,7 @@ export function ModelSwitcher({ current, models, onSelect }: ModelSwitcherProps)
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const currentModel = models.find((m) => m.id === current);
+  const currentModel = models.find((m) => m.id === current || (current && m.id.startsWith(current)));
   const displayLabel = currentModel?.label ?? "\u2014";
 
   const handleSelect = useCallback(
@@ -80,7 +80,7 @@ export function ModelSwitcher({ current, models, onSelect }: ModelSwitcherProps)
           }}
         >
           {models.map((model) => {
-            const isActive = model.id === current;
+            const isActive = model.id === current || (!!current && model.id.startsWith(current));
             return (
               <button
                 key={model.id}

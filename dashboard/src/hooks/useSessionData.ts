@@ -18,9 +18,18 @@ export function useSessionMetrics(
       setSubagentMeta({});
       return;
     }
+
+    // Clear stale data immediately before fetching new session
+    setMetrics(null);
+    setEvents([]);
+    setSubagentMeta({});
     setLoading(true);
 
-    fetch(`/api/sessions/${projectHash}/${sessionId}`)
+    const controller = new AbortController();
+
+    fetch(`/api/sessions/${projectHash}/${sessionId}`, {
+      signal: controller.signal,
+    })
       .then((r) => r.json())
       .then((data) => {
         setMetrics(data.metrics || null);
@@ -28,12 +37,15 @@ export function useSessionMetrics(
         setSubagentMeta(data.subagentMeta || {});
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setMetrics(null);
         setEvents([]);
         setSubagentMeta({});
         setLoading(false);
       });
+
+    return () => controller.abort();
   }, [projectHash, sessionId, refreshCount]);
 
   const refresh = useCallback(() => {

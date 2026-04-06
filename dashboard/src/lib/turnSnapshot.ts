@@ -394,9 +394,11 @@ function extendTurn(
     }
   }
 
-  // Re-derive status: check new events for turn_duration first
-  let status = existing.status;
+  // Re-derive status from new events (don't preserve stale "completed")
+  let status: "running" | "completed" = "running";
   let durationMs = existing.durationMs;
+
+  // turn_duration is the definitive completion signal — always wins
   for (const event of newEvents) {
     if (event.type === "system" && (event as SystemEvent).subtype === "turn_duration") {
       status = "completed";
@@ -404,8 +406,9 @@ function extendTurn(
       break;
     }
   }
+
+  // If no turn_duration, check the last assistant event for stop_reason
   if (status === "running") {
-    // Check last assistant event across ALL new events for stop_reason
     for (let i = newEvents.length - 1; i >= 0; i--) {
       if (newEvents[i].type === "assistant") {
         const asst = newEvents[i] as AssistantEvent;

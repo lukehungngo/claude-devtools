@@ -798,3 +798,92 @@ describe("groupEventsIntoTurns — system-injected content filtering", () => {
     expect(turns[0].promptText).toBe("/commit");
   });
 });
+
+// ─── extendTurn status reversion (TASK-001) ──────────────────────────
+
+describe("groupEventsIntoTurnsIncremental — extendTurn status reversion", () => {
+  it("reverts completed turn to running when new tool_use events arrive", () => {
+    // Turn 1 completed via end_turn stop_reason
+    const initialEvents: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ stopReason: "end_turn", timestamp: "2026-01-01T00:00:01Z" }),
+    ];
+    const existingTurns = groupEventsIntoTurns(initialEvents);
+    expect(existingTurns).toHaveLength(1);
+    expect(existingTurns[0].status).toBe("completed");
+
+    // New events: tool_use arrives, turn should revert to running
+    const allEvents: SessionEvent[] = [
+      ...initialEvents,
+      makeAssistantEvent({ stopReason: "tool_use", timestamp: "2026-01-01T00:00:02Z" }),
+    ];
+
+    const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 1);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].status).toBe("running");
+  });
+
+  it("stays completed when turn_duration arrives after end_turn", () => {
+    // Turn 1 completed via end_turn
+    const initialEvents: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ stopReason: "end_turn", timestamp: "2026-01-01T00:00:01Z" }),
+    ];
+    const existingTurns = groupEventsIntoTurns(initialEvents);
+    expect(existingTurns[0].status).toBe("completed");
+
+    // turn_duration confirms completion
+    const allEvents: SessionEvent[] = [
+      ...initialEvents,
+      makeTurnDurationEvent(1500, { timestamp: "2026-01-01T00:00:02Z" }),
+    ];
+
+    const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 1);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].status).toBe("completed");
+    expect(turns[0].durationMs).toBe(1500);
+  });
+
+  it("shows running when new assistant event has no end_turn", () => {
+    // Turn 1 completed via end_turn
+    const initialEvents: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ stopReason: "end_turn", timestamp: "2026-01-01T00:00:01Z" }),
+    ];
+    const existingTurns = groupEventsIntoTurns(initialEvents);
+    expect(existingTurns[0].status).toBe("completed");
+
+    // New assistant event without end_turn (tool_use) — status must revert
+    const allEvents: SessionEvent[] = [
+      ...initialEvents,
+      makeUserEvent({ toolResult: true, userType: "external", timestamp: "2026-01-01T00:00:02Z" }),
+      makeAssistantEvent({ stopReason: "tool_use", timestamp: "2026-01-01T00:00:03Z" }),
+    ];
+
+    const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 2);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].status).toBe("running");
+  });
+
+  it("turn_duration always wins over stop_reason in new events", () => {
+    // Turn running
+    const initialEvents: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ stopReason: "tool_use", timestamp: "2026-01-01T00:00:01Z" }),
+    ];
+    const existingTurns = groupEventsIntoTurns(initialEvents);
+    expect(existingTurns[0].status).toBe("running");
+
+    // New events have both tool_use AND turn_duration — turn_duration wins
+    const allEvents: SessionEvent[] = [
+      ...initialEvents,
+      makeAssistantEvent({ stopReason: "tool_use", timestamp: "2026-01-01T00:00:02Z" }),
+      makeTurnDurationEvent(3000, { timestamp: "2026-01-01T00:00:03Z" }),
+    ];
+
+    const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 2);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].status).toBe("completed");
+    expect(turns[0].durationMs).toBe(3000);
+  });
+});

@@ -78,11 +78,24 @@ function analyzeEvents(events: SessionEvent[]): {
     }
   }
 
-  // Determine status: check last few events for errors
+  // Determine status: check last assistant event for definitive completion,
+  // then fall back to time-based heuristic
+  let hasEndTurn = false;
   if (events.length > 0) {
     const lastEvent = events[events.length - 1];
     const lastTimestamp = new Date(lastEvent.timestamp).getTime();
     isRecent = Date.now() - lastTimestamp < ACTIVE_THRESHOLD_MS;
+
+    // Check last assistant event for stop_reason — definitive completion signal
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i].type === "assistant") {
+        const asst = events[i] as AssistantEvent;
+        if (asst.message?.stop_reason === "end_turn") {
+          hasEndTurn = true;
+        }
+        break;
+      }
+    }
 
     for (let i = events.length - 1; i >= Math.max(0, events.length - 3); i--) {
       const evt = events[i];
@@ -100,9 +113,11 @@ function analyzeEvents(events: SessionEvent[]): {
 
   const status: "active" | "completed" | "error" = hasRecentError
     ? "error"
-    : isRecent
-      ? "active"
-      : "completed";
+    : hasEndTurn
+      ? "completed"
+      : isRecent
+        ? "active"
+        : "completed";
 
   return {
     tokens: { inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens, totalCost },
