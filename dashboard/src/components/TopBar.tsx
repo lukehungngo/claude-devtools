@@ -1,5 +1,4 @@
-import { Home, X } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { X } from "lucide-react";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
 import type { SessionMetrics, EffortLevel } from "../lib/types";
 import type { PermissionMode } from "./conversation/permissionModeTypes";
@@ -16,6 +15,7 @@ interface Props {
   permissionMode?: PermissionMode;
   onPermissionModeChange?: (mode: PermissionMode) => void;
   // P5-01 control props
+  model?: string;
   availableModels?: ModelOption[];
   fastMode?: boolean;
   effort?: EffortLevel;
@@ -43,8 +43,7 @@ const MODE_COLORS: Record<PermissionMode, { bg: string; fg: string }> = {
   bypassPermissions: { bg: "color-mix(in srgb, var(--red) 15%, transparent)", fg: "var(--red)" },
 };
 
-export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange, availableModels, fastMode, effort, onModelSelect, onFastToggle, onEffortChange, onCompact }: Props) {
-  const navigate = useNavigate();
+export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange, model, availableModels, fastMode, effort, onModelSelect, onFastToggle, onEffortChange, onCompact }: Props) {
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
@@ -62,9 +61,8 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
   // Red border when context is at danger level
   const contextDanger = contextPct >= 80;
 
-  const modelName = metrics?.models[0]
-    ? formatModelShort(metrics.models[0])
-    : "\u2014";
+  const activeModel = model ?? metrics?.models[0] ?? null;
+  const modelName = activeModel ? formatModelShort(activeModel) : "\u2014";
 
   return (
     <div
@@ -79,32 +77,6 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
         outlineOffset: -2,
       }}
     >
-      {/* Home button */}
-      <button
-        onClick={() => navigate({ to: "/" })}
-        className="flex items-center justify-center shrink-0 cursor-pointer bg-transparent border-none rounded"
-        style={{
-          width: 28,
-          height: 28,
-          color: "var(--t2)",
-          marginRight: -4,
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLElement).style.color = "var(--acc)";
-          (e.currentTarget as HTMLElement).style.background = "var(--bg-h)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLElement).style.color = "var(--t2)";
-          (e.currentTarget as HTMLElement).style.background = "transparent";
-        }}
-        title="Back to home"
-        data-testid="home-button"
-      >
-        <Home size={15} />
-      </button>
-
-      <HudSep />
-
       {/* Live status */}
       <div
         className="flex items-center gap-[5px] shrink-0"
@@ -165,7 +137,7 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
           {isLive && onModelSelect && availableModels && onFastToggle && effort && onEffortChange && onCompact ? (
             <>
               <ControlsZone
-                currentModel={metrics.models[0] ?? null}
+                currentModel={activeModel}
                 models={availableModels}
                 onModelSelect={onModelSelect}
                 fastMode={fastMode ?? false}

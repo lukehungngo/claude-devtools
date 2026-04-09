@@ -38,6 +38,111 @@ export function calculateTurnCost(
   );
 }
 
+// Context window sizes — mirrors server FALLBACK_CONTEXT_WINDOW_SIZES
+const CONTEXT_WINDOW_SIZES: Record<string, number> = {
+  "claude-opus-4-6": 200_000,
+  "claude-sonnet-4-6": 200_000,
+  "claude-haiku-4-5": 200_000,
+};
+
+function getContextWindowSize(model: string): number {
+  if (model.includes("1m") || model.includes("1M")) return 1_000_000;
+  for (const [key, size] of Object.entries(CONTEXT_WINDOW_SIZES)) {
+    if (model.includes(key)) return size;
+  }
+  return 200_000;
+}
+
+export interface LiveMetrics {
+  duration: number;
+  totalCost: number;
+  inputTokens: number;
+  outputTokens: number;
+  contextPercent: number;
+  contextWindowSize: number;
+  models: string[];
+  totalAgents: number;
+}
+
+/**
+ * Derive live metrics from events — event-driven replacement for REST polling.
+ * Computes duration, cost, context%, models from the raw event stream.
+ */
+export function computeLiveMetrics(
+  events: Array<{ type: string; timestamp: string; message?: Record<string, unknown>; agentId?: string }>,
+  isLive: boolean,
+): LiveMetrics {
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let totalCost = 0;
+  let lastInputTokens = 0;
+  const models = new Set<string>();
+  const agents = new Set<string>();
+  agents.add("main");
+
+  for (const event of events) {
+    if (event.agentId && event.agentId !== "main") {
+      agents.add(event.agentId);
+    }
+    if (event.type !== "assistant") continue;
+    const msg = event.message as {
+      model?: string;
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_creation_input_tokens?: number;
+        cache_read_input_tokens?: number;
+      };
+    } | undefined;
+    if (!msg?.usage) continue;
+
+    const model = msg.model || "claude-sonnet-4-6";
+    models.add(model);
+
+    const input = msg.usage.input_tokens || 0;
+    const output = msg.usage.output_tokens || 0;
+    const cacheWrite = msg.usage.cache_creation_input_tokens || 0;
+    const cacheRead = msg.usage.cache_read_input_tokens || 0;
+
+    inputTokens += input;
+    outputTokens += output;
+    totalCost += calculateTurnCost(model, input, output, cacheWrite, cacheRead);
+    lastInputTokens = input + cacheWrite + cacheRead;
+  }
+
+  // Duration — scan for first event with a non-empty timestamp to avoid 0ms
+  let duration = 0;
+  if (events.length > 0) {
+    const firstTs = events.find((e) => e.timestamp)?.timestamp ?? null;
+    const startTime = firstTs ? new Date(firstTs).getTime() : 0;
+    if (startTime > 0) {
+      const lastTs = [...events].reverse().find((e) => e.timestamp)?.timestamp;
+      const endTime = isLive
+        ? Date.now()
+        : lastTs ? new Date(lastTs).getTime() : startTime;
+      duration = endTime - startTime;
+    }
+  }
+
+  // Context %
+  const primaryModel = Array.from(models)[0] || "claude-sonnet-4-6";
+  const contextWindowSize = getContextWindowSize(primaryModel);
+  const contextPercent = contextWindowSize > 0
+    ? Math.min(100, Math.round((lastInputTokens / contextWindowSize) * 100))
+    : 0;
+
+  return {
+    duration,
+    totalCost,
+    inputTokens,
+    outputTokens,
+    contextPercent,
+    contextWindowSize,
+    models: Array.from(models),
+    totalAgents: agents.size,
+  };
+}
+
 export function formatCost(cost: number): string {
   if (cost < 0.01) return `$${cost.toFixed(4)}`;
   if (cost < 1) return `$${cost.toFixed(3)}`;

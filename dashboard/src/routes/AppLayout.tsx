@@ -301,6 +301,7 @@ export function AppLayout() {
             onClearViewingTurn={handleClearViewingTurn}
             permissionMode={permissionMode}
             onPermissionModeChange={setPermissionMode}
+            model={sessionControl?.model ?? undefined}
             availableModels={sessionControl?.availableModels}
             fastMode={sessionControl?.fastMode}
             effort={sessionControl?.effort}

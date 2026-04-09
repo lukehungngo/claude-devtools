@@ -11,6 +11,7 @@ import { RawLogView } from "../components/conversation/RawLogView";
 import { Menu } from "lucide-react";
 import { AgentLogTab } from "../components/bottom-panel/AgentLogTab";
 import { PanelModal } from "../components/PanelModal";
+import { computeLiveMetrics } from "../lib/cost";
 import type { ModelOption } from "../components/controls/ModelSwitcher";
 
 const AVAILABLE_MODELS: ModelOption[] = [
@@ -71,7 +72,7 @@ export function SessionPage() {
     sessionId,
   );
 
-  const { liveEvents, handleNewEvents, clearLiveEvents } = useEventStream(
+  const { liveEvents, handleNewEvents } = useEventStream(
     metrics?.session?.path ?? null,
     sessionId,
   );
@@ -81,11 +82,6 @@ export function SessionPage() {
     registerSessionHandlers({ onNewEvents: handleNewEvents });
     return () => registerSessionHandlers(null);
   }, [registerSessionHandlers, handleNewEvents]);
-
-  // Push metrics to layout context for TopBar
-  useEffect(() => {
-    setCurrentMetrics(metrics);
-  }, [metrics, setCurrentMetrics]);
 
   // Push live events to layout context for BottomPanel
   useEffect(() => {
@@ -137,23 +133,6 @@ export function SessionPage() {
   const [mainTab, setMainTab] = useState<"conversation" | "raw-log" | "agent-log">("conversation");
   const [activePanel, setActivePanel] = useState<string | null>(null);
 
-  // Background REST sync every 30 seconds (replaces per-event debounced refetch)
-  // Use ref for liveEvents length to avoid interval teardown on every event batch
-  const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => {
-    if (!projectHash || !sessionId) return;
-    syncIntervalRef.current = setInterval(() => {
-      refreshMetrics();
-      clearLiveEvents();
-    }, 30_000);
-    return () => {
-      if (syncIntervalRef.current !== null) {
-        clearInterval(syncIntervalRef.current);
-        syncIntervalRef.current = null;
-      }
-    };
-  }, [projectHash, sessionId, refreshMetrics, clearLiveEvents]);
-
   // Cache REST event UUIDs separately — only rebuilds when REST data changes, not on every live event
   const restKeys = useMemo(() => new Set(events.map((e) => e.uuid)), [events]);
 
@@ -168,6 +147,37 @@ export function SessionPage() {
   useEffect(() => {
     setCurrentEvents(allEvents);
   }, [allEvents, setCurrentEvents]);
+
+  // Derive live metrics from events — event-driven, no REST polling needed
+  const liveMetrics = useMemo(() => {
+    if (allEvents.length === 0) return null;
+    return computeLiveMetrics(allEvents, isLive);
+  }, [allEvents, isLive]);
+
+  // Overlay live values onto REST metrics so TopBar/CostTab update in real-time
+  const enrichedMetrics = useMemo(() => {
+    if (!metrics) return null;
+    if (!liveMetrics) return metrics;
+    return {
+      ...metrics,
+      duration: liveMetrics.duration,
+      tokens: {
+        ...metrics.tokens,
+        inputTokens: liveMetrics.inputTokens,
+        outputTokens: liveMetrics.outputTokens,
+        totalCost: liveMetrics.totalCost,
+      },
+      // contextPercent and contextWindowSize intentionally not overridden:
+      // server computes these from actual SDK context window; client-side calc inflates
+      // them via accumulated cache-read tokens, causing false "100%" readings.
+      models: liveMetrics.models.length > 0 ? liveMetrics.models : metrics.models,
+      totalAgents: Math.max(liveMetrics.totalAgents, metrics.totalAgents),
+    };
+  }, [metrics, liveMetrics]);
+
+  useEffect(() => {
+    setCurrentMetrics(enrichedMetrics);
+  }, [enrichedMetrics, setCurrentMetrics]);
 
   // Incremental turn grouping: only rebuild the last turn when events are appended
   const prevEventCountRef = useRef(0);
@@ -191,17 +201,16 @@ export function SessionPage() {
     setCurrentTurns(turns);
   }, [turns, setCurrentTurns]);
 
-  // Refresh metrics (including DAG) when the latest turn completes
+  // Refresh server metrics (DAG, subagentMeta, repoConfig) when the latest turn completes
   const lastTurnStatusRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (turns.length === 0) return;
     const lastStatus = turns[turns.length - 1].status;
     if (lastTurnStatusRef.current === "running" && lastStatus === "completed") {
       refreshMetrics();
-      clearLiveEvents();
     }
     lastTurnStatusRef.current = lastStatus;
-  }, [turns, refreshMetrics, clearLiveEvents]);
+  }, [turns, refreshMetrics]);
 
   // Default to last turn so panels show data immediately without requiring a click
   const effectiveTurnIndex = useMemo(

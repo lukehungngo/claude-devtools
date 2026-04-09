@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCost, formatTokens, formatDuration, calculateTurnCost } from "./cost";
+import { formatCost, formatTokens, formatDuration, calculateTurnCost, computeLiveMetrics } from "./cost";
 
 describe("formatTokens", () => {
   it("formats 0 as '0'", () => {
@@ -97,6 +97,31 @@ describe("formatDuration", () => {
   it("formats minutes and seconds correctly", () => {
     expect(formatDuration(45_000)).toBe("45.0s");
     expect(formatDuration(120_000)).toBe("2m 0s");
+  });
+});
+
+describe("computeLiveMetrics duration", () => {
+  const makeEvent = (timestamp: string, type = "user") => ({
+    type,
+    timestamp,
+    agentId: "main",
+    message: { role: "user", content: [] } as Record<string, unknown>,
+  });
+
+  it("returns non-zero duration when first event has empty timestamp but later events have valid timestamps", () => {
+    const events = [
+      makeEvent(""),
+      makeEvent("2026-01-01T00:00:00Z"),
+      makeEvent("2026-01-01T00:01:00Z"),
+    ];
+    const result = computeLiveMetrics(events, false);
+    expect(result.duration).toBe(60_000); // 1 minute
+  });
+
+  it("returns 0 duration when all events have empty timestamps", () => {
+    const events = [makeEvent(""), makeEvent("")];
+    const result = computeLiveMetrics(events, false);
+    expect(result.duration).toBe(0);
   });
 });
 
