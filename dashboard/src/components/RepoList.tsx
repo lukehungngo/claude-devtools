@@ -232,7 +232,7 @@ export function RepoList({
                     const displayName =
                       sessionNames[session.id] ||
                       session.sessionName ||
-                      session.id;
+                      session.id.slice(0, 8);
 
                     return (
                       <div
