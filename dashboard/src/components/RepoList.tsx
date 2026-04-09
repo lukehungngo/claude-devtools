@@ -259,6 +259,11 @@ export function RepoList({
                         <span
                           className="font-mono flex-1"
                           style={{ fontSize: 10, color: "var(--t2)" }}
+                          title={session.id}
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(session.id);
+                          }}
                         >
                           {displayName}
                         </span>
@@ -361,6 +366,7 @@ function UsageRow({
 }) {
   const pct = value ?? 0;
   const remaining = value != null ? Math.max(0, 100 - pct) : null;
+  // Color based on remaining: green when plenty left, amber when low, red when critical
   const barColor =
     pct > 80 ? "var(--red)" : pct > 50 ? "var(--amb)" : "var(--grn)";
   const countdown = formatCountdown(resetsAt ?? null);
@@ -376,10 +382,10 @@ function UsageRow({
           className="font-mono font-medium flex items-baseline gap-1"
           style={{ fontSize: 11 }}
         >
-          {remaining != null ? (
+          {value != null ? (
             <>
-              <span style={{ color: "var(--t1)" }}>{remaining}%</span>
-              <span style={{ fontSize: 9, color: "var(--t3)" }}>left</span>
+              <span style={{ color: "var(--t1)" }}>{pct}%</span>
+              <span style={{ fontSize: 9, color: "var(--t3)" }}>used</span>
             </>
           ) : (
             <span style={{ color: "var(--t3)" }}>--</span>

@@ -155,7 +155,7 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
               <HudSep />
             </>
           )}
-          <HudMetric label="Duration" value={formatDuration(metrics.duration)} />
+          <HudMetric label="Age" value={formatDuration(metrics.duration)} />
           <HudSep />
 
           {/* Context — only show static when controls are NOT active */}
