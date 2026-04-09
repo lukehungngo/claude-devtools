@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { Plus, Play, Settings } from "lucide-react";
+import { Plus, Play, Settings, Copy } from "lucide-react";
 import type { RepoGroup, SessionInfo, UsageInfo } from "../lib/types";
 
 const SESSION_NAMES_KEY = "session-names";
@@ -237,7 +237,7 @@ export function RepoList({
                     return (
                       <div
                         key={`${session.projectHash}/${session.id}`}
-                        className="flex items-center gap-[6px] cursor-pointer"
+                        className="group flex items-center gap-[6px] cursor-pointer"
                         onClick={() =>
                           onSelect({ projectHash: session.projectHash, sessionId: session.id })
                         }
@@ -257,16 +257,25 @@ export function RepoList({
                           }}
                         />
                         <span
-                          className="font-mono flex-1"
+                          className="font-mono flex-1 truncate"
                           style={{ fontSize: 10, color: "var(--t2)" }}
                           title={session.id}
-                          onDoubleClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(session.id);
-                          }}
                         >
                           {displayName}
                         </span>
+                        <button
+                          data-testid="copy-session-id"
+                          data-session-id={session.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(session.id);
+                          }}
+                          className="cursor-pointer border-none bg-transparent shrink-0 opacity-0 group-hover:opacity-100 hover:!opacity-100"
+                          style={{ padding: "1px 4px", color: "var(--t3)", position: "relative", zIndex: 1 }}
+                          title={`Copy full ID: ${session.id}`}
+                        >
+                          <Copy size={9} />
+                        </button>
                         <span
                           className="font-mono"
                           style={{ fontSize: 10, color: "var(--amb)" }}
