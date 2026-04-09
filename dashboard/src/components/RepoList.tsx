@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { Plus, Play, Settings, Copy } from "lucide-react";
+import { Plus, Play, Settings, Copy, Check } from "lucide-react";
 import type { RepoGroup, SessionInfo, UsageInfo } from "../lib/types";
 
 const SESSION_NAMES_KEY = "session-names";
@@ -47,6 +47,7 @@ export function RepoList({
 }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [sessionNames] = useState<Record<string, string>>(() => loadSessionNames());
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const sortedRepos = useMemo(() => {
     return repos.map((repo) => ({
@@ -269,12 +270,20 @@ export function RepoList({
                           onClick={(e) => {
                             e.stopPropagation();
                             navigator.clipboard.writeText(session.id);
+                            setCopiedId(session.id);
+                            setTimeout(() => setCopiedId((prev) => prev === session.id ? null : prev), 1500);
                           }}
                           className="cursor-pointer border-none bg-transparent shrink-0 opacity-0 group-hover:opacity-100 hover:!opacity-100"
-                          style={{ padding: "1px 4px", color: "var(--t3)", position: "relative", zIndex: 1 }}
+                          style={{
+                            padding: "1px 4px",
+                            color: copiedId === session.id ? "var(--grn)" : "var(--t3)",
+                            position: "relative",
+                            zIndex: 1,
+                            transition: "color .15s",
+                          }}
                           title={`Copy full ID: ${session.id}`}
                         >
-                          <Copy size={9} />
+                          {copiedId === session.id ? <Check size={9} /> : <Copy size={9} />}
                         </button>
                         <span
                           className="font-mono"
