@@ -61,7 +61,8 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
   // Red border when context is at danger level
   const contextDanger = contextPct >= 80;
 
-  const activeModel = model ?? metrics?.models.at(-1) ?? null;
+  const modelsList = metrics?.models ?? [];
+  const activeModel = model ?? (modelsList.length > 0 ? modelsList[modelsList.length - 1] : null);
   const modelName = activeModel ? formatModelShort(activeModel) : "\u2014";
 
   return (
