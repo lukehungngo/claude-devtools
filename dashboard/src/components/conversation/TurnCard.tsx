@@ -234,6 +234,9 @@ export function TurnCard({
                 .map((t) => (t.item as ContentItem & { text: string }).text)}
             />
 
+            {/* Tool entries (grouped card) -- click opens bottom panel tool-call tab */}
+            <ToolEntries events={turnEvents} onToolClick={onToolClick} />
+
             {/* Final response text — only non-narration text blocks */}
             {responseContent
               .filter((tagged): tagged is TaggedContent & { item: ContentItem & { text: string } } =>
@@ -247,9 +250,6 @@ export function TurnCard({
                   <ResponseBlock text={tagged.item.text} />
                 </div>
               ))}
-
-            {/* Tool entries (grouped card) -- click opens bottom panel tool-call tab */}
-            <ToolEntries events={turnEvents} onToolClick={onToolClick} />
 
             {/* Task progress (only shown on turns that executed task tool calls) */}
             {tasks && tasks.length > 0 && (
