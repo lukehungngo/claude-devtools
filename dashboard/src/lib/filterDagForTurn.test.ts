@@ -284,6 +284,51 @@ describe("filterDagForTurn", () => {
     expect(agent1B.tokenUsage.totalCost).toBeCloseTo(0.80);
   });
 
+  it("detects status change when token counts are unchanged", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        { ...makeNode("main"), status: "active" },
+        { ...makeNode("agent-1"), status: "active" },
+      ],
+      edges: [{ source: "main", target: "agent-1" }],
+    };
+
+    const turn: TurnSnapshot = {
+      turnNumber: 1,
+      promptText: "test",
+      startIndex: 0,
+      endIndex: 10,
+      agents: [
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0.1, tokensIn: 100, tokensOut: 50, tools: [] },
+        { agentId: "agent-1", agentType: "agent", displayName: "agent-1", invocationCount: 1, status: "completed", cost: 0.2, tokensIn: 100, tokensOut: 50, tools: [] },
+      ],
+      status: "completed",
+      cost: 0.3,
+      costBreakdown: { total: 0.3, inputCost: 0.2, outputCost: 0.1 },
+      durationMs: 1000,
+      startTime: "2026-01-01T00:00:00Z",
+      completedAt: "2026-01-01T00:00:01Z",
+      endTime: "2026-01-01T00:00:01Z",
+    };
+
+    // prevDag has both nodes as "active" with the same token counts as the turn
+    const prevDag: AgentDAG = {
+      nodes: [
+        { ...makeNode("main"), status: "active", tokenUsage: { inputTokens: 100, outputTokens: 50, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0.1 } },
+        { ...makeNode("agent-1"), status: "active", tokenUsage: { inputTokens: 100, outputTokens: 50, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0.2 } },
+      ],
+      edges: [{ source: "main", target: "agent-1" }],
+    };
+
+    // Pass prevDag as prev — same tokens but status changed from "active" to "completed"
+    const result = filterDagForTurn(dag, turn, prevDag);
+
+    // Must NOT return the stale prevDag — status changed
+    expect(result).not.toBe(prevDag);
+    expect(result!.nodes.find((n) => n.id === "main")!.status).toBe("completed");
+    expect(result!.nodes.find((n) => n.id === "agent-1")!.status).toBe("completed");
+  });
+
   it("overrides startTime/endTime with turn-scoped values", () => {
     const dagWithTimes: AgentDAG = {
       nodes: [

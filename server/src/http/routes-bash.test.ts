@@ -68,7 +68,7 @@ describe("POST /sessions/:sessionId/bash (P1-07)", () => {
   });
 
   it("executes a bash command and returns stdout, stderr, exitCode", async () => {
-    const sessionId = await sessionManager.startSession("/tmp/test-project");
+    const sessionId = await sessionManager.startSession("/tmp");
 
     mockSpawnSync.mockReturnValue({
       status: 0,
@@ -93,7 +93,7 @@ describe("POST /sessions/:sessionId/bash (P1-07)", () => {
       "bash",
       ["-c", "ls"],
       expect.objectContaining({
-        cwd: "/tmp/test-project",
+        cwd: "/tmp",
         timeout: 30000,
       })
     );

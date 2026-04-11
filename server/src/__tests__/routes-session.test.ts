@@ -33,7 +33,7 @@ describe("Session lifecycle routes", () => {
     it("returns sessionId when cwd is provided", async () => {
       const res = await request(app)
         .post("/api/sessions/new")
-        .send({ cwd: "/tmp/test-project" })
+        .send({ cwd: "/tmp" })
         .expect(200);
 
       expect(res.body).toHaveProperty("sessionId");
@@ -59,6 +59,18 @@ describe("Session lifecycle routes", () => {
 
       expect(res.body).toHaveProperty("error");
     });
+
+    it("returns 400 with descriptive message when cwd does not exist", async () => {
+      const nonExistentPath = `/this-path-does-not-exist-${Date.now()}`;
+      const res = await request(app)
+        .post("/api/sessions/new")
+        .send({ cwd: nonExistentPath })
+        .expect(400);
+
+      expect(res.body).toHaveProperty("error");
+      expect(res.body.error).not.toBe("Failed to create session");
+      expect(res.body.error).toContain("does not exist");
+    });
   });
 
   describe("GET /api/sessions/active", () => {
@@ -74,7 +86,7 @@ describe("Session lifecycle routes", () => {
       // Create a session first
       const createRes = await request(app)
         .post("/api/sessions/new")
-        .send({ cwd: "/tmp/test" });
+        .send({ cwd: "/tmp" });
 
       const res = await request(app)
         .get("/api/sessions/active")
@@ -82,7 +94,7 @@ describe("Session lifecycle routes", () => {
 
       expect(res.body.sessions).toHaveLength(1);
       expect(res.body.sessions[0]).toHaveProperty("sessionId", createRes.body.sessionId);
-      expect(res.body.sessions[0]).toHaveProperty("cwd", "/tmp/test");
+      expect(res.body.sessions[0]).toHaveProperty("cwd", "/tmp");
       expect(res.body.sessions[0]).toHaveProperty("status", "idle");
       expect(res.body.sessions[0]).toHaveProperty("createdAt");
     });
@@ -100,7 +112,7 @@ describe("Session lifecycle routes", () => {
     it("returns ok for existing session", async () => {
       const createRes = await request(app)
         .post("/api/sessions/new")
-        .send({ cwd: "/tmp/test" });
+        .send({ cwd: "/tmp" });
 
       const res = await request(app)
         .post(`/api/sessions/${createRes.body.sessionId}/abort`)
@@ -130,7 +142,7 @@ describe("Session lifecycle routes", () => {
     it("sets model on existing session and returns success", async () => {
       const createRes = await request(app)
         .post("/api/sessions/new")
-        .send({ cwd: "/tmp/test" });
+        .send({ cwd: "/tmp" });
 
       const sessionId = createRes.body.sessionId;
 
@@ -154,7 +166,7 @@ describe("Session lifecycle routes", () => {
     it("returns 400 when model is missing", async () => {
       const createRes = await request(app)
         .post("/api/sessions/new")
-        .send({ cwd: "/tmp/test" });
+        .send({ cwd: "/tmp" });
 
       const res = await request(app)
         .post(`/api/sessions/${createRes.body.sessionId}/model`)
@@ -183,7 +195,7 @@ describe("Session lifecycle routes", () => {
 
       const res = await request(appNoManager)
         .post("/api/sessions/new")
-        .send({ cwd: "/tmp/test" })
+        .send({ cwd: "/tmp" })
         .expect(500);
 
       expect(res.body.error).toContain("Session manager");
