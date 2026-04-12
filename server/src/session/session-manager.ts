@@ -327,6 +327,10 @@ export class SessionManager {
       if (resolver) {
         resolver(answer);
         session.questionResolvers.delete(questionId);
+        if (session.status === "waiting-permission") {
+          session.status = "streaming";
+          this.broadcast({ type: "status", status: "streaming" });
+        }
         return true;
       }
     }

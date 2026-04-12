@@ -143,6 +143,63 @@ describe("SessionManager", () => {
     });
   });
 
+  describe("resolveQuestion", () => {
+    it("returns false when no matching resolver exists", async () => {
+      expect(manager.resolveQuestion("nonexistent", "answer")).toBe(false);
+    });
+
+    it("calls the resolver with the answer", async () => {
+      const id = await manager.startSession("/tmp");
+      const session = manager.getStatus(id)!;
+
+      let receivedAnswer: string | null = null;
+      session.questionResolvers.set("q-1", (answer) => { receivedAnswer = answer; });
+      session.status = "waiting-permission";
+
+      expect(manager.resolveQuestion("q-1", "my answer")).toBe(true);
+      expect(receivedAnswer).toBe("my answer");
+    });
+
+    it("restores status from waiting-permission to streaming after resolving", async () => {
+      const id = await manager.startSession("/tmp");
+      const session = manager.getStatus(id)!;
+
+      session.questionResolvers.set("q-2", () => {});
+      session.status = "waiting-permission";
+
+      manager.resolveQuestion("q-2", "answer");
+      // Bug: status stays at "waiting-permission" without the fix
+      expect(session.status).toBe("streaming");
+    });
+
+    it("broadcasts status running after resolving question", async () => {
+      const id = await manager.startSession("/tmp");
+      const session = manager.getStatus(id)!;
+
+      broadcast.calls.length = 0; // reset
+      session.questionResolvers.set("q-3", () => {});
+      session.status = "waiting-permission";
+
+      manager.resolveQuestion("q-3", "answer");
+
+      const statusBroadcasts = broadcast.calls.filter(
+        (c) => (c as Record<string, unknown>).type === "status"
+      );
+      expect(statusBroadcasts).toHaveLength(1);
+      expect((statusBroadcasts[0] as Record<string, unknown>).status).toBe("streaming");
+    });
+
+    it("removes the resolver after resolving", async () => {
+      const id = await manager.startSession("/tmp");
+      const session = manager.getStatus(id)!;
+
+      session.questionResolvers.set("q-4", () => {});
+      manager.resolveQuestion("q-4", "answer");
+
+      expect(session.questionResolvers.has("q-4")).toBe(false);
+    });
+  });
+
   describe("resolvePermission", () => {
     it("returns false when no matching resolver exists", () => {
       expect(manager.resolvePermission("nonexistent", "approved")).toBe(false);

@@ -1,10 +1,33 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { EventEmitter } from "node:events";
 
 const mockSpawnSync = vi.fn();
+
+// Helper to create a mock spawn child process
+function makeMockProc(stdout: string, stderr: string, exitCode: number) {
+  const proc = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    kill: () => void;
+  };
+  proc.stdout = new EventEmitter();
+  proc.stderr = new EventEmitter();
+  proc.kill = vi.fn();
+  // Emit async to allow event listeners to be attached first
+  setImmediate(() => {
+    proc.stdout.emit("data", Buffer.from(stdout));
+    proc.stderr.emit("data", Buffer.from(stderr));
+    proc.emit("close", exitCode);
+  });
+  return proc;
+}
+
+const mockSpawn = vi.fn();
 
 vi.mock("child_process", () => ({
   execSync: vi.fn(),
   spawnSync: (...args: unknown[]) => mockSpawnSync(...args),
+  spawn: (...args: unknown[]) => mockSpawn(...args),
 }));
 
 vi.mock("../parser/session-discovery.js", () => ({
@@ -61,6 +84,7 @@ describe("POST /sessions/:sessionId/bash (P1-07)", () => {
     app = express();
     app.use(setupRoutes(state));
     mockSpawnSync.mockReset();
+    mockSpawn.mockReset();
   });
 
   afterEach(() => {
@@ -70,12 +94,7 @@ describe("POST /sessions/:sessionId/bash (P1-07)", () => {
   it("executes a bash command and returns stdout, stderr, exitCode", async () => {
     const sessionId = await sessionManager.startSession("/tmp");
 
-    mockSpawnSync.mockReturnValue({
-      status: 0,
-      error: null,
-      stdout: Buffer.from("file1.ts\nfile2.ts\n"),
-      stderr: Buffer.from(""),
-    });
+    mockSpawn.mockImplementation(() => makeMockProc("file1.ts\nfile2.ts\n", "", 0));
 
     const res = await request(app)
       .post(`/sessions/${sessionId}/bash`)
@@ -88,13 +107,12 @@ describe("POST /sessions/:sessionId/bash (P1-07)", () => {
       exitCode: 0,
     });
 
-    // Verify spawnSync was called with bash -c
-    expect(mockSpawnSync).toHaveBeenCalledWith(
+    // Verify spawn was called with bash -c
+    expect(mockSpawn).toHaveBeenCalledWith(
       "bash",
       ["-c", "ls"],
       expect.objectContaining({
         cwd: "/tmp",
-        timeout: 30000,
       })
     );
   });
@@ -102,12 +120,7 @@ describe("POST /sessions/:sessionId/bash (P1-07)", () => {
   it("returns non-zero exit code for failed commands", async () => {
     const sessionId = await sessionManager.startSession("/tmp");
 
-    mockSpawnSync.mockReturnValue({
-      status: 127,
-      error: null,
-      stdout: Buffer.from(""),
-      stderr: Buffer.from("command not found"),
-    });
+    mockSpawn.mockImplementation(() => makeMockProc("", "command not found", 127));
 
     const res = await request(app)
       .post(`/sessions/${sessionId}/bash`)
@@ -136,5 +149,57 @@ describe("POST /sessions/:sessionId/bash (P1-07)", () => {
       .expect(404);
 
     expect(res.body.error).toContain("Session not found");
+  });
+
+  // Bug 1: CSRF protection
+  it("returns 403 when Origin header is a non-localhost origin", async () => {
+    const sessionId = await sessionManager.startSession("/tmp");
+
+    const res = await request(app)
+      .post(`/sessions/${sessionId}/bash`)
+      .set("Origin", "https://evil.com")
+      .send({ command: "ls" })
+      .expect(403);
+
+    expect(res.body.error).toContain("Cross-origin");
+  });
+
+  it("returns 403 when Referer header is a non-localhost origin", async () => {
+    const sessionId = await sessionManager.startSession("/tmp");
+
+    const res = await request(app)
+      .post(`/sessions/${sessionId}/bash`)
+      .set("Referer", "https://evil.com/page")
+      .send({ command: "ls" })
+      .expect(403);
+
+    expect(res.body.error).toContain("Cross-origin");
+  });
+
+  it("allows requests with no Origin and no Referer header", async () => {
+    const sessionId = await sessionManager.startSession("/tmp");
+
+    mockSpawn.mockImplementation(() => makeMockProc("ok", "", 0));
+
+    const res = await request(app)
+      .post(`/sessions/${sessionId}/bash`)
+      .send({ command: "ls" })
+      .expect(200);
+
+    expect(res.body.exitCode).toBe(0);
+  });
+
+  it("allows requests with localhost Origin", async () => {
+    const sessionId = await sessionManager.startSession("/tmp");
+
+    mockSpawn.mockImplementation(() => makeMockProc("ok", "", 0));
+
+    const res = await request(app)
+      .post(`/sessions/${sessionId}/bash`)
+      .set("Origin", "http://localhost:5173")
+      .send({ command: "ls" })
+      .expect(200);
+
+    expect(res.body.exitCode).toBe(0);
   });
 });

@@ -123,6 +123,33 @@ describe("computeLiveMetrics duration", () => {
     const result = computeLiveMetrics(events, false);
     expect(result.duration).toBe(0);
   });
+
+  it("uses the last event's timestamp (not first) for duration end", () => {
+    // The last timestamp is 2 minutes after the first.
+    // If the scan finds the wrong end timestamp the duration will be wrong.
+    const events = [
+      makeEvent("2026-01-01T00:00:00Z"),
+      makeEvent("2026-01-01T00:01:00Z"),
+      makeEvent("2026-01-01T00:02:00Z"),
+    ];
+    const result = computeLiveMetrics(events, false);
+    // duration must be 2 minutes, not 1 (which would happen if we returned the first match)
+    expect(result.duration).toBe(120_000);
+  });
+
+  it("does not mutate the events array when computing last timestamp", () => {
+    // [...events].reverse() creates a copy but reverse() mutates the copy —
+    // the original array must remain in original order regardless.
+    const events = [
+      makeEvent("2026-01-01T00:00:00Z"),
+      makeEvent("2026-01-01T00:01:00Z"),
+      makeEvent("2026-01-01T00:02:00Z"),
+    ];
+    const originalFirst = events[0].timestamp;
+    computeLiveMetrics(events, false);
+    expect(events[0].timestamp).toBe(originalFirst); // original order preserved
+    expect(events[2].timestamp).toBe("2026-01-01T00:02:00Z");
+  });
 });
 
 describe("calculateTurnCost", () => {
