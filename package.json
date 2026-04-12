@@ -2,7 +2,7 @@
   "name": "claude-devtools",
   "private": true,
   "type": "module",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "scripts": {
     "lint": "eslint server/src/ dashboard/src/ && pnpm --dir dashboard lint:styles",
     "lint:fix": "eslint server/src/ dashboard/src/ --fix && pnpm --dir dashboard lint:styles"
