@@ -22,18 +22,18 @@ describe("SessionManager", () => {
 
   describe("startSession", () => {
     it("creates a session and returns a sessionId", async () => {
-      const id = await manager.startSession("/tmp/test");
+      const id = await manager.startSession("/tmp");
       expect(id).toBeTruthy();
       expect(typeof id).toBe("string");
       const status = manager.getStatus(id);
       expect(status).toBeDefined();
-      expect(status!.cwd).toBe("/tmp/test");
+      expect(status!.cwd).toBe("/tmp");
       expect(status!.status).toBe("idle");
     });
 
     it("creates unique session IDs", async () => {
-      const id1 = await manager.startSession("/tmp/a");
-      const id2 = await manager.startSession("/tmp/b");
+      const id1 = await manager.startSession("/tmp");
+      const id2 = await manager.startSession("/tmp");
       expect(id1).not.toBe(id2);
     });
   });
@@ -44,8 +44,8 @@ describe("SessionManager", () => {
     });
 
     it("returns all active sessions", async () => {
-      await manager.startSession("/tmp/a");
-      await manager.startSession("/tmp/b");
+      await manager.startSession("/tmp");
+      await manager.startSession("/tmp");
       expect(manager.getActiveSessions()).toHaveLength(2);
     });
   });
@@ -56,7 +56,7 @@ describe("SessionManager", () => {
     });
 
     it("aborts an active session", async () => {
-      const id = await manager.startSession("/tmp/test");
+      const id = await manager.startSession("/tmp");
       expect(manager.abortSession(id)).toBe(true);
       expect(manager.getStatus(id)!.status).toBe("idle");
     });
@@ -64,7 +64,7 @@ describe("SessionManager", () => {
 
   describe("removeSession", () => {
     it("removes a session from tracking", async () => {
-      const id = await manager.startSession("/tmp/test");
+      const id = await manager.startSession("/tmp");
       expect(manager.removeSession(id)).toBe(true);
       expect(manager.getStatus(id)).toBeUndefined();
     });
@@ -80,8 +80,8 @@ describe("SessionManager", () => {
     });
 
     it("returns pending questions across sessions", async () => {
-      const id1 = await manager.startSession("/tmp/a");
-      const id2 = await manager.startSession("/tmp/b");
+      const id1 = await manager.startSession("/tmp");
+      const id2 = await manager.startSession("/tmp");
       const s1 = manager.getStatus(id1)!;
       const s2 = manager.getStatus(id2)!;
 
@@ -97,13 +97,13 @@ describe("SessionManager", () => {
 
   describe("model selection", () => {
     it("model is undefined by default", async () => {
-      const id = await manager.startSession("/tmp/test");
+      const id = await manager.startSession("/tmp");
       const session = manager.getStatus(id)!;
       expect(session.model).toBeUndefined();
     });
 
     it("setModel stores model on the session", async () => {
-      const id = await manager.startSession("/tmp/test");
+      const id = await manager.startSession("/tmp");
       const result = manager.setModel(id, "claude-opus-4-6");
       expect(result).toBe(true);
       expect(manager.getStatus(id)!.model).toBe("claude-opus-4-6");
@@ -114,17 +114,25 @@ describe("SessionManager", () => {
     });
 
     it("setModel can change model to a different value", async () => {
-      const id = await manager.startSession("/tmp/test");
+      const id = await manager.startSession("/tmp");
       manager.setModel(id, "claude-opus-4-6");
       manager.setModel(id, "claude-sonnet-4-6");
       expect(manager.getStatus(id)!.model).toBe("claude-sonnet-4-6");
     });
 
     it("setModel can clear model by setting undefined", async () => {
-      const id = await manager.startSession("/tmp/test");
+      const id = await manager.startSession("/tmp");
       manager.setModel(id, "claude-opus-4-6");
       manager.setModel(id, undefined);
       expect(manager.getStatus(id)!.model).toBeUndefined();
+    });
+  });
+
+  describe("resumeSession", () => {
+    it("throws when cwd does not exist", async () => {
+      const nonExistentPath = `/non-existent-path-${Date.now()}`;
+      await expect(manager.resumeSession("some-id", nonExistentPath))
+        .rejects.toThrow("does not exist");
     });
   });
 
@@ -141,7 +149,7 @@ describe("SessionManager", () => {
     });
 
     it("resolves a pending permission with approve", async () => {
-      const id = await manager.startSession("/tmp/test");
+      const id = await manager.startSession("/tmp");
       const session = manager.getStatus(id)!;
 
       // Simulate a pending permission resolver
@@ -159,7 +167,7 @@ describe("SessionManager", () => {
     });
 
     it("resolves deny with message", async () => {
-      const id = await manager.startSession("/tmp/test");
+      const id = await manager.startSession("/tmp");
       const session = manager.getStatus(id)!;
 
       let resolvedResult: unknown = null;

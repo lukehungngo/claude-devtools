@@ -486,6 +486,9 @@ export function createSessionRoutes({ state }: RouteContext): Router {
       const sessionId = await sessionManager.startSession(cwd);
       res.json({ sessionId });
     } catch (err) {
+      if (err instanceof Error && err.message.startsWith("cwd ")) {
+        return res.status(400).json({ error: err.message });
+      }
       res.status(500).json({ error: "Failed to create session" });
     }
   });
@@ -693,6 +696,9 @@ export function createSessionRoutes({ state }: RouteContext): Router {
       await sessionManager.resumeSession(req.params.sessionId, cwd);
       res.json({ ok: true, sessionId: req.params.sessionId });
     } catch (err) {
+      if (err instanceof Error && err.message.startsWith("cwd ")) {
+        return res.status(400).json({ error: err.message });
+      }
       res.status(500).json({ error: "Failed to resume session" });
     }
   });

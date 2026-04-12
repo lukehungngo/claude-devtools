@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { existsSync, statSync } from "node:fs";
 import type { PermissionResult, PermissionUpdate, Query, RewindFilesResult, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import { sessionLog } from "../logger.js";
 
@@ -90,6 +91,12 @@ export class SessionManager {
 
   /** Start a brand new session, returns sessionId */
   async startSession(cwd: string): Promise<string> {
+    if (!existsSync(cwd)) {
+      throw new Error(`cwd does not exist: ${cwd}`);
+    }
+    if (!statSync(cwd).isDirectory()) {
+      throw new Error(`cwd is not a directory: ${cwd}`);
+    }
     const sessionId = randomUUID();
     const session: ActiveSession = {
       sessionId,
@@ -331,6 +338,12 @@ export class SessionManager {
     if (this.activeSessions.has(sessionId)) {
       sessionLog.debug({ sessionId }, "resumeSession: already tracked");
       return;
+    }
+    if (!existsSync(cwd)) {
+      throw new Error(`cwd does not exist: ${cwd}`);
+    }
+    if (!statSync(cwd).isDirectory()) {
+      throw new Error(`cwd is not a directory: ${cwd}`);
     }
     const session: ActiveSession = {
       sessionId,

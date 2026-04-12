@@ -39,8 +39,10 @@ export function filterDagForTurn(
     const sameData = prev.nodes.every((n) => {
       const summary = agentSummaryMap.get(n.id);
       if (!summary) return true; // node not in this turn's summary, skip
+      const dagStatus = summary.status === "running" ? "active" : summary.status;
       return n.tokenUsage.inputTokens === summary.tokensIn
-        && n.tokenUsage.outputTokens === summary.tokensOut;
+        && n.tokenUsage.outputTokens === summary.tokensOut
+        && n.status === dagStatus;
     });
     if (prevIds === newIds && sameData) return prev;
   }
@@ -59,9 +61,11 @@ export function filterDagForTurn(
         ? { startTime: activeTurn.startTime || n.startTime, endTime: activeTurn.endTime || n.endTime }
         : {};
       if (summary) {
+        const dagStatus = summary.status === "running" ? "active" : summary.status;
         return {
           ...n,
           ...timeOverrides,
+          status: dagStatus,
           tokenUsage: {
             ...n.tokenUsage,
             inputTokens: summary.tokensIn,
