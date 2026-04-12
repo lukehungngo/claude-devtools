@@ -111,12 +111,17 @@ function analyzeEvents(events: SessionEvent[]): {
     }
   }
 
+  // isRecent must be checked BEFORE hasEndTurn: between turns, an agent emits
+  // end_turn then waits for the next tool_use from main. If refreshMetrics fires
+  // in that window, hasEndTurn=true would flash "completed" even though the
+  // session is still running. Recency overrides end_turn so the agent stays
+  // "active" until events go stale (>ACTIVE_THRESHOLD_MS with no new activity).
   const status: "active" | "completed" | "error" = hasRecentError
     ? "error"
-    : hasEndTurn
-      ? "completed"
-      : isRecent
-        ? "active"
+    : isRecent
+      ? "active"
+      : hasEndTurn
+        ? "completed"
         : "completed";
 
   return {

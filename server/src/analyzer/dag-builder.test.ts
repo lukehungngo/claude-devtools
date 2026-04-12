@@ -143,8 +143,10 @@ describe("buildAgentDAG", () => {
     expect(dag.nodes[0].status).toBe("active");
   });
 
-  it("determines completed status for recent events with end_turn stop_reason", () => {
-    // Event from right now, but stop_reason is end_turn — definitively done
+  it("determines active status for recent events with end_turn stop_reason", () => {
+    // Event from right now with end_turn: agent is between turns — still "active"
+    // because the main session may send more work before ACTIVE_THRESHOLD_MS elapses.
+    // This prevents the flash: end_turn → "completed" → new tool_use → "active".
     const recentEvents: SessionEvent[] = [
       makeAssistantEvent({
         timestamp: new Date().toISOString(),
@@ -153,6 +155,20 @@ describe("buildAgentDAG", () => {
     ];
 
     const dag = buildAgentDAG(recentEvents, new Map(), new Map());
+
+    expect(dag.nodes[0].status).toBe("active");
+  });
+
+  it("determines completed status for old events with end_turn stop_reason", () => {
+    // Event from a long time ago with end_turn: definitively done
+    const oldEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        timestamp: "2020-01-01T00:00:00Z",
+        stopReason: "end_turn",
+      }),
+    ];
+
+    const dag = buildAgentDAG(oldEvents, new Map(), new Map());
 
     expect(dag.nodes[0].status).toBe("completed");
   });
