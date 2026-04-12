@@ -60,6 +60,7 @@ function aggregateByTool(permissions: readonly PermissionRequest[]): ToolAggrega
 export function PermissionHistory({ permissions, onDecide }: PermissionHistoryProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchInFlight, setBatchInFlight] = useState(false);
+  const [batchFailCount, setBatchFailCount] = useState(0);
 
   const aggregates = useMemo(() => aggregateByTool(permissions), [permissions]);
   const sorted = useMemo(
@@ -111,8 +112,11 @@ export function PermissionHistory({ permissions, onDecide }: PermissionHistoryPr
     if (idsToAct.length === 0) return;
 
     setBatchInFlight(true);
+    setBatchFailCount(0);
     try {
-      await Promise.allSettled(idsToAct.map((id) => onDecide(id, decision)));
+      const results = await Promise.allSettled(idsToAct.map((id) => onDecide(id, decision)));
+      const failures = results.filter((r) => r.status === "rejected").length;
+      if (failures > 0) setBatchFailCount(failures);
     } finally {
       setSelectedIds(new Set());
       setBatchInFlight(false);
@@ -294,6 +298,13 @@ export function PermissionHistory({ permissions, onDecide }: PermissionHistoryPr
           >
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {/* Batch failure notice */}
+      {batchFailCount > 0 && (
+        <div role="alert" className="shrink-0 px-4 py-2 text-xs text-dt-red bg-dt-red/10 border-t border-dt-border">
+          {batchFailCount} decision{batchFailCount > 1 ? "s" : ""} failed to apply. Refresh and try again.
         </div>
       )}
     </div>

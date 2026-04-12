@@ -807,6 +807,7 @@ export function ConversationView({
           sessionId={sessionId ?? ""}
           onClose={() => setShowRewindMenu(false)}
           onRewind={handleRewind}
+          currentTurnNumber={turns[turns.length - 1]?.turnNumber}
         />
       )}
     </div>

@@ -96,7 +96,7 @@ export function RewindMenu({ turns, allEvents, sessionId, onClose, onRewind, cur
     } finally {
       setDryRunLoading(false);
     }
-  }, [sessionId, currentTurnNumber]);
+  }, [sessionId, currentTurnNumber, allEvents]);
 
   const handleRewind = useCallback(async () => {
     if (!selectedTurn || rewindLoading) return;
@@ -113,7 +113,7 @@ export function RewindMenu({ turns, allEvents, sessionId, onClose, onRewind, cur
     } finally {
       setRewindLoading(false);
     }
-  }, [selectedTurn, rewindLoading, onRewind, onClose]);
+  }, [selectedTurn, rewindLoading, onRewind, onClose, allEvents]);
 
   const handleFork = useCallback(async () => {
     if (forking) return;
