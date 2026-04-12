@@ -1,4 +1,4 @@
-import { spawnSync } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { readFile, writeFile, access } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
@@ -26,6 +26,25 @@ import { buildNewEventsMessage } from "../watcher.js";
 import { mapSdkMessageToSSEEvents } from "../sse-event-handler.js";
 import { metricsCache } from "./route-context.js";
 import type { RouteContext } from "./route-context.js";
+
+function spawnAsync(
+  cmd: string,
+  args: string[],
+  options: { cwd: string; timeout: number }
+): Promise<{ stdout: string; stderr: string; status: number }> {
+  return new Promise((resolve) => {
+    const proc = spawn(cmd, args, { cwd: options.cwd });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      proc.kill();
+      resolve({ stdout, stderr, status: 124 });
+    }, options.timeout);
+    proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
+    proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+    proc.on("close", (code) => { clearTimeout(timer); resolve({ stdout, stderr, status: code ?? 1 }); });
+  });
+}
 
 const IGNORED_DIRS = new Set([
   "node_modules", ".git", ".hg", ".svn", "__pycache__",
@@ -820,8 +839,14 @@ export function createSessionRoutes({ state }: RouteContext): Router {
   });
 
   // Execute bash command in session cwd (P1-07: ! bash mode)
-  router.post("/sessions/:sessionId/bash", (req, res) => {
+  router.post("/sessions/:sessionId/bash", async (req, res) => {
     try {
+      // CSRF protection: reject requests from non-localhost origins
+      const origin = req.get("origin") || req.get("referer") || "";
+      if (origin && !origin.match(/^https?:\/\/localhost(:\d+)?/)) {
+        return res.status(403).json({ error: "Cross-origin requests not allowed" });
+      }
+
       const { command } = req.body;
       if (!command || typeof command !== "string") {
         return res.status(400).json({ error: "command is required (string)" });
@@ -837,22 +862,15 @@ export function createSessionRoutes({ state }: RouteContext): Router {
         return res.status(404).json({ error: "Session not found" });
       }
 
-      const result = spawnSync("bash", ["-c", command], {
+      const result = await spawnAsync("bash", ["-c", command], {
         cwd: session.cwd,
         timeout: 30000,
       });
 
-      const stdout = result.stdout
-        ? (typeof result.stdout === "string" ? result.stdout : result.stdout.toString())
-        : "";
-      const stderr = result.stderr
-        ? (typeof result.stderr === "string" ? result.stderr : result.stderr.toString())
-        : "";
-
       res.json({
-        stdout,
-        stderr,
-        exitCode: result.status ?? 1,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.status,
       });
     } catch (err) {
       res.status(500).json({ error: "Failed to execute command" });

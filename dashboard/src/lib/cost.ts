@@ -116,7 +116,10 @@ export function computeLiveMetrics(
     const firstTs = events.find((e) => e.timestamp)?.timestamp ?? null;
     const startTime = firstTs ? new Date(firstTs).getTime() : 0;
     if (startTime > 0) {
-      const lastTs = [...events].reverse().find((e) => e.timestamp)?.timestamp;
+      let lastTs: string | undefined;
+      for (let i = events.length - 1; i >= 0; i--) {
+        if (events[i].timestamp) { lastTs = events[i].timestamp; break; }
+      }
       const endTime = isLive
         ? Date.now()
         : lastTs ? new Date(lastTs).getTime() : startTime;
