@@ -65,3 +65,6 @@ Separate calls to `aggregateTokens()`, `countToolCalls()`, `countMcpToolCalls()`
 
 ### 2026-03-30: useEffect with state in deps tears down intervals
 `liveEvents` in the background sync `useEffect` dependency array caused the 30s interval to reset on every RAF batch (every ~16ms during streaming). Interval never reached 30s. Fixed by reading `liveEvents.length` from a ref instead.
+
+### 2026-04-12: Agent status flashed completed while still computing
+`analyzeEvents()` returned `"completed"` for the case `hasEndTurn=false, isRecent=false` — i.e. an agent quiet for >30s that never sent `end_turn` (long computation, slow tool). When new events eventually arrived, status flipped back to `"active"`, producing the cycle: active → (quiet >30s) → completed → (new event) → active → flash. Fixed by requiring BOTH conditions to declare completion: `hasEndTurn && !isRecent ? "completed" : "active"`. An agent is "completed" ONLY when it explicitly sent end_turn AND its events are stale. Any other state is "active".

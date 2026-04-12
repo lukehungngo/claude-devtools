@@ -118,10 +118,29 @@ describe("buildAgentDAG", () => {
     });
   });
 
-  it("determines completed status for old events", () => {
-    // Event from a long time ago
+  it("determines active status for old events without end_turn (still computing)", () => {
+    // THE FLASH BUG: agent quiet >30s but no end_turn sent yet (long computation).
+    // Must be "active", NOT "completed". Old code returned "completed" here, causing
+    // the cycle: active → (quiet >30s) → "completed" → (new event) → "active" → flash.
     const oldEvents: SessionEvent[] = [
-      makeAssistantEvent({ timestamp: "2020-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        timestamp: "2020-01-01T00:00:00Z",
+        stopReason: "tool_use",  // no end_turn: agent is mid-computation
+      }),
+    ];
+
+    const dag = buildAgentDAG(oldEvents, new Map(), new Map());
+
+    expect(dag.nodes[0].status).toBe("active");
+  });
+
+  it("determines completed status for old events with end_turn stop_reason", () => {
+    // Agent explicitly sent end_turn AND events are stale: definitively done.
+    const oldEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        timestamp: "2020-01-01T00:00:00Z",
+        stopReason: "end_turn",
+      }),
     ];
 
     const dag = buildAgentDAG(oldEvents, new Map(), new Map());
@@ -143,8 +162,10 @@ describe("buildAgentDAG", () => {
     expect(dag.nodes[0].status).toBe("active");
   });
 
-  it("determines completed status for recent events with end_turn stop_reason", () => {
-    // Event from right now, but stop_reason is end_turn — definitively done
+  it("determines active status for recent events with end_turn stop_reason", () => {
+    // Event from right now with end_turn: agent is between turns — still "active"
+    // because the main session may send more work before ACTIVE_THRESHOLD_MS elapses.
+    // This prevents the flash: end_turn → "completed" → new tool_use → "active".
     const recentEvents: SessionEvent[] = [
       makeAssistantEvent({
         timestamp: new Date().toISOString(),
@@ -154,7 +175,7 @@ describe("buildAgentDAG", () => {
 
     const dag = buildAgentDAG(recentEvents, new Map(), new Map());
 
-    expect(dag.nodes[0].status).toBe("completed");
+    expect(dag.nodes[0].status).toBe("active");
   });
 
   it("counts tool calls correctly on main node", () => {
@@ -189,11 +210,12 @@ describe("buildAgentDAG", () => {
   });
 
   it("handles empty event arrays", () => {
+    // Empty events: no end_turn, no recency → "active" (unknown state, not definitively done)
     const dag = buildAgentDAG([], new Map(), new Map());
 
     expect(dag.nodes).toHaveLength(1);
     expect(dag.nodes[0].id).toBe("main");
-    expect(dag.nodes[0].status).toBe("completed");
+    expect(dag.nodes[0].status).toBe("active");
     expect(dag.nodes[0].toolCalls).toBe(0);
   });
 

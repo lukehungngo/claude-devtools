@@ -111,13 +111,19 @@ function analyzeEvents(events: SessionEvent[]): {
     }
   }
 
+  // An agent is "completed" ONLY when it has explicitly sent end_turn AND its
+  // events are stale (>ACTIVE_THRESHOLD_MS). Both conditions must be true.
+  // - hasEndTurn=false, isRecent=false → "active": agent is still computing,
+  //   just hasn't sent events in a while (slow tool, long computation). This
+  //   was the flash bug: returning "completed" here caused the cycle
+  //   completed → active → completed on every quiet period.
+  // - hasEndTurn=true, isRecent=true → "active": between turns, main session
+  //   may dispatch more work before the threshold elapses.
   const status: "active" | "completed" | "error" = hasRecentError
     ? "error"
-    : hasEndTurn
+    : hasEndTurn && !isRecent
       ? "completed"
-      : isRecent
-        ? "active"
-        : "completed";
+      : "active";
 
   return {
     tokens: { inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens, totalCost },
