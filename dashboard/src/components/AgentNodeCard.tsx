@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { AgentNode } from "../lib/types";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
 import { getAgentColor } from "../lib/agentColors";
+import { shortModelName } from "../lib/modelUtils";
 
 /** Status dot color */
 const statusDotColors: Record<string, string> = {
@@ -97,8 +98,8 @@ export const AgentNodeCard = memo(function AgentNodeCard({ data }: NodeProps) {
         style={{ background: "var(--border-active)", width: 6, height: 6 }}
       />
 
-      {/* Row 1: status dot + label */}
-      <div className="flex items-center gap-1">
+      {/* Row 1: status dot + label + model badge */}
+      <div className="flex items-center gap-1 flex-wrap">
         <span
           className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRunning && !isFrozen ? "animate-pulse-opacity" : ""}`}
           style={{
@@ -108,6 +109,11 @@ export const AgentNodeCard = memo(function AgentNodeCard({ data }: NodeProps) {
         <span className="text-xxs font-semibold text-dt-text0 font-sans whitespace-nowrap overflow-hidden text-ellipsis">
           {node.type}
         </span>
+        {node.model && (
+          <span className="text-xs text-dt-text3 bg-dt-surface2 px-1.5 py-0.5 rounded font-mono">
+            {shortModelName(node.model)}
+          </span>
+        )}
       </div>
 
       {/* Row 2: description */}
@@ -141,6 +147,7 @@ export const AgentNodeCard = memo(function AgentNodeCard({ data }: NodeProps) {
     prevNode.type === nextNode.type &&
     prevNode.tokenUsage.totalCost === nextNode.tokenUsage.totalCost &&
     prevNode.toolCalls === nextNode.toolCalls &&
+    prevNode.model === nextNode.model &&
     prev.data.selected === next.data.selected
   );
 });

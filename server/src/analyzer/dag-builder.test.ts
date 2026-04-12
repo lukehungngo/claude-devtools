@@ -250,6 +250,53 @@ describe("buildAgentDAG", () => {
     expect(edgesToAgent1).toHaveLength(1);
   });
 
+  it("propagates model from first assistant event to main node", () => {
+    const dag = buildAgentDAG(
+      [makeAssistantEvent({ model: "claude-opus-4-6" })],
+      new Map(),
+      new Map()
+    );
+
+    expect(dag.nodes[0].model).toBe("claude-opus-4-6");
+  });
+
+  it("uses the first assistant event model when multiple events are present", () => {
+    const dag = buildAgentDAG(
+      [
+        makeAssistantEvent({ model: "claude-opus-4-6" }),
+        makeAssistantEvent({ model: "claude-haiku-4-5" }),
+      ],
+      new Map(),
+      new Map()
+    );
+
+    expect(dag.nodes[0].model).toBe("claude-opus-4-6");
+  });
+
+  it("returns empty string for model when there are no assistant events", () => {
+    const dag = buildAgentDAG([], new Map(), new Map());
+
+    expect(dag.nodes[0].model).toBe("");
+  });
+
+  it("propagates model to subagent nodes", () => {
+    const subagentEvents = new Map<string, SessionEvent[]>([
+      ["agent-1", [makeAssistantEvent({ model: "claude-haiku-4-5" })]],
+    ]);
+    const subagentMeta = new Map([
+      ["agent-1", { agentType: "Explore", description: "explore stuff" }],
+    ]);
+
+    const dag = buildAgentDAG(
+      [makeAssistantEvent({ model: "claude-opus-4-6" })],
+      subagentEvents,
+      subagentMeta
+    );
+
+    const agentNode = dag.nodes.find((n) => n.id === "agent-1");
+    expect(agentNode?.model).toBe("claude-haiku-4-5");
+  });
+
   it("detects error status from tool_result with is_error in user events", () => {
     const events: SessionEvent[] = [
       makeAssistantEvent({

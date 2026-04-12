@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { eventsToLogEntries } from "./AgentLogs";
+import { eventsToLogEntries, buildTimelineGroups } from "./AgentLogs";
+import { shortModelName } from "../lib/modelUtils";
 import { calculateTurnCost } from "../lib/cost";
 import type { SessionEvent, AgentNode } from "../lib/types";
 
@@ -174,5 +175,65 @@ describe("eventsToLogEntries includes cache tokens in cost", () => {
     expect(expectedCost).toBeGreaterThan(costWithoutCache);
     // The actual entry cost should match the full calculation
     expect(entries[0].cost).toBeCloseTo(expectedCost, 10);
+  });
+});
+
+describe("model name propagation to TimelineGroup", () => {
+  const agents: AgentNode[] = [];
+
+  it("eventsToLogEntries carries model on log entries from assistant events", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "assistant",
+        uuid: "m1",
+        timestamp: "2026-04-01T00:00:00Z",
+        sessionId: "s1",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "t1", name: "Read", input: { file_path: "/foo.ts" } }],
+          model: "claude-haiku-4-5-20251001",
+          id: "msg_m1",
+          type: "message",
+          stop_reason: "tool_use",
+          usage: { input_tokens: 10, output_tokens: 5 },
+        },
+      },
+    ];
+
+    const entries = eventsToLogEntries(events, agents);
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries[0].model).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("buildTimelineGroups sets model from first assistant entry in the group", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "assistant",
+        uuid: "m2",
+        timestamp: "2026-04-01T00:00:00Z",
+        sessionId: "s1",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "t2", name: "Bash", input: { command: "ls" } }],
+          model: "claude-haiku-4-5-20251001",
+          id: "msg_m2",
+          type: "message",
+          stop_reason: "tool_use",
+          usage: { input_tokens: 10, output_tokens: 5 },
+        },
+      },
+    ];
+
+    const entries = eventsToLogEntries(events, agents);
+    const depthMap = new Map<string, number>();
+    const groups = buildTimelineGroups(entries, depthMap);
+    expect(groups.length).toBe(1);
+    expect(groups[0].model).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("shortModelName strips claude- prefix", () => {
+    expect(shortModelName("claude-haiku-4-5-20251001")).toBe("haiku-4-5-20251001");
+    expect(shortModelName("haiku-4-5-20251001")).toBe("haiku-4-5-20251001");
+    expect(shortModelName("")).toBe("");
   });
 });

@@ -12,6 +12,7 @@ import { formatTime } from "../lib/formatTime";
 import { formatCost, formatDuration, calculateTurnCost } from "../lib/cost";
 import { getAgentBadgeStyle } from "../lib/agentColors";
 import { buildExportPayload, downloadJson } from "../lib/exportAgentLog";
+import { shortModelName } from "../lib/modelUtils";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -27,6 +28,8 @@ export interface LogEntry {
   isError: boolean;
   /** Estimated cost for this log entry (from assistant events) */
   cost: number;
+  /** Model name from the assistant event (empty string if not available) */
+  model: string;
 }
 
 export interface TimelineGroup {
@@ -38,6 +41,8 @@ export interface TimelineGroup {
   endTime: string;
   durationMs: number;
   cost: number;
+  /** Model name from the first assistant entry in the group */
+  model: string;
 }
 
 type FlatItem =
@@ -183,6 +188,7 @@ export function eventsToLogEntries(
             toolName: info.toolName || null,
             isError: content.type === "tool_result" && !!content.is_error,
             cost: costPerItem,
+            model,
           });
         }
       }
@@ -199,6 +205,7 @@ export function eventsToLogEntries(
             toolName: content.is_error ? "error" : "result",
             isError: !!content.is_error,
             cost: 0,
+            model: "",
           });
         } else if (content.type === "text") {
           entries.push({
@@ -211,6 +218,7 @@ export function eventsToLogEntries(
             toolName: null,
             isError: false,
             cost: 0,
+            model: "",
           });
         }
       }
@@ -224,6 +232,7 @@ export function eventsToLogEntries(
         toolName: event.operation === "enqueue" ? "spawn" : "completed",
         isError: false,
         cost: 0,
+        model: "",
       });
     }
   }
@@ -260,7 +269,7 @@ function buildDepthMap(agents: AgentNode[]): Map<string, number> {
 
 // ─── Group consecutive entries by agent into timeline groups ─────────
 
-function buildTimelineGroups(
+export function buildTimelineGroups(
   entries: LogEntry[],
   depthMap: Map<string, number>
 ): TimelineGroup[] {
@@ -280,12 +289,16 @@ function buildTimelineGroups(
         endTime: entry.timestamp,
         durationMs: 0,
         cost: entry.cost,
+        model: entry.model,
       };
       groups.push(current);
     } else {
       current.entries.push(entry);
       current.endTime = entry.timestamp;
       current.cost += entry.cost;
+      if (!current.model && entry.model) {
+        current.model = entry.model;
+      }
     }
   }
 
@@ -636,6 +649,12 @@ export function AgentLogs({
                       >
                         {normalizeAgentTypeLabel(group.agentType)}
                       </span>
+                      {/* Model pill */}
+                      {group.model && (
+                        <span className="text-xs text-dt-text3 bg-dt-surface2 px-1.5 py-0.5 rounded font-mono">
+                          {shortModelName(group.model)}
+                        </span>
+                      )}
                       {/* Time range */}
                       <span className="text-dt-text2 text-[10px] font-mono">
                         {formatTime(group.startTime)}
