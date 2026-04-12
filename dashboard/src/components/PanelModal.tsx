@@ -40,6 +40,7 @@ interface PanelModalProps {
   permissions?: PermissionRequest[];
   projectHash?: string;
   sessionId?: string;
+  onDecide?: (id: string, decision: "approved" | "denied") => void;
 }
 
 const PANEL_TITLES: Record<string, string> = {
@@ -83,7 +84,7 @@ function renderPanel(panel: string, props: PanelModalProps) {
     case "stats":
       return <StatsPanel />;
     case "permission-history":
-      return <PermissionHistory permissions={props.permissions ?? []} />;
+      return <PermissionHistory permissions={props.permissions ?? []} onDecide={props.onDecide} />;
     default:
       return (
         <div className="p-4 text-dt-text2">Unknown panel: {panel}</div>

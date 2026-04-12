@@ -9,6 +9,8 @@ import { getEventsForTurn } from "../../lib/turnSnapshot";
 import { PermissionBlock } from "./PermissionBlock";
 import { cyclePermissionMode } from "./PermissionModeBadge";
 import type { PermissionMode } from "./permissionModeTypes";
+import { RewindMenu } from "./RewindMenu";
+import { RotateCcw } from "lucide-react";
 import { QuestionBlock } from "./QuestionBlock";
 import { PromptInput } from "./PromptInput";
 import { ContextWarningBanner } from "./ContextWarningBanner";
@@ -425,6 +427,7 @@ export function ConversationView({
   const setPermissionMode = layoutCtx?.setPermissionMode;
 
   const { state: streamingState, actions: streamingActions } = useStreamingState();
+  const [showRewindMenu, setShowRewindMenu] = useState(false);
 
   // Build search index incrementally
   const searchIndexRef = useRef<Map<number, string>>(new Map());
@@ -661,6 +664,16 @@ export function ConversationView({
     onOpenPanel?.("settings");
   }, [onOpenPanel]);
 
+  const handleRewind = useCallback(async (userMessageId: string, dryRun: boolean): Promise<void> => {
+    const targetId = activeSessionId || sessionId;
+    if (!targetId) return;
+    await fetch(`/api/sessions/${targetId}/rewind`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userMessageId, dryRun }),
+    });
+  }, [activeSessionId, sessionId]);
+
   const handleToggleFastMode = useCallback(async () => {
     const targetId = activeSessionId || sessionId;
     if (!targetId) return;
@@ -681,6 +694,7 @@ export function ConversationView({
     onToggleMonitor: handleToggleMonitor,
     onModelPicker: handleModelPicker,
     onToggleFastMode: handleToggleFastMode,
+    onRewindMenu: () => setShowRewindMenu(true),
   });
 
   return (
@@ -770,8 +784,31 @@ export function ConversationView({
         </div>
       )}
 
+      {/* Rewind trigger button — visible entry point for the RewindMenu */}
+      <div className="flex items-center shrink-0 px-6 pt-1">
+        <button
+          onClick={() => setShowRewindMenu(true)}
+          aria-label="Rewind conversation"
+          className="flex items-center gap-1 text-xs text-dt-text3 hover:text-dt-text1 transition-colors duration-dt-fast"
+        >
+          <RotateCcw size={11} />
+          Rewind
+        </button>
+      </div>
+
       {/* Command input */}
       <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} projectHash={projectHash} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} getAssistantResponses={getAssistantResponses} metrics={metrics} usage={usage} costs={costs} events={events} onOpenPanel={onOpenPanel} hasMessages={turns.length > 0} lastTurnHadError={lastTurnHadError} onStreamingEvent={streamingActions.handleSSEEvent} onStreamingReset={streamingActions.reset} />
+
+      {/* RewindMenu — conditionally rendered on Esc+Esc or trigger button click */}
+      {showRewindMenu && (
+        <RewindMenu
+          turns={turns}
+          allEvents={events}
+          sessionId={sessionId ?? ""}
+          onClose={() => setShowRewindMenu(false)}
+          onRewind={handleRewind}
+        />
+      )}
     </div>
   );
 }

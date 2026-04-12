@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, RotateCcw, FileText, AlertCircle } from "lucide-react";
+import { X, RotateCcw, FileText, AlertCircle, GitBranch, Loader2 } from "lucide-react";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { getEventsForTurn } from "../../lib/turnSnapshot";
 import type { SessionEvent } from "../../lib/types";
@@ -49,6 +50,10 @@ export function RewindMenu({ turns, allEvents, sessionId, onClose, onRewind, cur
   const [dryRunLoading, setDryRunLoading] = useState(false);
   const [rewindLoading, setRewindLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forking, setForking] = useState(false);
+  const [forkError, setForkError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { repoSlug } = useParams({ strict: false }) as { repoSlug?: string };
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape
@@ -109,6 +114,36 @@ export function RewindMenu({ turns, allEvents, sessionId, onClose, onRewind, cur
       setRewindLoading(false);
     }
   }, [selectedTurn, rewindLoading, onRewind, onClose]);
+
+  const handleFork = useCallback(async () => {
+    if (forking) return;
+    setForking(true);
+    setForkError(null);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/fork`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        throw new Error("Non-OK response");
+      }
+      const data: { sessionId?: string } = await res.json();
+      if (!data?.sessionId) {
+        throw new Error("Missing sessionId in response");
+      }
+      if (!repoSlug) {
+        setForkError("Cannot fork: repo context unavailable. Find the new session in the sidebar.");
+        return;
+      }
+      await navigate({
+        to: "/session/$repoSlug/$sessionId",
+        params: { repoSlug, sessionId: data.sessionId },
+      });
+    } catch {
+      setForkError("Failed to fork session");
+    } finally {
+      setForking(false);
+    }
+  }, [forking, sessionId, repoSlug, navigate]);
 
   return (
     <div
@@ -261,6 +296,37 @@ export function RewindMenu({ turns, allEvents, sessionId, onClose, onRewind, cur
             </div>
           </div>
         )}
+
+        {/* Fork section — always visible, independent of whether turns exist */}
+        <div className="px-4 pb-4">
+          <hr className="border-dt-border my-4" />
+          <div>
+            <button
+              onClick={handleFork}
+              disabled={forking}
+              aria-label="Fork this session into a new independent session"
+              aria-disabled={forking}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-dt-xs bg-dt-bg3 text-dt-text1 hover:text-dt-text0 disabled:opacity-50"
+            >
+              {forking ? (
+                <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <GitBranch size={14} aria-hidden="true" />
+              )}
+              {forking ? "Forking..." : "Fork session"}
+            </button>
+            {forkError && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="flex items-center gap-1 text-dt-red text-xs mt-2"
+              >
+                <AlertCircle size={12} />
+                {forkError}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

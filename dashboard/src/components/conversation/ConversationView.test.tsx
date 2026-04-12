@@ -409,6 +409,58 @@ describe("ConversationView TaskGrid derived from events", () => {
   });
 });
 
+describe("ConversationView RewindMenu integration", () => {
+  // Mock TanStack Router for RewindMenu internals
+  vi.mock("@tanstack/react-router", () => ({
+    useNavigate: () => vi.fn().mockResolvedValue(undefined),
+    useParams: () => ({ repoSlug: "test-repo", sessionId: "sess-1" }),
+  }));
+
+  it("does not render RewindMenu by default", () => {
+    const events = [makeUserEvent("Prompt", 0), makeAssistantEvent(1)];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+    render(<ConversationView events={events} turns={turns} metrics={null} sessionId="sess-1" />);
+
+    expect(screen.queryByRole("dialog", { name: /rewind/i })).toBeNull();
+  });
+
+  it("shows a visible trigger button for RewindMenu", () => {
+    const events = [makeUserEvent("Prompt", 0), makeAssistantEvent(1)];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+    render(<ConversationView events={events} turns={turns} metrics={null} sessionId="sess-1" />);
+
+    const rewindButton = screen.getByRole("button", { name: /rewind/i });
+    expect(rewindButton).toBeTruthy();
+  });
+
+  it("opens RewindMenu when the rewind trigger button is clicked", () => {
+    const events = [makeUserEvent("Prompt", 0), makeAssistantEvent(1)];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+    render(<ConversationView events={events} turns={turns} metrics={null} sessionId="sess-1" />);
+
+    const rewindButton = screen.getByRole("button", { name: /rewind/i });
+    fireEvent.click(rewindButton);
+
+    expect(screen.getByRole("dialog", { name: /rewind/i })).toBeTruthy();
+  });
+
+  it("closes RewindMenu when onClose is called", () => {
+    const events = [makeUserEvent("Prompt", 0), makeAssistantEvent(1)];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+    render(<ConversationView events={events} turns={turns} metrics={null} sessionId="sess-1" />);
+
+    // Open the menu
+    const rewindButton = screen.getByRole("button", { name: /rewind/i });
+    fireEvent.click(rewindButton);
+    expect(screen.getByRole("dialog", { name: /rewind/i })).toBeTruthy();
+
+    // Close via the X button inside the dialog
+    const closeButton = screen.getByRole("button", { name: /close rewind/i });
+    fireEvent.click(closeButton);
+    expect(screen.queryByRole("dialog", { name: /rewind/i })).toBeNull();
+  });
+});
+
 describe("ConversationView onDecideSession", () => {
   function makePermission(overrides?: Partial<PermissionRequest>): PermissionRequest {
     return {

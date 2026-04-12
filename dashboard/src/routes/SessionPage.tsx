@@ -396,6 +396,7 @@ export function SessionPage() {
         projectHash={projectHash}
         sessionId={sessionId}
         permissions={permissions}
+        onDecide={decidePermission}
       />
     </div>
   );
