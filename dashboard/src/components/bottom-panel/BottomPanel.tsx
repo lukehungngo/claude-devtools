@@ -1,16 +1,19 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { MutableRefObject } from "react";
 import type { SessionMetrics, AgentDAG, SessionEvent, SubagentMeta } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { TraceTab } from "./TraceTab";
 import { CostTab } from "./CostTab";
 import { DetailTab } from "./DetailTab";
-export type BottomTab = "agent-graph" | "tool-call" | "cost";
+import { TasksTab } from "./TasksTab";
+import { extractTasks } from "../../lib/extractTasks";
+export type BottomTab = "agent-graph" | "tool-call" | "cost" | "tasks";
 
 const TABS: { id: BottomTab; label: string }[] = [
   { id: "agent-graph", label: "Agent Graph" },
   { id: "tool-call", label: "Tool Call" },
   { id: "cost", label: "Cost" },
+  { id: "tasks", label: "Tasks" },
 ];
 
 export interface BottomPanelProps {
@@ -78,6 +81,7 @@ export function BottomPanel({
     }
   });
   const dragStartRef = useRef<{ y: number; height: number } | null>(null);
+  const sessionTasks = useMemo(() => extractTasks(events), [events]);
 
   // TASK-010: track previous hasSubagents to detect false->true transition
   const prevHasSubagentsRef = useRef(hasSubagents ?? false);
@@ -228,6 +232,19 @@ export function BottomPanel({
                   {detailCount}
                 </span>
               )}
+              {tab.id === "tasks" && sessionTasks.length > 0 && (
+                <span
+                  className="font-mono"
+                  style={{
+                    fontSize: 9,
+                    background: "var(--bg-s)",
+                    padding: "1px 6px",
+                    borderRadius: 6,
+                  }}
+                >
+                  {sessionTasks.length}
+                </span>
+              )}
             </button>
           ))}
           {viewingTurnNumber !== undefined && (
@@ -257,6 +274,8 @@ export function BottomPanel({
               <DetailTab turns={turns} allEvents={events} activeTurnIndex={activeTurnIndex} />
             ) : activeTab === "cost" ? (
               <CostTab metrics={metrics} />
+            ) : activeTab === "tasks" ? (
+              <TasksTab tasks={sessionTasks} />
             ) : null}
           </div>
         )}
