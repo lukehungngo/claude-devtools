@@ -4,8 +4,17 @@ import { RewindMenu } from "./RewindMenu";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import type { SessionEvent } from "../../lib/types";
 
+// Mock TanStack Router
+const mockNavigate = vi.fn().mockResolvedValue(undefined);
+const mockUseParams = vi.fn().mockReturnValue({ repoSlug: "test-repo", sessionId: "sess-1" });
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => mockNavigate,
+  useParams: (...args: unknown[]) => mockUseParams(...args),
+}));
+
 // Mock fetch for dry-run preview requests
 const mockFetch = vi.fn().mockResolvedValue({
+  ok: true,
   json: () => Promise.resolve({ canRewind: true, filesChanged: [], insertions: 0, deletions: 0 }),
 });
 vi.stubGlobal("fetch", mockFetch);
@@ -51,6 +60,8 @@ function makeTurnAndEvents(
 describe("RewindMenu", () => {
   beforeEach(() => {
     mockFetch.mockClear();
+    mockNavigate.mockClear();
+    mockUseParams.mockReturnValue({ repoSlug: "test-repo", sessionId: "sess-1" });
   });
 
   afterEach(() => {
@@ -89,6 +100,21 @@ describe("RewindMenu", () => {
     );
 
     expect(screen.getByText(/No turns to rewind to/)).toBeTruthy();
+  });
+
+  it("renders Fork session button even when turns is empty", () => {
+    render(
+      <RewindMenu
+        turns={[]}
+        allEvents={[]}
+        sessionId="sess-1"
+        onClose={vi.fn()}
+        onRewind={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: /fork this session/i })).toBeTruthy();
+    expect(screen.getByText("Fork session")).toBeTruthy();
   });
 
   it("calls onClose when close button is clicked", () => {
@@ -168,6 +194,155 @@ describe("RewindMenu", () => {
     await waitFor(() => {
       expect(onRewind).toHaveBeenCalledWith("msg-1", false);
     });
+  });
+
+  it("renders Fork session button", () => {
+    const { turn, events } = makeTurnAndEvents();
+    render(
+      <RewindMenu
+        turns={[turn]}
+        allEvents={events}
+        sessionId="sess-1"
+        onClose={vi.fn()}
+        onRewind={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: /fork this session/i })).toBeTruthy();
+    expect(screen.getByText("Fork session")).toBeTruthy();
+  });
+
+  it("sends POST to /api/sessions/:id/fork on Fork session click", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ sessionId: "new-abc-123" }),
+    });
+
+    const { turn, events } = makeTurnAndEvents();
+    render(
+      <RewindMenu
+        turns={[turn]}
+        allEvents={events}
+        sessionId="sess-1"
+        onClose={vi.fn()}
+        onRewind={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /fork this session/i }));
+
+    await waitFor(() => {
+      const forkCall = mockFetch.mock.calls.find(
+        (args: unknown[]) =>
+          args[0] === "/api/sessions/sess-1/fork" && (args[1] as RequestInit)?.method === "POST"
+      );
+      expect(forkCall).toBeTruthy();
+    });
+  });
+
+  it("navigates to new session on fork success", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ sessionId: "new-abc-123" }),
+    });
+
+    const { turn, events } = makeTurnAndEvents();
+    render(
+      <RewindMenu
+        turns={[turn]}
+        allEvents={events}
+        sessionId="sess-1"
+        onClose={vi.fn()}
+        onRewind={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /fork this session/i }));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/session/$repoSlug/$sessionId",
+        params: { repoSlug: "test-repo", sessionId: "new-abc-123" },
+      });
+    });
+  });
+
+  it("shows error message when fork fails", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: () => Promise.resolve({}),
+    });
+
+    const { turn, events } = makeTurnAndEvents();
+    render(
+      <RewindMenu
+        turns={[turn]}
+        allEvents={events}
+        sessionId="sess-1"
+        onClose={vi.fn()}
+        onRewind={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /fork this session/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeTruthy();
+      expect(screen.getByText("Failed to fork session")).toBeTruthy();
+    });
+  });
+
+  it("re-enables fork button after failure", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: () => Promise.resolve({}),
+    });
+
+    const { turn, events } = makeTurnAndEvents();
+    render(
+      <RewindMenu
+        turns={[turn]}
+        allEvents={events}
+        sessionId="sess-1"
+        onClose={vi.fn()}
+        onRewind={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /fork this session/i }));
+
+    await waitFor(() => {
+      const btn = screen.getByRole("button", { name: /fork this session/i }) as HTMLButtonElement;
+      expect(btn.disabled).toBe(false);
+    });
+  });
+
+  it("fork success but no repoSlug shows error and does not navigate", async () => {
+    mockUseParams.mockReturnValue({ repoSlug: undefined, sessionId: "sess-1" });
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ sessionId: "new-abc-123" }),
+    });
+
+    const { turn, events } = makeTurnAndEvents();
+    render(
+      <RewindMenu
+        turns={[turn]}
+        allEvents={events}
+        sessionId="sess-1"
+        onClose={vi.fn()}
+        onRewind={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /fork this session/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeTruthy();
+      expect(screen.getByText(/Cannot fork: repo context unavailable/)).toBeTruthy();
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it("disables current turn (last turn cannot be rewound to)", () => {

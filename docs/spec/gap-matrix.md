@@ -196,6 +196,13 @@ Phase 3 shipped in commit `5eae4d9`. 12 features implemented:
 
 **Current parity: ~92%**
 
+## Phase 4–5 Additions (2026-04-12)
+
+- **Phase 2 orphan panels resolved** — `PanelModal.tsx` now exposes all 9 management panels (Settings, Hooks, CLAUDE.md, Permissions, MCP, Agents, Doctor, Stats, PermissionHistory) via slash commands and modal. `handleOpenPanel` in `SessionPage.tsx` is no longer a no-op.
+- **Phase 5 Controls (~85% done)** — `ControlsZone` in topbar (model switcher, fast mode, effort slider, context compact) shown during LIVE sessions via `useSessionControl`. Permission history panel added.
+- **Tasks tab in bottom panel** — `TasksTab.tsx` shows TodoWrite task list extracted from session events. 4th tab in `BottomPanel`.
+- **Bug fixes merged** (PRs #19–21): filterDagForTurn status memoization, cwd validation, conversation layout order.
+
 ## Remaining Gaps (minor)
 
 | # | Feature | Effort | Notes |
@@ -211,12 +218,12 @@ Phase 3 shipped in commit `5eae4d9`. 12 features implemented:
 |---|-------|----------|--------|
 | A-01 | Cost missing cache tokens | P1 | **FIXED** (commit `6bf2e8e`) |
 | A-02 | Permission mode naming | P1 | **FIXED** (commit `6bf2e8e`) |
-| A-03 | Snapshot locks agent graph | P2 | Open — will fix in UI revamp |
-| A-04 | Hooks showing incomplete data | P2 | Open — will fix in UI revamp |
-| A-05 | No code splitting | P2 | Open — will fix in UI revamp |
-| A-06 | Conversation memory growth | P2 | Open — will fix in UI revamp |
+| A-03 | Snapshot locks agent graph | P2 | **FIXED** (filterDagForTurn status memoization, PR #19) |
+| A-04 | Hooks showing incomplete data | P2 | **FIXED** (PanelModal — HookEditor accessible via /hooks) |
+| A-05 | No code splitting | P2 | **FIXED** (route-level lazy loading + React.lazy BottomPanel) |
+| A-06 | Conversation memory growth | P2 | **FIXED** (TurnSnapshot index-based, no duplication) |
 | A-07 | Duration formatting | P3 | Open |
-| A-08 | Theme toggle location | P3 | Open — will fix in UI revamp |
+| A-08 | Theme toggle location | P3 | **FIXED** (light/dark/high-contrast toggle in ThemeContext) |
 | A-09 | Duplicate prompt edge case | P3 | Open |
 
 ### Deferred (Not in Plan)

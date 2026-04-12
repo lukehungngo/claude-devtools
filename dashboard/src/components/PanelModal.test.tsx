@@ -28,6 +28,14 @@ vi.mock("./panels/StatsPanel", () => ({
   StatsPanel: () => <div>stats-content</div>,
 }));
 
+const mockPermissionHistory = vi.fn();
+vi.mock("./panels/PermissionHistory", () => ({
+  PermissionHistory: (props: { permissions: unknown[]; onDecide?: unknown }) => {
+    mockPermissionHistory(props);
+    return <div>permission-history-content</div>;
+  },
+}));
+
 describe("PanelModal", () => {
   afterEach(() => {
     cleanup();
@@ -71,5 +79,22 @@ describe("PanelModal", () => {
     const content = screen.getByTestId("panel-modal-content");
     fireEvent.click(content);
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("passes onDecide to PermissionHistory when panel is 'permission-history'", async () => {
+    mockPermissionHistory.mockClear();
+    const onDecide = vi.fn();
+    render(
+      <PanelModal
+        panel="permission-history"
+        onClose={vi.fn()}
+        permissions={[]}
+        onDecide={onDecide}
+      />,
+    );
+    await screen.findByText("permission-history-content");
+    expect(mockPermissionHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ onDecide }),
+    );
   });
 });

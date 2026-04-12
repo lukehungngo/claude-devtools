@@ -189,6 +189,48 @@ describe("Session lifecycle routes", () => {
     });
   });
 
+  describe("POST /api/sessions/:sessionId/fork", () => {
+    it("returns 404 for unknown sessionId", async () => {
+      const res = await request(app)
+        .post("/api/sessions/unknown-session-id/fork")
+        .expect(404);
+
+      expect(res.body).toHaveProperty("error");
+    });
+
+    it("returns { sessionId } for known session", async () => {
+      const createRes = await request(app)
+        .post("/api/sessions/new")
+        .send({ cwd: "/tmp" })
+        .expect(200);
+
+      const sourceSessionId = createRes.body.sessionId;
+
+      const forkRes = await request(app)
+        .post(`/api/sessions/${sourceSessionId}/fork`)
+        .expect(200);
+
+      expect(forkRes.body).toHaveProperty("sessionId");
+      expect(typeof forkRes.body.sessionId).toBe("string");
+      expect(forkRes.body.sessionId.length).toBeGreaterThan(0);
+    });
+
+    it("new sessionId is different from source sessionId", async () => {
+      const createRes = await request(app)
+        .post("/api/sessions/new")
+        .send({ cwd: "/tmp" })
+        .expect(200);
+
+      const sourceSessionId = createRes.body.sessionId;
+
+      const forkRes = await request(app)
+        .post(`/api/sessions/${sourceSessionId}/fork`)
+        .expect(200);
+
+      expect(forkRes.body.sessionId).not.toBe(sourceSessionId);
+    });
+  });
+
   describe("routes without sessionManager", () => {
     it("POST /sessions/new returns 500 when sessionManager is missing", async () => {
       const appNoManager = createApp({ clients: new Set() } as ServerState);
@@ -209,6 +251,16 @@ describe("Session lifecycle routes", () => {
         .expect(200);
 
       expect(res.body).toEqual({ sessions: [] });
+    });
+
+    it("POST /sessions/:sessionId/fork returns 500 when sessionManager is missing", async () => {
+      const appNoManager = createApp({ clients: new Set() } as ServerState);
+
+      const res = await request(appNoManager)
+        .post("/api/sessions/some-id/fork")
+        .expect(500);
+
+      expect(res.body).toHaveProperty("error");
     });
   });
 });

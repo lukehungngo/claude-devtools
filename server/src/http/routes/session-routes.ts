@@ -493,6 +493,30 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     }
   });
 
+  // Fork an existing session (same cwd, new sessionId)
+  router.post("/sessions/:sessionId/fork", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const sessionManager = state?.sessionManager;
+      if (!sessionManager) {
+        return res.status(500).json({ error: "Session manager not available" });
+      }
+      const sourceSession = sessionManager.getStatus(sessionId);
+      if (!sourceSession) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      const newSessionId = await sessionManager.startSession(sourceSession.cwd);
+      logger.info({ sourceSessionId: sessionId, newSessionId, cwd: sourceSession.cwd }, "session forked");
+      res.json({ sessionId: newSessionId });
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith("cwd ")) {
+        return res.status(400).json({ error: err.message });
+      }
+      logger.error({ error: String(err) }, "Failed to fork session");
+      res.status(500).json({ error: "Failed to fork session" });
+    }
+  });
+
   // Send message to session (SSE stream)
   router.post("/sessions/:sessionId/message", async (req, res) => {
     const { sessionId } = req.params;
@@ -746,14 +770,6 @@ export function createSessionRoutes({ state }: RouteContext): Router {
       createdAt: s.createdAt,
     }));
     res.json({ sessions });
-  });
-
-  // Fork session -- stub (SDK does not yet support forkSession)
-  router.post("/sessions/:sessionId/fork", (_req, res) => {
-    res.status(501).json({
-      error: "Not implemented",
-      detail: "Session forking requires SDK support (forkSession API) which is not yet available",
-    });
   });
 
   // Open file in editor (cross-panel interaction)
