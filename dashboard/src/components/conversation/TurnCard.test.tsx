@@ -194,6 +194,88 @@ describe("TurnCard — CostFooter wiring", () => {
   });
 });
 
+describe("TurnCard — DOM order: tool entries before response text", () => {
+  it("renders .conv-tool-entries before .msg-text in the DOM", () => {
+    // Event 0: assistant with tool_use — makes this event index the lastToolUseIdx
+    const toolUseEvent: AssistantEvent = {
+      type: "assistant",
+      uuid: "asst-tool",
+      timestamp: "2026-01-01T00:00:01Z",
+      sessionId: "sess-1",
+      agentId: "main",
+      message: {
+        role: "assistant",
+        content: [
+          { type: "tool_use", id: "tool-1", name: "Read", input: { file_path: "/foo" } },
+        ],
+        model: "claude-sonnet-4-5",
+        usage: { input_tokens: 10, output_tokens: 5 },
+        stop_reason: "tool_use",
+      },
+    } as unknown as AssistantEvent;
+
+    // Event 1: tool result (user event) — needed to pair with tool_use
+    const toolResultEvent = {
+      type: "user",
+      uuid: "user-result",
+      timestamp: "2026-01-01T00:00:02Z",
+      sessionId: "sess-1",
+      agentId: "main",
+      message: {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "tool-1", content: "file contents" },
+        ],
+      },
+    } as unknown as SessionEvent;
+
+    // Event 2: assistant text that comes AFTER tool_use — non-narration → renders as .msg-text
+    const finalTextEvent: AssistantEvent = {
+      type: "assistant",
+      uuid: "asst-text",
+      timestamp: "2026-01-01T00:00:03Z",
+      sessionId: "sess-1",
+      agentId: "main",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "Here is the final answer." }],
+        model: "claude-sonnet-4-5",
+        usage: { input_tokens: 15, output_tokens: 10 },
+        stop_reason: "end_turn",
+      },
+    } as unknown as AssistantEvent;
+
+    const allEvents: SessionEvent[] = [toolUseEvent, toolResultEvent, finalTextEvent];
+
+    const turn: TurnSnapshot = {
+      turnNumber: 1,
+      promptText: "Read a file",
+      startTime: "2026-01-01T00:00:00Z",
+      status: "completed",
+      cost: 0,
+      agents: [],
+      startIndex: 0,
+      endIndex: allEvents.length,
+      durationMs: null,
+      costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+      endTime: "2026-01-01T00:00:03Z",
+      completedAt: "2026-01-01T00:00:03Z",
+    } as TurnSnapshot;
+
+    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+
+    const toolEntries = container.querySelector(".conv-tool-entries");
+    const msgText = container.querySelector(".msg-text");
+
+    expect(toolEntries).not.toBeNull();
+    expect(msgText).not.toBeNull();
+
+    // Node.DOCUMENT_POSITION_FOLLOWING (4) means toolEntries comes before msgText
+    const position = toolEntries!.compareDocumentPosition(msgText!);
+    expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
 describe("TurnCard — CollapsiblePrompt wiring", () => {
   it("renders CollapsiblePrompt for user prompt text", () => {
     const { turn, allEvents } = makeTurnAndEvents({ promptText: "Hello world" });
