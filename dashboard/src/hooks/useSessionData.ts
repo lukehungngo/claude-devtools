@@ -30,7 +30,10 @@ export function useSessionMetrics(
     fetch(`/api/sessions/${projectHash}/${sessionId}`, {
       signal: controller.signal,
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         setMetrics(data.metrics || null);
         setEvents(data.events || []);

@@ -7,7 +7,10 @@ export function useRepos() {
 
   useEffect(() => {
     fetch("/api/repos")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         setRepos(data.repos || []);
         setLoading(false);
@@ -17,7 +20,10 @@ export function useRepos() {
 
   const refresh = () => {
     fetch("/api/repos")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => setRepos(data.repos || []))
       .catch(() => {});
   };

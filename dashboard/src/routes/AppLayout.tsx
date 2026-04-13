@@ -49,7 +49,10 @@ export function AppLayout() {
   useEffect(() => {
     if (!activeSessionId) return;
     fetch("/api/sessions/active")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: { sessions: Array<{ sessionId: string }> }) => {
         const alive = data.sessions?.some((s) => s.sessionId === activeSessionId);
         if (!alive) setActiveSessionId(null);
@@ -193,6 +196,7 @@ export function AppLayout() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cwd }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.sessionId) {
         setActiveSessionId(data.sessionId);

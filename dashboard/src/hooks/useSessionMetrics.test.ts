@@ -79,4 +79,34 @@ describe("useSessionMetrics", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("treats non-2xx response as error even when body contains metrics-shaped JSON", async () => {
+    // A 403/500 that returns JSON shaped like valid data must NOT be accepted
+    const poisonedBody = {
+      metrics: { session: { id: "poison", path: "/evil", cwd: "/" }, dag: { nodes: [], edges: [] } },
+      events: [{ type: "assistant" }],
+      subagentMeta: {},
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 403,
+          json: () => Promise.resolve(poisonedBody),
+        } as unknown as Response)
+      )
+    );
+
+    const { result } = renderHook(() => useSessionMetrics("proj1", "sess1"));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    // Non-2xx body must NOT be interpreted as valid session data
+    expect(result.current.metrics).toBeNull();
+    expect(result.current.events).toHaveLength(0);
+    expect(result.current.loading).toBe(false);
+  });
 });

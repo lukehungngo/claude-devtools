@@ -20,6 +20,7 @@ describe("usePermissions", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
+        ok: true,
         json: () => Promise.resolve({ permissions: [] }),
       })
     );
@@ -76,11 +77,13 @@ describe("usePermissions", () => {
     const mockFetch = vi.fn().mockImplementation((url: string) => {
       if (url === "/api/permissions/pending") {
         return Promise.resolve({
+          ok: true,
           json: () => Promise.resolve({ permissions: [makePermission("p1")] }),
         });
       }
       // decide endpoint
       return Promise.resolve({
+        ok: true,
         json: () => Promise.resolve({ ok: true }),
       });
     });
@@ -148,11 +151,101 @@ describe("usePermissions", () => {
     expect(result.current.handlePermissionResolved).toBeDefined();
   });
 
+  it("decide: does NOT update local state when server returns non-2xx", async () => {
+    // Setup: one pending permission loaded
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) => {
+        if (url === "/api/permissions/pending") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ permissions: [makePermission("p-decide")] }),
+          });
+        }
+        // decide endpoint returns 500
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({ error: "server error" }),
+        });
+      })
+    );
+
+    const { result } = renderHook(() => usePermissions());
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    expect(result.current.permissions[0].status).toBe("pending");
+
+    await act(async () => {
+      await result.current.decide("p-decide", "approved").catch(() => {});
+    });
+
+    // Server returned 500, so local state must NOT be updated
+    expect(result.current.permissions[0].status).toBe("pending");
+  });
+
+  it("decideSession: does NOT update local state when server returns non-2xx", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) => {
+        if (url === "/api/permissions/pending") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ permissions: [makePermission("p-session")] }),
+          });
+        }
+        return Promise.resolve({
+          ok: false,
+          status: 503,
+          json: () => Promise.resolve({ error: "unavailable" }),
+        });
+      })
+    );
+
+    const { result } = renderHook(() => usePermissions());
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    expect(result.current.permissions[0].status).toBe("pending");
+
+    await act(async () => {
+      await result.current.decideSession("p-session").catch(() => {});
+    });
+
+    expect(result.current.permissions[0].status).toBe("pending");
+  });
+
+  it("treats non-2xx initial fetch as error — permissions stays empty", async () => {
+    const poisonedBody = { permissions: [makePermission("injected")] };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve(poisonedBody),
+      })
+    );
+
+    const { result } = renderHook(() => usePermissions());
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    expect(result.current.permissions).toHaveLength(0);
+  });
+
   it("does not add duplicate permission when same ID arrives via WS after REST", async () => {
     const existing = makePermission("perm-dup");
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
+        ok: true,
         json: () => Promise.resolve({ permissions: [existing] }),
       })
     );
@@ -180,6 +273,7 @@ describe("usePermissions", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
+        ok: true,
         json: () => Promise.resolve({ permissions: [existing] }),
       })
     );

@@ -7,7 +7,10 @@ export function usePermissions() {
   // Initial fetch of pending permissions
   useEffect(() => {
     fetch("/api/permissions/pending")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: { permissions?: PermissionRequest[] }) =>
         setPermissions(data.permissions || [])
       )
@@ -48,11 +51,12 @@ export function usePermissions() {
 
   const decide = useCallback(
     async (id: string, decision: "approved" | "denied") => {
-      await fetch(`/api/permissions/${id}/decide`, {
+      const res = await fetch(`/api/permissions/${id}/decide`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setPermissions((prev) =>
         prev.map((p) => (p.id === id ? { ...p, status: decision } : p))
       );
@@ -63,11 +67,12 @@ export function usePermissions() {
   /** Approve a permission and allow all future uses of this tool in the session */
   const decideSession = useCallback(
     async (id: string) => {
-      await fetch(`/api/permissions/${id}/decide`, {
+      const res = await fetch(`/api/permissions/${id}/decide`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision: "approved", scope: "session" }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setPermissions((prev) =>
         prev.map((p) => (p.id === id ? { ...p, status: "approved" as const } : p))
       );
