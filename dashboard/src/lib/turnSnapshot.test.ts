@@ -40,6 +40,7 @@ function makeAssistantEvent(
     cacheWriteTokens?: number;
     cacheReadTokens?: number;
     stopReason?: "end_turn" | "tool_use" | null;
+    model?: string;
   } = {}
 ): AssistantEvent {
   const usage = {
@@ -65,7 +66,7 @@ function makeAssistantEvent(
       content: overrides.message?.content ?? [
         { type: "text" as const, text: "response" },
       ],
-      model: "claude-sonnet-4-20250514",
+      model: overrides.model ?? "claude-sonnet-4-20250514",
       id: "msg-1",
       type: "message",
       stop_reason: overrides.stopReason ?? "end_turn",
@@ -885,5 +886,69 @@ describe("groupEventsIntoTurnsIncremental — extendTurn status reversion", () =
     expect(turns).toHaveLength(1);
     expect(turns[0].status).toBe("completed");
     expect(turns[0].durationMs).toBe(3000);
+  });
+});
+
+// ─── Model per turn ──────────────────────────────────────────────────
+
+describe("TurnSnapshot model tracking", () => {
+  it("populates model from assistant event", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "hello" }),
+      makeAssistantEvent({ model: "claude-opus-4-6", stopReason: "end_turn" }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].model).toBe("claude-opus-4-6");
+  });
+
+  it("uses the last model seen when multiple assistant events exist", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "hello" }),
+      makeAssistantEvent({ model: "claude-sonnet-4-6", stopReason: "tool_use" }),
+      makeUserEvent({ toolResult: true }),
+      makeAssistantEvent({ model: "claude-opus-4-6", stopReason: "end_turn" }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].model).toBe("claude-opus-4-6");
+  });
+
+  it("is undefined when no assistant event present", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "hello" }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].model).toBeUndefined();
+  });
+
+  it("extendTurn preserves model when new events have no assistant", () => {
+    const initial: SessionEvent[] = [
+      makeUserEvent({ text: "hello" }),
+      makeAssistantEvent({ model: "claude-sonnet-4-6", stopReason: "tool_use" }),
+    ];
+    const existingTurns = groupEventsIntoTurns(initial);
+    expect(existingTurns[0].model).toBe("claude-sonnet-4-6");
+
+    const allEvents: SessionEvent[] = [
+      ...initial,
+      makeUserEvent({ toolResult: true }),
+    ];
+    const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 1);
+    expect(turns[0].model).toBe("claude-sonnet-4-6");
+  });
+
+  it("extendTurn updates model when new assistant event arrives", () => {
+    const initial: SessionEvent[] = [
+      makeUserEvent({ text: "hello" }),
+      makeAssistantEvent({ model: "claude-sonnet-4-6", stopReason: "tool_use" }),
+      makeUserEvent({ toolResult: true }),
+    ];
+    const existingTurns = groupEventsIntoTurns(initial);
+
+    const allEvents: SessionEvent[] = [
+      ...initial,
+      makeAssistantEvent({ model: "claude-opus-4-6", stopReason: "end_turn" }),
+    ];
+    const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 1);
+    expect(turns[0].model).toBe("claude-opus-4-6");
   });
 });

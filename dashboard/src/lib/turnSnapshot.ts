@@ -53,6 +53,8 @@ export interface TurnSnapshot {
   /** When the turn completed (same as endTime for completed turns, empty for running) */
   completedAt: string;
   endTime: string;
+  /** Model used in this turn, e.g. "claude-sonnet-4-6". Last model seen wins. */
+  model?: string;
 }
 
 /**
@@ -166,6 +168,7 @@ function buildTurn(
   let totalTokensOut = 0;
   let totalInputCost = 0;
   let totalOutputCost = 0;
+  let lastModel = "";
   const agentMap = new Map<
     string,
     { count: number; agentType: string; lastEvent: SessionEvent; cost: number; tokensIn: number; tokensOut: number; tools: Set<string> }
@@ -188,6 +191,7 @@ function buildTurn(
         const cacheWrite = usage.cache_creation_input_tokens ?? 0;
         const cacheRead = usage.cache_read_input_tokens ?? 0;
         const model = asst.message?.model || "";
+        if (model) lastModel = model;
         eventCost = calculateTurnCost(model, eventTokensIn, eventTokensOut, cacheWrite, cacheRead);
         cost += eventCost;
         totalTokensIn += eventTokensIn;
@@ -303,6 +307,7 @@ function buildTurn(
     startTime: events[0]?.timestamp ?? "",
     completedAt: "",  // Set by groupEventsIntoTurns when turn is finalized
     endTime,
+    model: lastModel || undefined,
   };
 }
 
@@ -320,6 +325,7 @@ function extendTurn(
   let cost = existing.cost;
   let totalInputCost = existing.costBreakdown.inputCost;
   let totalOutputCost = existing.costBreakdown.outputCost;
+  let lastModel = existing.model ?? "";
 
   // Rebuild agent map from existing summaries so we can extend it
   const agentMap = new Map<
@@ -356,6 +362,7 @@ function extendTurn(
         const cacheWrite = usage.cache_creation_input_tokens ?? 0;
         const cacheRead = usage.cache_read_input_tokens ?? 0;
         const model = asst.message?.model || "";
+        if (model) lastModel = model;
         eventCost = calculateTurnCost(model, eventTokensIn, eventTokensOut, cacheWrite, cacheRead);
         cost += eventCost;
         totalInputCost += calculateTurnCost(model, eventTokensIn, 0, cacheWrite, cacheRead);
@@ -470,6 +477,7 @@ function extendTurn(
     startTime: existing.startTime,
     completedAt: status === "completed" ? endTime : "",
     endTime,
+    model: lastModel || undefined,
   };
 }
 

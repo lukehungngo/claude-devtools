@@ -321,3 +321,38 @@ describe("TurnCard — CollapsiblePrompt wiring", () => {
   });
 });
 
+describe("TurnCard model badge", () => {
+  // TurnFooter (which hosts the badge) is inside the Claude message section,
+  // which only renders when there are turn events — supply one assistant event.
+  function makeTurnWithModel(model: string | undefined) {
+    const asstEvent = makeAssistantEvent("response");
+    return makeTurnAndEvents(
+      { model, endIndex: 1, status: "completed" as const },
+      [asstEvent],
+    );
+  }
+
+  it("renders model badge with shortened name", () => {
+    const { turn, allEvents } = makeTurnWithModel("claude-sonnet-4-6");
+    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+    const badge = container.querySelector('[data-testid="turn-model-badge"]');
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toBe("sonnet-4-6");
+  });
+
+  it("strips date suffix from model name", () => {
+    const { turn, allEvents } = makeTurnWithModel("claude-haiku-4-5-20251001");
+    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+    const badge = container.querySelector('[data-testid="turn-model-badge"]');
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toBe("haiku-4-5");
+  });
+
+  it("does not render model badge when model is absent", () => {
+    const { turn, allEvents } = makeTurnWithModel(undefined);
+    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+    const badge = container.querySelector('[data-testid="turn-model-badge"]');
+    expect(badge).toBeNull();
+  });
+});
+

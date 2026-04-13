@@ -269,13 +269,16 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
 
       if (!targetSessionId && sessionId) {
         try {
-          await fetch(`/api/sessions/${sessionId}/resume`, {
+          const resumeRes = await fetch(`/api/sessions/${sessionId}/resume`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ cwd: sessionCwd }),
           });
-          targetSessionId = sessionId;
-          onSessionStarted?.(sessionId);
+          if (resumeRes.ok) {
+            targetSessionId = sessionId;
+            onSessionStarted?.(sessionId);
+          }
+          // On non-2xx (e.g. cwd missing, server restart): fall through to /sessions/new
         } catch {
           console.error("Failed to resume session");
         }

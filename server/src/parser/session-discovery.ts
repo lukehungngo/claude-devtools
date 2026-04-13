@@ -96,6 +96,19 @@ function resolveRepoRoot(cwd: string): string {
   return cwd; // Fallback: couldn't find .git
 }
 
+/**
+ * Decode a Claude Code projectHash back to an absolute path.
+ * Claude Code encodes a path by replacing every "/" with "-":
+ *   /Users/soh/working/eduquest  →  -Users-soh-working-eduquest
+ * Reversing: restore the leading "-" to "/" then replace remaining "-" with "/".
+ * Note: this is unambiguous only when directory names don't contain "-", which
+ * is the common case. We use it only as a fallback lookup — we never display it.
+ */
+function decodeProjectHash(projectHash: string): string {
+  if (!projectHash.startsWith("-")) return projectHash;
+  return "/" + projectHash.slice(1).replace(/-/g, "/");
+}
+
 export function discoverRepoGroups(): RepoGroup[] {
   if (repoGroupsCache && Date.now() - repoGroupsCache.timestamp < DISCOVERY_TTL_MS) {
     return repoGroupsCache.groups;
@@ -104,12 +117,36 @@ export function discoverRepoGroups(): RepoGroup[] {
   const sessions = discoverSessions();
   const repoMap = new Map<string, SessionInfo[]>();
 
+  // First pass: group sessions that have a cwd by their resolved git root.
+  // This builds the authoritative set of known repo paths.
   for (const session of sessions) {
-    const key = session.cwd ? resolveRepoRoot(session.cwd) : session.projectHash;
-    if (!repoMap.has(key)) {
-      repoMap.set(key, []);
-    }
+    if (!session.cwd) continue;
+    const key = resolveRepoRoot(session.cwd);
+    if (!repoMap.has(key)) repoMap.set(key, []);
     repoMap.get(key)!.push(session);
+  }
+
+  // Build a lookup: encoded repo path → canonical key, so sessions without cwd
+  // can be merged into an existing group instead of creating a duplicate entry.
+  // e.g. "/Users/soh/working/eduquest".replace(/\//g, "-") → "-Users-soh-working-eduquest"
+  const encodedKeyMap = new Map<string, string>(); // encodedPath → canonicalKey
+  for (const key of repoMap.keys()) {
+    encodedKeyMap.set(key.replace(/\//g, "-"), key);
+  }
+
+  // Second pass: sessions without cwd — try to merge into an existing group.
+  for (const session of sessions) {
+    if (session.cwd) continue;
+    const canonical = encodedKeyMap.get(session.projectHash);
+    if (canonical) {
+      // Merge into the already-known repo group
+      repoMap.get(canonical)!.push(session);
+    } else {
+      // Truly unknown path — fall back to decoded hash as the key
+      const decoded = decodeProjectHash(session.projectHash);
+      if (!repoMap.has(decoded)) repoMap.set(decoded, []);
+      repoMap.get(decoded)!.push(session);
+    }
   }
 
   const repos: RepoGroup[] = [];

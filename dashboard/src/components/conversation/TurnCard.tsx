@@ -88,6 +88,21 @@ function computeFallbackDuration(startTime: string, endTime: string): number | n
   }
 }
 
+// ─── Model name formatting ───────────────────────────────────────────
+
+/**
+ * Shorten a model ID for display.
+ * "claude-sonnet-4-6"          → "sonnet-4-6"
+ * "claude-haiku-4-5-20251001"  → "haiku-4-5"
+ */
+function formatModelName(model: string): string {
+  // Strip leading "claude-"
+  let name = model.startsWith("claude-") ? model.slice("claude-".length) : model;
+  // Strip trailing date suffix (8-digit YYYYMMDD)
+  name = name.replace(/-\d{8}$/, "");
+  return name;
+}
+
 // ─── TurnFooter (elapsed / completed duration) ─────────────────────
 
 function TurnFooter({ turn, sessionIsRunning }: { turn: TurnSnapshot; sessionIsRunning?: boolean }) {
@@ -137,6 +152,12 @@ function TurnFooter({ turn, sessionIsRunning }: { turn: TurnSnapshot; sessionIsR
           </span>
         </>
       )}
+      {turn.model && (
+        <>
+          <span>&middot;</span>
+          <span data-testid="turn-model-badge">{formatModelName(turn.model)}</span>
+        </>
+      )}
     </div>
   );
 }
@@ -155,6 +176,7 @@ export function turnCardAreEqual(
     prev.turn.durationMs === next.turn.durationMs &&
     prev.turn.cost === next.turn.cost &&
     prev.turn.agents.length === next.turn.agents.length &&
+    prev.turn.model === next.turn.model &&
     prev.isHighlighted === next.isHighlighted &&
     prev.onAgentPillClick === next.onAgentPillClick &&
     prev.onTurnClick === next.onTurnClick &&

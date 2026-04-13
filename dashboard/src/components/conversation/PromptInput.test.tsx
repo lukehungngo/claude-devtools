@@ -212,6 +212,42 @@ describe("PromptInput", () => {
       const body = JSON.parse(msgOpts.body);
       expect(body.prompt).toBe("hello");
     });
+
+    it("falls through to /sessions/new when resume returns non-2xx", async () => {
+      // Resume returns 400 (e.g. cwd missing / server restart)
+      fetchMock = vi.fn()
+        .mockResolvedValueOnce({ ok: false, status: 400 })           // resume → fail
+        .mockResolvedValueOnce({                                       // /sessions/new → ok
+          ok: true,
+          json: () => Promise.resolve({ sessionId: "fresh-123" }),
+        })
+        .mockResolvedValueOnce({                                       // message send
+          ok: true,
+          body: { getReader: () => ({ read: vi.fn().mockResolvedValue({ done: true, value: undefined }) }) },
+        });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const onSessionStarted = vi.fn();
+      const { container } = render(
+        <PromptInput sessionCwd="/projects/foo" sessionId="bad-session" onSessionStarted={onSessionStarted} />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "hello" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      // resume was tried
+      expect(fetchMock.mock.calls[0][0]).toBe("/api/sessions/bad-session/resume");
+      // /sessions/new was called as fallback (not the old bad session)
+      expect(fetchMock.mock.calls[1][0]).toBe("/api/sessions/new");
+      // message was sent to the NEW session
+      expect(fetchMock.mock.calls[2][0]).toBe("/api/sessions/fresh-123/message");
+      // onSessionStarted was called with the new id, NOT the old one
+      expect(onSessionStarted).toHaveBeenCalledWith("fresh-123");
+      expect(onSessionStarted).not.toHaveBeenCalledWith("bad-session");
+    });
   });
 
   describe("client-side slash command handling", () => {
