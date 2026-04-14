@@ -1575,26 +1575,39 @@ describe("PromptInput", () => {
 
   describe("file autocomplete fetch", () => {
     it("non-2xx response keeps fileResults empty (does not accept poisoned body)", async () => {
+      // Return ok: true so we can first confirm the dropdown CAN appear with ok responses
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ files: ["/etc/passwd", "/secret"] }),
+      });
+
+      const { container, rerender } = render(
+        <PromptInput projectHash="ph1" sessionId="s1" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "@foo" } });
+      await act(async () => { vi.advanceTimersByTime(200); });
+      await act(async () => { await Promise.resolve(); });
+
+      // Confirm the dropdown appears with ok: true
+      const optionsAfterOk = container.querySelectorAll('[data-testid="file-option"]');
+      expect(optionsAfterOk.length).toBeGreaterThan(0);
+
+      // Now switch to non-2xx — poisoned body must NOT populate results
       fetchMock.mockResolvedValue({
         ok: false,
         status: 403,
         json: async () => ({ files: ["/etc/passwd", "/secret"] }),
       });
 
-      const { container } = render(
-        <PromptInput projectHash="ph1" sessionId="s1" />
-      );
-      const textarea = container.querySelector("textarea")!;
-
-      fireEvent.change(textarea, { target: { value: "@foo" } });
-      await act(async () => {
-        vi.advanceTimersByTime(200);
-      });
+      fireEvent.change(textarea, { target: { value: "" } }); // clear @ prefix
+      fireEvent.change(textarea, { target: { value: "@bar" } }); // new fetch
+      await act(async () => { vi.advanceTimersByTime(200); });
       await act(async () => { await Promise.resolve(); });
 
-      // File dropdown must NOT appear with poisoned files
-      const dropdown = container.querySelector('[data-testid="file-dropdown"]');
-      expect(dropdown).toBeNull();
+      const optionsAfterError = container.querySelectorAll('[data-testid="file-option"]');
+      expect(optionsAfterError).toHaveLength(0);
     });
 
     it("AbortController.abort is called when atPrefix changes before debounce fires", async () => {
