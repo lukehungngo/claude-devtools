@@ -13,9 +13,10 @@ const DEFAULT_LABEL_WIDTH = 140;
 const MIN_LABEL_WIDTH = 60;
 const MAX_LABEL_WIDTH = 400;
 const NAME_COL_WIDTH = 60;
+const MODEL_COL_WIDTH = 88;
 const DURATION_COL_WIDTH = 72;
 const COST_COL_WIDTH = 64;
-const DATA_COLS_WIDTH = NAME_COL_WIDTH + DURATION_COL_WIDTH + COST_COL_WIDTH;
+const DATA_COLS_WIDTH = NAME_COL_WIDTH + MODEL_COL_WIDTH + DURATION_COL_WIDTH + COST_COL_WIDTH;
 
 export interface TraceTabProps {
   dag: AgentDAG | null;
@@ -311,6 +312,7 @@ interface TraceRowComponentProps {
   onSelect?: (id: string) => void;
   labelWidth: number;
   nameWidth: number;
+  modelWidth: number;
   durationWidth: number;
   costWidth: number;
 }
@@ -321,6 +323,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
   onSelect,
   labelWidth,
   nameWidth,
+  modelWidth,
   durationWidth,
   costWidth,
 }: TraceRowComponentProps) {
@@ -356,6 +359,9 @@ const TraceRowComponent = memo(function TraceRowComponent({
         <div className="trace-name">{label}</div>
       </div>
       <div className="trace-col-name" style={{ width: nameWidth }}>{node.type}</div>
+      <div className="trace-col-model" style={{ width: modelWidth, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={node.model}>
+        {node.model ? node.model.replace("claude-", "") : "—"}
+      </div>
       <div className="trace-col-duration" style={{ width: durationWidth }}>{isActive ? "running" : durationStr}</div>
       <div className="trace-col-cost" style={{ width: costWidth }}>{costStr}</div>
       <div className="trace-track">
@@ -392,6 +398,7 @@ function TraceTabInner({
   const prevFilteredRef = useRef<AgentDAG | null>(null);
   const [labelWidth, setLabelWidth] = useState(DEFAULT_LABEL_WIDTH);
   const [nameWidth, setNameWidth] = useState(NAME_COL_WIDTH);
+  const [modelWidth, setModelWidth] = useState(MODEL_COL_WIDTH);
   const [durationWidth, setDurationWidth] = useState(DURATION_COL_WIDTH);
   const [costWidth, setCostWidth] = useState(COST_COL_WIDTH);
   const [showAllDepths, setShowAllDepths] = useState(false);
@@ -465,6 +472,10 @@ function TraceTabInner({
     (e: React.MouseEvent) => makeResizeHandler(nameWidth, setNameWidth)(e),
     [nameWidth, makeResizeHandler],
   );
+  const handleModelResize = useCallback(
+    (e: React.MouseEvent) => makeResizeHandler(modelWidth, setModelWidth)(e),
+    [modelWidth, makeResizeHandler],
+  );
   const handleDurationResize = useCallback(
     (e: React.MouseEvent) => makeResizeHandler(durationWidth, setDurationWidth)(e),
     [durationWidth, makeResizeHandler],
@@ -474,7 +485,7 @@ function TraceTabInner({
     [costWidth, makeResizeHandler],
   );
 
-  const dataCols = nameWidth + durationWidth + costWidth;
+  const dataCols = nameWidth + modelWidth + durationWidth + costWidth;
 
   if (isEmpty || !timeline) {
     return (
@@ -509,6 +520,7 @@ function TraceTabInner({
           )}
         </div>
         <div className="trace-col-name trace-col-header" style={{ width: nameWidth }}>Name</div>
+        <div className="trace-col-model trace-col-header" style={{ width: modelWidth }}>Model</div>
         <div className="trace-col-duration trace-col-header" style={{ width: durationWidth }}>Duration</div>
         <div className="trace-col-cost trace-col-header" style={{ width: costWidth }}>Cost</div>
         <div className="trace-ticks">
@@ -537,7 +549,12 @@ function TraceTabInner({
         />
         <div
           className="trace-resize-handle"
-          style={{ left: labelWidth + nameWidth + durationWidth - 2 }}
+          style={{ left: labelWidth + nameWidth + modelWidth - 2 }}
+          onMouseDown={handleModelResize}
+        />
+        <div
+          className="trace-resize-handle"
+          style={{ left: labelWidth + nameWidth + modelWidth + durationWidth - 2 }}
           onMouseDown={handleDurationResize}
         />
         <div
@@ -566,6 +583,7 @@ function TraceTabInner({
                     onSelect={onSelectAgent}
                     labelWidth={labelWidth}
                     nameWidth={nameWidth}
+                    modelWidth={modelWidth}
                     durationWidth={durationWidth}
                     costWidth={costWidth}
                   />
@@ -581,6 +599,7 @@ function TraceTabInner({
               onSelect={onSelectAgent}
               labelWidth={labelWidth}
               nameWidth={nameWidth}
+              modelWidth={modelWidth}
               durationWidth={durationWidth}
               costWidth={costWidth}
             />
