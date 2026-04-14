@@ -1,4 +1,3 @@
-// @ts-nocheck
 // @vitest-environment node
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
