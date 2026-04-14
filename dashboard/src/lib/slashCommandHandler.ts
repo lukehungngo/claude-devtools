@@ -56,6 +56,7 @@ export async function handleSlashCommand(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cwd: ctx.sessionCwd || "/" }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.sessionId) {
         ctx.onSessionStarted?.(data.sessionId);
@@ -121,6 +122,7 @@ export async function handleSlashCommand(
     }
     try {
       const res = await fetch(`/api/sessions/${targetId}/permissions-info`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       showOutput(formatPermissionsCommand(data));
     } catch {
@@ -152,6 +154,7 @@ export async function handleSlashCommand(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
         showOutput(`Fast mode ${data.fastMode ? "enabled" : "disabled"}`);
@@ -191,6 +194,7 @@ export async function handleSlashCommand(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ level: levelArg }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
         showOutput(`Effort level set to ${data.effortLevel}`);
@@ -221,6 +225,7 @@ export async function handleSlashCommand(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
         const label = data.mode === "plan" ? "Plan" : "Default";
@@ -255,6 +260,7 @@ export async function handleSlashCommand(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: newName }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
         const SESSION_NAMES_KEY = "session-names";
@@ -382,6 +388,7 @@ export async function handleSlashCommand(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.created) {
         showOutput("CLAUDE.md created successfully.");
@@ -417,6 +424,7 @@ export async function handleSlashCommand(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: resolvedModel }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
         showOutput(`Model switched to ${data.model}`);
@@ -445,6 +453,7 @@ export async function handleSlashCommand(
           method: "POST",
           headers: { "Content-Type": "application/json" },
         });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (data.success) {
           showOutput("Resuming last session...");
@@ -458,6 +467,7 @@ export async function handleSlashCommand(
       // Show recent sessions list
       try {
         const res = await fetch("/api/sessions");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const sessions = (data.sessions || []).slice(0, 10);
         if (sessions.length === 0) {
@@ -514,6 +524,7 @@ export async function handleSlashCommand(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ directory: dir }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
         showOutput(`Added directory: ${data.directory}`);
@@ -532,6 +543,7 @@ export async function handleSlashCommand(
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.authUrl) {
         showOutput(`Open this URL to log in:\n${data.authUrl}`);
@@ -552,6 +564,7 @@ export async function handleSlashCommand(
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       showOutput(data.message || "Logged out.");
     } catch {
@@ -569,6 +582,7 @@ export async function handleSlashCommand(
       // List available styles
       try {
         const res = await fetch("/api/output-styles");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const styles = data.styles || [];
         if (styles.length === 0) {
@@ -596,6 +610,7 @@ export async function handleSlashCommand(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ style: arg === "none" ? null : arg }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
         showOutput(data.style ? `Output style set to "${data.style}"` : "Output style cleared");
