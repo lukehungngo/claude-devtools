@@ -272,6 +272,31 @@ describe("buildAgentDAG", () => {
     expect(edgesToAgent1).toHaveLength(1);
   });
 
+  it("sets model on main node from the assistant event model", () => {
+    const dag = buildAgentDAG(
+      [makeAssistantEvent({ model: "claude-opus-4-6" })],
+      new Map(),
+      new Map()
+    );
+    expect(dag.nodes[0].model).toBe("claude-opus-4-6");
+  });
+
+  it("sets model on subagent node from its own events", () => {
+    const subagentEvents = new Map<string, SessionEvent[]>([
+      ["agent-1", [makeAssistantEvent({ model: "claude-sonnet-4-6" })]],
+    ]);
+    const subagentMeta = new Map([
+      ["agent-1", { agentType: "Explore", description: "explore" }],
+    ]);
+    const dag = buildAgentDAG(
+      [makeAssistantEvent({ model: "claude-opus-4-6" })],
+      subagentEvents,
+      subagentMeta
+    );
+    const subagentNode = dag.nodes.find((n) => n.id === "agent-1")!;
+    expect(subagentNode.model).toBe("claude-sonnet-4-6");
+  });
+
   it("detects error status from tool_result with is_error in user events", () => {
     const events: SessionEvent[] = [
       makeAssistantEvent({

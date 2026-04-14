@@ -26,6 +26,7 @@ function analyzeEvents(events: SessionEvent[]): {
   mcpToolCalls: number;
   status: "active" | "completed" | "error";
   agentDescriptions: string[];
+  model?: string;
 } {
   let inputTokens = 0;
   let outputTokens = 0;
@@ -34,6 +35,7 @@ function analyzeEvents(events: SessionEvent[]): {
   let totalCost = 0;
   let toolCalls = 0;
   let mcpToolCalls = 0;
+  let lastModel: string | undefined;
   const agentDescriptions: string[] = [];
 
   // For status detection: track last few events for error check
@@ -55,6 +57,7 @@ function analyzeEvents(events: SessionEvent[]): {
         cacheReadTokens += evtCacheRead;
 
         const model = event.message.model || "claude-sonnet-4-6";
+        lastModel = model;
         totalCost += calculateTokenCost(model, {
           inputTokens: evtIn,
           outputTokens: evtOut,
@@ -131,6 +134,7 @@ function analyzeEvents(events: SessionEvent[]): {
     mcpToolCalls,
     status,
     agentDescriptions,
+    model: lastModel,
   };
 }
 
@@ -164,6 +168,7 @@ export function buildAgentDAG(
     status: mainAnalysis.status,
     startTime: mainEvents[0]?.timestamp,
     endTime: mainEvents[mainEvents.length - 1]?.timestamp,
+    model: mainAnalysis.model,
   });
 
   // Create edges from Agent tool_use descriptions using O(1) map lookup
@@ -192,6 +197,7 @@ export function buildAgentDAG(
       status: analysis.status,
       startTime: events[0]?.timestamp,
       endTime: events[events.length - 1]?.timestamp,
+      model: analysis.model,
     });
 
     // If no edge was created from main, add default

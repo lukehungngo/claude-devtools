@@ -164,6 +164,7 @@ export interface AgentNode {
   status: "active" | "completed" | "error";
   startTime?: string;
   endTime?: string;
+  model?: string;
 }
 
 export interface AgentEdge {
