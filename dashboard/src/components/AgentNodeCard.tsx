@@ -64,6 +64,9 @@ export const AgentNodeCard = memo(function AgentNodeCard({ data }: NodeProps) {
           <div>Cost: {formatCost(node.tokenUsage.totalCost)}</div>
           <div>Tools: {node.toolCalls}{node.mcpToolCalls > 0 ? ` (${node.mcpToolCalls} MCP)` : ""}</div>
           <div>Status: {node.status}</div>
+          {node.model && (
+            <div>Model: {node.model}</div>
+          )}
           {(data.onViewInLog as ((id: string) => void) | undefined) && (
             <div
               onClick={(e) => {
@@ -141,6 +144,7 @@ export const AgentNodeCard = memo(function AgentNodeCard({ data }: NodeProps) {
     prevNode.type === nextNode.type &&
     prevNode.tokenUsage.totalCost === nextNode.tokenUsage.totalCost &&
     prevNode.toolCalls === nextNode.toolCalls &&
-    prev.data.selected === next.data.selected
+    prev.data.selected === next.data.selected &&
+    prevNode.model === nextNode.model
   );
 });
