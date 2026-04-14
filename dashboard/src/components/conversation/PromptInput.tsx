@@ -112,22 +112,31 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
       return;
     }
 
+    const controller = new AbortController();
+
     if (fileDebounceRef.current) clearTimeout(fileDebounceRef.current);
     fileDebounceRef.current = setTimeout(() => {
       const encoded = encodeURIComponent(atPrefix);
-      fetch(`/api/sessions/${projectHash}/${sessionId}/files?prefix=${encoded}`)
-        .then((r) => r.json())
+      fetch(`/api/sessions/${projectHash}/${sessionId}/files?prefix=${encoded}`, {
+        signal: controller.signal,
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
         .then((data: { files?: string[] }) => {
           setFileResults(data.files ?? []);
           setSelectedFileIndex(-1);
         })
-        .catch(() => {
+        .catch((err) => {
+          if (err instanceof DOMException && err.name === "AbortError") return;
           setFileResults([]);
         });
     }, 200);
 
     return () => {
       if (fileDebounceRef.current) clearTimeout(fileDebounceRef.current);
+      controller.abort();
     };
   }, [atPrefix, projectHash, sessionId]);
 

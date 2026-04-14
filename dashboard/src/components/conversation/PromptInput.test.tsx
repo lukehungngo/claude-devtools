@@ -1573,6 +1573,58 @@ describe("PromptInput", () => {
     });
   });
 
+  describe("file autocomplete fetch", () => {
+    it("non-2xx response keeps fileResults empty (does not accept poisoned body)", async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: async () => ({ files: ["/etc/passwd", "/secret"] }),
+      });
+
+      const { container } = render(
+        <PromptInput projectHash="ph1" sessionId="s1" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "@foo" } });
+      await act(async () => {
+        vi.advanceTimersByTime(200);
+      });
+      await act(async () => { await Promise.resolve(); });
+
+      // File dropdown must NOT appear with poisoned files
+      const dropdown = container.querySelector('[data-testid="file-dropdown"]');
+      expect(dropdown).toBeNull();
+    });
+
+    it("AbortController.abort is called when atPrefix changes before debounce fires", async () => {
+      let abortCalled = false;
+      const mockController = {
+        signal: { aborted: false },
+        abort: () => { abortCalled = true; },
+      };
+      vi.spyOn(globalThis, "AbortController").mockReturnValue(
+        mockController as unknown as AbortController
+      );
+
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ files: [] }),
+      });
+
+      const { container } = render(
+        <PromptInput projectHash="ph1" sessionId="s1" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      // Change once to set up effect, then change again before debounce fires
+      fireEvent.change(textarea, { target: { value: "@foo" } });
+      fireEvent.change(textarea, { target: { value: "@bar" } });
+
+      expect(abortCalled).toBe(true);
+    });
+  });
+
   describe("/permissions command", () => {
     it("fetches permissions info and shows mode and allowances", async () => {
       fetchMock.mockResolvedValueOnce({
