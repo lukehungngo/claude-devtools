@@ -297,6 +297,18 @@ describe("buildAgentDAG", () => {
     expect(subagentNode.model).toBe("claude-sonnet-4-6");
   });
 
+  it("uses the last assistant event model when multiple events have different models", () => {
+    const dag = buildAgentDAG(
+      [
+        makeAssistantEvent({ model: "claude-opus-4-6" }),
+        makeAssistantEvent({ model: "claude-sonnet-4-6" }),
+      ],
+      new Map(),
+      new Map()
+    );
+    expect(dag.nodes[0].model).toBe("claude-sonnet-4-6");
+  });
+
   it("detects error status from tool_result with is_error in user events", () => {
     const events: SessionEvent[] = [
       makeAssistantEvent({

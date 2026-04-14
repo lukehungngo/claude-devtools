@@ -56,8 +56,9 @@ function analyzeEvents(events: SessionEvent[]): {
         cacheWriteTokens += evtCacheWrite;
         cacheReadTokens += evtCacheRead;
 
-        const model = event.message.model || "claude-sonnet-4-6";
-        lastModel = model;
+        const rawModel = event.message.model;
+        const model = rawModel || "claude-sonnet-4-6";
+        if (rawModel) lastModel = rawModel;
         totalCost += calculateTokenCost(model, {
           inputTokens: evtIn,
           outputTokens: evtOut,
