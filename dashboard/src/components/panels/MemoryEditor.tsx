@@ -40,7 +40,10 @@ export function MemoryEditor({ projectHash, sessionId }: MemoryEditorProps) {
     setSaveStatus(null);
     setDirty(false);
     fetch(`/api/sessions/${projectHash}/${sessionId}/memory`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: { content: string | null }) => {
         setContent(data.content);
         setEditContent(data.content ?? "");
@@ -66,6 +69,7 @@ export function MemoryEditor({ projectHash, sessionId }: MemoryEditorProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: editContent }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
         setContent(editContent);

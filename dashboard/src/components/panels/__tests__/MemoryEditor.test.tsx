@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryEditor } from "../MemoryEditor";
 
 describe("MemoryEditor", () => {
@@ -185,6 +185,66 @@ describe("MemoryEditor", () => {
           body: JSON.stringify({ content: "# Updated" }),
         }),
       );
+    });
+  });
+
+  it("non-2xx load does not render poisoned content", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ content: "# injected by server error" }),
+    } as unknown as Response);
+
+    const { container } = render(<MemoryEditor projectHash="ph1" sessionId="s1" />);
+
+    // Wait for loading to complete (Loading... disappears)
+    await waitFor(() => {
+      expect(within(container).queryByText("Loading...")).toBeNull();
+    });
+
+    // Now assert the poisoned content is not shown
+    expect(within(container).queryByText("injected by server error")).toBeNull();
+  });
+
+  it("non-2xx save does NOT show Saved — shows error instead", async () => {
+    vi.spyOn(globalThis, "fetch")
+      // First call: load succeeds
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ content: "# My Project" }),
+      } as Response)
+      // Second call: save returns 500 with success: true (poisoned response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ success: true }),
+      } as unknown as Response);
+
+    const { container } = render(<MemoryEditor projectHash="ph1" sessionId="s1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("My Project")).toBeTruthy();
+    });
+
+    // Switch to edit mode
+    const editBtn = container.querySelector('[aria-label="Edit mode"]') as HTMLElement;
+    fireEvent.click(editBtn);
+
+    await waitFor(() => {
+      expect(container.querySelector('[aria-label="CLAUDE.md editor"]')).toBeTruthy();
+    });
+
+    // Make content dirty so Save button is enabled
+    const textarea = container.querySelector('[aria-label="CLAUDE.md editor"]') as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "# My Project Modified" } });
+
+    // Click Save
+    const saveBtn = container.querySelector('[aria-label="Save changes"]') as HTMLButtonElement;
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(within(container).queryByText("Saved")).toBeNull();
+      expect(within(container).getByText(/error/i)).toBeTruthy();
     });
   });
 
