@@ -461,6 +461,80 @@ describe("ConversationView RewindMenu integration", () => {
   });
 });
 
+describe("ConversationView handleClear fetch guard", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("non-2xx on /sessions/new does NOT call onSessionStarted with a bad id", async () => {
+    const onSessionStarted = vi.fn();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ sessionId: "bad-id-from-error-body" }),
+      })
+    );
+
+    const events = [makeUserEvent("Prompt", 0), makeAssistantEvent(1)];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+
+    render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={null}
+        sessionCwd="/tmp/test-cwd"
+        onSessionStarted={onSessionStarted}
+      />
+    );
+
+    // Trigger handleClear via Ctrl+L keyboard shortcut
+    fireEvent.keyDown(document, { key: "l", ctrlKey: true });
+
+    // Wait for async handleClear to complete
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(onSessionStarted).not.toHaveBeenCalledWith("bad-id-from-error-body");
+  });
+
+  it("2xx on /sessions/new DOES call onSessionStarted with the returned id", async () => {
+    const onSessionStarted = vi.fn();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ sessionId: "good-session-id" }),
+      })
+    );
+
+    const events = [makeUserEvent("Prompt", 0), makeAssistantEvent(1)];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+
+    render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={null}
+        sessionCwd="/tmp/test-cwd"
+        onSessionStarted={onSessionStarted}
+      />
+    );
+
+    // Trigger handleClear via Ctrl+L keyboard shortcut
+    fireEvent.keyDown(document, { key: "l", ctrlKey: true });
+
+    // Wait for async handleClear to complete
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(onSessionStarted).toHaveBeenCalledWith("good-session-id");
+  });
+});
+
 describe("ConversationView onDecideSession", () => {
   function makePermission(overrides?: Partial<PermissionRequest>): PermissionRequest {
     return {

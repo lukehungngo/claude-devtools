@@ -629,6 +629,7 @@ export function ConversationView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cwd: sessionCwd }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.sessionId) {
         onSessionStarted?.(data.sessionId);
@@ -667,11 +668,12 @@ export function ConversationView({
   const handleRewind = useCallback(async (userMessageId: string, dryRun: boolean): Promise<void> => {
     const targetId = activeSessionId || sessionId;
     if (!targetId) return;
-    await fetch(`/api/sessions/${targetId}/rewind`, {
+    const res = await fetch(`/api/sessions/${targetId}/rewind`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userMessageId, dryRun }),
     });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
   }, [activeSessionId, sessionId]);
 
   const handleToggleFastMode = useCallback(async () => {
