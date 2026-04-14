@@ -14,7 +14,10 @@ export function useAgentLogs(
     if (!projectHash || !sessionId) return;
 
     fetch(`/api/sessions/${projectHash}/${sessionId}/events/${agentId}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: { events?: AgentLogEntry[] }) => {
         setLogs(data.events || []);
         setLoading(false);
@@ -37,7 +40,7 @@ export function useAgentLogs(
     if (liveEventCount && liveEventCount > 0 && projectHash && sessionId) {
       fetchLogs();
     }
-  }, [liveEventCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [liveEventCount, fetchLogs]);
 
   return { logs, loading };
 }
