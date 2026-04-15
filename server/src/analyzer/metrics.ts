@@ -289,7 +289,12 @@ export function computeMetrics(
 
   // Context window — use last assistant event's input tokens as current context usage
   const primaryModel = Array.from(models)[0] || "claude-sonnet-4-6";
-  const contextWindowSize = getContextWindowSize(primaryModel);
+  let contextWindowSize = getContextWindowSize(primaryModel);
+  // If input tokens exceed 90% of detected window, the actual window must be larger.
+  // This handles 1M context variants where the model ID doesn't include "[1m]".
+  if (lastInputTokens > contextWindowSize * 0.9) {
+    contextWindowSize = 1_000_000;
+  }
   const contextPercent = contextWindowSize > 0
     ? Math.min(100, Math.round((lastInputTokens / contextWindowSize) * 100))
     : 0;

@@ -204,6 +204,49 @@ describe("computeMetrics", () => {
     expect(metrics.contextPercent).toBeLessThanOrEqual(100);
   });
 
+  it("detects 1M context when input tokens exceed 200K window (Bug 1: false 100%)", () => {
+    // When model ID is "claude-opus-4-6" (no [1m] suffix) but input tokens exceed 200K,
+    // the user MUST be on a >200K window. Without the heuristic, contextPercent would
+    // show 100% (capped) when actual usage is only ~25%.
+    const mainEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        usage: { input_tokens: 250_000, output_tokens: 1000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        model: "claude-opus-4-6", // No [1m] suffix
+      }),
+    ];
+
+    const metrics = computeMetrics(
+      makeSessionInfo(),
+      mainEvents,
+      new Map(),
+      new Map()
+    );
+
+    // 250K / 1M = 25%, NOT 100%
+    expect(metrics.contextWindowSize).toBe(1_000_000);
+    expect(metrics.contextPercent).toBe(25);
+  });
+
+  it("keeps 200K window when input tokens are well within range", () => {
+    // When input tokens are safely below 90% of 200K, keep the default window
+    const mainEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        usage: { input_tokens: 50_000, output_tokens: 1000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        model: "claude-opus-4-6",
+      }),
+    ];
+
+    const metrics = computeMetrics(
+      makeSessionInfo(),
+      mainEvents,
+      new Map(),
+      new Map()
+    );
+
+    expect(metrics.contextWindowSize).toBe(200_000);
+    expect(metrics.contextPercent).toBe(25);
+  });
+
   it("uses 1M context window for models containing '1m'", () => {
     const mainEvents: SessionEvent[] = [
       makeAssistantEvent({
