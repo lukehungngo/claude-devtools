@@ -1,5 +1,5 @@
 # Claude DevTools — v6 Specification
-> Updated: 2026-04-12 | Ground truth: current codebase (master + 3 open PRs)
+> Updated: 2026-04-15 | Ground truth: current codebase (master)
 
 ---
 
@@ -24,7 +24,7 @@
 | Right panel eliminated, full-width conversation | DONE | `Layout.tsx` — no right panel slot |
 | Main panel: 3 tabs (Conversation, Raw Log, Agent Log) | DONE | `SessionPage.tsx` — `mainTab` state, 3 tabs rendered |
 | Bottom panel: 3 tabs (Agent Graph, Tool Call, Cost) | DONE | `BottomPanel.tsx` — `BottomTab = "agent-graph" \| "tool-call" \| "cost"` |
-| Bottom panel: 4th Tasks tab | PARTIAL | In `feature/queue-task-tab` worktree — NOT merged to master yet |
+| Bottom panel: 4th Tasks tab | DONE | `TasksTab.tsx` merged, 4th tab in BottomPanel |
 | Sticky topbar with 7 metrics | DONE | `TopBar.tsx` — status/model/age/context/cost/agents/in+out tokens |
 | Resizable bottom panel (drag + localStorage) | DONE | `BottomPanel.tsx` — `HEIGHT_KEY`, `COLLAPSED_KEY` |
 | Auto-open bottom panel on SubagentStart | DONE | `BottomPanel.tsx` — 5s debounce, localStorage override |
@@ -52,8 +52,8 @@
 | Rewind menu | DONE | `RewindMenu.tsx` — SDK `rewindFiles()` + dry-run |
 | Virtualized turn list | DONE | `@tanstack/react-virtual` in `ConversationView` |
 | Incremental turn grouping | DONE | `groupEventsIntoTurnsIncremental()` — only rebuilds last turn |
-| TurnCard layout: Narration → ToolEntries → response text | PARTIAL | In `feature/reorder-conv-layout` — NOT merged to master yet. Master has same order (ToolEntries before msg-text) but the PR formalizes it. |
-| TaskGrid in TurnCard (dead code) | BROKEN | `TaskGrid.tsx` exists but no data source wired in master |
+| TurnCard layout: Narration → ToolEntries → response text | DONE | Merged to master |
+| TaskGrid in TurnCard (dead code) | DONE | Wired in ConversationView.tsx via tasksByTurn |
 
 ### Topbar / Controls Zone (P5-01)
 
@@ -94,15 +94,15 @@
 | Agent Graph (Jaeger-style trace) | DONE | `TraceTab.tsx` — proportional bars, 3 columns |
 | Tool Call (file-level detail) | DONE | `DetailTab.tsx` — agent badge, turn#, tool count, duration, cost |
 | Cost (burn rate, projection, per-agent) | DONE | `CostTab.tsx` — 3 cards + per-agent bars |
-| Tasks (TodoWrite task list) | PARTIAL | `TasksTab.tsx` in `feature/queue-task-tab` — NOT merged to master |
+| Tasks (TodoWrite task list) | DONE | `TasksTab.tsx` merged, 4th tab in BottomPanel |
 
 ### Server / Backend
 
 | Feature | Status | Evidence |
 |---------|--------|----------|
-| cwd validation (existsSync + isDirectory) | PARTIAL | In `fix/auto-bug-diagnosis` worktree — NOT merged to master |
-| 400 error for invalid cwd (not 500) | PARTIAL | In `fix/auto-bug-diagnosis` worktree — NOT merged to master |
-| filterDagForTurn status-aware memoization | PARTIAL | In `fix/auto-bug-diagnosis` worktree — NOT merged to master |
+| cwd validation (existsSync + isDirectory) | DONE | Merged to master |
+| 400 error for invalid cwd (not 500) | DONE | Merged to master |
+| filterDagForTurn status-aware memoization | DONE | Merged to master |
 | Session isolation fix in useEventStream | DONE | `useEventStream.ts` — `sessionIdRef` pattern (merged to master) |
 | JSONL incremental byte-offset parsing | DONE | `parseJsonlIncremental()` |
 | Stat-based session cache (mtime+size) | DONE | `SessionCache` |
@@ -118,9 +118,9 @@
 | Effort slider wired to SDK | DONE | `useSessionControl.ts` → `controlSetEffort` |
 | Context compact button (one-click `/compact`) | DONE | `useSessionControl.ts` → `controlSendCompact` |
 | Permission history log | DONE | `PermissionHistory.tsx` — shows all requests with decisions |
-| Batch approve/deny | NOT STARTED | Not implemented |
-| "Trust this tool for session" | NOT STARTED | Not implemented |
-| Fork session UI | NOT STARTED | SDK method exists; no UI |
+| Batch approve/deny | DONE | PermissionHistory.tsx — checkbox selection + batch action buttons |
+| "Trust this tool for session" | DONE | PermissionBlock "Allow for session" button → usePermissions.decideSession |
+| Fork session UI | DONE | /fork slash command + POST /api/sessions/:id/fork |
 | Session templates | NOT STARTED | Deferred |
 | Session comparison | NOT STARTED | Deferred |
 
@@ -154,25 +154,25 @@ These invariants are active and enforced in the current codebase:
 
 ## Gap Analysis
 
-### PRs Not Yet Merged (Code Complete, Pending Merge)
+### PRs (All Merged)
 
-These are code-complete and tested but not in master:
+**All PRs merged to master as of 2026-04-15.**
 
-| Gap | Branch | Risk if not merged |
-|-----|--------|--------------------|
-| filterDagForTurn status memoization bug | `fix/auto-bug-diagnosis` | Agent Graph shows stale token/cost when switching turns with same agents |
-| cwd validation (existsSync + isDirectory) | `fix/auto-bug-diagnosis` | Server returns 500 (not 400) for invalid cwd; no directory-existence check before starting session |
-| 400 error routing for cwd failures | `fix/auto-bug-diagnosis` | Client cannot distinguish bad-cwd from server error |
-| Tasks tab in bottom panel | `feature/queue-task-tab` | No way to see TodoWrite task list in DevTools panel |
-| TurnCard layout (ToolEntries before msg-text) | `feature/reorder-conv-layout` | Tool calls appear after response text in current master; UX inconsistency with CLI rendering order |
+| Gap | Branch | Status |
+|-----|--------|--------|
+| filterDagForTurn status memoization bug | `fix/auto-bug-diagnosis` | Merged |
+| cwd validation (existsSync + isDirectory) | `fix/auto-bug-diagnosis` | Merged |
+| 400 error routing for cwd failures | `fix/auto-bug-diagnosis` | Merged |
+| Tasks tab in bottom panel | `feature/queue-task-tab` | Merged |
+| TurnCard layout (ToolEntries before msg-text) | `feature/reorder-conv-layout` | Merged |
 
 ### Phase 5 Gaps (Partially Implemented)
 
 | Feature | Status | Gap |
 |---------|--------|-----|
-| P5-02: Batch approve/deny permissions | NOT STARTED | Permission history visible but no bulk actions |
-| P5-02: "Trust tool for session" | NOT STARTED | Individual allows possible, persistent session-level trust not in UI |
-| P5-03: Fork session | NOT STARTED | SDK method `rewindFiles()` exists; no fork-to-new-session UI |
+| P5-02: Batch approve/deny permissions | DONE | PermissionHistory.tsx |
+| P5-02: "Trust tool for session" | DONE | PermissionBlock + usePermissions |
+| P5-03: Fork session | DONE | /fork command |
 | P5-03: Session templates | NOT STARTED | Deferred |
 
 ### Phase 6–8 Gaps (Not Started)
@@ -189,19 +189,19 @@ These are code-complete and tested but not in master:
 | P8-02: Task decomposition view | NOT STARTED |
 | P8-03: Workflow templates | NOT STARTED |
 
-### Slash Command Gaps (from gap-matrix.md, still open)
+### Slash Command Gaps (from gap-matrix.md — all resolved)
 
-| Command | Gap |
-|---------|-----|
-| `/diff` | Line-by-line only — not unified diff format |
-| `/rename` | localStorage only — not using SDK `renameSession()` |
-| `/bug` | Not implemented (low priority) |
+| Command | Previous Gap | Status |
+|---------|-------------|--------|
+| /diff | ~~Line-by-line only~~ | **DONE** — server returns unified diff |
+| /rename | ~~localStorage only~~ | **DONE** — server calls SDK renameSession() |
+| /bug | ~~Not implemented~~ | **DONE** — opens GitHub issues page |
 
 ### Dead Code
 
 | Item | Location | Issue |
 |------|----------|-------|
-| `TaskGrid.tsx` | `dashboard/src/components/conversation/TaskGrid.tsx` | Rendered conditionally in `TurnCard.tsx` (`tasks` prop) but `tasks` is never passed from `ConversationView`. No data source. |
+| `TaskGrid.tsx` | `dashboard/src/components/conversation/TaskGrid.tsx` | **RESOLVED** — TaskGrid wired via tasksByTurn in ConversationView |
 
 ---
 
@@ -224,44 +224,35 @@ These were built after v5-plan was written:
 
 ## Next Priorities
 
-### P0 — Merge Immediately (Bug Fixes)
-
-These are completed PRs with confirmed bugs in master:
-
-1. **Merge PR #19** (`fix/auto-bug-diagnosis`) — 3 bug fixes:
-   - filterDagForTurn status memoization (wrong Agent Graph data when same agents appear in multiple turns)
-   - cwd validation on startSession/resumeSession
-   - 400 (not 500) for invalid cwd
-
-### P1 — Merge Soon (Complete Features)
-
-2. **Merge PR #20** (`feature/reorder-conv-layout`) — ToolEntries before response text in TurnCard. Cosmetic but improves reading order consistency with CLI.
-
-3. **Merge PR #21** (`feature/queue-task-tab`) — Tasks tab in bottom panel. Feature-complete with tests. Enables TodoWrite task observability.
-
 ### P1 — Active Development
 
-4. **Fix TaskGrid dead code** — Either wire `tasks` prop through `ConversationView → TurnCard` using session events, or delete `TaskGrid.tsx`. Currently renders nothing because the prop is never passed. If kept, the data source is the same `extractTasks()` function being added in PR #21.
+1. **Spending View (P6-03)** — Cross-session cost visibility. High value for both personas. Uses existing `discoverSessions()` + session cost data already available in REST API.
 
-5. **Spending View (P6-03)** — Cross-session cost visibility. High value for both personas. Uses existing `discoverSessions()` + session cost data already available in REST API.
+2. **Decision trace (P6-01)** — Link thinking blocks to subsequent tool choices. Foundation exists in `ThinkingGroup` + `ToolEntries`. Needs correlation logic in DAG builder.
+
+3. **Turn snapshots with time travel diff (P6-02)** — Snapshot file state at each turn boundary, diff between any two turns.
 
 ### P2 — Next Quarter
 
-6. **Session health monitor (P7-01)** — Stuck agent detection. Requires server-side timer on agent span events. Can be surfaced as a topbar warning badge.
+4. **Session health monitor (P7-01)** — Stuck agent detection. Requires server-side timer on agent span events. Can be surfaced as a topbar warning badge.
 
-7. **Batch permission approve/deny (P5-02)** — Permission history panel exists. Add checkbox selection + bulk action buttons.
+5. **Cross-session analytics (P7-02)** — Aggregate metrics across sessions for usage trends and cost patterns.
 
-8. **Decision trace (P6-01)** — Link thinking blocks to subsequent tool choices. Foundation exists in `ThinkingGroup` + `ToolEntries`. Needs correlation logic in DAG builder.
+6. **Performance profiling dashboard (P7-03)** — Per-session and per-agent latency breakdown.
 
-9. **SDK `renameSession()` for `/rename`** — Currently localStorage only. Small fix, improves CLI parity.
+7. **Customizable keybindings** — Currently hardcoded in `useKeyboardShortcuts.ts`. Allow user-defined key mappings.
 
-10. **Unified diff format for `/diff`** — Currently line-by-line. Small, improves parity with CLI.
+### P3 — Future
 
-### P3 — Nice to Have
+8. **Agent-first mode layout flip (P8-01)** — After P6-P7 are complete.
 
-11. **"Trust tool for session" shortcut** — In PermissionBlock, add a "Trust for session" button that calls `addSessionAllowance()` server-side. Backend already exists.
+9. **Task decomposition view (P8-02)** — After agent-first mode.
 
-12. **Fork session UI** — SDK `rewindFiles()` + new session creation endpoint. Useful for experimenting from a checkpoint.
+10. **Workflow templates (P8-03)** — After agent-first mode.
+
+11. **Session templates** — Deferred, no current demand.
+
+12. **Session comparison** — Deferred, no current demand.
 
 ---
 

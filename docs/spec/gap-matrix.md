@@ -48,7 +48,7 @@ What the CLI has vs what we've built. Updated 2026-03-30 after Phases 0-3 + P1 a
 | /model | Switch model | ✅ query.setModel() | Done |
 | /cost | Cost breakdown | ✅ formatCostCommand | Done |
 | /context | Context usage | ✅ formatContextCommand | Done |
-| /diff | Full unified diff | ⚠️ Simple line-by-line | Need unified format |
+| /diff | Full unified diff | ✅ Unified diff + stat | Done |
 | /copy | Clipboard | ✅ Clipboard API | Done |
 | /permissions | View rules | ✅ + rules editor | Done |
 | /usage | Rate limits | ✅ formatUsageCommand | Done |
@@ -65,7 +65,7 @@ What the CLI has vs what we've built. Updated 2026-03-30 after Phases 0-3 + P1 a
 | /hooks | Hook editor | ✅ Create/edit/delete | Done |
 | /memory | Memory editor | ✅ Read + write CLAUDE.md | Done |
 | /shortcuts | Shortcut help | ✅ Shows list | Done |
-| /rename | Rename session | ⚠️ localStorage only | Use SDK renameSession() |
+| /rename | Rename session | ✅ SDK renameSession() | Done |
 | /tasks | Task list | ✅ TaskPanel + Ctrl+T | Done |
 | /analytics | Cross-session | ✅ Cost analytics | Done |
 | ! (bash) | Shell execution | ✅ spawnSync in session cwd | Done |
@@ -77,7 +77,8 @@ What the CLI has vs what we've built. Updated 2026-03-30 after Phases 0-3 + P1 a
 | /logout | Auth | ✅ claude auth logout | Done (Phase 3) |
 | /review | PR review | ✅ Passthrough command | Done (Phase 3) |
 | /output-style | Output styles | ✅ Style listing endpoint | Done (Phase 3) |
-| /bug | Report bug | ❌ Not built | Low priority |
+| /bug | Report bug | ✅ Opens GitHub issues | Done |
+| /fork | Fork session | ✅ Slash command + API endpoint | Done |
 | /batch | Parallel changes | ❌ Not built | Deferred |
 | /loop | Scheduled tasks | ❌ Not built | Deferred |
 | /voice | Voice input | ❌ Not built | Deferred |
@@ -179,7 +180,7 @@ What the CLI has vs what we've built. Updated 2026-03-30 after Phases 0-3 + P1 a
 | `toggleMcpServer()` | ✅ Used | mcp-routes.ts |
 | `reconnectMcpServer()` | ✅ Used | mcp-routes.ts |
 | `setMcpServers()` | ✅ Used | mcp-routes.ts |
-| `supportedAgents()` | ⚠️ Partial | discovery route exists |
+| `supportedAgents()` | ✅ Used | discovery-routes.ts |
 | `interrupt()` | ❌ | We use AbortController |
 | `stopTask()` | ❌ | Phase 3 |
 | `initializationResult()` | ❌ | Phase 3 |
@@ -208,9 +209,9 @@ Phase 3 shipped in commit `5eae4d9`. 12 features implemented:
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 1 | Customizable keybindings | Medium | Currently hardcoded in useKeyboardShortcuts.ts |
-| 2 | /diff unified format | Small | Shows line-by-line, not unified diff |
-| 3 | /rename via SDK renameSession() | Small | Currently localStorage only |
-| 4 | /bug report | Small | Low priority |
+| 2 | ~~/diff unified format~~ | ~~Small~~ | **FIXED** — server already returns unified diff |
+| 3 | ~~/rename via SDK~~ | ~~Small~~ | **FIXED** — server already calls renameSession() |
+| 4 | ~~/bug report~~ | ~~Small~~ | **FIXED** — opens GitHub issues page |
 
 ## Quality Issues (from audit, Phase 3.5)
 
@@ -222,9 +223,9 @@ Phase 3 shipped in commit `5eae4d9`. 12 features implemented:
 | A-04 | Hooks showing incomplete data | P2 | **FIXED** (PanelModal — HookEditor accessible via /hooks) |
 | A-05 | No code splitting | P2 | **FIXED** (route-level lazy loading + React.lazy BottomPanel) |
 | A-06 | Conversation memory growth | P2 | **FIXED** (TurnSnapshot index-based, no duplication) |
-| A-07 | Duration formatting | P3 | Open |
+| A-07 | Duration formatting | P3 | **FIXED** (Math.floor in formatDuration) |
 | A-08 | Theme toggle location | P3 | **FIXED** (light/dark/high-contrast toggle in ThemeContext) |
-| A-09 | Duplicate prompt edge case | P3 | Open |
+| A-09 | Duplicate prompt edge case | P3 | Investigated — no reproduction case documented, downgraded to unconfirmed |
 
 ### Deferred (Not in Plan)
 
