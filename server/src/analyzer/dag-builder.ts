@@ -20,7 +20,7 @@ const ACTIVE_THRESHOLD_MS = 30_000; // 30 seconds
  * - agent status (active/completed/error)
  * - Agent tool_use descriptions found (for edge detection)
  */
-function analyzeEvents(events: SessionEvent[]): {
+function analyzeEvents(events: SessionEvent[], opts?: { isSubagent?: boolean }): {
   tokens: AggregatedTokens;
   toolCalls: number;
   mcpToolCalls: number;
@@ -115,19 +115,26 @@ function analyzeEvents(events: SessionEvent[]): {
     }
   }
 
-  // An agent is "completed" ONLY when it has explicitly sent end_turn AND its
-  // events are stale (>ACTIVE_THRESHOLD_MS). Both conditions must be true.
-  // - hasEndTurn=false, isRecent=false → "active": agent is still computing,
-  //   just hasn't sent events in a while (slow tool, long computation). This
-  //   was the flash bug: returning "completed" here caused the cycle
-  //   completed → active → completed on every quiet period.
-  // - hasEndTurn=true, isRecent=true → "active": between turns, main session
-  //   may dispatch more work before the threshold elapses.
+  // Status determination — two separate concerns:
+  //
+  // 1. hasEndTurn: the agent explicitly sent stop_reason="end_turn"
+  //    → For main: only mark completed if ALSO stale (!isRecent) to prevent
+  //      flash between turns (user sends new prompt → main briefly "completed").
+  //    → For subagents: end_turn is authoritative. Subagents don't get new turns.
+  //      Pass { isSubagent: true } to mark completed immediately.
+  //
+  // 2. !hasEndTurn && !isRecent: agent went quiet without end_turn
+  //    → For main: keep "active" — the flash bug (completed→active→completed).
+  //    → For subagents: if stale (>30s), the subagent is done — it just didn't
+  //      send end_turn (e.g., finished after a tool_use). Safe to mark completed
+  //      because subagent events won't resume.
   const status: "active" | "completed" | "error" = hasRecentError
     ? "error"
-    : hasEndTurn && !isRecent
+    : hasEndTurn && (opts?.isSubagent || !isRecent)
       ? "completed"
-      : "active";
+      : !hasEndTurn && !isRecent && opts?.isSubagent
+        ? "completed"
+        : "active";
 
   return {
     tokens: { inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens, totalCost },
@@ -185,7 +192,7 @@ export function buildAgentDAG(
   // Subagent nodes — single-pass analysis per subagent
   for (const [agentId, events] of subagentEvents) {
     const meta = subagentMeta.get(agentId);
-    const analysis = analyzeEvents(events);
+    const analysis = analyzeEvents(events, { isSubagent: true });
 
     nodes.push({
       id: agentId,

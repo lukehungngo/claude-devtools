@@ -68,3 +68,6 @@ Separate calls to `aggregateTokens()`, `countToolCalls()`, `countMcpToolCalls()`
 
 ### 2026-04-12: Agent status flashed completed while still computing
 `analyzeEvents()` returned `"completed"` for the case `hasEndTurn=false, isRecent=false` — i.e. an agent quiet for >30s that never sent `end_turn` (long computation, slow tool). When new events eventually arrived, status flipped back to `"active"`, producing the cycle: active → (quiet >30s) → completed → (new event) → active → flash. Fixed by requiring BOTH conditions to declare completion: `hasEndTurn && !isRecent ? "completed" : "active"`. An agent is "completed" ONLY when it explicitly sent end_turn AND its events are stale. Any other state is "active".
+
+### 2026-04-15: Subagent stuck "running" after finishing without end_turn
+The flash fix was too strict for subagents. Subagents that finished after a tool_use (never sending `end_turn`) were permanently stuck as "active". Unlike the main agent, subagents don't get new turns and their events don't resume. Fixed by adding `isSubagent` flag: subagents mark "completed" when EITHER `hasEndTurn` OR `!isRecent` (stale events). The flash bug can't occur for subagents because their events don't resume after going quiet.
