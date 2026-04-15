@@ -356,3 +356,30 @@ describe("TurnCard model badge", () => {
   });
 });
 
+describe("TurnCard — model badge in assistant header", () => {
+  it("shows model name next to 'Claude' in header when model is set", () => {
+    const evts = [makeAssistantEvent("Response text")] as SessionEvent[];
+    const { turn, allEvents } = makeTurnAndEvents(
+      { model: "claude-sonnet-4-6" },
+      evts,
+    );
+    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+
+    const badge = container.querySelector('[data-testid="turn-header-model-badge"]');
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toBe("sonnet-4-6");
+  });
+
+  it("does not render header model badge when model is absent", () => {
+    const evts = [makeAssistantEvent("Response text")] as SessionEvent[];
+    const { turn, allEvents } = makeTurnAndEvents(
+      { model: undefined },
+      evts,
+    );
+    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+
+    const badge = container.querySelector('[data-testid="turn-header-model-badge"]');
+    expect(badge).toBeNull();
+  });
+});
+
