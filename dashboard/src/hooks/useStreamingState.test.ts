@@ -232,4 +232,36 @@ describe("useStreamingState", () => {
     });
     expect(result.current.state.sessionState).toBe("idle");
   });
+
+  it("extracts sdkContextWindow from result event with modelUsage", () => {
+    const { result } = renderHook(() => useStreamingState());
+    expect(result.current.state.sdkContextWindow).toBeNull();
+
+    act(() => {
+      result.current.actions.handleSSEEvent({
+        type: "result",
+        is_error: false,
+        modelUsage: {
+          "claude-opus-4-6": {
+            inputTokens: 1000,
+            outputTokens: 500,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            costUSD: 0.1,
+            contextWindow: 1_000_000,
+            maxOutputTokens: 16384,
+          },
+        },
+      });
+    });
+    expect(result.current.state.sdkContextWindow).toBe(1_000_000);
+  });
+
+  it("keeps sdkContextWindow null when result has no modelUsage", () => {
+    const { result } = renderHook(() => useStreamingState());
+    act(() => {
+      result.current.actions.handleSSEEvent({ type: "result", is_error: false });
+    });
+    expect(result.current.state.sdkContextWindow).toBeNull();
+  });
 });
