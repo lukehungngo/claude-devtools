@@ -8,6 +8,7 @@ import type {
 } from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
 import { formatDuration } from "../../lib/cost";
+import { formatModelName } from "../../lib/formatModelName";
 import { AgentPills } from "./AgentPills";
 import { CollapsiblePrompt } from "./CollapsiblePrompt";
 import { ThinkingGroup } from "../viewer/ThinkingBlock";
@@ -86,21 +87,6 @@ function computeFallbackDuration(startTime: string, endTime: string): number | n
   } catch {
     return null;
   }
-}
-
-// ─── Model name formatting ───────────────────────────────────────────
-
-/**
- * Shorten a model ID for display.
- * "claude-sonnet-4-6"          → "sonnet-4-6"
- * "claude-haiku-4-5-20251001"  → "haiku-4-5"
- */
-function formatModelName(model: string): string {
-  // Strip leading "claude-"
-  let name = model.startsWith("claude-") ? model.slice("claude-".length) : model;
-  // Strip trailing date suffix (8-digit YYYYMMDD)
-  name = name.replace(/-\d{8}$/, "");
-  return name;
 }
 
 // ─── TurnFooter (elapsed / completed duration) ─────────────────────

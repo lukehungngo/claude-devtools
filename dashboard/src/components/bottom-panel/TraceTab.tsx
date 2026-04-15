@@ -3,6 +3,7 @@ import type { AgentDAG, AgentNode } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { filterDagForTurn } from "../../lib/filterDagForTurn";
 import { formatCost, formatDuration } from "../../lib/cost";
+import { formatModelName } from "../../lib/formatModelName";
 
 /** Height of the tab bar in pixels */
 const TAB_BAR_HEIGHT = 37;
@@ -360,7 +361,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
       </div>
       <div className="trace-col-name" style={{ width: nameWidth }}>{node.type}</div>
       <div className="trace-col-model" style={{ width: modelWidth }} title={node.model}>
-        {node.model ? node.model.replace("claude-", "") : "—"}
+        {node.model ? formatModelName(node.model) : "—"}
       </div>
       <div className="trace-col-duration" style={{ width: durationWidth }}>{isActive ? "running" : durationStr}</div>
       <div className="trace-col-cost" style={{ width: costWidth }}>{costStr}</div>

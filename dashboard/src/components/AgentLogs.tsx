@@ -12,6 +12,7 @@ import { formatTime } from "../lib/formatTime";
 import { formatCost, formatDuration, calculateTurnCost } from "../lib/cost";
 import { getAgentBadgeStyle } from "../lib/agentColors";
 import { buildExportPayload, downloadJson } from "../lib/exportAgentLog";
+import { formatModelName } from "../lib/formatModelName";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -645,9 +646,7 @@ export function AgentLogs({
                           data-testid="agent-header-model-badge"
                           className="text-[10px] font-mono text-dt-text2"
                         >
-                          {group.model.startsWith("claude-")
-                            ? group.model.slice("claude-".length).replace(/-\d{8}$/, "")
-                            : group.model}
+                          {formatModelName(group.model)}
                         </span>
                       )}
                       {/* Time range */}
