@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { eventsToLogEntries } from "./AgentLogs";
+import { eventsToLogEntries, buildTimelineGroups } from "./AgentLogs";
 import { calculateTurnCost } from "../lib/cost";
 import type { SessionEvent, AgentNode } from "../lib/types";
+import type { LogEntry } from "./AgentLogs";
 
 describe("eventsToLogEntries handles string content (bug fix)", () => {
   const agents: AgentNode[] = [];
@@ -174,5 +175,82 @@ describe("eventsToLogEntries includes cache tokens in cost", () => {
     expect(expectedCost).toBeGreaterThan(costWithoutCache);
     // The actual entry cost should match the full calculation
     expect(entries[0].cost).toBeCloseTo(expectedCost, 10);
+  });
+});
+
+describe("model propagation through eventsToLogEntries and buildTimelineGroups", () => {
+  const agents: AgentNode[] = [];
+
+  it("eventsToLogEntries stores model from assistant event", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "assistant",
+        uuid: "a1",
+        timestamp: "2026-01-01T00:00:00Z",
+        sessionId: "s1",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "Hello" }],
+          model: "claude-sonnet-4-6",
+          id: "msg_1",
+          type: "message",
+          stop_reason: "end_turn",
+          usage: { input_tokens: 10, output_tokens: 20 },
+        },
+      } as unknown as SessionEvent,
+    ];
+    const entries = eventsToLogEntries(events, agents);
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries[0].model).toBe("claude-sonnet-4-6");
+  });
+
+  it("buildTimelineGroups propagates model from first entry to group", () => {
+    const entries: LogEntry[] = [
+      {
+        uuid: "e1",
+        timestamp: "2026-01-01T00:00:00Z",
+        agentId: "agent1",
+        agentType: "engineer",
+        model: "claude-sonnet-4-6",
+        message: "msg",
+        toolName: null,
+        isError: false,
+        cost: 0,
+      },
+      {
+        uuid: "e2",
+        timestamp: "2026-01-01T00:00:01Z",
+        agentId: "agent1",
+        agentType: "engineer",
+        model: "claude-sonnet-4-6",
+        message: "msg2",
+        toolName: null,
+        isError: false,
+        cost: 0,
+      },
+    ];
+    const depthMap = new Map([["agent1", 0]]);
+    const groups = buildTimelineGroups(entries, depthMap);
+    expect(groups.length).toBe(1);
+    expect(groups[0].model).toBe("claude-sonnet-4-6");
+  });
+
+  it("buildTimelineGroups leaves model undefined when entry has no model", () => {
+    const entries: LogEntry[] = [
+      {
+        uuid: "e1",
+        timestamp: "2026-01-01T00:00:00Z",
+        agentId: "main",
+        agentType: "orchestrator",
+        model: undefined,
+        message: "msg",
+        toolName: null,
+        isError: false,
+        cost: 0,
+      },
+    ];
+    const depthMap = new Map([["main", 0]]);
+    const groups = buildTimelineGroups(entries, depthMap);
+    expect(groups[0].model).toBeUndefined();
   });
 });

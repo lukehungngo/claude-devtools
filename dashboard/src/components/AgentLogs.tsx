@@ -20,6 +20,7 @@ export interface LogEntry {
   timestamp: string;
   agentId: string;
   agentType: string;
+  model?: string;
   message: string;
   /** Full untruncated message for expand view */
   rawMessage?: string;
@@ -32,6 +33,7 @@ export interface LogEntry {
 export interface TimelineGroup {
   agentId: string;
   agentType: string;
+  model?: string;
   depth: number;
   entries: LogEntry[];
   startTime: string;
@@ -178,6 +180,7 @@ export function eventsToLogEntries(
             timestamp: event.timestamp,
             agentId,
             agentType,
+            model: model || undefined,
             message: info.message,
             rawMessage: info.rawMessage,
             toolName: info.toolName || null,
@@ -260,7 +263,7 @@ function buildDepthMap(agents: AgentNode[]): Map<string, number> {
 
 // ─── Group consecutive entries by agent into timeline groups ─────────
 
-function buildTimelineGroups(
+export function buildTimelineGroups(
   entries: LogEntry[],
   depthMap: Map<string, number>
 ): TimelineGroup[] {
@@ -274,6 +277,7 @@ function buildTimelineGroups(
       current = {
         agentId: entry.agentId,
         agentType: entry.agentType,
+        model: entry.model,
         depth: depthMap.get(entry.agentId) ?? (entry.agentId === "main" ? 0 : 1),
         entries: [entry],
         startTime: entry.timestamp,
@@ -636,6 +640,16 @@ export function AgentLogs({
                       >
                         {normalizeAgentTypeLabel(group.agentType)}
                       </span>
+                      {group.model && (
+                        <span
+                          data-testid="agent-header-model-badge"
+                          className="text-[10px] font-mono text-dt-text2"
+                        >
+                          {group.model.startsWith("claude-")
+                            ? group.model.slice("claude-".length).replace(/-\d{8}$/, "")
+                            : group.model}
+                        </span>
+                      )}
                       {/* Time range */}
                       <span className="text-dt-text2 text-[10px] font-mono">
                         {formatTime(group.startTime)}
