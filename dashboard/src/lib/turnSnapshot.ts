@@ -109,6 +109,19 @@ function cleanPromptText(raw: string): string {
   return raw;
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────
+
+/** A turn is not truly "completed" if any non-main agent is still running. */
+function adjustStatusForSubagents(
+  status: "running" | "completed",
+  agents: AgentSummary[],
+): "running" | "completed" {
+  if (status === "completed" && agents.some(a => a.agentId !== "main" && a.status === "running")) {
+    return "running";
+  }
+  return status;
+}
+
 // ─── Turn boundary detection ─────────────────────────────────────────
 
 function getTextFromContent(content: ContentItem[] | string | undefined): string {
@@ -288,15 +301,7 @@ function buildTurn(
     });
   }
 
-  // A turn is not truly "completed" if it has running subagents.
-  // The main agent may have sent end_turn (dispatching the subagent),
-  // but from the user's perspective, work is still in progress.
-  if (status === "completed") {
-    const hasRunningSubagent = agents.some(a => a.agentId !== "main" && a.status === "running");
-    if (hasRunningSubagent) {
-      status = "running";
-    }
-  }
+  status = adjustStatusForSubagents(status, agents);
 
   const endTime = events[events.length - 1]?.timestamp ?? "";
 
@@ -467,15 +472,7 @@ function extendTurn(
     });
   }
 
-  // A turn is not truly "completed" if it has running subagents.
-  // The main agent may have sent end_turn (dispatching the subagent),
-  // but from the user's perspective, work is still in progress.
-  if (status === "completed") {
-    const hasRunningSubagent = agents.some(a => a.agentId !== "main" && a.status === "running");
-    if (hasRunningSubagent) {
-      status = "running";
-    }
-  }
+  status = adjustStatusForSubagents(status, agents);
 
   const lastNewEvent = newEvents[newEvents.length - 1];
   const endTime = lastNewEvent?.timestamp ?? existing.endTime;
