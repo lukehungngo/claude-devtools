@@ -128,11 +128,20 @@ export function computeTimeline(nodes: AgentNode[]): Timeline {
   if (minMs === Infinity) minMs = now - DEFAULT_DURATION_MS;
   if (maxMs === -Infinity || maxMs <= minMs) maxMs = minMs + DEFAULT_DURATION_MS;
 
-  // Check for active nodes — extend to now if any are running
+  // Check for active nodes — extend timeline if they have recent events.
+  // Only extend to Date.now() if the active node's last event is within 5 minutes;
+  // otherwise use its endTime to prevent stale agents from stretching the timeline.
+  const RECENT_MS = 5 * 60_000;
   for (const n of nodes) {
-    if (n.status === "active" && now > maxMs) {
-      maxMs = now;
-      break;
+    if (n.status === "active") {
+      const nodeEndMs = n.endTime ? new Date(n.endTime).getTime() : 0;
+      if (now - nodeEndMs < RECENT_MS) {
+        // Genuinely running — extend to now
+        if (now > maxMs) maxMs = now;
+      } else if (nodeEndMs > maxMs) {
+        // Stale active — use its last event time, don't stretch to now
+        maxMs = nodeEndMs;
+      }
     }
   }
 
