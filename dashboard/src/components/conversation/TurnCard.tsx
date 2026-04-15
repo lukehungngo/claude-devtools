@@ -242,9 +242,12 @@ export function TurnCard({
             <div className="flex items-center gap-1 text-[10px] font-medium mb-0.5" style={{ color: "var(--t3)" }}>
               <span>Claude</span>
               {turn.model && (
-                <span data-testid="turn-header-model-badge" className="font-mono">
-                  {formatModelName(turn.model)}
-                </span>
+                <>
+                  <span>&middot;</span>
+                  <span data-testid="turn-header-model-badge" className="font-mono">
+                    {formatModelName(turn.model)}
+                  </span>
+                </>
               )}
             </div>
 
