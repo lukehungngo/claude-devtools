@@ -372,18 +372,18 @@ describe("computeBarPosition", () => {
     expect(pos.widthPct).toBe(100);
   });
 
-  it("uses 0.3% minimum width for very short completed spans", () => {
+  it("uses 2% minimum width for very short completed spans", () => {
     const start = new Date("2026-01-01T00:00:00Z").getTime();
     const total = 10 * 60 * 1000; // 10 min
     // Node starts at 9m59.4s and ends at 9m59.46s — 60ms duration
-    // Raw width = 60 / 600000 * 100 = 0.01%
+    // Raw width = 60 / 600000 * 100 = 0.01% → clamped to MIN_BAR_PCT (2%)
     const node = makeNode({
       id: "tiny",
       startTime: "2026-01-01T00:09:59.400Z",
       endTime: "2026-01-01T00:09:59.460Z",
     });
     const pos = computeBarPosition(node, start, total);
-    expect(pos.widthPct).toBeCloseTo(0.3);
+    expect(pos.widthPct).toBeCloseTo(2);
   });
 });
 

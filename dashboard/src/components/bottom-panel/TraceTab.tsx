@@ -157,6 +157,9 @@ export interface BarPosition {
   widthPct: number;
 }
 
+/** Minimum bar width — ensures bars are visible even in long timelines */
+const MIN_BAR_PCT = 2;
+
 export function computeBarPosition(
   node: AgentNode,
   sessionStartMs: number,
@@ -171,13 +174,13 @@ export function computeBarPosition(
 
   if (node.status === "active" || !node.endTime) {
     const leftPct = Math.max(0, Math.min(100, rawLeft));
-    return { leftPct, widthPct: Math.max(0.3, 100 - leftPct) };
+    return { leftPct, widthPct: Math.max(MIN_BAR_PCT, 100 - leftPct) };
   }
 
   const nodeEndMs = new Date(node.endTime).getTime();
   const leftPct = Math.max(0, Math.min(100, rawLeft));
-  const rawWidth = Math.max(0.3, ((nodeEndMs - nodeStartMs) / totalMs) * 100);
-  const widthPct = Math.max(0.3, Math.min(rawWidth, 100 - leftPct));
+  const rawWidth = ((nodeEndMs - nodeStartMs) / totalMs) * 100;
+  const widthPct = Math.max(MIN_BAR_PCT, Math.min(rawWidth, 100 - leftPct));
 
   return { leftPct, widthPct };
 }
