@@ -171,7 +171,8 @@ export function computeMetrics(
   sessionInfo: SessionInfo,
   mainEvents: SessionEvent[],
   subagentEvents: Map<string, SessionEvent[]>,
-  subagentMeta: Map<string, { agentType: string; description: string }>
+  subagentMeta: Map<string, { agentType: string; description: string }>,
+  sdkContextWindow?: number,
 ): SessionMetrics {
   const allEvents = [
     ...mainEvents,
@@ -287,16 +288,9 @@ export function computeMetrics(
       : startTime;
   const duration = startTime > 0 ? endTime - startTime : 0;
 
-  // Context window — use last assistant event's input tokens as current context usage
+  // Context window — use SDK authoritative value when available, fall back to model-based lookup
   const primaryModel = Array.from(models)[0] || "claude-sonnet-4-6";
-  const detectedWindowSize = getContextWindowSize(primaryModel);
-  // If input tokens exceed 90% of detected window, the actual window must be larger.
-  // This handles 1M context variants where the model ID doesn't include "[1m]".
-  // Tradeoff: a genuine 200K user at 185K tokens (93%) would see ~19% instead of 93%,
-  // suppressing the context warning. This is rare; the 1M false-100% case is common.
-  const contextWindowSize = lastInputTokens > detectedWindowSize * 0.9
-    ? 1_000_000
-    : detectedWindowSize;
+  const contextWindowSize = sdkContextWindow || getContextWindowSize(primaryModel);
   const contextPercent = contextWindowSize > 0
     ? Math.min(100, Math.round((lastInputTokens / contextWindowSize) * 100))
     : 0;

@@ -142,11 +142,14 @@ export function createSessionRoutes({ state }: RouteContext): Router {
         const { mainEvents, subagentEvents, subagentMeta: loadedMeta } =
           loadFullSession(session);
         subagentMeta = loadedMeta;
+        // For live SDK sessions, pass the authoritative context window from the session manager
+        const sdkContextWindow = state?.sessionManager?.getContextWindow(session.id);
         metrics = computeMetrics(
           session,
           mainEvents,
           subagentEvents,
-          subagentMeta
+          subagentMeta,
+          sdkContextWindow,
         );
 
         // Merge main + subagent events, sorted by timestamp
