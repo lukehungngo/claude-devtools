@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SessionManager } from "../session/session-manager.js";
+import {
+  addSessionAllowance,
+  clearSessionAllowances,
+} from "../hooks/permission-handler.js";
 
 // We test the non-SDK parts of SessionManager
 describe("SessionManager", () => {
@@ -14,6 +18,7 @@ describe("SessionManager", () => {
   beforeEach(() => {
     broadcast = makeBroadcast();
     manager = new SessionManager(broadcast.fn);
+    clearSessionAllowances();
   });
 
   afterEach(() => {
@@ -235,6 +240,90 @@ describe("SessionManager", () => {
 
       manager.resolvePermission("perm-2", "denied");
       expect(resolvedResult).toEqual({ behavior: "deny", message: "User denied permission" });
+    });
+  });
+
+  describe("handlePermission with session allowances", () => {
+    it("auto-approves when tool is allowed for session", async () => {
+      const id = await manager.startSession("/tmp");
+      const session = manager.getStatus(id)!;
+      session.status = "streaming";
+
+      // Add session allowance for Bash
+      addSessionAllowance(id, "Bash");
+
+      broadcast.calls.length = 0; // reset
+
+      // Call handlePermission via bracket notation (private method)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = await (manager as any)["handlePermission"](
+        session,
+        "Bash",
+        { command: "ls" },
+        { toolUseID: "tu-1" }
+      );
+
+      // Should immediately resolve to allow
+      expect(result).toEqual({ behavior: "allow" });
+
+      // Should NOT broadcast a permission-request
+      const permissionBroadcasts = broadcast.calls.filter(
+        (c) => (c as Record<string, unknown>).type === "permission-request"
+      );
+      expect(permissionBroadcasts).toHaveLength(0);
+    });
+
+    it("does not change status to waiting-permission when auto-approved", async () => {
+      const id = await manager.startSession("/tmp");
+      const session = manager.getStatus(id)!;
+      session.status = "streaming";
+
+      addSessionAllowance(id, "Bash");
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (manager as any)["handlePermission"](
+        session,
+        "Bash",
+        { command: "ls" },
+        { toolUseID: "tu-2" }
+      );
+
+      // Status should remain streaming, not change to waiting-permission
+      expect(session.status).toBe("streaming");
+    });
+
+    it("broadcasts pending when tool is NOT allowed for session", async () => {
+      const id = await manager.startSession("/tmp");
+      const session = manager.getStatus(id)!;
+      session.status = "streaming";
+
+      // No session allowance added
+
+      broadcast.calls.length = 0;
+
+      // Call handlePermission -- do NOT await (it blocks on resolver)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const promise = (manager as any)["handlePermission"](
+        session,
+        "Bash",
+        { command: "ls" },
+        { toolUseID: "tu-3" }
+      );
+
+      // Should broadcast a permission-request with status "pending"
+      const permissionBroadcasts = broadcast.calls.filter(
+        (c) => (c as Record<string, unknown>).type === "permission-request"
+      );
+      expect(permissionBroadcasts).toHaveLength(1);
+      const payload = permissionBroadcasts[0] as Record<string, unknown>;
+      const permission = payload.permission as Record<string, unknown>;
+      expect(permission.status).toBe("pending");
+      expect(permission.toolName).toBe("Bash");
+
+      // Clean up: resolve the pending permission to avoid 10-min timeout leak
+      const requestId = permission.id as string;
+      manager.resolvePermission(requestId, "denied");
+      await promise;
     });
   });
 });

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, statSync } from "node:fs";
 import type { PermissionResult, PermissionUpdate, Query, RewindFilesResult, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import { sessionLog } from "../logger.js";
+import { isToolAllowedForSession } from "../hooks/permission-handler.js";
 
 /** Subset of the canUseTool options parameter we forward to the dashboard */
 export interface CanUseToolOptions {
@@ -235,6 +236,13 @@ export class SessionManager {
     input: Record<string, unknown>,
     options?: CanUseToolOptions
   ): Promise<PermissionResult> {
+    // Check session-scoped allowances first — if user previously clicked
+    // "Allow for session" for this tool, auto-approve without prompting.
+    if (isToolAllowedForSession(session.sessionId, toolName)) {
+      sessionLog.info({ sessionId: session.sessionId, toolName }, "auto-approved via session allowance");
+      return Promise.resolve({ behavior: "allow" });
+    }
+
     const requestId = randomUUID();
 
     sessionLog.info({ sessionId: session.sessionId, requestId, toolName }, "permission requested");
