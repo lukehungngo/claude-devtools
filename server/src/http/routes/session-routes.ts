@@ -893,7 +893,7 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     }
   });
 
-  // Get CLAUDE.md content from session cwd (read-only)
+  // Get CLAUDE.md content from both user and project tiers
   router.get("/sessions/:projectHash/:sessionId/memory", async (req, res) => {
     try {
       const { projectHash, sessionId } = req.params;
@@ -907,33 +907,57 @@ export function createSessionRoutes({ state }: RouteContext): Router {
       }
 
       const cwd = session.cwd;
-      if (!cwd) {
-        return res.json({ content: null });
+
+      // Read user-level CLAUDE.md (~/.claude/CLAUDE.md)
+      const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+      const userPath = homeDir ? join(homeDir, ".claude", "CLAUDE.md") : "";
+      let userContent: string | null = null;
+      if (userPath) {
+        try {
+          await access(userPath);
+          userContent = await readFile(userPath, "utf-8");
+        } catch {
+          // File doesn't exist or not readable
+        }
       }
 
-      const claudeMdPath = join(cwd, "CLAUDE.md");
-      try {
-        await access(claudeMdPath);
-      } catch {
-        return res.json({ content: null });
+      // Read project-level CLAUDE.md ({cwd}/CLAUDE.md)
+      const projectPath = cwd ? join(cwd, "CLAUDE.md") : "";
+      let projectContent: string | null = null;
+      if (projectPath) {
+        try {
+          await access(projectPath);
+          projectContent = await readFile(projectPath, "utf-8");
+        } catch {
+          // File doesn't exist or not readable
+        }
       }
 
-      const content = await readFile(claudeMdPath, "utf-8");
-      res.json({ content });
+      const tiers = [
+        { name: "user", label: "User", path: userPath, content: userContent },
+        { name: "project", label: "Project", path: projectPath, content: projectContent },
+      ];
+
+      // Backwards-compatible: content field is project-level content
+      res.json({ content: projectContent, tiers });
     } catch (err) {
       logger.error({ error: String(err) }, "Failed to read CLAUDE.md");
-      res.json({ content: null });
+      res.json({ content: null, tiers: [] });
     }
   });
 
-  // Update CLAUDE.md content in session cwd
+  // Update CLAUDE.md content (user or project tier)
   router.put("/sessions/:projectHash/:sessionId/memory", async (req, res) => {
     try {
       const { projectHash, sessionId } = req.params;
-      const { content } = req.body;
+      const { content, tier } = req.body;
 
       if (content === undefined || content === null || typeof content !== "string") {
         return res.status(400).json({ error: "content must be a string" });
+      }
+
+      if (tier !== undefined && tier !== "user" && tier !== "project") {
+        return res.status(400).json({ error: "tier must be 'user' or 'project'" });
       }
 
       const sessions = discoverSessions();
@@ -945,13 +969,23 @@ export function createSessionRoutes({ state }: RouteContext): Router {
         return res.status(404).json({ error: "Session not found" });
       }
 
-      const cwd = session.cwd;
-      if (!cwd) {
-        return res.status(400).json({ error: "Session has no working directory" });
+      let claudeMdPath: string;
+      if (tier === "user") {
+        // Write to user-level CLAUDE.md (~/.claude/CLAUDE.md)
+        const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+        if (!homeDir) {
+          return res.status(400).json({ error: "Cannot determine home directory" });
+        }
+        claudeMdPath = join(homeDir, ".claude", "CLAUDE.md");
+      } else {
+        // Default: write to project-level CLAUDE.md
+        const cwd = session.cwd;
+        if (!cwd) {
+          return res.status(400).json({ error: "Session has no working directory" });
+        }
+        claudeMdPath = join(cwd, "CLAUDE.md");
       }
 
-      // Security: only write CLAUDE.md in the session's cwd, never arbitrary paths
-      const claudeMdPath = join(cwd, "CLAUDE.md");
       await writeFile(claudeMdPath, content, "utf-8");
       res.json({ success: true });
     } catch (err) {

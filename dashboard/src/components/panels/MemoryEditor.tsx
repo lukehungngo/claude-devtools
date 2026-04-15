@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Pencil, Eye, Save, Loader2 } from "lucide-react";
@@ -10,19 +10,18 @@ interface MemoryEditorProps {
   sessionId?: string;
 }
 
-type EditorMode = "preview" | "edit";
-
-/** Determine the file tier label based on the cwd path */
-function getFileTier(projectHash?: string): string {
-  if (!projectHash) return "unknown";
-  // Project-level CLAUDE.md files are in project directories
-  // User-level would be in ~/.claude/CLAUDE.md
-  // Since we load via session cwd, it's always project-level
-  return "project";
+interface TierData {
+  name: string;
+  label: string;
+  path: string;
+  content: string | null;
 }
 
+type EditorMode = "preview" | "edit";
+
 export function MemoryEditor({ projectHash, sessionId }: MemoryEditorProps) {
-  const [content, setContent] = useState<string | null>(null);
+  const [tiers, setTiers] = useState<TierData[]>([]);
+  const [activeTier, setActiveTier] = useState<string>("project");
   const [editContent, setEditContent] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -30,6 +29,13 @@ export function MemoryEditor({ projectHash, sessionId }: MemoryEditorProps) {
   const [mode, setMode] = useState<EditorMode>("preview");
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+
+  const activeTierData = useMemo(
+    () => tiers.find((t) => t.name === activeTier) ?? null,
+    [tiers, activeTier],
+  );
+
+  const activeContent = activeTierData?.content ?? null;
 
   useEffect(() => {
     if (!projectHash || !sessionId) return;
@@ -44,14 +50,26 @@ export function MemoryEditor({ projectHash, sessionId }: MemoryEditorProps) {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((data: { content: string | null }) => {
-        setContent(data.content);
-        setEditContent(data.content ?? "");
+      .then((data: { content: string | null; tiers?: TierData[] }) => {
+        const responseTiers = data.tiers ?? [
+          { name: "project", label: "Project", path: "", content: data.content },
+        ];
+        setTiers(responseTiers);
+
+        // Default to first tier with content, or "project"
+        const firstWithContent = responseTiers.find((t) => t.content !== null);
+        const defaultTier = firstWithContent?.name ?? "project";
+        setActiveTier(defaultTier);
+
+        const defaultContent =
+          (firstWithContent?.content ?? responseTiers.find((t) => t.name === "project")?.content) ?? null;
+        setEditContent(defaultContent ?? "");
         setLoading(false);
         setFetched(true);
       })
       .catch(() => {
-        setContent(null);
+        setTiers([]);
+        setActiveTier("project");
         setEditContent("");
         setLoading(false);
         setFetched(true);
@@ -67,12 +85,15 @@ export function MemoryEditor({ projectHash, sessionId }: MemoryEditorProps) {
       const res = await fetch(`/api/sessions/${projectHash}/${sessionId}/memory`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: editContent }),
+        body: JSON.stringify({ content: editContent, tier: activeTier }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
-        setContent(editContent);
+        // Update the tier's content in state
+        setTiers((prev) =>
+          prev.map((t) => (t.name === activeTier ? { ...t, content: editContent } : t)),
+        );
         setDirty(false);
         setSaveStatus("Saved");
         setTimeout(() => setSaveStatus(null), 2000);
@@ -84,22 +105,37 @@ export function MemoryEditor({ projectHash, sessionId }: MemoryEditorProps) {
     } finally {
       setSaving(false);
     }
-  }, [projectHash, sessionId, editContent]);
+  }, [projectHash, sessionId, editContent, activeTier]);
 
-  const handleEditChange = useCallback((value: string) => {
-    setEditContent(value);
-    setDirty(value !== (content ?? ""));
-  }, [content]);
+  const handleEditChange = useCallback(
+    (value: string) => {
+      setEditContent(value);
+      setDirty(value !== (activeContent ?? ""));
+    },
+    [activeContent],
+  );
 
   const switchToEdit = useCallback(() => {
     setMode("edit");
-    setEditContent(content ?? "");
+    setEditContent(activeContent ?? "");
     setDirty(false);
-  }, [content]);
+  }, [activeContent]);
 
   const switchToPreview = useCallback(() => {
     setMode("preview");
   }, []);
+
+  const handleTierSwitch = useCallback(
+    (tierName: string) => {
+      const tier = tiers.find((t) => t.name === tierName);
+      setActiveTier(tierName);
+      setEditContent(tier?.content ?? "");
+      setDirty(false);
+      setMode("preview");
+      setSaveStatus(null);
+    },
+    [tiers],
+  );
 
   if (!projectHash || !sessionId) {
     return (
@@ -117,7 +153,9 @@ export function MemoryEditor({ projectHash, sessionId }: MemoryEditorProps) {
     );
   }
 
-  if (fetched && content === null && mode === "preview") {
+  // Show empty state when all tiers have null content
+  const allEmpty = tiers.length === 0 || tiers.every((t) => t.content === null);
+  if (fetched && allEmpty && mode === "preview") {
     return (
       <div className="flex flex-col items-center justify-center h-full text-dt-text2 text-sm gap-2 px-4">
         <span className="text-base font-semibold">No CLAUDE.md found</span>
@@ -128,15 +166,28 @@ export function MemoryEditor({ projectHash, sessionId }: MemoryEditorProps) {
     );
   }
 
-  const fileTier = getFileTier(projectHash);
-
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-dt-border bg-dt-bg2">
-        <span className="text-xs text-dt-text2 bg-dt-bg3 px-1.5 py-0.5 rounded-dt-xs">
-          {fileTier}
-        </span>
+        {/* Tier tabs */}
+        <div className="flex items-center gap-0.5">
+          {tiers.map((tier) => (
+            <button
+              key={tier.name}
+              onClick={() => handleTierSwitch(tier.name)}
+              className={`px-2 py-1 text-xs rounded-dt-sm transition-colors ${
+                activeTier === tier.name
+                  ? "bg-dt-bg4 text-dt-text0 font-semibold"
+                  : "text-dt-text2 hover:text-dt-text0 hover:bg-dt-bg3"
+              }`}
+              aria-label={`${tier.label} tier`}
+            >
+              {tier.label}
+            </button>
+          ))}
+        </div>
+
         <span className="text-xs text-dt-text2 flex-1">CLAUDE.md</span>
 
         {saveStatus && (
@@ -183,15 +234,23 @@ export function MemoryEditor({ projectHash, sessionId }: MemoryEditorProps) {
 
       {/* Content area */}
       {mode === "preview" ? (
-        <div
-          className="flex-1 overflow-y-auto px-5 py-4"
-          role="region"
-          aria-label="CLAUDE.md content"
-        >
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {content ?? ""}
-          </ReactMarkdown>
-        </div>
+        activeContent !== null ? (
+          <div
+            className="flex-1 overflow-y-auto px-5 py-4"
+            role="region"
+            aria-label="CLAUDE.md content"
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {activeContent}
+            </ReactMarkdown>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center flex-1 text-dt-text2 text-sm gap-2 px-4">
+            <span className="text-center">
+              No CLAUDE.md for this tier. Switch to edit mode to create one.
+            </span>
+          </div>
+        )
       ) : (
         <textarea
           className="flex-1 w-full resize-none bg-dt-bg1 text-dt-text0 font-mono text-sm p-4 outline-none border-none"

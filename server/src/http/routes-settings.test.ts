@@ -230,7 +230,7 @@ describe("GET /sessions/:projectHash/:sessionId/memory", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns null content when CLAUDE.md does not exist", async () => {
+  it("returns tiers array with null content when CLAUDE.md files do not exist", async () => {
     mockDiscoverSessions.mockReturnValue([
       { id: "sess1", projectHash: "proj1", cwd: "/tmp/project" },
     ]);
@@ -238,10 +238,16 @@ describe("GET /sessions/:projectHash/:sessionId/memory", () => {
 
     const res = await request(app).get("/sessions/proj1/sess1/memory");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ content: null });
+    // Backwards-compatible content field
+    expect(res.body.content).toBe(null);
+    // New tiers array
+    expect(res.body.tiers).toBeInstanceOf(Array);
+    expect(res.body.tiers.length).toBe(2);
+    expect(res.body.tiers[0]).toMatchObject({ name: "user", label: "User", content: null });
+    expect(res.body.tiers[1]).toMatchObject({ name: "project", label: "Project", content: null });
   });
 
-  it("returns CLAUDE.md content when it exists", async () => {
+  it("returns tiers with content when CLAUDE.md files exist", async () => {
     mockDiscoverSessions.mockReturnValue([
       { id: "sess1", projectHash: "proj1", cwd: "/tmp/project" },
     ]);
@@ -250,17 +256,31 @@ describe("GET /sessions/:projectHash/:sessionId/memory", () => {
 
     const res = await request(app).get("/sessions/proj1/sess1/memory");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ content: "# My Project\n\nSome content" });
+    // Backwards-compatible content field is project-level content
+    expect(res.body.content).toBe("# My Project\n\nSome content");
+    // Tiers have name, label, path, content
+    expect(res.body.tiers).toBeInstanceOf(Array);
+    for (const tier of res.body.tiers) {
+      expect(tier).toHaveProperty("name");
+      expect(tier).toHaveProperty("label");
+      expect(tier).toHaveProperty("content");
+    }
   });
 
-  it("returns null content when session has no cwd", async () => {
+  it("returns empty tiers when session has no cwd", async () => {
     mockDiscoverSessions.mockReturnValue([
       { id: "sess1", projectHash: "proj1" },
     ]);
+    mockAccess.mockRejectedValue(new Error("ENOENT"));
 
     const res = await request(app).get("/sessions/proj1/sess1/memory");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ content: null });
+    expect(res.body.content).toBe(null);
+    expect(res.body.tiers).toBeInstanceOf(Array);
+    // Project tier should have empty path and null content
+    const projectTier = res.body.tiers.find((t: { name: string }) => t.name === "project");
+    expect(projectTier).toBeDefined();
+    expect(projectTier.content).toBe(null);
   });
 });
 
@@ -315,7 +335,7 @@ describe("PUT /sessions/:projectHash/:sessionId/memory", () => {
     expect(res.status).toBe(400);
   });
 
-  it("writes CLAUDE.md content successfully", async () => {
+  it("writes CLAUDE.md content successfully (project tier default)", async () => {
     mockDiscoverSessions.mockReturnValue([
       { id: "sess1", projectHash: "proj1", cwd: "/tmp/project" },
     ]);
@@ -331,6 +351,59 @@ describe("PUT /sessions/:projectHash/:sessionId/memory", () => {
       "# Updated Content",
       "utf-8",
     );
+  });
+
+  it("writes to project tier when tier is explicitly 'project'", async () => {
+    mockDiscoverSessions.mockReturnValue([
+      { id: "sess1", projectHash: "proj1", cwd: "/tmp/project" },
+    ]);
+    mockWriteFile.mockResolvedValue(undefined);
+
+    const res = await request(app)
+      .put("/sessions/proj1/sess1/memory")
+      .send({ content: "# Project Content", tier: "project" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true });
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      "/tmp/project/CLAUDE.md",
+      "# Project Content",
+      "utf-8",
+    );
+  });
+
+  it("writes to user tier when tier is 'user'", async () => {
+    const originalHome = process.env.HOME;
+    process.env.HOME = "/home/testuser";
+
+    mockDiscoverSessions.mockReturnValue([
+      { id: "sess1", projectHash: "proj1", cwd: "/tmp/project" },
+    ]);
+    mockWriteFile.mockResolvedValue(undefined);
+
+    const res = await request(app)
+      .put("/sessions/proj1/sess1/memory")
+      .send({ content: "# User Content", tier: "user" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true });
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      "/home/testuser/.claude/CLAUDE.md",
+      "# User Content",
+      "utf-8",
+    );
+
+    process.env.HOME = originalHome;
+  });
+
+  it("returns 400 when tier is an unknown value", async () => {
+    mockDiscoverSessions.mockReturnValue([
+      { id: "sess1", projectHash: "proj1", cwd: "/tmp/project" },
+    ]);
+
+    const res = await request(app)
+      .put("/sessions/proj1/sess1/memory")
+      .send({ content: "# Test", tier: "global" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("tier");
   });
 
   it("rejects path traversal attempts in projectHash", async () => {
