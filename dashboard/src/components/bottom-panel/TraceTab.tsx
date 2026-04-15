@@ -359,7 +359,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
         <div className="trace-name">{label}</div>
       </div>
       <div className="trace-col-name" style={{ width: nameWidth }}>{node.type}</div>
-      <div className="trace-col-model" style={{ width: modelWidth, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={node.model}>
+      <div className="trace-col-model" style={{ width: modelWidth }} title={node.model}>
         {node.model ? node.model.replace("claude-", "") : "—"}
       </div>
       <div className="trace-col-duration" style={{ width: durationWidth }}>{isActive ? "running" : durationStr}</div>

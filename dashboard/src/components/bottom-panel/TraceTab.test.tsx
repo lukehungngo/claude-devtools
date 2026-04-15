@@ -242,6 +242,39 @@ describe("TraceTab", () => {
     expect(dataCol?.textContent).toBe("running");
   });
 
+  it("model cell has no inline overflow/textOverflow/whiteSpace styles", () => {
+    const dag: AgentDAG = {
+      nodes: [
+        makeNode({
+          id: "main",
+          type: "orchestrator",
+          description: "Orchestrator",
+          model: "claude-sonnet-4-6",
+          startTime: "2026-01-01T00:00:00Z",
+          endTime: "2026-01-01T00:10:00Z",
+        }),
+      ],
+      edges: [],
+    };
+    const { container } = render(
+      <TraceTab
+        dag={dag}
+        turns={[mockTurn]}
+        activeTurnIndex={null}
+        selectedAgent={null}
+        panelHeight={300}
+      />,
+    );
+    const modelCells = container.querySelectorAll(".trace-col-model");
+    expect(modelCells.length).toBeGreaterThan(0);
+    modelCells.forEach((cell) => {
+      const el = cell as HTMLElement;
+      expect(el.style.overflow).toBe("");
+      expect(el.style.textOverflow).toBe("");
+      expect(el.style.whiteSpace).toBe("");
+    });
+  });
+
   it("sets container height to panelHeight - 37", () => {
     const dag: AgentDAG = {
       nodes: [
