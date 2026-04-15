@@ -51,6 +51,8 @@ interface ConversationViewProps {
   onSessionStarted?: (sessionId: string) => void;
   /** Called when slash commands request opening a panel */
   onOpenPanel?: (panel: string) => void;
+  /** Called when SDK result delivers an authoritative context window size */
+  onSdkContextWindow?: (contextWindow: number) => void;
 }
 
 // ─── Virtualized turn list ──────────────────────────────────────────
@@ -411,6 +413,7 @@ export function ConversationView({
   onSubmitAnswer,
   onSessionStarted,
   onOpenPanel,
+  onSdkContextWindow,
 }: ConversationViewProps) {
   const layoutCtx = useContext(LayoutContext);
   const usage = layoutCtx?.usage ?? null;
@@ -427,6 +430,16 @@ export function ConversationView({
   const setPermissionMode = layoutCtx?.setPermissionMode;
 
   const { state: streamingState, actions: streamingActions } = useStreamingState();
+
+  // Surface SDK context window to parent when result event delivers it
+  const prevSdkContextWindow = useRef<number | null>(null);
+  useEffect(() => {
+    if (streamingState.sdkContextWindow && streamingState.sdkContextWindow !== prevSdkContextWindow.current) {
+      prevSdkContextWindow.current = streamingState.sdkContextWindow;
+      onSdkContextWindow?.(streamingState.sdkContextWindow);
+    }
+  }, [streamingState.sdkContextWindow, onSdkContextWindow]);
+
   const [showRewindMenu, setShowRewindMenu] = useState(false);
 
   // Build search index incrementally

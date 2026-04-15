@@ -159,10 +159,8 @@ describe("computeLiveMetrics duration", () => {
   });
 });
 
-describe("computeLiveMetrics context window heuristic", () => {
-  it("detects 1M context when input tokens exceed 200K window (Bug 1: false 100%)", () => {
-    // Model ID is "claude-opus-4-6" (no [1m] suffix) but input tokens exceed 200K.
-    // Without the heuristic, contextPercent would show 100% (capped).
+describe("computeLiveMetrics context window", () => {
+  it("uses sdkContextWindow when provided (SDK authoritative value)", () => {
     const events = [
       {
         type: "assistant",
@@ -180,14 +178,14 @@ describe("computeLiveMetrics context window heuristic", () => {
       },
     ];
 
-    const result = computeLiveMetrics(events, false);
+    const result = computeLiveMetrics(events, false, 1_000_000);
 
-    // 250K / 1M = 25%, NOT 100%
+    // 250K / 1M = 25%
     expect(result.contextWindowSize).toBe(1_000_000);
     expect(result.contextPercent).toBe(25);
   });
 
-  it("keeps 200K window when input tokens are well within range", () => {
+  it("falls back to model-based window when sdkContextWindow is undefined", () => {
     const events = [
       {
         type: "assistant",
@@ -209,6 +207,31 @@ describe("computeLiveMetrics context window heuristic", () => {
 
     expect(result.contextWindowSize).toBe(200_000);
     expect(result.contextPercent).toBe(25);
+  });
+
+  it("caps contextPercent at 100 when tokens exceed window without SDK value", () => {
+    const events = [
+      {
+        type: "assistant",
+        timestamp: "2026-01-01T00:00:01Z",
+        agentId: "main",
+        message: {
+          model: "claude-sonnet-4-6",
+          usage: {
+            input_tokens: 300_000,
+            output_tokens: 1000,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0,
+          },
+        },
+      },
+    ];
+
+    const result = computeLiveMetrics(events, false);
+
+    // 300K / 200K = 150% → capped at 100
+    expect(result.contextWindowSize).toBe(200_000);
+    expect(result.contextPercent).toBe(100);
   });
 });
 

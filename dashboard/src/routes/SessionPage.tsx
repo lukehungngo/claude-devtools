@@ -126,6 +126,12 @@ export function SessionPage() {
     });
   }, [activeSessionId, controlModel, controlFastMode, controlEffort, controlSetModel, controlToggleFastMode, controlSetEffort, controlSendCompact, setSessionControl]);
 
+  // SDK context window from result events — stored in ref for stable identity
+  const sdkContextWindowRef = useRef<number | undefined>(undefined);
+  const handleSdkContextWindow = useCallback((contextWindow: number) => {
+    sdkContextWindowRef.current = contextWindow;
+  }, []);
+
   // Cross-panel shared state (local to session)
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [highlightedTurnIndex, setHighlightedTurnIndex] = useState<number | undefined>(undefined);
@@ -151,13 +157,17 @@ export function SessionPage() {
   // Derive live metrics from events — event-driven, no REST polling needed
   const liveMetrics = useMemo(() => {
     if (allEvents.length === 0) return null;
-    return computeLiveMetrics(allEvents, isLive);
+    return computeLiveMetrics(allEvents, isLive, sdkContextWindowRef.current);
+    // sdkContextWindowRef is a ref — reads current value without adding to deps
   }, [allEvents, isLive]);
 
   // Overlay live values onto REST metrics so TopBar/CostTab update in real-time
   const enrichedMetrics = useMemo(() => {
     if (!metrics) return null;
     if (!liveMetrics) return metrics;
+    // Override context values when SDK authoritative contextWindow is available;
+    // without it, fall back to server-computed values from REST.
+    const hasAuthoritativeContext = sdkContextWindowRef.current != null;
     return {
       ...metrics,
       duration: liveMetrics.duration,
@@ -167,9 +177,10 @@ export function SessionPage() {
         outputTokens: liveMetrics.outputTokens,
         totalCost: liveMetrics.totalCost,
       },
-      // contextPercent and contextWindowSize intentionally not overridden:
-      // server computes these from actual SDK context window; client-side calc inflates
-      // them via accumulated cache-read tokens, causing false "100%" readings.
+      ...(hasAuthoritativeContext ? {
+        contextPercent: liveMetrics.contextPercent,
+        contextWindowSize: liveMetrics.contextWindowSize,
+      } : {}),
       models: liveMetrics.models.length > 0 ? liveMetrics.models : metrics.models,
       totalAgents: Math.max(liveMetrics.totalAgents, metrics.totalAgents),
     };
@@ -244,6 +255,7 @@ export function SessionPage() {
     setSelectedAgent(null);
     setHighlightedTurnIndex(undefined);
     setSelectedTurnIndex(null);
+    sdkContextWindowRef.current = undefined;
   }, [repoSlug, sessionId]);
 
   // Sync selectedAgent to layout context for BottomPanel
@@ -370,6 +382,7 @@ export function SessionPage() {
             onAgentPillClick={handleAgentPillClick}
             onTurnClick={handleTurnClick}
             onOpenPanel={handleOpenPanel}
+            onSdkContextWindow={handleSdkContextWindow}
           />
       ) : mainTab === "raw-log" ? (
         <RawLogView

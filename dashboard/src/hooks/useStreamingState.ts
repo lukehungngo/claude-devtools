@@ -170,10 +170,25 @@ export function useStreamingState(): UseStreamingStateReturn {
         }
 
         case "result": {
-          // Result is the terminal event from the SDK — session is idle
+          // Result is the terminal event from the SDK — session is idle.
+          // Extract authoritative context window from modelUsage if present.
+          let sdkContextWindow = prev.sdkContextWindow;
+          const modelUsage = data.modelUsage as Record<string, { contextWindow?: number }> | undefined;
+          if (modelUsage) {
+            let maxContextWindow = 0;
+            for (const usage of Object.values(modelUsage)) {
+              if (usage.contextWindow && usage.contextWindow > maxContextWindow) {
+                maxContextWindow = usage.contextWindow;
+              }
+            }
+            if (maxContextWindow > 0) {
+              sdkContextWindow = maxContextWindow;
+            }
+          }
           return {
             ...prev,
             sessionState: "idle",
+            sdkContextWindow,
           };
         }
 

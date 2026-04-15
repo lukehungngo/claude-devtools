@@ -40,6 +40,8 @@ export interface StreamingState {
   sessionState: string | null;
   /** Accumulated response text from stdout events */
   responseText: string;
+  /** Authoritative context window from SDK result.modelUsage (set once on result event) */
+  sdkContextWindow: number | null;
 }
 
 export function createInitialStreamingState(): StreamingState {
@@ -53,6 +55,7 @@ export function createInitialStreamingState(): StreamingState {
     compactResult: null,
     sessionState: null,
     responseText: "",
+    sdkContextWindow: null,
   };
 }
 
