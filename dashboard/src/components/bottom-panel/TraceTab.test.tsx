@@ -387,6 +387,50 @@ describe("computeBarPosition", () => {
   });
 });
 
+describe("computeBarPosition clamping", () => {
+  it("clamps leftPct to 0 when node starts before session", () => {
+    const node = makeNode({
+      id: "sub-1",
+      startTime: "2026-01-01T00:00:00Z",
+      endTime: "2026-01-01T00:05:30Z",
+    });
+    const sessionStartMs = new Date("2026-01-01T00:05:00Z").getTime();
+    const totalMs = 10 * 60 * 1000; // 10 min
+    const bar = computeBarPosition(node, sessionStartMs, totalMs);
+    expect(bar.leftPct).toBeGreaterThanOrEqual(0);
+    expect(bar.leftPct + bar.widthPct).toBeLessThanOrEqual(100);
+  });
+
+  it("clamps widthPct so bar does not exceed 100%", () => {
+    const node = makeNode({
+      id: "sub-2",
+      startTime: "2026-01-01T00:04:00Z",
+      endTime: "2026-01-01T00:20:00Z",
+    });
+    const sessionStartMs = new Date("2026-01-01T00:05:00Z").getTime();
+    const totalMs = 10 * 60 * 1000; // 10 min
+    const bar = computeBarPosition(node, sessionStartMs, totalMs);
+    expect(bar.leftPct).toBeGreaterThanOrEqual(0);
+    expect(bar.widthPct).toBeGreaterThanOrEqual(0.3);
+    expect(bar.leftPct + bar.widthPct).toBeLessThanOrEqual(100);
+  });
+
+  it("handles active node with negative left correctly", () => {
+    const node = makeNode({
+      id: "sub-3",
+      status: "active",
+      startTime: "2026-01-01T00:00:00Z",
+    });
+    delete (node as any).endTime;
+    const sessionStartMs = new Date("2026-01-01T00:05:00Z").getTime();
+    const totalMs = 10 * 60 * 1000;
+    const bar = computeBarPosition(node, sessionStartMs, totalMs);
+    expect(bar.leftPct).toBe(0);
+    expect(bar.widthPct).toBe(100);
+    expect(bar.leftPct + bar.widthPct).toBeLessThanOrEqual(100);
+  });
+});
+
 describe("getSpanColor", () => {
   it("returns known colors for orchestrator", () => {
     const c = getSpanColor("orchestrator");

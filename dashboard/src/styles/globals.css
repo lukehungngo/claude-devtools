@@ -594,6 +594,7 @@
   flex: 1;
   position: relative;
   height: 26px;
+  overflow: hidden;
 }
 
 .trace-bar {

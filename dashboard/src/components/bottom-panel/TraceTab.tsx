@@ -167,14 +167,17 @@ export function computeBarPosition(
   }
 
   const nodeStartMs = new Date(node.startTime).getTime();
-  const leftPct = ((nodeStartMs - sessionStartMs) / totalMs) * 100;
+  const rawLeft = ((nodeStartMs - sessionStartMs) / totalMs) * 100;
 
   if (node.status === "active" || !node.endTime) {
+    const leftPct = Math.max(0, Math.min(100, rawLeft));
     return { leftPct, widthPct: Math.max(0.3, 100 - leftPct) };
   }
 
   const nodeEndMs = new Date(node.endTime).getTime();
-  const widthPct = Math.max(0.3, ((nodeEndMs - nodeStartMs) / totalMs) * 100);
+  const leftPct = Math.max(0, Math.min(100, rawLeft));
+  const rawWidth = Math.max(0.3, ((nodeEndMs - nodeStartMs) / totalMs) * 100);
+  const widthPct = Math.max(0.3, Math.min(rawWidth, 100 - leftPct));
 
   return { leftPct, widthPct };
 }
