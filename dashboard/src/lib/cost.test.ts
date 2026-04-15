@@ -98,6 +98,13 @@ describe("formatDuration", () => {
     expect(formatDuration(45_000)).toBe("45.0s");
     expect(formatDuration(120_000)).toBe("2m 0s");
   });
+
+  it("does not produce '60s' at minute boundaries (A-07)", () => {
+    // 119500ms = 1m 59.5s → should be "1m 59s" not "1m 60s"
+    expect(formatDuration(119_500)).toBe("1m 59s");
+    // 179999ms = 2m 59.999s → should be "2m 59s" not "3m 0s"
+    expect(formatDuration(179_999)).toBe("2m 59s");
+  });
 });
 
 describe("computeLiveMetrics duration", () => {

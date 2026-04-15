@@ -172,6 +172,6 @@ export function formatDuration(ms: number): string {
     return `${h}h ${m}m`;
   }
   const m = Math.floor(ms / 60_000);
-  const s = Math.round((ms % 60_000) / 1000);
+  const s = Math.floor((ms % 60_000) / 1000);
   return `${m}m ${s}s`;
 }
