@@ -44,6 +44,8 @@ export interface ActiveSession {
   isNew: boolean;
   /** Cached SDK-provided slash commands (persists after activeQuery clears) */
   cachedCommands?: Array<{ name: string; description: string; argumentHint?: string }>;
+  /** Authoritative context window size from SDK result.modelUsage (persists after query completes) */
+  contextWindow?: number;
 }
 
 // Broadcast function type (injected to avoid circular deps)
@@ -458,6 +460,20 @@ export class SessionManager {
       }
     }
     return pending;
+  }
+
+  /** Store the authoritative context window size from SDK result.modelUsage */
+  setContextWindow(sessionId: string, contextWindow: number): boolean {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) return false;
+    session.contextWindow = contextWindow;
+    sessionLog.info({ sessionId, contextWindow }, "context window set from SDK");
+    return true;
+  }
+
+  /** Get the stored context window for a session, if available */
+  getContextWindow(sessionId: string): number | undefined {
+    return this.activeSessions.get(sessionId)?.contextWindow;
   }
 
   /** Remove a session from tracking */

@@ -583,10 +583,23 @@ export function createSessionRoutes({ state }: RouteContext): Router {
         : undefined;
 
       for await (const message of sessionManager.sendMessage(sessionId, prompt, parsedImages)) {
-        const msg = message as { type: string; uuid?: string; [key: string]: unknown };
+        const msg = message as { type: string; uuid?: string; modelUsage?: Record<string, { contextWindow?: number }>; [key: string]: unknown };
         const sseEvents = mapSdkMessageToSSEEvents(msg);
         for (const sseEvent of sseEvents) {
           res.write(`data: ${JSON.stringify(sseEvent)}\n\n`);
+        }
+
+        // Extract authoritative context window from SDK result.modelUsage
+        if (msg.type === "result" && msg.modelUsage) {
+          let maxContextWindow = 0;
+          for (const usage of Object.values(msg.modelUsage)) {
+            if (usage.contextWindow && usage.contextWindow > maxContextWindow) {
+              maxContextWindow = usage.contextWindow;
+            }
+          }
+          if (maxContextWindow > 0) {
+            sessionManager.setContextWindow(sessionId, maxContextWindow);
+          }
         }
 
         // Immediately broadcast session events (assistant/user) via WebSocket
