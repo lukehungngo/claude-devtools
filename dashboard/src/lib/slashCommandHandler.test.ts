@@ -43,6 +43,24 @@ describe("/fork command", () => {
   });
 });
 
+describe("/bug command", () => {
+  it("opens GitHub issues page", async () => {
+    const showOutput = vi.fn();
+    const ctx = makeCtx();
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+    const result = await handleSlashCommand("/bug", ctx, showOutput);
+    expect(result).toBe(true);
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining("github.com"),
+      "_blank"
+    );
+    expect(showOutput).toHaveBeenCalledWith(expect.stringContaining("issue"));
+
+    openSpy.mockRestore();
+  });
+});
+
 describe("slashCommandHandler — response.ok guard (P3 pattern)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
