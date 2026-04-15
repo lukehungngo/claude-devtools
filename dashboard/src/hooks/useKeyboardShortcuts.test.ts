@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
+import { useKeyboardShortcuts, DEFAULT_KEYBINDINGS } from "./useKeyboardShortcuts";
 import type { ShortcutActions } from "./useKeyboardShortcuts";
 
 function fireKey(
@@ -121,5 +121,36 @@ describe("useKeyboardShortcuts", () => {
     unmount();
     fireKey("l", { ctrlKey: true });
     expect(actions.onClear).not.toHaveBeenCalled();
+  });
+
+  it("uses custom bindings to override defaults", () => {
+    const actionsWithMonitor: ShortcutActions = {
+      ...actions,
+      onToggleMonitor: vi.fn(),
+    };
+    // Rebind toggleMonitor from Mod+b to Alt+m
+    renderHook(() =>
+      useKeyboardShortcuts(actionsWithMonitor, { toggleMonitor: "Alt+m" }),
+    );
+    // Old binding should NOT work
+    fireKey("b", { ctrlKey: true });
+    expect(actionsWithMonitor.onToggleMonitor).not.toHaveBeenCalled();
+    // New binding should work
+    fireKey("m", { altKey: true });
+    expect(actionsWithMonitor.onToggleMonitor).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("DEFAULT_KEYBINDINGS", () => {
+  it("has entries for all 10 actions", () => {
+    expect(Object.keys(DEFAULT_KEYBINDINGS)).toHaveLength(10);
+  });
+
+  it("clear defaults to Mod+l", () => {
+    expect(DEFAULT_KEYBINDINGS.clear).toBe("Mod+l");
+  });
+
+  it("rewindMenu defaults to Escape Escape", () => {
+    expect(DEFAULT_KEYBINDINGS.rewindMenu).toBe("Escape Escape");
   });
 });

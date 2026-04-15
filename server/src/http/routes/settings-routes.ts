@@ -116,7 +116,7 @@ export function createSettingsRoutes(): Router {
 
   // --- Full Settings Editor (safe fields only) ---
 
-  const SAFE_SETTINGS_FIELDS = new Set(["model", "effort", "permissions", "env", "permissionMode"]);
+  const SAFE_SETTINGS_FIELDS = new Set(["model", "effort", "permissions", "env", "permissionMode", "keybindings"]);
 
   // Get full settings.json (user-level)
   router.get("/settings", async (_req, res) => {
