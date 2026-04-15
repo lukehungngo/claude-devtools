@@ -952,3 +952,93 @@ describe("TurnSnapshot model tracking", () => {
     expect(turns[0].model).toBe("claude-opus-4-6");
   });
 });
+
+// ─── Bug 2: Turn shows "completed" while subagents still running ────
+
+describe("Bug 2: turn status with running subagents", () => {
+  it("marks turn as running when subagent is dispatched and main end_turn is last event (buildTurn)", () => {
+    // Real scenario: subagent starts (tool_use), then main agent's end_turn comes AFTER.
+    // The last assistant event is main's end_turn, so old code says "completed".
+    // But sub-1 is still running (its last stop_reason was tool_use).
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Do something complex", timestamp: "2026-01-01T00:00:00Z" }),
+      // Subagent starts working
+      makeAssistantEvent({
+        agentId: "sub-1",
+        timestamp: "2026-01-01T00:00:01Z",
+        stopReason: "tool_use", // Still running
+        model: "claude-sonnet-4-6",
+      }),
+      // Main agent's response comes after (end_turn — dispatching done)
+      makeAssistantEvent({
+        agentId: "main",
+        timestamp: "2026-01-01T00:00:02Z",
+        stopReason: "end_turn",
+        model: "claude-opus-4-6",
+      }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    // Turn should be "running" because sub-1 hasn't finished
+    expect(turns[0].status).toBe("running");
+    // sub-1 should be tracked as a running agent
+    const sub1 = turns[0].agents.find(a => a.agentId === "sub-1");
+    expect(sub1).toBeDefined();
+    expect(sub1!.status).toBe("running");
+  });
+
+  it("marks turn as completed when main and all subagents have finished", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Do something", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        timestamp: "2026-01-01T00:00:01Z",
+        stopReason: "end_turn",
+        model: "claude-opus-4-6",
+      }),
+      makeAssistantEvent({
+        agentId: "sub-1",
+        timestamp: "2026-01-01T00:00:02Z",
+        stopReason: "end_turn", // Subagent also finished
+        model: "claude-sonnet-4-6",
+      }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    // Both main and sub-1 finished: turn is completed
+    expect(turns[0].status).toBe("completed");
+  });
+
+  it("marks turn as running via extendTurn when main sent end_turn and subagent still running (extendTurn)", () => {
+    // Initial: subagent is running, main has NOT yet sent end_turn
+    const initial: SessionEvent[] = [
+      makeUserEvent({ text: "hello", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "sub-1",
+        timestamp: "2026-01-01T00:00:01Z",
+        stopReason: "tool_use", // Still running
+        model: "claude-sonnet-4-6",
+      }),
+    ];
+    const existingTurns = groupEventsIntoTurns(initial);
+    expect(existingTurns[0].status).toBe("running");
+
+    // Now main's end_turn arrives — but sub-1 is still running
+    const mainEndEvent = makeAssistantEvent({
+      agentId: "main",
+      timestamp: "2026-01-01T00:00:02Z",
+      stopReason: "end_turn",
+      model: "claude-opus-4-6",
+    });
+    const allEvents: SessionEvent[] = [...initial, mainEndEvent];
+    const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 1);
+
+    // Turn should STILL be "running" because sub-1 hasn't finished
+    expect(turns[0].status).toBe("running");
+    const sub1 = turns[0].agents.find(a => a.agentId === "sub-1");
+    expect(sub1).toBeDefined();
+    expect(sub1!.status).toBe("running");
+  });
+});

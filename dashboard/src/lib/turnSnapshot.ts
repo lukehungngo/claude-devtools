@@ -288,6 +288,16 @@ function buildTurn(
     });
   }
 
+  // A turn is not truly "completed" if it has running subagents.
+  // The main agent may have sent end_turn (dispatching the subagent),
+  // but from the user's perspective, work is still in progress.
+  if (status === "completed") {
+    const hasRunningSubagent = agents.some(a => a.agentId !== "main" && a.status === "running");
+    if (hasRunningSubagent) {
+      status = "running";
+    }
+  }
+
   const endTime = events[events.length - 1]?.timestamp ?? "";
 
   return {
@@ -455,6 +465,16 @@ function extendTurn(
       tokensOut: info.tokensOut,
       tools: Array.from(info.tools),
     });
+  }
+
+  // A turn is not truly "completed" if it has running subagents.
+  // The main agent may have sent end_turn (dispatching the subagent),
+  // but from the user's perspective, work is still in progress.
+  if (status === "completed") {
+    const hasRunningSubagent = agents.some(a => a.agentId !== "main" && a.status === "running");
+    if (hasRunningSubagent) {
+      status = "running";
+    }
   }
 
   const lastNewEvent = newEvents[newEvents.length - 1];
