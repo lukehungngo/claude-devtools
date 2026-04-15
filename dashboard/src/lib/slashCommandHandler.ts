@@ -278,6 +278,27 @@ export async function handleSlashCommand(
     return true;
   }
 
+  if (command === "/fork") {
+    const targetId = ctx.activeSessionId || ctx.sessionId;
+    if (!targetId) {
+      showOutput("No active session to fork.");
+      return true;
+    }
+
+    try {
+      const res = await fetch(`/api/sessions/${targetId}/fork`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      showOutput(`Session forked. New session: ${data.sessionId}`);
+    } catch {
+      showOutput("Failed to fork session.");
+    }
+    return true;
+  }
+
   if (command === "/tasks") {
     showOutput(formatTasksCommand(ctx.metrics ?? null));
     return true;
@@ -652,7 +673,7 @@ function getCommandOutput(command: string, discoveredCommands?: Array<{ name: st
         const sorted = [...discoveredCommands].sort((a, b) => a.name.localeCompare(b.name));
         return "Available commands: " + sorted.map((c) => c.name).join(", ");
       }
-      return "Available commands: /add-dir, /agents, /analytics, /clear, /compact, /context, /copy, /cost, /diff, /doctor, /effort, /export, /fast, /help, /hooks, /init, /login, /logout, /mcp, /memory, /model, /output-style, /permissions, /plan, /rename, /resume, /review, /rewind, /settings, /shortcuts, /stats, /tasks, /usage, /exit";
+      return "Available commands: /add-dir, /agents, /analytics, /clear, /compact, /context, /copy, /cost, /diff, /doctor, /effort, /export, /fast, /fork, /help, /hooks, /init, /login, /logout, /mcp, /memory, /model, /output-style, /permissions, /plan, /rename, /resume, /review, /rewind, /settings, /shortcuts, /stats, /tasks, /usage, /exit";
     }
     case "/clear":
       return "";

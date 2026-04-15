@@ -12,6 +12,37 @@ function makeCtx(overrides: Partial<SlashCommandContext> = {}): SlashCommandCont
   };
 }
 
+describe("/fork command", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("calls fork endpoint and shows new session ID", async () => {
+    const showOutput = vi.fn();
+    const ctx = makeCtx();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ sessionId: "new-sess-abc" }),
+      })
+    );
+
+    const result = await handleSlashCommand("/fork", ctx, showOutput);
+    expect(result).toBe(true);
+    expect(showOutput).toHaveBeenCalledWith(expect.stringContaining("new-sess-abc"));
+  });
+
+  it("shows error when no active session", async () => {
+    const showOutput = vi.fn();
+    const noSessionCtx = makeCtx({ activeSessionId: undefined, sessionId: undefined });
+
+    const result = await handleSlashCommand("/fork", noSessionCtx, showOutput);
+    expect(result).toBe(true);
+    expect(showOutput).toHaveBeenCalledWith(expect.stringContaining("No active session"));
+  });
+});
+
 describe("slashCommandHandler — response.ok guard (P3 pattern)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
