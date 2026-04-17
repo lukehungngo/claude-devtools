@@ -25,7 +25,8 @@ export function NarrationGroup({ items }: NarrationGroupProps) {
 
   return (
     <div
-      className="rounded-lg my-1.5 overflow-hidden border border-dt-border bg-dt-bg-s"
+      className="rounded-lg my-1.5 overflow-hidden border border-dt-border"
+      style={{ background: "var(--resp-working-bg, var(--bg-s))" }}
     >
       {/* Header — always visible */}
       <div
@@ -38,7 +39,10 @@ export function NarrationGroup({ items }: NarrationGroupProps) {
         >
           &#9656;
         </span>
-        <span className="font-mono font-semibold uppercase tracking-wide text-dt-text2 text-[10px]">
+        <span
+          className="font-mono font-semibold uppercase tracking-wide text-[10px]"
+          style={{ color: "var(--resp-working)" }}
+        >
           Working
         </span>
         <span className="font-mono text-dt-text2 text-[10px]">
@@ -54,7 +58,8 @@ export function NarrationGroup({ items }: NarrationGroupProps) {
           {nonEmpty.map((text, i) => (
             <div
               key={i}
-              className="border-l-2 border-dt-border pl-2 my-1"
+              className="border-l-2 pl-2 my-1"
+              style={{ borderColor: "var(--resp-working)" }}
             >
               <div className="font-mono leading-relaxed whitespace-pre-wrap break-words text-dt-text2 text-[11px]">
                 {text}

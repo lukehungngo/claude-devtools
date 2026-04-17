@@ -20,7 +20,7 @@ export function ThinkingGroup({ items }: ThinkingGroupProps) {
   return (
     <div
       className="rounded-lg my-1.5 overflow-hidden"
-      style={{ border: "1px solid var(--bd)", background: "var(--bg-s)" }}
+      style={{ border: "1px solid var(--bd)", background: "var(--resp-think-bg, var(--bg-s))" }}
     >
       {/* Header — always visible */}
       <div
@@ -42,7 +42,7 @@ export function ThinkingGroup({ items }: ThinkingGroupProps) {
         </span>
         <span
           className="font-mono font-semibold uppercase tracking-wide"
-          style={{ fontSize: 10, color: "var(--purple, #a78bfa)" }}
+          style={{ fontSize: 10, color: "var(--pur)" }}
         >
           Thinking
         </span>
