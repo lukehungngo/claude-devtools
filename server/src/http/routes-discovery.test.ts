@@ -6,6 +6,27 @@ vi.mock("child_process", () => ({
   spawnSync: vi.fn(() => ({ status: 0, error: null })),
 }));
 
+// Mock the global CommandCache so tests get deterministic control over the
+// global-cache tier (the real cache reads ~/.claude/devtools/command-cache.json
+// from disk, which would otherwise leak into test assertions).
+// Use vi.hoisted to ensure the mock functions exist when vi.mock's factory runs.
+const {
+  commandCacheGetMock,
+  commandCacheUpdateMock,
+  commandCacheBootstrapMock,
+} = vi.hoisted(() => ({
+  commandCacheGetMock: vi.fn<() => Array<{ name: string; description: string; argumentHint?: string }> | null>(() => null),
+  commandCacheUpdateMock: vi.fn(),
+  commandCacheBootstrapMock: vi.fn(),
+}));
+vi.mock("../discovery/command-cache.js", () => ({
+  CommandCache: class MockCommandCache {
+    get = commandCacheGetMock;
+    update = commandCacheUpdateMock;
+    bootstrap = commandCacheBootstrapMock;
+  },
+}));
+
 // Mock all heavy dependencies that routes.ts imports
 vi.mock("../parser/session-discovery.js", () => ({
   discoverSessions: vi.fn(() => []),
@@ -62,6 +83,10 @@ describe("Discovery endpoints", () => {
     } as unknown as import("./server.js").ServerState;
     app = express();
     app.use(setupRoutes(state));
+    // Reset command cache mocks to the default (empty) state
+    commandCacheGetMock.mockReset().mockReturnValue(null);
+    commandCacheUpdateMock.mockReset();
+    commandCacheBootstrapMock.mockReset();
   });
 
   describe("GET /sessions/:sessionId/models", () => {
@@ -112,9 +137,15 @@ describe("Discovery endpoints", () => {
   });
 
   describe("GET /sessions/:sessionId/commands", () => {
-    it("returns 404 when session not found", async () => {
+    it("returns 200 with static fallback for historical (unknown) sessions", async () => {
+      // Historical sessions are not tracked by SessionManager. The endpoint
+      // must not 404 — it should fall through to the global cache / static
+      // fallback so the dashboard can always render slash commands.
       const res = await request(app).get("/sessions/nonexistent/commands");
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(200);
+      expect(res.body.source).toBe("fallback");
+      expect(Array.isArray(res.body.commands)).toBe(true);
+      expect(res.body.commands.length).toBeGreaterThan(0);
     });
 
     it("returns fallback commands when no activeQuery", async () => {
@@ -182,6 +213,42 @@ describe("Discovery endpoints", () => {
       expect(res.status).toBe(200);
       expect(res.body.commands.length).toBeGreaterThan(0);
       expect(res.body.source).toBe("fallback");
+    });
+
+    describe("historical (non-active) sessions", () => {
+      it("returns 200 with global-cache tier when cache is warm", async () => {
+        // Historical session — not tracked by SessionManager — plus a warm
+        // global cache (e.g. a prior active session populated it). The
+        // endpoint must return the cached commands, not 404.
+        const cached = [
+          { name: "help", description: "Show help", argumentHint: "" },
+          { name: "clear", description: "Clear context", argumentHint: "" },
+        ];
+        commandCacheGetMock.mockReturnValue(cached);
+
+        const res = await request(app).get("/sessions/historical-id/commands");
+        expect(res.status).toBe(200);
+        expect(res.body.source).toBe("global-cache");
+        expect(res.body.commands).toEqual(cached);
+      });
+
+      it("active session with SDK still returns sdk tier (unchanged)", async () => {
+        // Regression guard: the fix for historical sessions must not perturb
+        // the active-session SDK path.
+        const sessionId = await sessionManager.startSession("/tmp");
+        const session = sessionManager.getStatus(sessionId)!;
+        const sdkCommands = [
+          { name: "help", description: "Show help", argumentHint: "" },
+        ];
+        session.activeQuery = {
+          supportedCommands: vi.fn().mockResolvedValue(sdkCommands),
+        } as unknown as import("@anthropic-ai/claude-agent-sdk").Query;
+
+        const res = await request(app).get(`/sessions/${sessionId}/commands`);
+        expect(res.status).toBe(200);
+        expect(res.body.source).toBe("sdk");
+        expect(res.body.commands).toEqual(sdkCommands);
+      });
     });
   });
 
