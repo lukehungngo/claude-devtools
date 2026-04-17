@@ -27,6 +27,7 @@ import { mapSdkMessageToSSEEvents } from "../sse-event-handler.js";
 import { metricsCache } from "./route-context.js";
 import type { RouteContext } from "./route-context.js";
 import { updateModelContextWindows } from "../../cache/model-context-cache.js";
+import { RUNNING_THRESHOLD_MS } from "../../cache/session-cache.js";
 
 function spawnAsync(
   cmd: string,
@@ -94,6 +95,15 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     } catch (err) {
       res.status(500).json({ error: "Failed to get permissions info" });
     }
+  });
+
+  // Returns the user-set model for a web-UI session (set via /model command).
+  // Returns null for CLI sessions not tracked by SessionManager.
+  router.get("/sessions/:sessionId/model", (req, res) => {
+    const { sessionId } = req.params;
+    const sessionManager = state?.sessionManager;
+    const activeSession = sessionManager?.getStatus(sessionId);
+    res.json({ model: activeSession?.model ?? null });
   });
 
   // Get session detail + metrics
@@ -240,9 +250,9 @@ export function createSessionRoutes({ state }: RouteContext): Router {
           metrics.session.isRunning =
             activeSession.status === "streaming" || activeSession.status === "waiting-permission";
         } else {
-          // Not tracked by SessionManager — tighten mtime heuristic to 30s
+          // Not tracked by SessionManager — use RUNNING_THRESHOLD_MS (2 min) mtime heuristic
           const ageMs = Date.now() - new Date(session.lastModified).getTime();
-          metrics.session.isRunning = ageMs < 30_000;
+          metrics.session.isRunning = ageMs < RUNNING_THRESHOLD_MS;
         }
       }
 

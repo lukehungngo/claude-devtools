@@ -29,7 +29,7 @@ const BACKWARD_SCAN_CAP = 256 * 1024;
 const AVG_BYTES_PER_EVENT = 500;
 
 const ACTIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000; // 12 hours
-const RUNNING_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+export const RUNNING_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
 interface CacheEntry {
   info: SessionInfo;
