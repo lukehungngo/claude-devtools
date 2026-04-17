@@ -119,14 +119,18 @@ export function filterDagForTurn(
     const prevIds = prev.nodes.map((n) => n.id).sort().join(",");
     const newIds = Array.from(turnAgentIds).sort().join(",");
     // Compare ALL nodes' token data against turn summaries; if any node's
-    // tokens differ from the summary, data has changed and we must recompute
+    // tokens differ from the summary, data has changed and we must recompute.
+    // Status comparison is intentionally omitted: AgentSummary no longer carries
+    // a stored `status` field (removed with the agent-status predicate refactor).
+    // Status flips on a node now always coincide with an event append, which
+    // advances a turn's endIndex — the token/endTime comparisons below plus
+    // React's turn-reference equality upstream capture invalidation without a
+    // per-memo O(n) predicate scan.
     const sameData = prev.nodes.every((n) => {
       const summary = agentSummaryMap.get(n.id);
       if (!summary) return true; // node not in this turn's summary, skip
-      const dagStatus = summary.status === "running" ? "active" : summary.status;
       return n.tokenUsage.inputTokens === summary.tokensIn
-        && n.tokenUsage.outputTokens === summary.tokensOut
-        && n.status === dagStatus;
+        && n.tokenUsage.outputTokens === summary.tokensOut;
     });
     // P2-3: also compare main's previously-written endTime with what a fresh
     // render would produce. If the subagent envelope advanced (e.g., a
@@ -154,11 +158,12 @@ export function filterDagForTurn(
           mainEndMs !== null ? new Date(mainEndMs).toISOString() : n.endTime;
       }
       if (summary) {
-        const dagStatus = summary.status === "running" ? "active" : summary.status;
+        // Status is no longer carried on AgentSummary — the DAG builder on the
+        // server is the authoritative source for node.status (derived via
+        // isAgentCompleted on the server). We pass it through unchanged.
         return {
           ...n,
           ...timeOverrides,
-          status: dagStatus,
           tokenUsage: {
             ...n.tokenUsage,
             inputTokens: summary.tokensIn,

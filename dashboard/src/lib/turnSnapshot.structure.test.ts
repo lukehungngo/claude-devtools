@@ -176,8 +176,10 @@ describe("TurnCard memo comparator fields", () => {
     const turns = groupEventsIntoTurns(events);
     // turnNumber used as stable identity for memo
     expect(typeof turns[0].turnNumber).toBe("number");
-    // status used for memo
-    expect(typeof turns[0].status).toBe("string");
+    // Status is no longer stored on TurnSnapshot — consumers derive via
+    // isAgentCompleted(agentId, turnEvents). Memo comparators compare
+    // turnNumber + endIndex (derived from events range) instead.
+    expect("status" in turns[0]).toBe(false);
     // endIndex - startIndex used for memo (replaces events.length)
     expect(typeof (turns[0].endIndex - turns[0].startIndex)).toBe("number");
     // durationMs used for memo

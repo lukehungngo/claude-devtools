@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, memo } from "react";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { getEventsForTurn } from "../../lib/turnSnapshot";
+import { getAgentStatus } from "../../lib/agentStatus";
 import type {
   SessionEvent,
   AssistantEvent,
@@ -91,32 +92,49 @@ function computeFallbackDuration(startTime: string, endTime: string): number | n
 
 // ─── TurnFooter (elapsed / completed duration) ─────────────────────
 
-function TurnFooter({ turn, sessionIsRunning }: { turn: TurnSnapshot; sessionIsRunning?: boolean }) {
-  // A turn is truly streaming only if:
-  // 1. Its status is "running" (no end_turn / turn_duration marker in JSONL), AND
-  // 2. The server confirms the session is still active.
-  //    For SSE sessions: uses SDK's session_state_changed event (authoritative).
-  //    For JSONL sessions: server uses mtime < 2min heuristic (SessionInfo.isRunning).
-  // This prevents stale "Generating..." on sessions that ended without clean markers.
-  const isStreaming = turn.status === "running" && sessionIsRunning !== false;
+function TurnFooter({
+  turn,
+  turnEvents,
+  sessionIsRunning,
+}: {
+  turn: TurnSnapshot;
+  turnEvents: SessionEvent[];
+  sessionIsRunning?: boolean;
+}) {
+  // Three-state status via the single-source-of-truth predicate.
+  //   - completed     → main has a terminal signal (end_turn / turn_duration)
+  //   - running       → no signal AND the session is still active
+  //   - indeterminate → no signal AND the session is closed (truncated,
+  //                     aborted, or historical without completion marker).
+  //                     Honest render rather than flashing "Generating..." forever.
+  //
+  // `sessionIsRunning` resolution, in order of authority:
+  //   - For SSE sessions: SDK session_state_changed is authoritative.
+  //   - For JSONL sessions: server uses mtime < 2min heuristic.
+  //   - When the prop is undefined (legacy callers, tests), assume active so
+  //     existing running turns keep pulsing — the dishonesty we're closing
+  //     is the FALSE case, not the undefined case.
+  const sessionIsActive = sessionIsRunning !== false;
+  const status = getAgentStatus("main", turnEvents, sessionIsActive);
   const [elapsed, setElapsed] = useState<number>(0);
 
   useEffect(() => {
-    if (!isStreaming) return;
+    if (status !== "running") return;
     const startMs = new Date(turn.startTime).getTime();
     const tick = () => setElapsed(Date.now() - startMs);
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [isStreaming, turn.startTime]);
+  }, [status, turn.startTime]);
 
   return (
     <div
       data-testid="turn-completion-indicator"
+      data-status={status}
       className="flex items-center gap-1.5 font-mono mt-2.5 text-[10px]"
       style={{ color: "var(--t3)" }}
     >
-      {isStreaming ? (
+      {status === "running" && (
         <>
           <span
             className="shrink-0 inline-block w-1.5 h-1.5 rounded-full"
@@ -125,7 +143,8 @@ function TurnFooter({ turn, sessionIsRunning }: { turn: TurnSnapshot; sessionIsR
           <span>Generating...</span>
           <span>{formatDuration(elapsed)}</span>
         </>
-      ) : (
+      )}
+      {status === "completed" && (
         <>
           <span style={{ color: "var(--grn)" }}>&#10003;</span>
           <span data-testid="turn-completion-timestamp">
@@ -135,6 +154,19 @@ function TurnFooter({ turn, sessionIsRunning }: { turn: TurnSnapshot; sessionIsR
                 ? `Completed in ${formatDuration(duration)}`
                 : "Completed";
             })()}
+          </span>
+        </>
+      )}
+      {status === "indeterminate" && (
+        <>
+          <span
+            data-testid="turn-indeterminate-dot"
+            className="shrink-0 inline-block w-1.5 h-1.5 rounded-full"
+            style={{ background: "var(--t3)" }}
+            title="Session ended without a completion signal"
+          />
+          <span data-testid="turn-indeterminate-label">
+            Session ended without completion
           </span>
         </>
       )}
@@ -150,14 +182,19 @@ function TurnFooter({ turn, sessionIsRunning }: { turn: TurnSnapshot; sessionIsR
 
 // ─── TurnCard ────────────────────────────────────────────────────────
 
-/** Custom comparator for React.memo — checks fields that affect rendering */
+/** Custom comparator for React.memo — checks fields that affect rendering.
+ *
+ * `turn.status` was removed from TurnSnapshot; status flips now happen whenever
+ * a completion event (end_turn/turn_duration) is appended, which always advances
+ * `endIndex`. The `endIndex` check therefore subsumes the old `status` check
+ * without the cost of a per-memo O(n) predicate scan.
+ */
 export function turnCardAreEqual(
   prev: Readonly<TurnCardProps>,
   next: Readonly<TurnCardProps>,
 ): boolean {
   return (
     prev.turn.turnNumber === next.turn.turnNumber &&
-    prev.turn.status === next.turn.status &&
     prev.turn.endIndex === next.turn.endIndex &&
     prev.turn.durationMs === next.turn.durationMs &&
     prev.turn.cost === next.turn.cost &&
@@ -182,8 +219,16 @@ export function TurnCard({
   tasks,
   sessionIsRunning,
 }: TurnCardProps) {
-  const isRunning = turn.status === "running" && sessionIsRunning !== false;
   const turnEvents = useMemo(() => getEventsForTurn(turn, allEvents), [turn, allEvents]);
+  // Three-state status for the body "Working..." block. We only show the
+  // "Working..." line on `running` — `indeterminate` is surfaced by the
+  // footer's honest label so we avoid double indicators on the same card.
+  const mainStatus = getAgentStatus(
+    "main",
+    turnEvents,
+    sessionIsRunning !== false,
+  );
+  const isRunning = mainStatus === "running";
   const responseContent = extractResponseContent(turnEvents);
   const agentCost = useMemo(
     () => turn.agents.reduce((s, a) => s + a.cost, 0),
@@ -238,7 +283,12 @@ export function TurnCard({
             </div>
 
             {/* Agent pills */}
-            <AgentPills agents={turn.agents} onPillClick={onAgentPillClick} />
+            <AgentPills
+              agents={turn.agents}
+              turnEvents={turnEvents}
+              sessionIsRunning={sessionIsRunning}
+              onPillClick={onAgentPillClick}
+            />
 
             {/* Thinking group (collapsed by default) */}
             <ThinkingGroup items={responseContent.filter((t) => t.item.type === "thinking" && "thinking" in t.item).map((t) => t.item)} />
@@ -302,7 +352,7 @@ export function TurnCard({
             )}
 
             {/* Completion indicator */}
-            <TurnFooter turn={turn} sessionIsRunning={sessionIsRunning} />
+            <TurnFooter turn={turn} turnEvents={turnEvents} sessionIsRunning={sessionIsRunning} />
           </div>
         </div>
       )}

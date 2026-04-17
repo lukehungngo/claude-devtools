@@ -15,12 +15,10 @@ function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
     startIndex: 0,
     endIndex: 5,
     agents: [],
-    status: "completed",
     durationMs: 3200,
     cost: 0.0042,
     costBreakdown: { total: 0.0042, inputCost: 0.001, outputCost: 0.0032 },
     startTime: new Date(Date.now() - 120_000).toISOString(),
-    completedAt: new Date(Date.now() - 116_800).toISOString(),
     endTime: new Date(Date.now() - 116_800).toISOString(),
     dispatchedAgentIds: new Set<string>(["main"]),
     ...overrides,
@@ -89,7 +87,6 @@ describe("TurnHistoryPanel", () => {
           agentType: "main",
           displayName: "Main",
           invocationCount: 3,
-          status: "completed",
           cost: 0.004,
           tokensIn: 1000,
           tokensOut: 500,
@@ -107,7 +104,6 @@ describe("TurnHistoryPanel", () => {
           agentType: "main",
           displayName: "M",
           invocationCount: 2,
-          status: "completed",
           cost: 0.002,
           tokensIn: 500,
           tokensOut: 250,
@@ -118,7 +114,6 @@ describe("TurnHistoryPanel", () => {
           agentType: "SWE",
           displayName: "SWE",
           invocationCount: 1,
-          status: "completed",
           cost: 0.001,
           tokensIn: 300,
           tokensOut: 150,
@@ -229,9 +224,11 @@ describe("TurnHistoryPanel", () => {
   });
 
   it("running turn shows pulsing dot", () => {
+    // A turn whose main-agent events do NOT signal completion shows as running.
+    // With no allEvents supplied (or empty), `getEventsForTurn` returns [];
+    // the predicate has no terminal signals, so main is considered running.
     const runningTurn = makeTurn({
       turnNumber: 1,
-      status: "running",
       durationMs: null,
     });
     const { container } = render(
@@ -240,5 +237,50 @@ describe("TurnHistoryPanel", () => {
 
     const dot = container.querySelector("[data-testid='running-dot']");
     expect(dot).not.toBeNull();
+  });
+
+  // ─── Three-state honesty (remediation R2/R3) ─────────────────────
+
+  it("T-HIST-INDET closed session without terminal signal → indeterminate dot, not running", () => {
+    // Exactly the dishonesty the brainstorm called out: a closed/truncated
+    // session with historical turns that never emitted a terminal signal.
+    // Before remediation, these pulsed "running" forever. Now they honestly
+    // render as `indeterminate` (grey static dot).
+    const turn = makeTurn({ turnNumber: 1, durationMs: null });
+    const { container } = render(
+      <TurnHistoryPanel
+        {...defaultProps}
+        turns={[turn]}
+        sessionIsRunning={false}
+      />,
+    );
+
+    const item = container.querySelector("[data-testid='turn-item-0']")!;
+    expect(item.getAttribute("data-status")).toBe("indeterminate");
+    expect(container.querySelector("[data-testid='running-dot']")).toBeNull();
+    const indet = container.querySelector("[data-testid='indeterminate-dot']");
+    expect(indet).not.toBeNull();
+    expect(indet!.getAttribute("title")).toContain("Session ended");
+  });
+
+  it("T-HIST-RUNNING active session without terminal signal → running dot stays", () => {
+    // Live session: no terminal signal means "still running", honest.
+    const turn = makeTurn({ turnNumber: 1, durationMs: null });
+    const { container } = render(
+      <TurnHistoryPanel
+        {...defaultProps}
+        turns={[turn]}
+        sessionIsRunning={true}
+      />,
+    );
+
+    const item = container.querySelector("[data-testid='turn-item-0']")!;
+    expect(item.getAttribute("data-status")).toBe("running");
+    expect(
+      container.querySelector("[data-testid='indeterminate-dot']"),
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='running-dot']"),
+    ).not.toBeNull();
   });
 });

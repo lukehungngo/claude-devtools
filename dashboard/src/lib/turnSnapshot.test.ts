@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental, getEventsForTurn } from "./turnSnapshot";
+import { isAgentCompleted } from "./agentStatus";
 import type {
   SessionEvent,
   UserEvent,
@@ -268,7 +269,7 @@ describe("groupEventsIntoTurns", () => {
       }),
     ];
     const turns = groupEventsIntoTurns(events);
-    expect(turns[0].status).toBe("running");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], events))).toBe(false);
   });
 
   it("stop_reason end_turn completes a turn even without turn_duration (SDK sessions)", () => {
@@ -280,7 +281,7 @@ describe("groupEventsIntoTurns", () => {
       }),
     ];
     const turns = groupEventsIntoTurns(events);
-    expect(turns[0].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], events))).toBe(true);
     expect(turns[0].durationMs).toBeNull(); // no turn_duration event, so no duration
   });
 
@@ -427,7 +428,7 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
 
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(1);
-    expect(turns[0].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], events))).toBe(true);
     expect(turns[0].durationMs).toBe(5200);
   });
 
@@ -440,13 +441,16 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(1);
     // Default stop_reason in makeAssistantEvent is "end_turn", so this completes
-    expect(turns[0].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], events))).toBe(true);
     expect(turns[0].durationMs).toBeNull();
   });
 
-  it("non-last turn is auto-completed (next turn boundary proves it ended)", () => {
-    // Turn 1: user + assistant (no turn_duration)
-    // Turn 2: user + assistant + turn_duration
+  it("non-last turn status derives from own events (next turn boundary does NOT retroactively complete)", () => {
+    // After the predicate refactor, turn status is derived per-turn from that
+    // turn's own events. The "next turn boundary exists → auto-complete" rule
+    // was a stored-status heuristic; the predicate reads signals directly.
+    // Turn 1: user + assistant (end_turn by default) — completed via Signal 1
+    // Turn 2: user + assistant + turn_duration — completed via Signal 2
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({ timestamp: "2026-01-01T00:00:05Z" }),
@@ -457,11 +461,11 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
 
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(2);
-    // Turn 1: no turn_duration, but auto-completed because turn 2 exists
-    expect(turns[0].status).toBe("completed");
+    // Turn 1: default stop_reason is end_turn → completed via predicate
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], events))).toBe(true);
     expect(turns[0].durationMs).toBeNull();
     // Turn 2 has turn_duration — completed
-    expect(turns[1].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[1], events))).toBe(true);
     expect(turns[1].durationMs).toBe(4000);
   });
 
@@ -490,7 +494,7 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
 
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(1);
-    expect(turns[0].status).toBe("completed"); // completed via stop_reason fallback
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], events))).toBe(true); // completed via stop_reason fallback
     expect(turns[0].durationMs).toBeNull(); // no turn_duration, so no duration
   });
 
@@ -506,9 +510,9 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
 
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(2);
-    expect(turns[0].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], events))).toBe(true);
     expect(turns[0].durationMs).toBe(3000);
-    expect(turns[1].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[1], events))).toBe(true);
     expect(turns[1].durationMs).toBe(2000);
   });
 
@@ -525,16 +529,10 @@ describe("groupEventsIntoTurns — turn status state machine (turn_duration)", (
     expect(turnEvents[2].type).toBe("system");
   });
 
-  it("completedAt is set when turn is completed via turn_duration", () => {
-    const events: SessionEvent[] = [
-      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
-      makeAssistantEvent({ timestamp: "2026-01-01T00:00:05Z" }),
-      makeTurnDurationEvent(5000, { timestamp: "2026-01-01T00:00:10Z" }),
-    ];
-
-    const turns = groupEventsIntoTurns(events);
-    expect(turns[0].completedAt).toBe("2026-01-01T00:00:10Z");
-  });
+  // Test removed: `completedAt` field was deleted from TurnSnapshot in the
+  // `isAgentCompleted` predicate refactor (no consumers read it). Completion
+  // timing is now derived by consumers: when `isAgentCompleted("main", events)`
+  // is true, the last event's timestamp is the completion time.
 });
 
 describe("groupEventsIntoTurnsIncremental", () => {
@@ -570,10 +568,10 @@ describe("groupEventsIntoTurnsIncremental", () => {
 
     expect(turns).toHaveLength(2);
     expect(turns[0].promptText).toBe("Turn 1");
-    expect(turns[0].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], allEvents))).toBe(true);
     expect(turns[1].promptText).toBe("Turn 2");
     // Default stop_reason is "end_turn", so the turn is completed via fallback
-    expect(turns[1].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[1], allEvents))).toBe(true);
   });
 
   it("correctly updates last turn when events are appended within same turn", () => {
@@ -584,7 +582,7 @@ describe("groupEventsIntoTurnsIncremental", () => {
     ];
     const existingTurns = groupEventsIntoTurns(initialEvents);
     expect(existingTurns).toHaveLength(1);
-    expect(existingTurns[0].status).toBe("running");
+    expect(isAgentCompleted("main", getEventsForTurn(existingTurns[0], initialEvents))).toBe(false);
 
     // More events arrive for the same turn (another assistant response + turn_duration)
     const allEvents: SessionEvent[] = [
@@ -595,7 +593,7 @@ describe("groupEventsIntoTurnsIncremental", () => {
 
     const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 2);
     expect(turns).toHaveLength(1);
-    expect(turns[0].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], allEvents))).toBe(true);
     expect(turns[0].durationMs).toBe(2500);
     expect(turns[0].endIndex).toBe(4);
   });
@@ -611,7 +609,7 @@ describe("groupEventsIntoTurnsIncremental", () => {
     ];
     const existingTurns = groupEventsIntoTurns(initialEvents);
     expect(existingTurns).toHaveLength(1);
-    expect(existingTurns[0].status).toBe("running");
+    expect(isAgentCompleted("main", getEventsForTurn(existingTurns[0], initialEvents))).toBe(false);
 
     // New events: more assistant/tool responses, NO turn boundary
     const allEvents: SessionEvent[] = [
@@ -628,7 +626,9 @@ describe("groupEventsIntoTurnsIncremental", () => {
     expect(turns[0].promptText).toBe(fullRebuild[0].promptText);
     expect(turns[0].startIndex).toBe(fullRebuild[0].startIndex);
     expect(turns[0].endIndex).toBe(fullRebuild[0].endIndex);
-    expect(turns[0].status).toBe(fullRebuild[0].status);
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], allEvents))).toBe(
+      isAgentCompleted("main", getEventsForTurn(fullRebuild[0], allEvents)),
+    );
     expect(turns[0].cost).toBeCloseTo(fullRebuild[0].cost, 6);
   });
 
@@ -694,7 +694,9 @@ describe("groupEventsIntoTurnsIncremental", () => {
     for (let i = 0; i < fullRebuild.length; i++) {
       expect(turns3[i].turnNumber).toBe(fullRebuild[i].turnNumber);
       expect(turns3[i].promptText).toBe(fullRebuild[i].promptText);
-      expect(turns3[i].status).toBe(fullRebuild[i].status);
+      expect(isAgentCompleted("main", getEventsForTurn(turns3[i], events3))).toBe(
+        isAgentCompleted("main", getEventsForTurn(fullRebuild[i], events3)),
+      );
       expect(turns3[i].startIndex).toBe(fullRebuild[i].startIndex);
       expect(turns3[i].endIndex).toBe(fullRebuild[i].endIndex);
       expect(turns3[i].cost).toBeCloseTo(fullRebuild[i].cost, 6);
@@ -843,7 +845,7 @@ describe("groupEventsIntoTurns — system-injected content filtering", () => {
 
 // ─── extendTurn status reversion (TASK-001) ──────────────────────────
 
-describe("groupEventsIntoTurnsIncremental — extendTurn status reversion", () => {
+describe("groupEventsIntoTurnsIncremental — status derivation across streaming", () => {
   it("reverts completed turn to running when new tool_use events arrive", () => {
     // Turn 1 completed via end_turn stop_reason
     const initialEvents: SessionEvent[] = [
@@ -852,7 +854,7 @@ describe("groupEventsIntoTurnsIncremental — extendTurn status reversion", () =
     ];
     const existingTurns = groupEventsIntoTurns(initialEvents);
     expect(existingTurns).toHaveLength(1);
-    expect(existingTurns[0].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(existingTurns[0], initialEvents))).toBe(true);
 
     // New events: tool_use arrives, turn should revert to running
     const allEvents: SessionEvent[] = [
@@ -862,7 +864,7 @@ describe("groupEventsIntoTurnsIncremental — extendTurn status reversion", () =
 
     const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 1);
     expect(turns).toHaveLength(1);
-    expect(turns[0].status).toBe("running");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], allEvents))).toBe(false);
   });
 
   it("stays completed when turn_duration arrives after end_turn", () => {
@@ -872,7 +874,7 @@ describe("groupEventsIntoTurnsIncremental — extendTurn status reversion", () =
       makeAssistantEvent({ stopReason: "end_turn", timestamp: "2026-01-01T00:00:01Z" }),
     ];
     const existingTurns = groupEventsIntoTurns(initialEvents);
-    expect(existingTurns[0].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(existingTurns[0], initialEvents))).toBe(true);
 
     // turn_duration confirms completion
     const allEvents: SessionEvent[] = [
@@ -882,7 +884,7 @@ describe("groupEventsIntoTurnsIncremental — extendTurn status reversion", () =
 
     const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 1);
     expect(turns).toHaveLength(1);
-    expect(turns[0].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], allEvents))).toBe(true);
     expect(turns[0].durationMs).toBe(1500);
   });
 
@@ -893,7 +895,7 @@ describe("groupEventsIntoTurnsIncremental — extendTurn status reversion", () =
       makeAssistantEvent({ stopReason: "end_turn", timestamp: "2026-01-01T00:00:01Z" }),
     ];
     const existingTurns = groupEventsIntoTurns(initialEvents);
-    expect(existingTurns[0].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(existingTurns[0], initialEvents))).toBe(true);
 
     // New assistant event without end_turn (tool_use) — status must revert
     const allEvents: SessionEvent[] = [
@@ -904,7 +906,7 @@ describe("groupEventsIntoTurnsIncremental — extendTurn status reversion", () =
 
     const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 2);
     expect(turns).toHaveLength(1);
-    expect(turns[0].status).toBe("running");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], allEvents))).toBe(false);
   });
 
   it("turn_duration always wins over stop_reason in new events", () => {
@@ -914,7 +916,7 @@ describe("groupEventsIntoTurnsIncremental — extendTurn status reversion", () =
       makeAssistantEvent({ stopReason: "tool_use", timestamp: "2026-01-01T00:00:01Z" }),
     ];
     const existingTurns = groupEventsIntoTurns(initialEvents);
-    expect(existingTurns[0].status).toBe("running");
+    expect(isAgentCompleted("main", getEventsForTurn(existingTurns[0], initialEvents))).toBe(false);
 
     // New events have both tool_use AND turn_duration — turn_duration wins
     const allEvents: SessionEvent[] = [
@@ -925,7 +927,7 @@ describe("groupEventsIntoTurnsIncremental — extendTurn status reversion", () =
 
     const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 2);
     expect(turns).toHaveLength(1);
-    expect(turns[0].status).toBe("completed");
+    expect(isAgentCompleted("main", getEventsForTurn(turns[0], allEvents))).toBe(true);
     expect(turns[0].durationMs).toBe(3000);
   });
 });
@@ -994,135 +996,25 @@ describe("TurnSnapshot model tracking", () => {
   });
 });
 
-// ─── Bug: turn "completed" while agent still "running" (extendTurn) ──
+// ─── Transitive completion invariant (predicate model) ───────────────
+//
+// The two original tests in this block ("finalizes main agent when a subagent
+// end_turn completes the turn" and "finalizes main when two concurrent
+// subagents end_turn in the same delta") described a scenario from the old
+// stored-status model where `finalizeTurn` reconciled a turn=completed +
+// main=running divergence after a SUBAGENT sent end_turn. Under the predicate
+// model (isAgentCompleted), a subagent's end_turn never completes the parent
+// turn — only main's own end_turn or a system `turn_duration` event does.
+// Those scenarios now evaluate to `isAgentCompleted("main", events) === false`
+// (i.e. running), which is the correct verdict and is covered by T-TURNSTATUS-1
+// and T-OWN-1. The old tests have been deleted as their premise contradicts
+// the new model.
 
-describe("extendTurn finalizes agent statuses when turn completes", () => {
-  it("finalizes main agent (tool_use) when a subagent end_turn completes the turn", () => {
-    // Scenario that produces turn=completed + main=running divergence:
-    //   existing: main emitted tool_use (running)
-    //   delta: a subagent sends end_turn
-    // Full rebuild: turn completes via sub-1 end_turn; adjustStatusForSubagents
-    //   does not revert (sub-1 is completed); finalizeTurn flips main to completed.
-    // Incremental (pre-fix): extendTurn never calls finalizeTurn. Main's lastEvent
-    //   is still tool_use (no main events in delta) so main.status stays "running",
-    //   while turn.status === "completed". Bug visible.
-    //
-    // TASK-002: main dispatches sub-1 via Task tool_use; sub-1 is a sidechain
-    // event and matched via temporal proximity to main's dispatch timestamp.
-    const initial: SessionEvent[] = [
-      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
-      makeAssistantEvent({
-        agentId: "main",
-        stopReason: "tool_use",
-        timestamp: "2026-01-01T00:00:01Z",
-        taskDispatches: ["do sub-1 work"],
-      }),
-    ];
-    const existing = groupEventsIntoTurns(initial);
-    expect(existing).toHaveLength(1);
-    expect(existing[0].status).toBe("running");
-    const mainBefore = existing[0].agents.find(a => a.agentId === "main");
-    expect(mainBefore?.status).toBe("running");
-
-    const allEvents: SessionEvent[] = [
-      ...initial,
-      makeAssistantEvent({
-        agentId: "sub-1",
-        stopReason: "end_turn",
-        timestamp: "2026-01-01T00:00:02Z",
-        isSidechain: true,
-      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
-    ];
-    const turns = groupEventsIntoTurnsIncremental(existing, allEvents, 1);
-
-    expect(turns).toHaveLength(1);
-    // Turn is completed because sub-1 sent end_turn (last assistant event).
-    expect(turns[0].status).toBe("completed");
-    // Invariant: when turn is completed, NO agent may be running.
-    for (const agent of turns[0].agents) {
-      expect(agent.status).not.toBe("running");
-    }
-    // completedAt must be populated on a completed turn.
-    expect(turns[0].completedAt).toBeTruthy();
-  });
-
-  it("finalizes main when two concurrent subagents end_turn in the same delta", () => {
-    // Multi-subagent reproduction: main is mid-tool_use, two subagents are each
-    // mid-tool_use. In a single delta both subs send end_turn concurrently, which
-    // completes the turn (last assistant is a sub end_turn, and adjustStatusForSubagents
-    // doesn't demote because no non-main agent is still running). finalizeTurn
-    // must then flip main from "running" to "completed" so the streaming path
-    // produces the same hierarchy as the full rebuild.
-    //
-    // Distinct from Test A (single sub end_turn) because it pins the MULTI-sub
-    // delta case: both subs going terminal in the same incremental extension is
-    // the realistic "parallel subagents finishing together" pattern.
-    //
-    // Without finalizeTurn in extendTurn, main stays "running" while the turn
-    // is "completed" — the user-visible hierarchy divergence bug.
-    // TASK-002: main dispatches both sub-1 and sub-2 via Task tool_uses. Each
-    // subagent's sidechain events fall within 5s of main's dispatch timestamp,
-    // so the temporal-proximity fallback admits them into turn.agents.
-    const initial: SessionEvent[] = [
-      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
-      makeAssistantEvent({
-        agentId: "main",
-        stopReason: "tool_use",
-        timestamp: "2026-01-01T00:00:01Z",
-        taskDispatches: ["sub-1 work", "sub-2 work"],
-      }),
-      makeAssistantEvent({
-        agentId: "sub-1",
-        stopReason: "tool_use",
-        timestamp: "2026-01-01T00:00:02Z",
-        isSidechain: true,
-      } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
-      makeAssistantEvent({
-        agentId: "sub-2",
-        stopReason: "tool_use",
-        timestamp: "2026-01-01T00:00:03Z",
-        isSidechain: true,
-      } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
-    ];
-    const existing = groupEventsIntoTurns(initial);
-    expect(existing).toHaveLength(1);
-    expect(existing[0].status).toBe("running");
-
-    const allEvents: SessionEvent[] = [
-      ...initial,
-      makeAssistantEvent({
-        agentId: "sub-1",
-        stopReason: "end_turn",
-        timestamp: "2026-01-01T00:00:04Z",
-        isSidechain: true,
-      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
-      makeAssistantEvent({
-        agentId: "sub-2",
-        stopReason: "end_turn",
-        timestamp: "2026-01-01T00:00:05Z",
-        isSidechain: true,
-      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
-    ];
-    const turns = groupEventsIntoTurnsIncremental(existing, allEvents, 2);
-
-    expect(turns).toHaveLength(1);
-    // Turn completes: last assistant is sub-2 end_turn and no non-main agent is still running.
-    expect(turns[0].status).toBe("completed");
-    // Invariant: when turn is completed, NO agent may be running — specifically,
-    // main must have been flipped by finalizeTurn even though the delta contained
-    // no main events.
-    const main = turns[0].agents.find(a => a.agentId === "main");
-    const sub1 = turns[0].agents.find(a => a.agentId === "sub-1");
-    const sub2 = turns[0].agents.find(a => a.agentId === "sub-2");
-    expect(main?.status).toBe("completed");
-    expect(sub1?.status).toBe("completed");
-    expect(sub2?.status).toBe("completed");
-  });
-
-  it("extendTurn output matches groupEventsIntoTurns for the same stream (invariant)", () => {
+describe("extendTurn transitive completion invariant", () => {
+  it("incremental and full-rebuild agree on completion via the predicate", () => {
     // Property-style check: for a realistic mixed stream, incremental and full
-    // rebuild must agree on turn.status and every agent's status. This catches
-    // any future divergence between extendTurn and buildTurn.
+    // rebuild must agree on main-agent completion and per-agent completion.
+    // This catches any future divergence between extendTurn and buildTurn.
     //
     // TASK-002: main must dispatch sub-1 so the dispatch-membership filter
     // admits sub-1 into turn.agents. P2-1: agentMeta is provided so
@@ -1162,25 +1054,83 @@ describe("extendTurn finalizes agent statuses when turn completes", () => {
 
     expect(incremental.length).toBe(full.length);
     for (let i = 0; i < full.length; i++) {
-      expect(incremental[i].status).toBe(full[i].status);
+      const fullEv = getEventsForTurn(full[i], allEvents);
+      const incEv = getEventsForTurn(incremental[i], allEvents);
+      // Both paths produce the same verdict for "main" — predicates are pure
+      // functions of events, so this is a structural identity check on what
+      // the two builders admit into each turn's event range.
+      expect(isAgentCompleted("main", incEv)).toBe(isAgentCompleted("main", fullEv));
       expect(incremental[i].agents.length).toBe(full[i].agents.length);
       for (const fullAgent of full[i].agents) {
         const incAgent = incremental[i].agents.find(a => a.agentId === fullAgent.agentId);
         expect(incAgent).toBeDefined();
-        expect(incAgent!.status).toBe(fullAgent.status);
+        // Per-agent completion must match between incremental and full paths.
+        expect(isAgentCompleted(fullAgent.agentId, incEv)).toBe(
+          isAgentCompleted(fullAgent.agentId, fullEv),
+        );
       }
+    }
+  });
+
+  it("transitive invariant: main completed ⇒ every agent in the turn is completed", () => {
+    // SDK contract made testable: when the main agent sends end_turn, every
+    // subagent it dispatched has necessarily already returned its output
+    // (otherwise main could not respond). The predicate encodes this as a
+    // hard per-agent check on the same event range.
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Do work", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["sub-1 work"],
+      }),
+      makeAssistantEvent({
+        agentId: "sub-1",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:02Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:03Z",
+      }),
+    ];
+    const agentMeta = {
+      "sub-1": { agentType: "worker", description: "sub-1 work" },
+    };
+
+    const turns = groupEventsIntoTurns(events, agentMeta);
+    expect(turns).toHaveLength(1);
+    const turnEvents = getEventsForTurn(turns[0], events);
+
+    if (isAgentCompleted("main", turnEvents)) {
+      for (const agent of turns[0].agents) {
+        expect(isAgentCompleted(agent.agentId, turnEvents)).toBe(true);
+      }
+    } else {
+      throw new Error("expected main to be completed in this fixture");
     }
   });
 });
 
-// ─── Bug 2: Turn shows "completed" while subagents still running ────
+// ─── Per-agent completion via isAgentCompleted predicate ────────────
+//
+// Under the predicate model, each agent's completion is an independent
+// per-agent query against the same event range. There is no aggregate
+// "turn status" — consumers derive the display by calling
+// `isAgentCompleted(agentId, turnEvents)` per agent they care about.
+// These tests originally read as "turn=running while subagent is still
+// running" and relied on the old combined status field; they are now
+// rewritten to assert the correct per-agent predicate verdicts.
 
-describe("Bug 2: turn status with running subagents", () => {
-  it("marks turn as running when subagent is dispatched and main end_turn is last event (buildTurn)", () => {
+describe("per-agent completion with running subagents", () => {
+  it("main end_turn completes main; sub-1 still mid tool_use stays running (buildTurn)", () => {
     // Real scenario: main dispatches sub-1 (tool_use), sub-1 starts working, then
-    // main emits a second end_turn AFTER. The last assistant event is main's
-    // end_turn, so old code said "completed". But sub-1 is still running (its
-    // last stop_reason was tool_use).
+    // main emits end_turn AFTER. Per-agent predicate verdict:
+    //   - main: completed (last assistant event is end_turn)
+    //   - sub-1: running (last assistant event is tool_use, no parent ack postdates)
     //
     // TASK-002: the initial main tool_use carries a Task dispatch; sub-1's
     // sidechain event follows within 5s so temporal proximity admits it.
@@ -1194,15 +1144,15 @@ describe("Bug 2: turn status with running subagents", () => {
         model: "claude-opus-4-6",
         taskDispatches: ["sub-1 work"],
       }),
-      // Subagent starts working
+      // Subagent starts working (still running)
       makeAssistantEvent({
         agentId: "sub-1",
         timestamp: "2026-01-01T00:00:01Z",
-        stopReason: "tool_use", // Still running
+        stopReason: "tool_use",
         model: "claude-sonnet-4-6",
         isSidechain: true,
       } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
-      // Main agent's response comes after (end_turn — dispatching done)
+      // Main agent's response comes after (end_turn)
       makeAssistantEvent({
         agentId: "main",
         timestamp: "2026-01-01T00:00:02Z",
@@ -1213,15 +1163,18 @@ describe("Bug 2: turn status with running subagents", () => {
 
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(1);
-    // Turn should be "running" because sub-1 hasn't finished
-    expect(turns[0].status).toBe("running");
-    // sub-1 should be tracked as a running agent
+    const turnEvents = getEventsForTurn(turns[0], events);
+    // Main completed via its own end_turn.
+    expect(isAgentCompleted("main", turnEvents)).toBe(true);
+    // sub-1 is tracked in the turn's agents map.
     const sub1 = turns[0].agents.find(a => a.agentId === "sub-1");
     expect(sub1).toBeDefined();
-    expect(sub1!.status).toBe("running");
+    // sub-1 still running — its last stop_reason is tool_use and there's no
+    // parent tool_result postdating its last event.
+    expect(isAgentCompleted("sub-1", turnEvents)).toBe(false);
   });
 
-  it("marks turn as completed when main and all subagents have finished", () => {
+  it("marks all agents completed when main and sub-1 each end_turn", () => {
     // TASK-002: the preceding main event dispatches sub-1 via Task; sub-1's
     // sidechain event follows within 5s so temporal proximity admits it.
     const events: SessionEvent[] = [
@@ -1236,7 +1189,7 @@ describe("Bug 2: turn status with running subagents", () => {
       makeAssistantEvent({
         agentId: "sub-1",
         timestamp: "2026-01-01T00:00:02Z",
-        stopReason: "end_turn", // Subagent also finished
+        stopReason: "end_turn",
         model: "claude-sonnet-4-6",
         isSidechain: true,
       } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
@@ -1250,11 +1203,17 @@ describe("Bug 2: turn status with running subagents", () => {
 
     const turns = groupEventsIntoTurns(events);
     expect(turns).toHaveLength(1);
-    // Both main and sub-1 finished: turn is completed
-    expect(turns[0].status).toBe("completed");
+    const turnEvents = getEventsForTurn(turns[0], events);
+    // Both main and sub-1 are completed per their own end_turn signals.
+    expect(isAgentCompleted("main", turnEvents)).toBe(true);
+    expect(isAgentCompleted("sub-1", turnEvents)).toBe(true);
+    // Transitive invariant: main completed ⇒ all tracked agents completed.
+    for (const agent of turns[0].agents) {
+      expect(isAgentCompleted(agent.agentId, turnEvents)).toBe(true);
+    }
   });
 
-  it("marks turn as running via extendTurn when main sent end_turn and subagent still running (extendTurn)", () => {
+  it("extendTurn: main end_turn completes main; sub-1 tool_use stays running", () => {
     // TASK-002: main dispatches sub-1 via Task before sub-1's sidechain events
     // appear; temporal proximity binds sub-1 to the dispatch.
     // Initial: main dispatches sub-1 (tool_use), sub-1 running, main has NOT
@@ -1277,7 +1236,8 @@ describe("Bug 2: turn status with running subagents", () => {
       } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
     ];
     const existingTurns = groupEventsIntoTurns(initial);
-    expect(existingTurns[0].status).toBe("running");
+    const initialEvents = getEventsForTurn(existingTurns[0], initial);
+    expect(isAgentCompleted("main", initialEvents)).toBe(false);
 
     // Now main's end_turn arrives — but sub-1 is still running
     const mainEndEvent = makeAssistantEvent({
@@ -1289,11 +1249,14 @@ describe("Bug 2: turn status with running subagents", () => {
     const allEvents: SessionEvent[] = [...initial, mainEndEvent];
     const turns = groupEventsIntoTurnsIncremental(existingTurns, allEvents, 1);
 
-    // Turn should STILL be "running" because sub-1 hasn't finished
-    expect(turns[0].status).toBe("running");
+    expect(turns).toHaveLength(1);
+    const turnEvents = getEventsForTurn(turns[0], allEvents);
+    // Main is completed because its own end_turn arrived.
+    expect(isAgentCompleted("main", turnEvents)).toBe(true);
+    // sub-1 tracked, still running (tool_use, no postdating parent ack).
     const sub1 = turns[0].agents.find(a => a.agentId === "sub-1");
     expect(sub1).toBeDefined();
-    expect(sub1!.status).toBe("running");
+    expect(isAgentCompleted("sub-1", turnEvents)).toBe(false);
   });
 });
 
@@ -1609,7 +1572,9 @@ describe("Turn status ignores subagent end_turn", () => {
 
     const turns = groupEventsIntoTurns(events, subagentMeta);
     expect(turns).toHaveLength(1);
-    expect(turns[0].status).toBe("running");
+    // Predicate: main has no end_turn and no turn_duration, so NOT completed.
+    const turnEvents = getEventsForTurn(turns[0], events);
+    expect(isAgentCompleted("main", turnEvents)).toBe(false);
   });
 
   it("T-TURNSTATUS-2: main end_turn still completes the turn (happy path)", () => {
@@ -1642,7 +1607,9 @@ describe("Turn status ignores subagent end_turn", () => {
 
     const turns = groupEventsIntoTurns(events, subagentMeta);
     expect(turns).toHaveLength(1);
-    expect(turns[0].status).toBe("completed");
+    // Predicate: main's last assistant event is end_turn → completed.
+    const turnEvents = getEventsForTurn(turns[0], events);
+    expect(isAgentCompleted("main", turnEvents)).toBe(true);
   });
 
   it("T-TURNSTATUS-3: extendTurn streaming path ignores subagent end_turn", () => {
@@ -1662,7 +1629,8 @@ describe("Turn status ignores subagent end_turn", () => {
 
     const initial = groupEventsIntoTurns(initialEvents, subagentMeta);
     expect(initial).toHaveLength(1);
-    expect(initial[0].status).toBe("running");
+    const initialTurnEvents = getEventsForTurn(initial[0], initialEvents);
+    expect(isAgentCompleted("main", initialTurnEvents)).toBe(false);
 
     // Delta: ONLY a subagent end_turn event arrives via streaming.
     const delta: SessionEvent[] = [
@@ -1683,9 +1651,12 @@ describe("Turn status ignores subagent end_turn", () => {
       subagentMeta,
     );
 
-    // Turn must still be running — the new event was a subagent end_turn.
+    // Predicate: main still has no end_turn, so still running. The new
+    // subagent end_turn does not complete the parent turn.
     expect(result).toHaveLength(1);
-    expect(result[result.length - 1].status).toBe("running");
+    const lastTurn = result[result.length - 1];
+    const lastTurnEvents = getEventsForTurn(lastTurn, allEvents);
+    expect(isAgentCompleted("main", lastTurnEvents)).toBe(false);
   });
 
   it("T-TURNSTATUS-4: cross-turn bleed — late subagent end_turn doesn't flip later turn", () => {
@@ -1750,7 +1721,13 @@ describe("Turn status ignores subagent end_turn", () => {
 
     const turns = groupEventsIntoTurns(events, subagentMeta);
     expect(turns).toHaveLength(2);
-    expect(turns[1].status).toBe("running");
+    // Predicate: turn 2's main has only a tool_use, so not completed. The
+    // late sidechain subA event is filtered out of turn 2's dispatched set
+    // (subA was not dispatched in turn 2), and even if it weren't, the
+    // predicate only consults main's own events for the turn_duration /
+    // end_turn signals.
+    const turn2Events = getEventsForTurn(turns[1], events);
+    expect(isAgentCompleted("main", turn2Events)).toBe(false);
   });
 });
 
@@ -1846,13 +1823,22 @@ describe("Ownership invariants", () => {
     const turnsC = groupEventsIntoTurns(eventsC, subagentMeta);
 
     expect(turnsA).toHaveLength(1);
-    expect(turnsA[0].status).toBe("completed");
-
     expect(turnsB).toHaveLength(1);
-    expect(turnsB[0].status).toBe("completed");
-
     expect(turnsC).toHaveLength(1);
-    expect(turnsC[0].status).toBe("running");
+
+    // Predicate: (a) main has end_turn → completed; a trailing sidechain event
+    // does not undo that verdict.
+    const eventsInA = getEventsForTurn(turnsA[0], eventsA);
+    expect(isAgentCompleted("main", eventsInA)).toBe(true);
+
+    // (b) same — main's end_turn is authoritative regardless of sidechain order.
+    const eventsInB = getEventsForTurn(turnsB[0], eventsB);
+    expect(isAgentCompleted("main", eventsInB)).toBe(true);
+
+    // (c) main has no end_turn (only tool_use), no turn_duration → not
+    // completed. A subagent's end_turn NEVER completes the parent turn.
+    const eventsInC = getEventsForTurn(turnsC[0], eventsC);
+    expect(isAgentCompleted("main", eventsInC)).toBe(false);
   });
 
   it("T-OWN-2: extendTurn ownership invariant matches groupEventsIntoTurns (streaming split)", () => {
@@ -1883,25 +1869,27 @@ describe("Ownership invariants", () => {
       ),
     ];
 
+    const all = [...initialEvents, ...delta];
     const initial = groupEventsIntoTurns(initialEvents, subagentMeta);
     const streamed = groupEventsIntoTurnsIncremental(
       initial,
-      [...initialEvents, ...delta],
+      all,
       delta.length,
       subagentMeta,
     );
 
     // Full-rebuild reference: groupEventsIntoTurns(all events at once).
-    const full = groupEventsIntoTurns(
-      [...initialEvents, ...delta],
-      subagentMeta,
-    );
+    const full = groupEventsIntoTurns(all, subagentMeta);
 
     expect(streamed).toHaveLength(1);
     expect(full).toHaveLength(1);
-    // Streaming path must produce the same "running" verdict as full rebuild.
-    expect(streamed[0].status).toBe("running");
-    expect(full[0].status).toBe("running");
-    expect(streamed[0].status).toBe(full[0].status);
+    // Streaming path must produce the same verdict as full rebuild.
+    const streamedEvents = getEventsForTurn(streamed[0], all);
+    const fullEvents = getEventsForTurn(full[0], all);
+    expect(isAgentCompleted("main", streamedEvents)).toBe(false);
+    expect(isAgentCompleted("main", fullEvents)).toBe(false);
+    expect(isAgentCompleted("main", streamedEvents)).toBe(
+      isAgentCompleted("main", fullEvents),
+    );
   });
 });

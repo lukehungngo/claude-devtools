@@ -159,11 +159,16 @@ function TurnRow({
   );
 }
 
-/** Custom comparator — checks fields that affect TurnRow rendering */
+/** Custom comparator — checks fields that affect TurnRow rendering.
+ *
+ * `turn.status` was removed from TurnSnapshot; a status flip always coincides
+ * with new events being appended, which advances `endIndex`. The `endIndex`
+ * check therefore already captures the same invalidation signal without a
+ * per-memo O(n) predicate scan.
+ */
 function turnRowAreEqual(prev: Readonly<TurnRowProps>, next: Readonly<TurnRowProps>): boolean {
   return (
     prev.turn.turnNumber === next.turn.turnNumber &&
-    prev.turn.status === next.turn.status &&
     prev.turn.endIndex === next.turn.endIndex &&
     prev.turn.durationMs === next.turn.durationMs &&
     prev.turn.cost === next.turn.cost &&

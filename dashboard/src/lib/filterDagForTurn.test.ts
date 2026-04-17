@@ -31,18 +31,15 @@ function makeTurn(agents: { agentId: string }[]): TurnSnapshot {
       agentType: "agent",
       displayName: a.agentId,
       invocationCount: 1,
-      status: "completed" as const,
       cost: 0,
       tokensIn: 0,
       tokensOut: 0,
       tools: [],
     })),
-    status: "running",
     cost: 0,
     costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
     durationMs: null,
     startTime: "2026-01-01T00:00:00Z",
-    completedAt: "",
     endTime: "",
     // TASK-002: dispatchedAgentIds is now required on TurnSnapshot. Mirror
     // production semantics by including "main" plus any agentIds in the fixture.
@@ -122,7 +119,6 @@ describe("filterDagForTurn", () => {
           agentType: "main",
           displayName: "Main session",
           invocationCount: 3,
-          status: "completed",
           cost: 0.45,       // main agent's own cost from tokens × model pricing
           tokensIn: 5000,
           tokensOut: 2000,
@@ -133,19 +129,16 @@ describe("filterDagForTurn", () => {
           agentType: "engineer",
           displayName: "agent-1",
           invocationCount: 1,
-          status: "completed",
           cost: 0.8,
           tokensIn: 3000,
           tokensOut: 1000,
           tools: ["Write", "Edit"],
         },
       ],
-      status: "completed",
       cost: 1.25,
       costBreakdown: { total: 1.25, inputCost: 0.75, outputCost: 0.50 },
       durationMs: 5000,
       startTime: "2026-01-01T00:00:00Z",
-      completedAt: "2026-01-01T00:00:05Z",
       endTime: "2026-01-01T00:00:05Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
@@ -180,15 +173,13 @@ describe("filterDagForTurn", () => {
       startIndex: 0,
       endIndex: 5,
       agents: [
-        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0.10, tokensIn: 100, tokensOut: 50, tools: ["Read"] },
-        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0.20, tokensIn: 200, tokensOut: 100, tools: ["Write"] },
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, cost: 0.10, tokensIn: 100, tokensOut: 50, tools: ["Read"] },
+        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0.20, tokensIn: 200, tokensOut: 100, tools: ["Write"] },
       ],
-      status: "completed",
       cost: 0.30,
       costBreakdown: { total: 0.30, inputCost: 0.15, outputCost: 0.15 },
       durationMs: 1000,
       startTime: "2026-01-01T00:00:00Z",
-      completedAt: "2026-01-01T00:00:01Z",
       endTime: "2026-01-01T00:00:01Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
@@ -199,15 +190,13 @@ describe("filterDagForTurn", () => {
       startIndex: 6,
       endIndex: 10,
       agents: [
-        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 2, status: "completed", cost: 0.50, tokensIn: 500, tokensOut: 250, tools: ["Read", "Write"] },
-        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0.80, tokensIn: 400, tokensOut: 200, tools: ["Edit"] },
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 2, cost: 0.50, tokensIn: 500, tokensOut: 250, tools: ["Read", "Write"] },
+        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0.80, tokensIn: 400, tokensOut: 200, tools: ["Edit"] },
       ],
-      status: "completed",
       cost: 1.30,
       costBreakdown: { total: 1.30, inputCost: 0.70, outputCost: 0.60 },
       durationMs: 3000,
       startTime: "2026-01-01T00:01:00Z",
-      completedAt: "2026-01-01T00:01:03Z",
       endTime: "2026-01-01T00:01:03Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
@@ -245,15 +234,13 @@ describe("filterDagForTurn", () => {
       startIndex: 0,
       endIndex: 5,
       agents: [
-        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0.10, tokensIn: 100, tokensOut: 50, tools: ["Read"] },
-        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0.20, tokensIn: 200, tokensOut: 100, tools: ["Write"] },
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, cost: 0.10, tokensIn: 100, tokensOut: 50, tools: ["Read"] },
+        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0.20, tokensIn: 200, tokensOut: 100, tools: ["Write"] },
       ],
-      status: "completed",
       cost: 0.30,
       costBreakdown: { total: 0.30, inputCost: 0.15, outputCost: 0.15 },
       durationMs: 1000,
       startTime: "2026-01-01T00:00:00Z",
-      completedAt: "2026-01-01T00:00:01Z",
       endTime: "2026-01-01T00:00:01Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
@@ -265,16 +252,14 @@ describe("filterDagForTurn", () => {
       endIndex: 10,
       agents: [
         // SAME main tokens as turnA
-        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0.10, tokensIn: 100, tokensOut: 50, tools: ["Read"] },
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, cost: 0.10, tokensIn: 100, tokensOut: 50, tools: ["Read"] },
         // DIFFERENT agent-1 tokens
-        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0.80, tokensIn: 400, tokensOut: 200, tools: ["Edit"] },
+        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0.80, tokensIn: 400, tokensOut: 200, tools: ["Edit"] },
       ],
-      status: "completed",
       cost: 0.90,
       costBreakdown: { total: 0.90, inputCost: 0.50, outputCost: 0.40 },
       durationMs: 2000,
       startTime: "2026-01-01T00:01:00Z",
-      completedAt: "2026-01-01T00:01:02Z",
       endTime: "2026-01-01T00:01:02Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
@@ -292,51 +277,14 @@ describe("filterDagForTurn", () => {
     expect(agent1B.tokenUsage.totalCost).toBeCloseTo(0.80);
   });
 
-  it("detects status change when token counts are unchanged", () => {
-    const dag: AgentDAG = {
-      nodes: [
-        { ...makeNode("main"), status: "active" },
-        { ...makeNode("agent-1"), status: "active" },
-      ],
-      edges: [{ source: "main", target: "agent-1" }],
-    };
-
-    const turn: TurnSnapshot = {
-      turnNumber: 1,
-      promptText: "test",
-      startIndex: 0,
-      endIndex: 10,
-      agents: [
-        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0.1, tokensIn: 100, tokensOut: 50, tools: [] },
-        { agentId: "agent-1", agentType: "agent", displayName: "agent-1", invocationCount: 1, status: "completed", cost: 0.2, tokensIn: 100, tokensOut: 50, tools: [] },
-      ],
-      status: "completed",
-      cost: 0.3,
-      costBreakdown: { total: 0.3, inputCost: 0.2, outputCost: 0.1 },
-      durationMs: 1000,
-      startTime: "2026-01-01T00:00:00Z",
-      completedAt: "2026-01-01T00:00:01Z",
-      endTime: "2026-01-01T00:00:01Z",
-      dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
-    };
-
-    // prevDag has both nodes as "active" with the same token counts as the turn
-    const prevDag: AgentDAG = {
-      nodes: [
-        { ...makeNode("main"), status: "active", tokenUsage: { inputTokens: 100, outputTokens: 50, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0.1 } },
-        { ...makeNode("agent-1"), status: "active", tokenUsage: { inputTokens: 100, outputTokens: 50, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0.2 } },
-      ],
-      edges: [{ source: "main", target: "agent-1" }],
-    };
-
-    // Pass prevDag as prev — same tokens but status changed from "active" to "completed"
-    const result = filterDagForTurn(dag, turn, prevDag);
-
-    // Must NOT return the stale prevDag — status changed
-    expect(result).not.toBe(prevDag);
-    expect(result!.nodes.find((n) => n.id === "main")!.status).toBe("completed");
-    expect(result!.nodes.find((n) => n.id === "agent-1")!.status).toBe("completed");
-  });
+  // NOTE: a "detects status change when token counts are unchanged" test
+  // previously asserted that filterDagForTurn would override node.status based
+  // on a summary-level status field. The AgentSummary.status field was removed
+  // with the agent-status predicate refactor, and filterDagForTurn no longer
+  // overrides node.status — the server DAG builder is now the authoritative
+  // source for node.status (derived via isAgentCompleted server-side). The
+  // filter simply passes node.status through unchanged, so the test's premise
+  // is obsolete and it was removed rather than rewired.
 
   it("overrides startTime/endTime with turn-scoped values, widening endTime to subagent envelope", () => {
     const dagWithTimes: AgentDAG = {
@@ -353,15 +301,13 @@ describe("filterDagForTurn", () => {
       startIndex: 0,
       endIndex: 10,
       agents: [
-        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0.1, tokensIn: 100, tokensOut: 50, tools: [] },
-        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0.2, tokensIn: 200, tokensOut: 100, tools: [] },
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, cost: 0.1, tokensIn: 100, tokensOut: 50, tools: [] },
+        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0.2, tokensIn: 200, tokensOut: 100, tools: [] },
       ],
-      status: "completed",
       cost: 0.3,
       costBreakdown: { total: 0.3, inputCost: 0.2, outputCost: 0.1 },
       durationMs: 180000,
       startTime: "2026-01-01T00:30:00Z",
-      completedAt: "2026-01-01T00:33:00Z",
       endTime: "2026-01-01T00:33:00Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
@@ -401,15 +347,13 @@ describe("filterDagForTurn", () => {
         startIndex: 0,
         endIndex: 10,
         agents: [
-          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
-          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
         ],
-        status: "completed",
         cost: 0,
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         durationMs: null,
         startTime: turnStart,
-        completedAt: turnEnd,
         endTime: turnEnd,
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
@@ -439,15 +383,13 @@ describe("filterDagForTurn", () => {
         startIndex: 0,
         endIndex: 10,
         agents: [
-          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
-          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
         ],
-        status: "completed",
         cost: 0,
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         durationMs: null,
         startTime: turnStart,
-        completedAt: turnEnd,
         endTime: turnEnd,
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
@@ -477,15 +419,13 @@ describe("filterDagForTurn", () => {
         startIndex: 0,
         endIndex: 10,
         agents: [
-          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "running", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
-          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "running", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
         ],
-        status: "running",
         cost: 0,
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         durationMs: null,
         startTime: turnStart,
-        completedAt: "",
         endTime: "",
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
@@ -520,15 +460,13 @@ describe("filterDagForTurn", () => {
         startIndex: 0,
         endIndex: 10,
         agents: [
-          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0, tokensIn: 100, tokensOut: 50, tools: [] },
-          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0, tokensIn: 200, tokensOut: 100, tools: [] },
+          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, cost: 0, tokensIn: 100, tokensOut: 50, tools: [] },
+          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0, tokensIn: 200, tokensOut: 100, tools: [] },
         ],
-        status: "completed",
         cost: 0,
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         durationMs: null,
         startTime: turnStart,
-        completedAt: turnEnd,
         endTime: turnEnd,
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
@@ -576,15 +514,13 @@ describe("filterDagForTurn", () => {
         startIndex: 0,
         endIndex: 10,
         agents: [
-          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0, tokensIn: 100, tokensOut: 50, tools: [] },
-          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0, tokensIn: 200, tokensOut: 100, tools: [] },
+          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, cost: 0, tokensIn: 100, tokensOut: 50, tools: [] },
+          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0, tokensIn: 200, tokensOut: 100, tools: [] },
         ],
-        status: "completed",
         cost: 0,
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         durationMs: null,
         startTime: turnStart,
-        completedAt: turnEnd,
         endTime: turnEnd,
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
