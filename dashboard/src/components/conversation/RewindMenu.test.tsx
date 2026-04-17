@@ -51,6 +51,7 @@ function makeTurnAndEvents(
       completedAt: "2026-03-29T12:30:05Z",
       endTime: "2026-03-29T12:30:05Z",
       agents: [],
+      dispatchedAgentIds: new Set<string>(["main"]),
       ...rest,
     },
     events,

@@ -34,6 +34,20 @@ export default tseslint.config(
     },
   },
 
+  // turnSnapshot.ts — require ownership-filter helpers instead of inline
+  // !event.isSidechain / !events[i].isSidechain patterns. This prevents
+  // drift across reducers (see docs/brainstorms/2026-04-17-turn-status-sidechain-bleed.md).
+  // Positive `if (event.isSidechain)` checks (e.g. isTurnBoundary) are intentionally allowed.
+  {
+    files: ["dashboard/src/lib/turnSnapshot.ts"],
+    rules: {
+      "no-restricted-syntax": ["error", {
+        selector: "UnaryExpression[operator='!'] > MemberExpression[property.name='isSidechain']",
+        message: "Use mainEventsOnly() or eventsForAgent() from ./turnEventFilters instead of inline isSidechain checks. See docs/brainstorms/2026-04-17-turn-status-sidechain-bleed.md.",
+      }],
+    },
+  },
+
   // Shared rule overrides
   {
     rules: {

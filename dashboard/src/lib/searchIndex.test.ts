@@ -47,6 +47,7 @@ function makeTurn(turnNumber: number, promptText: string, startIndex: number, en
     startTime: "",
     completedAt: "",
     endTime: "",
+    dispatchedAgentIds: new Set<string>(["main"]),
   };
 }
 

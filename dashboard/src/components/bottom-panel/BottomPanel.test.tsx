@@ -79,6 +79,7 @@ const mockTurn: TurnSnapshot = {
   startTime: "2026-01-01T00:00:00Z",
   completedAt: "2026-01-01T00:00:01Z",
   endTime: "2026-01-01T00:00:01Z",
+  dispatchedAgentIds: new Set<string>(["main"]),
 };
 
 // Mock localStorage

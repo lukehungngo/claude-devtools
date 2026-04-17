@@ -57,6 +57,7 @@ function makeToolUseTurnData(): { turn: TurnSnapshot; allEvents: SessionEvent[] 
     startTime: "2026-01-01T10:00:00Z",
     completedAt: "2026-01-01T10:00:05Z",
     endTime: "2026-01-01T10:00:05Z",
+    dispatchedAgentIds: new Set<string>(["main"]),
   };
 
   return { turn, allEvents };
@@ -132,6 +133,7 @@ describe("DetailTab", () => {
       startTime: "2026-03-30T10:00:00Z",
       completedAt: "2026-03-30T10:02:14Z",
       endTime: "2026-03-30T10:02:14Z",
+      dispatchedAgentIds: new Set<string>(["main", "s1"]),
     };
     render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
 
@@ -168,6 +170,7 @@ describe("DetailTab", () => {
       startTime: "2026-03-30T10:00:00Z",
       completedAt: "2026-03-30T10:02:14Z",
       endTime: "2026-03-30T10:02:14Z",
+      dispatchedAgentIds: new Set<string>(["main"]),
     };
     render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
 
@@ -205,6 +208,7 @@ describe("DetailTab", () => {
       startTime: "2026-01-01T10:00:00Z",
       completedAt: "2026-01-01T10:00:05Z",
       endTime: "2026-01-01T10:00:05Z",
+      dispatchedAgentIds: new Set<string>(["main"]),
     };
     render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
 

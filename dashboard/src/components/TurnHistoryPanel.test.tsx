@@ -22,6 +22,7 @@ function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
     startTime: new Date(Date.now() - 120_000).toISOString(),
     completedAt: new Date(Date.now() - 116_800).toISOString(),
     endTime: new Date(Date.now() - 116_800).toISOString(),
+    dispatchedAgentIds: new Set<string>(["main"]),
     ...overrides,
   };
 }
