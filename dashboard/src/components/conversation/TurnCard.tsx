@@ -131,7 +131,7 @@ function TurnFooter({
     <div
       data-testid="turn-completion-indicator"
       data-status={status}
-      className="flex items-center gap-1.5 font-mono mt-2.5 text-[10px]"
+      className="flex items-center gap-1.5 t-mono-sm mt-2.5"
       style={{ color: "var(--t3)" }}
     >
       {status === "running" && (
@@ -255,7 +255,7 @@ export function TurnCard({
             <div className="text-[10px] font-medium mb-0.5" style={{ color: "var(--t3)" }}>
               You
             </div>
-            <div className="text-[13px] leading-[1.65]" style={{ color: "var(--t1)" }}>
+            <div className="t-body">
               <CollapsiblePrompt text={turn.promptText} />
             </div>
           </div>
@@ -312,8 +312,7 @@ export function TurnCard({
               .map((tagged, i) => (
                 <div
                   key={`text-${i}`}
-                  className={`msg-text text-[13px] leading-[1.65]${i > 0 ? " mt-2.5" : ""}`}
-                  style={{ color: "var(--t1)" }}
+                  className={`msg-text t-body${i > 0 ? " mt-2.5" : ""}`}
                 >
                   <ResponseBlock text={tagged.item.text} />
                 </div>
@@ -346,7 +345,7 @@ export function TurnCard({
 
             {/* Running indicator */}
             {isRunning && (
-              <div className="flex items-center mt-2 text-[13px] gap-1.5" style={{ color: "var(--t2)" }}>
+              <div className="flex items-center mt-2 t-body gap-1.5" style={{ color: "var(--t2)" }}>
                 <span
                   className="shrink-0 inline-block w-1.5 h-1.5 rounded-full"
                   style={{ background: "var(--amb)", animation: "pulse 1.5s infinite" }}
