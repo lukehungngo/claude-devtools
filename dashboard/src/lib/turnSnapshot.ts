@@ -305,7 +305,7 @@ function buildTurn(
 
   const endTime = events[events.length - 1]?.timestamp ?? "";
 
-  return {
+  const turn: TurnSnapshot = {
     turnNumber,
     promptText,
     startIndex,
@@ -320,10 +320,19 @@ function buildTurn(
       outputCost: totalOutputCost,
     },
     startTime: events[0]?.timestamp ?? "",
-    completedAt: "",  // Set by groupEventsIntoTurns when turn is finalized
+    completedAt: "",  // Populated by finalizeTurn below when turn is completed
     endTime,
     model: lastModel || undefined,
   };
+
+  // Hierarchy invariant: when the turn is completed, no agent may be running.
+  // Mirrors the finalization in groupEventsIntoTurns so buildTurn's output is
+  // self-consistent regardless of who calls it.
+  if (turn.status === "completed") {
+    finalizeTurn(turn);
+  }
+
+  return turn;
 }
 
 /**
@@ -477,7 +486,7 @@ function extendTurn(
   const lastNewEvent = newEvents[newEvents.length - 1];
   const endTime = lastNewEvent?.timestamp ?? existing.endTime;
 
-  return {
+  const turn: TurnSnapshot = {
     turnNumber: existing.turnNumber,
     promptText: existing.promptText,
     startIndex: existing.startIndex,
@@ -496,10 +505,31 @@ function extendTurn(
     endTime,
     model: lastModel || undefined,
   };
+
+  // Mirrors the finalization loop in groupEventsIntoTurns. Required because extendTurn
+  // is the streaming fast path and must produce the same hierarchy invariant
+  // (turn completed ⇒ all agents terminal) as the full rebuild path.
+  if (turn.status === "completed") {
+    finalizeTurn(turn);
+  }
+
+  return turn;
 }
 
 // ─── Main function ───────────────────────────────────────────────────
 
+/**
+ * Force-sync a completed turn's agent statuses and completedAt timestamp.
+ * Invariant: when turn.status === "completed", NO agent may be "running".
+ * Idempotent: safe to call multiple times.
+ *
+ * Called from:
+ * - `groupEventsIntoTurns` after full rebuild for every completed turn.
+ * - `buildTurn` return path (defensive).
+ * - `extendTurn` return path (required — without this, the streaming path
+ *   diverges from the full-rebuild path and a completed turn can show a
+ *   running agent pill — the user-visible bug).
+ */
 function finalizeTurn(turn: TurnSnapshot): void {
   turn.status = "completed";
   turn.completedAt = turn.endTime;

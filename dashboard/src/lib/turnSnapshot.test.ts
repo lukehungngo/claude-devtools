@@ -953,6 +953,160 @@ describe("TurnSnapshot model tracking", () => {
   });
 });
 
+// ─── Bug: turn "completed" while agent still "running" (extendTurn) ──
+
+describe("extendTurn finalizes agent statuses when turn completes", () => {
+  it("finalizes main agent (tool_use) when a subagent end_turn completes the turn", () => {
+    // Scenario that produces turn=completed + main=running divergence:
+    //   existing: main emitted tool_use (running)
+    //   delta: a subagent sends end_turn
+    // Full rebuild: turn completes via sub-1 end_turn; adjustStatusForSubagents
+    //   does not revert (sub-1 is completed); finalizeTurn flips main to completed.
+    // Incremental (pre-fix): extendTurn never calls finalizeTurn. Main's lastEvent
+    //   is still tool_use (no main events in delta) so main.status stays "running",
+    //   while turn.status === "completed". Bug visible.
+    const initial: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+    ];
+    const existing = groupEventsIntoTurns(initial);
+    expect(existing).toHaveLength(1);
+    expect(existing[0].status).toBe("running");
+    const mainBefore = existing[0].agents.find(a => a.agentId === "main");
+    expect(mainBefore?.status).toBe("running");
+
+    const allEvents: SessionEvent[] = [
+      ...initial,
+      makeAssistantEvent({
+        agentId: "sub-1",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:02Z",
+      }),
+    ];
+    const turns = groupEventsIntoTurnsIncremental(existing, allEvents, 1);
+
+    expect(turns).toHaveLength(1);
+    // Turn is completed because sub-1 sent end_turn (last assistant event).
+    expect(turns[0].status).toBe("completed");
+    // Invariant: when turn is completed, NO agent may be running.
+    for (const agent of turns[0].agents) {
+      expect(agent.status).not.toBe("running");
+    }
+    // completedAt must be populated on a completed turn.
+    expect(turns[0].completedAt).toBeTruthy();
+  });
+
+  it("finalizes main when two concurrent subagents end_turn in the same delta", () => {
+    // Multi-subagent reproduction: main is mid-tool_use, two subagents are each
+    // mid-tool_use. In a single delta both subs send end_turn concurrently, which
+    // completes the turn (last assistant is a sub end_turn, and adjustStatusForSubagents
+    // doesn't demote because no non-main agent is still running). finalizeTurn
+    // must then flip main from "running" to "completed" so the streaming path
+    // produces the same hierarchy as the full rebuild.
+    //
+    // Distinct from Test A (single sub end_turn) because it pins the MULTI-sub
+    // delta case: both subs going terminal in the same incremental extension is
+    // the realistic "parallel subagents finishing together" pattern.
+    //
+    // Without finalizeTurn in extendTurn, main stays "running" while the turn
+    // is "completed" — the user-visible hierarchy divergence bug.
+    const initial: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+      makeAssistantEvent({
+        agentId: "sub-1",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:02Z",
+      }),
+      makeAssistantEvent({
+        agentId: "sub-2",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:03Z",
+      }),
+    ];
+    const existing = groupEventsIntoTurns(initial);
+    expect(existing).toHaveLength(1);
+    expect(existing[0].status).toBe("running");
+
+    const allEvents: SessionEvent[] = [
+      ...initial,
+      makeAssistantEvent({
+        agentId: "sub-1",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:04Z",
+      }),
+      makeAssistantEvent({
+        agentId: "sub-2",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:05Z",
+      }),
+    ];
+    const turns = groupEventsIntoTurnsIncremental(existing, allEvents, 2);
+
+    expect(turns).toHaveLength(1);
+    // Turn completes: last assistant is sub-2 end_turn and no non-main agent is still running.
+    expect(turns[0].status).toBe("completed");
+    // Invariant: when turn is completed, NO agent may be running — specifically,
+    // main must have been flipped by finalizeTurn even though the delta contained
+    // no main events.
+    const main = turns[0].agents.find(a => a.agentId === "main");
+    const sub1 = turns[0].agents.find(a => a.agentId === "sub-1");
+    const sub2 = turns[0].agents.find(a => a.agentId === "sub-2");
+    expect(main?.status).toBe("completed");
+    expect(sub1?.status).toBe("completed");
+    expect(sub2?.status).toBe("completed");
+  });
+
+  it("extendTurn output matches groupEventsIntoTurns for the same stream (invariant)", () => {
+    // Property-style check: for a realistic mixed stream, incremental and full
+    // rebuild must agree on turn.status and every agent's status. This catches
+    // any future divergence between extendTurn and buildTurn.
+    const allEvents: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+      makeAssistantEvent({
+        agentId: "sub-1",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:02Z",
+      }),
+    ];
+
+    const full = groupEventsIntoTurns(allEvents);
+
+    // Split midstream and run incrementally over the remainder.
+    const splitPoint = 2;
+    const existing = groupEventsIntoTurns(allEvents.slice(0, splitPoint));
+    const incremental = groupEventsIntoTurnsIncremental(
+      existing,
+      allEvents,
+      allEvents.length - splitPoint
+    );
+
+    expect(incremental.length).toBe(full.length);
+    for (let i = 0; i < full.length; i++) {
+      expect(incremental[i].status).toBe(full[i].status);
+      expect(incremental[i].agents.length).toBe(full[i].agents.length);
+      for (const fullAgent of full[i].agents) {
+        const incAgent = incremental[i].agents.find(a => a.agentId === fullAgent.agentId);
+        expect(incAgent).toBeDefined();
+        expect(incAgent!.status).toBe(fullAgent.status);
+      }
+    }
+  });
+});
+
 // ─── Bug 2: Turn shows "completed" while subagents still running ────
 
 describe("Bug 2: turn status with running subagents", () => {
