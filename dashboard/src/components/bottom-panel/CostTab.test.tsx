@@ -213,6 +213,69 @@ describe("CostTab", () => {
     expect(container.textContent).toContain("final");
   });
 
+  it("shows In/Out token counts per agent when tokens > 0", () => {
+    const metrics = makeMetrics({
+      dag: {
+        nodes: [
+          {
+            id: "main",
+            type: "main",
+            status: "completed",
+            toolCalls: 5,
+            mcpToolCalls: 0,
+            tokenUsage: {
+              inputTokens: 1000,
+              outputTokens: 500,
+              cacheWriteTokens: 0,
+              cacheReadTokens: 0,
+              totalCost: 0.45,
+            },
+          },
+        ],
+        edges: [],
+      },
+    });
+    const { container } = render(<CostTab metrics={metrics} />);
+    // formatTokens(1000) = "1K", formatTokens(500) = "500"
+    expect(container.textContent).toContain("In: 1K");
+    expect(container.textContent).toContain("Out: 500");
+  });
+
+  it("does not show token row when both inputTokens and outputTokens are zero", () => {
+    const metrics = makeMetrics({
+      dag: {
+        nodes: [
+          {
+            id: "main",
+            type: "main",
+            status: "completed",
+            toolCalls: 0,
+            mcpToolCalls: 0,
+            tokenUsage: {
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheWriteTokens: 0,
+              cacheReadTokens: 0,
+              totalCost: 0,
+            },
+          },
+        ],
+        edges: [],
+      },
+      tokens: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
+        totalCost: 0,
+      },
+    });
+    const { container } = render(<CostTab metrics={metrics} />);
+    // The token row (In: ... · Out: ...) should not appear when both are zero
+    expect(container.textContent).not.toContain("In: 0");
+    expect(container.textContent).not.toContain("Out: 0");
+  });
+
   it("shows burn rate trend arrow", () => {
     const now = Date.now();
     const metrics = makeMetrics({

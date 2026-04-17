@@ -103,3 +103,42 @@ describe("AgentPills — three-state status dot", () => {
     expect(container.firstChild).toBeNull();
   });
 });
+
+describe("AgentPills — token display", () => {
+  it("displays token counts when tokensIn/tokensOut are non-zero", () => {
+    const agents: AgentSummary[] = [
+      makeAgent({ tokensIn: 500, tokensOut: 200 }),
+    ];
+    const { container } = render(
+      <AgentPills agents={agents} turnEvents={[]} sessionIsRunning={true} />,
+    );
+    const tokenSpan = container.querySelector(".pill-tokens");
+    expect(tokenSpan).not.toBeNull();
+    // formatTokens(500) = "500", formatTokens(200) = "200"
+    expect(tokenSpan!.textContent).toBe("500/200");
+  });
+
+  it("does not display token counts when both are zero", () => {
+    const agents: AgentSummary[] = [
+      makeAgent({ tokensIn: 0, tokensOut: 0 }),
+    ];
+    const { container } = render(
+      <AgentPills agents={agents} turnEvents={[]} sessionIsRunning={true} />,
+    );
+    const tokenSpan = container.querySelector(".pill-tokens");
+    expect(tokenSpan).toBeNull();
+  });
+
+  it("displays formatted token counts for large values", () => {
+    const agents: AgentSummary[] = [
+      makeAgent({ tokensIn: 1500, tokensOut: 2000000 }),
+    ];
+    const { container } = render(
+      <AgentPills agents={agents} turnEvents={[]} sessionIsRunning={true} />,
+    );
+    const tokenSpan = container.querySelector(".pill-tokens");
+    expect(tokenSpan).not.toBeNull();
+    // formatTokens(1500) = "2K", formatTokens(2000000) = "2M"
+    expect(tokenSpan!.textContent).toBe("2K/2M");
+  });
+});

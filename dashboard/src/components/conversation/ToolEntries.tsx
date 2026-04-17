@@ -740,5 +740,7 @@ export function ToolEntriesInner({ events, onToolClick, agentSummaries }: ToolEn
 export const ToolEntries = memo(ToolEntriesInner, (prev, next) =>
   prev.events === next.events &&
   prev.onToolClick === next.onToolClick &&
-  prev.agentSummaries?.length === next.agentSummaries?.length
+  prev.agentSummaries?.length === next.agentSummaries?.length &&
+  prev.agentSummaries?.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0) ===
+    next.agentSummaries?.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0)
 );
