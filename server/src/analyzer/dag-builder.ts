@@ -3,28 +3,32 @@ import type {
   AgentDAG,
   AgentNode,
   AgentEdge,
-  AssistantEvent,
   AggregatedTokens,
-  ToolUseContent,
 } from "../types.js";
 import { calculateTokenCost } from "./metrics.js";
 import { normalizeContent } from "../lib/normalizeContent.js";
-
-const ACTIVE_THRESHOLD_MS = 30_000; // 30 seconds
+import { isAgentCompleted } from "./agentStatus.js";
 
 /**
  * Analyze a list of events in a single pass, returning:
  * - token aggregation
  * - tool call count
  * - MCP tool call count
- * - agent status (active/completed/error)
- * - Agent tool_use descriptions found (for edge detection)
+ * - error flag (any tool_result in user events has is_error === true)
+ * - agent tool_use descriptions found (for edge detection)
+ * - last-seen model
+ *
+ * Status derivation (completed vs active) is NOT done here. It's computed
+ * in buildAgentDAG by calling isAgentCompleted(agentId, events) — the single
+ * predicate reading the three terminal signals (end_turn, turn_duration,
+ * parent tool_result ack). Error detection stays here because it's a content
+ * check on the same event stream already being walked for token aggregation.
  */
-function analyzeEvents(events: SessionEvent[], opts?: { isSubagent?: boolean }): {
+function analyzeEvents(events: SessionEvent[]): {
   tokens: AggregatedTokens;
   toolCalls: number;
   mcpToolCalls: number;
-  status: "active" | "completed" | "error";
+  hasError: boolean;
   agentDescriptions: string[];
   model?: string;
 } {
@@ -38,9 +42,10 @@ function analyzeEvents(events: SessionEvent[], opts?: { isSubagent?: boolean }):
   let lastModel: string | undefined;
   const agentDescriptions: string[] = [];
 
-  // For status detection: track last few events for error check
-  let hasRecentError = false;
-  let isRecent = false;
+  // Error is a content check: any tool_result across the given events with
+  // is_error === true. Not bounded by a time window — if an error exists in
+  // the stream, the agent is in error state.
+  let hasError = false;
 
   for (const event of events) {
     if (event.type === "assistant") {
@@ -79,71 +84,37 @@ function analyzeEvents(events: SessionEvent[], opts?: { isSubagent?: boolean }):
           }
         }
       }
-    }
-  }
-
-  // Determine status: check last assistant event for definitive completion,
-  // then fall back to time-based heuristic
-  let hasEndTurn = false;
-  if (events.length > 0) {
-    const lastEvent = events[events.length - 1];
-    const lastTimestamp = new Date(lastEvent.timestamp).getTime();
-    isRecent = Date.now() - lastTimestamp < ACTIVE_THRESHOLD_MS;
-
-    // Check last assistant event for stop_reason — definitive completion signal
-    for (let i = events.length - 1; i >= 0; i--) {
-      if (events[i].type === "assistant") {
-        const asst = events[i] as AssistantEvent;
-        if (asst.message?.stop_reason === "end_turn") {
-          hasEndTurn = true;
+    } else if (event.type === "user" && !hasError) {
+      for (const content of normalizeContent(event.message.content)) {
+        if (content.type === "tool_result" && content.is_error) {
+          hasError = true;
+          break;
         }
-        break;
-      }
-    }
-
-    for (let i = events.length - 1; i >= Math.max(0, events.length - 3); i--) {
-      const evt = events[i];
-      if (evt.type === "user") {
-        for (const content of normalizeContent(evt.message.content)) {
-          if (content.type === "tool_result" && content.is_error) {
-            hasRecentError = true;
-            break;
-          }
-        }
-        if (hasRecentError) break;
       }
     }
   }
-
-  // Status determination — two separate concerns:
-  //
-  // 1. hasEndTurn: the agent explicitly sent stop_reason="end_turn"
-  //    → For main: only mark completed if ALSO stale (!isRecent) to prevent
-  //      flash between turns (user sends new prompt → main briefly "completed").
-  //    → For subagents: end_turn is authoritative. Subagents don't get new turns.
-  //      Pass { isSubagent: true } to mark completed immediately.
-  //
-  // 2. !hasEndTurn && !isRecent: agent went quiet without end_turn
-  //    → For main: keep "active" — the flash bug (completed→active→completed).
-  //    → For subagents: if stale (>30s), the subagent is done — it just didn't
-  //      send end_turn (e.g., finished after a tool_use). Safe to mark completed
-  //      because subagent events won't resume.
-  const status: "active" | "completed" | "error" = hasRecentError
-    ? "error"
-    : hasEndTurn && (opts?.isSubagent || !isRecent)
-      ? "completed"
-      : !hasEndTurn && !isRecent && opts?.isSubagent
-        ? "completed"
-        : "active";
 
   return {
     tokens: { inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens, totalCost },
     toolCalls,
     mcpToolCalls,
-    status,
+    hasError,
     agentDescriptions,
     model: lastModel,
   };
+}
+
+/**
+ * Derive a node's status from error flag + predicate.
+ * Error takes precedence over completion.
+ */
+function deriveStatus(
+  agentId: string,
+  events: readonly SessionEvent[],
+  hasError: boolean,
+): "active" | "completed" | "error" {
+  if (hasError) return "error";
+  return isAgentCompleted(agentId, events) ? "completed" : "active";
 }
 
 export function buildAgentDAG(
@@ -173,7 +144,7 @@ export function buildAgentDAG(
     tokenUsage: mainAnalysis.tokens,
     toolCalls: mainAnalysis.toolCalls,
     mcpToolCalls: mainAnalysis.mcpToolCalls,
-    status: mainAnalysis.status,
+    status: deriveStatus("main", mainEvents, mainAnalysis.hasError),
     startTime: mainEvents[0]?.timestamp,
     endTime: mainEvents[mainEvents.length - 1]?.timestamp,
     model: mainAnalysis.model,
@@ -189,10 +160,14 @@ export function buildAgentDAG(
     }
   }
 
-  // Subagent nodes — single-pass analysis per subagent
+  // Subagent nodes — single-pass analysis per subagent.
+  // Status derivation for subagents requires scanning the parent's events
+  // (Signal 3: parent tool_result ack). Merge main + subagent events for the
+  // predicate call; the predicate filters by ownership internally.
   for (const [agentId, events] of subagentEvents) {
     const meta = subagentMeta.get(agentId);
-    const analysis = analyzeEvents(events, { isSubagent: true });
+    const analysis = analyzeEvents(events);
+    const mergedForPredicate: SessionEvent[] = [...mainEvents, ...events];
 
     nodes.push({
       id: agentId,
@@ -202,7 +177,7 @@ export function buildAgentDAG(
       tokenUsage: analysis.tokens,
       toolCalls: analysis.toolCalls,
       mcpToolCalls: analysis.mcpToolCalls,
-      status: analysis.status,
+      status: deriveStatus(agentId, mergedForPredicate, analysis.hasError),
       startTime: events[0]?.timestamp,
       endTime: events[events.length - 1]?.timestamp,
       model: analysis.model,

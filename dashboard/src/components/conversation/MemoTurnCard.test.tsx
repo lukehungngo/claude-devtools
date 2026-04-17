@@ -19,8 +19,6 @@ function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
     promptText: "Hello world",
     startTime: "2026-01-01T00:00:00Z",
     endTime: "2026-01-01T00:00:05Z",
-    completedAt: "",
-    status: "running",
     cost: 0,
     costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
     agents: [],
@@ -50,10 +48,11 @@ describe("turnCardAreEqual comparator", () => {
     expect(turnCardAreEqual(baseProps, next)).toBe(false);
   });
 
-  it("returns false when status changes", () => {
-    const next = { ...baseProps, turn: makeTurn({ status: "completed" }) };
-    expect(turnCardAreEqual(baseProps, next)).toBe(false);
-  });
+  // Note: the previous "returns false when status changes" test was removed
+  // with the agent-status predicate refactor. TurnSnapshot.status is no longer
+  // stored; status flips always coincide with new events being appended, which
+  // advances endIndex — so the `endIndex` check below is the real invalidation
+  // signal for the memo comparator.
 
   it("returns false when endIndex changes (event count proxy)", () => {
     const next = {

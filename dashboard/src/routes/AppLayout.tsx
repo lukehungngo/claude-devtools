@@ -352,6 +352,15 @@ export function AppLayout() {
         turnHistory={
           <TurnHistoryPanel
             turns={currentTurns}
+            allEvents={currentEvents}
+            // Authoritative per-session running flag. Matches the source used
+            // by ConversationView: server's SessionInfo.isRunning (SDK
+            // session_state_changed for live, mtime < 2min for JSONL). When
+            // explicitly `false`, closed-session turns render as
+            // `indeterminate` (grey static dot) rather than pulsing forever.
+            // Falls back to undefined when no session is selected; the panel
+            // treats undefined as "active" to preserve legacy behavior.
+            sessionIsRunning={currentMetrics?.session?.isRunning}
             activeTurnIndex={currentActiveTurnIndex}
             onSelectTurn={handleTurnSelect}
             isOpen={turnHistoryOpen}

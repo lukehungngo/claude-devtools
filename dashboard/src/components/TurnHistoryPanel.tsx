@@ -1,12 +1,37 @@
 import { memo, useCallback, useEffect, useRef } from "react";
 import { ChevronLeft } from "lucide-react";
 import type { TurnSnapshot } from "../lib/turnSnapshot";
+import { getEventsForTurn } from "../lib/turnSnapshot";
+import { getAgentStatus } from "../lib/agentStatus";
+import type { AgentStatus } from "../lib/agentStatus";
+import type { SessionEvent } from "../lib/types";
 import { formatCost, formatDuration } from "../lib/cost";
 
 // ─── Props ──────────────────────────────────────────────────────────
 
 export interface TurnHistoryPanelProps {
   turns: TurnSnapshot[];
+  /**
+   * Shared allEvents array. Used to derive per-turn main-agent status via
+   * `getAgentStatus`. Defaults to `[]` so existing callers that don't thread
+   * events through yet degrade to an empty stream (no signals).
+   */
+  allEvents?: SessionEvent[];
+  /**
+   * Server-side session.isRunning. When explicitly `false`, turns without a
+   * terminal signal render as `indeterminate` (grey static dot, honest truth
+   * about closed sessions) rather than "running" (pulsing forever). When
+   * undefined, we assume active to preserve legacy behavior for callers that
+   * don't thread it through yet.
+   *
+   * PREFERRED SOURCE: `metrics.session.isRunning` from the current session's
+   * metrics — this is per-session authoritative (SDK session_state_changed
+   * for SSE, mtime heuristic for JSONL). Do NOT wire this from raw WebSocket
+   * connectivity (`isLive`): that flag is true for the whole UI while the WS
+   * is connected, including when viewing historical closed sessions, and
+   * would defeat the point of the indeterminate state.
+   */
+  sessionIsRunning?: boolean;
   activeTurnIndex: number | null;
   onSelectTurn: (index: number) => void;
   isOpen: boolean;
@@ -31,6 +56,8 @@ export function relativeTime(isoTimestamp: string): string {
 
 interface TurnItemProps {
   turn: TurnSnapshot;
+  /** Pre-computed 3-state status derived from main's predicate on this turn's events. */
+  status: AgentStatus;
   index: number;
   isActive: boolean;
   onClick: (index: number) => void;
@@ -39,22 +66,23 @@ interface TurnItemProps {
 function turnItemComparator(prev: TurnItemProps, next: TurnItemProps): boolean {
   return (
     prev.turn === next.turn &&
+    prev.status === next.status &&
     prev.index === next.index &&
     prev.isActive === next.isActive &&
     prev.onClick === next.onClick
   );
 }
 
-const TurnItem = memo(function TurnItem({ turn, index, isActive, onClick }: TurnItemProps) {
+const TurnItem = memo(function TurnItem({ turn, status, index, isActive, onClick }: TurnItemProps) {
   const handleClick = useCallback(() => onClick(index), [onClick, index]);
 
-  const isRunning = turn.status === "running";
   const hasMultipleAgents = turn.agents.length > 1;
 
   return (
     <div
       data-testid={`turn-item-${index}`}
       data-turn-panel-index={index}
+      data-status={status}
       onClick={handleClick}
       className={[
         "px-[10px] py-2 border-b border-dt-border cursor-pointer border-l-[3px] transition-all duration-[120ms]",
@@ -79,13 +107,22 @@ const TurnItem = memo(function TurnItem({ turn, index, isActive, onClick }: Turn
         <span className="text-[9px] text-dt-text2 font-mono shrink-0">
           {relativeTime(turn.startTime)}
         </span>
-        {isRunning && (
+        {/* Three-state indicator — one render branch per state, honest. */}
+        {status === "running" && (
           <span
             data-testid="running-dot"
             className="w-[5px] h-[5px] rounded-full bg-dt-green ml-1"
             style={{ animation: "pulse 1.5s ease-in-out infinite" }}
           />
         )}
+        {status === "indeterminate" && (
+          <span
+            data-testid="indeterminate-dot"
+            className="w-[5px] h-[5px] rounded-full bg-dt-text2 ml-1"
+            title="Session ended without a completion signal"
+          />
+        )}
+        {/* `completed` intentionally renders no dot — the row is its own marker. */}
       </div>
 
       {/* Row 2 */}
@@ -120,8 +157,12 @@ const TurnItem = memo(function TurnItem({ turn, index, isActive, onClick }: Turn
 
 // ─── Panel ──────────────────────────────────────────────────────────
 
+const EMPTY_EVENTS: SessionEvent[] = [];
+
 function TurnHistoryPanelInner({
   turns,
+  allEvents = EMPTY_EVENTS,
+  sessionIsRunning,
   activeTurnIndex,
   onSelectTurn,
   isOpen,
@@ -144,6 +185,10 @@ function TurnHistoryPanelInner({
       el.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [activeTurnIndex]);
+
+  // Treat undefined as active (legacy caller preservation). When the value
+  // is explicitly `false`, closed-session turns render as `indeterminate`.
+  const sessionIsActive = sessionIsRunning !== false;
 
   return (
     <div
@@ -180,10 +225,15 @@ function TurnHistoryPanelInner({
           turns.map((_, i) => {
             const ri = turns.length - 1 - i;
             const turn = turns[ri];
+            // Compute the 3-state status once in the parent; TurnItem memoizes
+            // on the scalar `status` value rather than recomputing per render.
+            const turnEvents = getEventsForTurn(turn, allEvents);
+            const status = getAgentStatus("main", turnEvents, sessionIsActive);
             return (
               <TurnItem
                 key={turn.turnNumber}
                 turn={turn}
+                status={status}
                 index={ri}
                 isActive={activeTurnIndex === ri}
                 onClick={handleSelectTurn}

@@ -5,7 +5,8 @@ import { useSessionMetrics } from "../hooks/useSessionData";
 import { useEventStream } from "../hooks/useEventStream";
 import { useSessionControl } from "../hooks/useSessionControl";
 import { resolveProjectHashForFetch } from "../lib/repoSlug";
-import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental } from "../lib/turnSnapshot";
+import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental, getEventsForTurn } from "../lib/turnSnapshot";
+import { isAgentCompleted } from "../lib/agentStatus";
 import { ConversationView } from "../components/conversation/ConversationView";
 import { RawLogView } from "../components/conversation/RawLogView";
 import { Menu } from "lucide-react";
@@ -216,16 +217,20 @@ export function SessionPage() {
     setCurrentTurns(turns);
   }, [turns, setCurrentTurns]);
 
-  // Refresh server metrics (DAG, subagentMeta, repoConfig) when the latest turn completes
-  const lastTurnStatusRef = useRef<string | undefined>(undefined);
+  // Refresh server metrics (DAG, subagentMeta, repoConfig) when the latest turn
+  // completes. Completion is derived from main's events via isAgentCompleted —
+  // stored turn.status was removed in the predicate refactor.
+  const lastTurnCompletedRef = useRef<boolean | undefined>(undefined);
   useEffect(() => {
     if (turns.length === 0) return;
-    const lastStatus = turns[turns.length - 1].status;
-    if (lastTurnStatusRef.current === "running" && lastStatus === "completed") {
+    const lastTurn = turns[turns.length - 1];
+    const lastTurnEvents = getEventsForTurn(lastTurn, allEvents);
+    const lastCompleted = isAgentCompleted("main", lastTurnEvents);
+    if (lastTurnCompletedRef.current === false && lastCompleted) {
       refreshMetrics();
     }
-    lastTurnStatusRef.current = lastStatus;
-  }, [turns, refreshMetrics]);
+    lastTurnCompletedRef.current = lastCompleted;
+  }, [turns, allEvents, refreshMetrics]);
 
   // Default to last turn so panels show data immediately without requiring a click
   const effectiveTurnIndex = useMemo(

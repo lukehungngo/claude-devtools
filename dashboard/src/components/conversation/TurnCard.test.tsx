@@ -8,7 +8,10 @@ import { TurnCard } from "./TurnCard";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import type { SessionEvent, AssistantEvent } from "../../lib/types";
 
-function makeAssistantEvent(text: string): AssistantEvent {
+function makeAssistantEvent(
+  text: string,
+  stopReason: "end_turn" | "tool_use" | null = "end_turn",
+): AssistantEvent {
   return {
     type: "assistant",
     uuid: "asst-1",
@@ -20,7 +23,7 @@ function makeAssistantEvent(text: string): AssistantEvent {
       content: [{ type: "text", text }],
       model: "claude-sonnet-4-5",
       usage: { input_tokens: 10, output_tokens: 20 },
-      stop_reason: "end_turn",
+      stop_reason: stopReason,
     },
   } as AssistantEvent;
 }
@@ -34,7 +37,6 @@ function makeTurnAndEvents(
       turnNumber: 1,
       promptText: "Hello world",
       startTime: "2026-01-01T00:00:00Z",
-      status: "done",
       cost: 0,
       agents: [],
       startIndex: 0,
@@ -42,7 +44,6 @@ function makeTurnAndEvents(
       durationMs: null,
       costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
       endTime: "",
-      completedAt: "",
       dispatchedAgentIds: new Set<string>(["main"]),
       ...overrides,
     } as TurnSnapshot,
@@ -87,10 +88,14 @@ describe("TurnCard — avatar-based message layout", () => {
 });
 
 describe("TurnCard — completion indicator", () => {
+  // Completion is now derived from events via `isAgentCompleted("main", turnEvents)`:
+  //   - stop_reason "tool_use" (or anything other than end_turn) with no other
+  //     terminal signal keeps main "running".
+  //   - stop_reason "end_turn" marks main completed.
   it("shows 'Generating...' for a running turn", () => {
-    const evts = [makeAssistantEvent("Working on it...")] as SessionEvent[];
+    const evts = [makeAssistantEvent("Working on it...", "tool_use")] as SessionEvent[];
     const { turn, allEvents } = makeTurnAndEvents(
-      { status: "running", durationMs: null, endTime: "", completedAt: "" },
+      { durationMs: null, endTime: "" },
       evts,
     );
     const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
@@ -104,11 +109,9 @@ describe("TurnCard — completion indicator", () => {
     const evts = [makeAssistantEvent("Done.")] as SessionEvent[];
     const { turn, allEvents } = makeTurnAndEvents(
       {
-        status: "completed",
         durationMs: 45000,
         startTime: "2026-03-29T14:30:00Z",
         endTime: "2026-03-29T14:30:45Z",
-        completedAt: "2026-03-29T14:30:45Z",
       },
       evts,
     );
@@ -123,7 +126,7 @@ describe("TurnCard — completion indicator", () => {
   it("shows 'Completed' without duration when durationMs is null", () => {
     const evts = [makeAssistantEvent("Done.")] as SessionEvent[];
     const { turn, allEvents } = makeTurnAndEvents(
-      { status: "completed", durationMs: null },
+      { durationMs: null },
       evts,
     );
     const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
@@ -134,10 +137,14 @@ describe("TurnCard — completion indicator", () => {
     expect(indicator!.textContent).not.toContain("Completed in");
   });
 
-  it("shows 'Completed' when turn.status is running but sessionIsRunning is false (stale session)", () => {
-    const evts = [makeAssistantEvent("Working...")] as SessionEvent[];
+  it("shows honest 'indeterminate' when main has no end_turn but sessionIsRunning is false (stale session)", () => {
+    // Three-state honesty: a closed session without a terminal signal is
+    // NOT completed (we can't prove it finished) and NOT running (session is
+    // closed). Rendering this as "Completed" would be a lie about data truth;
+    // rendering as "Generating..." forever is the pre-remediation dishonesty.
+    const evts = [makeAssistantEvent("Working...", "tool_use")] as SessionEvent[];
     const { turn, allEvents } = makeTurnAndEvents(
-      { status: "running", durationMs: null, endTime: "", completedAt: "" },
+      { durationMs: null, endTime: "" },
       evts,
     );
     const { container } = render(
@@ -146,8 +153,15 @@ describe("TurnCard — completion indicator", () => {
 
     const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
     expect(indicator).not.toBeNull();
-    expect(indicator!.textContent).toContain("Completed");
+    expect(indicator!.getAttribute("data-status")).toBe("indeterminate");
+    expect(indicator!.textContent).toContain("Session ended without completion");
     expect(indicator!.textContent).not.toContain("Generating...");
+    // Must NOT falsely claim completion.
+    expect(indicator!.textContent).not.toContain("Completed in");
+    // The honest grey dot is present; the green check is not.
+    expect(
+      container.querySelector('[data-testid="turn-indeterminate-dot"]'),
+    ).not.toBeNull();
   });
 });
 
@@ -164,7 +178,6 @@ describe("TurnCard — CostFooter wiring", () => {
             agentType: "Task",
             displayName: "Task Agent",
             invocationCount: 1,
-            status: "completed" as const,
             cost: 0.001,
             tokensIn: 100,
             tokensOut: 50,
@@ -327,9 +340,10 @@ describe("TurnCard model badge", () => {
   // TurnFooter (which hosts the badge) is inside the Claude message section,
   // which only renders when there are turn events — supply one assistant event.
   function makeTurnWithModel(model: string | undefined) {
+    // Default stop_reason is "end_turn" → main is completed via predicate.
     const asstEvent = makeAssistantEvent("response");
     return makeTurnAndEvents(
-      { model, endIndex: 1, status: "completed" as const },
+      { model, endIndex: 1 },
       [asstEvent],
     );
   }

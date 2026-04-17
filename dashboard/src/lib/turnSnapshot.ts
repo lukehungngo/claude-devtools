@@ -17,7 +17,10 @@ export interface AgentSummary {
   /** Human-readable display name for the agent */
   displayName: string;
   invocationCount: number;
-  status: "running" | "completed" | "error";
+  // status REMOVED — derive via isAgentCompleted(agentId, turnEvents) from ./agentStatus.
+  // Status must not be stored: storing it creates three parallel derivations that
+  // drift across the turn snapshot, the DAG, and the UI surfaces. The predicate is
+  // a pure function of events; consumers call it on read.
   cost: number;
   /** Input tokens consumed by this agent in the turn */
   tokensIn: number;
@@ -43,16 +46,16 @@ export interface TurnSnapshot {
   /** End index (exclusive) into the shared allEvents array */
   endIndex: number;
   agents: AgentSummary[];
-  status: "running" | "completed";
-  /** Duration in ms from the system/turn_duration event. Null if turn is still running. */
+  // status REMOVED — derive via isAgentCompleted("main", getEventsForTurn(turn, allEvents))
+  // from ./agentStatus. See AgentSummary above for the rationale; consumers call the
+  // predicate on read rather than reading a stored status.
+  /** Duration in ms from the system/turn_duration event. Null if no turn_duration event is present. */
   durationMs: number | null;
   /** Flat cost number (sonnet-only pricing) — kept for backward compatibility */
   cost: number;
   /** Detailed cost breakdown with input/output token costs */
   costBreakdown: CostBreakdown;
   startTime: string;
-  /** When the turn completed (same as endTime for completed turns, empty for running) */
-  completedAt: string;
   endTime: string;
   /** Model used in this turn, e.g. "claude-sonnet-4-6". Last model seen wins. */
   model?: string;
@@ -217,19 +220,6 @@ function computeDispatchedAgentIds(
   return result;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────
-
-/** A turn is not truly "completed" if any non-main agent is still running. */
-function adjustStatusForSubagents(
-  status: "running" | "completed",
-  agents: AgentSummary[],
-): "running" | "completed" {
-  if (status === "completed" && agents.some(a => a.agentId !== "main" && a.status === "running")) {
-    return "running";
-  }
-  return status;
-}
-
 // ─── Turn boundary detection ─────────────────────────────────────────
 
 function getTextFromContent(content: ContentItem[] | string | undefined): string {
@@ -275,6 +265,10 @@ function extractPromptText(event: UserEvent): string {
 /**
  * Build a TurnSnapshot from accumulated events.
  * Uses per-model pricing via calculateTurnCost() — matches server-side pricing.
+ *
+ * Status is NOT derived here; consumers call `isAgentCompleted` on the turn's
+ * events from `./agentStatus` instead. Only time-domain fields (durationMs,
+ * startTime, endTime) are computed in this builder.
  */
 function buildTurn(
   turnNumber: number,
@@ -285,14 +279,12 @@ function buildTurn(
 ): TurnSnapshot {
   // Compute cost from assistant events (per-model pricing)
   let cost = 0;
-  let totalTokensIn = 0;
-  let totalTokensOut = 0;
   let totalInputCost = 0;
   let totalOutputCost = 0;
   let lastModel = "";
   const agentMap = new Map<
     string,
-    { count: number; agentType: string; lastEvent: SessionEvent; cost: number; tokensIn: number; tokensOut: number; tools: Set<string> }
+    { count: number; agentType: string; cost: number; tokensIn: number; tokensOut: number; tools: Set<string> }
   >();
 
   // TASK-002: restrict agent-map membership to agents dispatched by a main
@@ -300,10 +292,6 @@ function buildTurn(
   // where a subagent event from a prior turn falls in the current turn's
   // timestamp range.
   const dispatchedAgentIds = computeDispatchedAgentIds(events, agentMeta);
-  // Main-only view used for turn-level status derivation. Subagent events must
-  // never vote on the parent turn — see the status-derivation block below and
-  // T-OWN-1 for the invariant.
-  const mainEvts = mainEventsOnly(events);
 
   for (const event of events) {
     const agentId = event.agentId ?? "main";
@@ -326,8 +314,6 @@ function buildTurn(
         if (model) lastModel = model;
         eventCost = calculateTurnCost(model, eventTokensIn, eventTokensOut, cacheWrite, cacheRead);
         cost += eventCost;
-        totalTokensIn += eventTokensIn;
-        totalTokensOut += eventTokensOut;
         totalInputCost += calculateTurnCost(model, eventTokensIn, 0, cacheWrite, cacheRead);
         totalOutputCost += calculateTurnCost(model, 0, eventTokensOut);
       }
@@ -352,12 +338,10 @@ function buildTurn(
         existing.tokensOut += eventTokensOut;
       }
       for (const t of eventTools) existing.tools.add(t);
-      existing.lastEvent = event;
     } else {
       agentMap.set(agentId, {
         count: event.type === "assistant" ? 1 : 0,
         agentType: agentMeta?.[agentId]?.agentType ?? (agentId === "main" ? "main" : agentId),
-        lastEvent: event,
         cost: eventCost,
         tokensIn: eventTokensIn,
         tokensOut: eventTokensOut,
@@ -366,57 +350,25 @@ function buildTurn(
     }
   }
 
-  // Turn status: check system/turn_duration first (CLI sessions), then fall back
-  // to stop_reason === "end_turn" on the last assistant event (web/SDK sessions
-  // where turn_duration is never emitted).
-  let status: "running" | "completed" = "running";
+  // Only derive the turn_duration time from the system event. No status
+  // derivation happens here: consumers compute status via isAgentCompleted.
   let durationMs: number | null = null;
   for (const event of events) {
     if (event.type === "system" && (event as SystemEvent).subtype === "turn_duration") {
-      status = "completed";
       durationMs = (event as SystemEvent).durationMs ?? null;
       break;
     }
   }
-  if (status === "running") {
-    // Find last MAIN assistant event and check stop_reason. Sidechain
-    // (subagent) assistant events must NOT complete the parent turn — a
-    // subagent's stop_reason === "end_turn" is a per-subagent signal and
-    // bleeds across turns if allowed to flip turn-level status. The
-    // main-only filter (mainEvts) is the named enforcement of this rule.
-    for (let i = mainEvts.length - 1; i >= 0; i--) {
-      if (mainEvts[i].type === "assistant") {
-        const asst = mainEvts[i] as AssistantEvent;
-        if (asst.message?.stop_reason === "end_turn") {
-          status = "completed";
-        }
-        break;
-      }
-    }
-  }
 
-  // Build agent summaries — agent status also defaults to "running".
-  // groupEventsIntoTurns will finalize completed turns' agent statuses.
+  // Build agent summaries — no status field.
   const agents: AgentSummary[] = [];
   for (const [agentId, info] of agentMap) {
     if (info.count === 0 && agentId !== "main") continue;
-    const lastAsst =
-      info.lastEvent.type === "assistant"
-        ? (info.lastEvent as AssistantEvent)
-        : null;
-    let agentStatus: "running" | "completed" | "error";
-    if (lastAsst) {
-      agentStatus = lastAsst.message?.stop_reason === "end_turn" ? "completed" : "running";
-    } else {
-      agentStatus = "completed";
-    }
-
     agents.push({
       agentId,
       agentType: info.agentType,
       displayName: agentMeta?.[agentId]?.description || info.agentType,
       invocationCount: info.count,
-      status: agentStatus,
       cost: info.cost,
       tokensIn: info.tokensIn,
       tokensOut: info.tokensOut,
@@ -424,17 +376,14 @@ function buildTurn(
     });
   }
 
-  status = adjustStatusForSubagents(status, agents);
-
   const endTime = events[events.length - 1]?.timestamp ?? "";
 
-  const turn: TurnSnapshot = {
+  return {
     turnNumber,
     promptText,
     startIndex,
     endIndex: startIndex + events.length,
     agents,
-    status,
     durationMs,
     cost,
     costBreakdown: {
@@ -443,22 +392,12 @@ function buildTurn(
       outputCost: totalOutputCost,
     },
     startTime: events[0]?.timestamp ?? "",
-    completedAt: "",  // Populated by finalizeTurn below when turn is completed
     endTime,
     model: lastModel || undefined,
     // Carry the dispatched set forward so extendTurn can inherit it without
     // re-scanning the full turn event range (Architecture Invariant #8).
     dispatchedAgentIds,
   };
-
-  // Hierarchy invariant: when the turn is completed, no agent may be running.
-  // Mirrors the finalization in groupEventsIntoTurns so buildTurn's output is
-  // self-consistent regardless of who calls it.
-  if (turn.status === "completed") {
-    finalizeTurn(turn);
-  }
-
-  return turn;
 }
 
 /**
@@ -466,12 +405,11 @@ function buildTurn(
  *
  * Performance invariant (Architecture Invariant #8): this path must be
  * O(newEvents), NOT O(turn_events). The dispatched-agent set is inherited
- * from `existing.dispatchedAgentIds` (carried forward by `buildTurn` /
- * `finalizeTurn`) and `computeDispatchedAgentIds` scans ONLY the delta for
- * additional Task/Agent dispatches.
+ * from `existing.dispatchedAgentIds` and `computeDispatchedAgentIds` scans
+ * ONLY the delta for additional Task/Agent dispatches.
  *
- * `dispatchedAgentIds` is required on TurnSnapshot (required field since
- * feature/event-ownership-filters); the seed is always present.
+ * Like `buildTurn`, this function does not derive status. Consumers derive
+ * status on read via `isAgentCompleted` from `./agentStatus`.
  */
 function extendTurn(
   existing: TurnSnapshot,
@@ -487,24 +425,18 @@ function extendTurn(
 
   // P2-1: inherit the dispatched set and scan ONLY the delta. Restores the
   // O(newEvents) streaming budget required by Architecture Invariant #8.
-  // `dispatchedAgentIds` is now a required TurnSnapshot field (TASK-002), so
-  // the seed is always present — no fallback needed.
   const seed = existing.dispatchedAgentIds;
   const dispatchedAgentIds = computeDispatchedAgentIds(newEvents, agentMeta, seed);
-  // Main-only view of the delta for turn-level status derivation; matches the
-  // invariant enforced in buildTurn.
-  const mainNewEvts = mainEventsOnly(newEvents);
 
   // Rebuild agent map from existing summaries so we can extend it
   const agentMap = new Map<
     string,
-    { count: number; agentType: string; lastEvent: SessionEvent | null; cost: number; tokensIn: number; tokensOut: number; tools: Set<string> }
+    { count: number; agentType: string; cost: number; tokensIn: number; tokensOut: number; tools: Set<string> }
   >();
   for (const agent of existing.agents) {
     agentMap.set(agent.agentId, {
       count: agent.invocationCount,
       agentType: agent.agentType,
-      lastEvent: null, // will be updated if new events arrive for this agent
       cost: agent.cost,
       tokensIn: agent.tokensIn,
       tokensOut: agent.tokensOut,
@@ -556,12 +488,10 @@ function extendTurn(
         entry.tokensOut += eventTokensOut;
       }
       for (const t of eventTools) entry.tools.add(t);
-      entry.lastEvent = event;
     } else {
       agentMap.set(agentId, {
         count: event.type === "assistant" ? 1 : 0,
         agentType: agentMeta?.[agentId]?.agentType ?? (agentId === "main" ? "main" : agentId),
-        lastEvent: event,
         cost: eventCost,
         tokensIn: eventTokensIn,
         tokensOut: eventTokensOut,
@@ -570,58 +500,25 @@ function extendTurn(
     }
   }
 
-  // Re-derive status from new events (don't preserve stale "completed")
-  let status: "running" | "completed" = "running";
+  // Update durationMs from any new turn_duration event in the delta; keep the
+  // existing value otherwise.
   let durationMs = existing.durationMs;
-
-  // turn_duration is the definitive completion signal — always wins
   for (const event of newEvents) {
     if (event.type === "system" && (event as SystemEvent).subtype === "turn_duration") {
-      status = "completed";
-      durationMs = (event as SystemEvent).durationMs ?? null;
+      durationMs = (event as SystemEvent).durationMs ?? durationMs;
       break;
     }
   }
 
-  // If no turn_duration, check the last MAIN assistant event for stop_reason.
-  // Sidechain (subagent) end_turn must not flip the parent turn — see the
-  // matching guard in buildTurn above. The main-only filter (mainNewEvts) is
-  // the named enforcement of this rule.
-  if (status === "running") {
-    for (let i = mainNewEvts.length - 1; i >= 0; i--) {
-      if (mainNewEvts[i].type === "assistant") {
-        const asst = mainNewEvts[i] as AssistantEvent;
-        if (asst.message?.stop_reason === "end_turn") {
-          status = "completed";
-        }
-        break;
-      }
-    }
-  }
-
-  // Build agent summaries
+  // Build agent summaries — no status field.
   const agents: AgentSummary[] = [];
   for (const [agentId, info] of agentMap) {
     if (info.count === 0 && agentId !== "main") continue;
-    // Determine agent status from the last event we know about
-    let agentStatus: "running" | "completed" | "error";
-    if (info.lastEvent && info.lastEvent.type === "assistant") {
-      const lastAsst = info.lastEvent as AssistantEvent;
-      agentStatus = lastAsst.message?.stop_reason === "end_turn" ? "completed" : "running";
-    } else if (info.lastEvent === null) {
-      // No new events for this agent — preserve status from existing summary
-      const existingAgent = existing.agents.find(a => a.agentId === agentId);
-      agentStatus = existingAgent?.status ?? "completed";
-    } else {
-      agentStatus = "completed";
-    }
-
     agents.push({
       agentId,
       agentType: info.agentType,
       displayName: agentMeta?.[agentId]?.description || info.agentType,
       invocationCount: info.count,
-      status: agentStatus,
       cost: info.cost,
       tokensIn: info.tokensIn,
       tokensOut: info.tokensOut,
@@ -629,18 +526,15 @@ function extendTurn(
     });
   }
 
-  status = adjustStatusForSubagents(status, agents);
-
   const lastNewEvent = newEvents[newEvents.length - 1];
   const endTime = lastNewEvent?.timestamp ?? existing.endTime;
 
-  const turn: TurnSnapshot = {
+  return {
     turnNumber: existing.turnNumber,
     promptText: existing.promptText,
     startIndex: existing.startIndex,
     endIndex: newEndIndex,
     agents,
-    status,
     durationMs,
     cost,
     costBreakdown: {
@@ -649,45 +543,13 @@ function extendTurn(
       outputCost: totalOutputCost,
     },
     startTime: existing.startTime,
-    completedAt: status === "completed" ? endTime : "",
     endTime,
     model: lastModel || undefined,
     dispatchedAgentIds,
   };
-
-  // Mirrors the finalization loop in groupEventsIntoTurns. Required because extendTurn
-  // is the streaming fast path and must produce the same hierarchy invariant
-  // (turn completed ⇒ all agents terminal) as the full rebuild path.
-  if (turn.status === "completed") {
-    finalizeTurn(turn);
-  }
-
-  return turn;
 }
 
 // ─── Main function ───────────────────────────────────────────────────
-
-/**
- * Force-sync a completed turn's agent statuses and completedAt timestamp.
- * Invariant: when turn.status === "completed", NO agent may be "running".
- * Idempotent: safe to call multiple times.
- *
- * Called from:
- * - `groupEventsIntoTurns` after full rebuild for every completed turn.
- * - `buildTurn` return path (defensive).
- * - `extendTurn` return path (required — without this, the streaming path
- *   diverges from the full-rebuild path and a completed turn can show a
- *   running agent pill — the user-visible bug).
- */
-function finalizeTurn(turn: TurnSnapshot): void {
-  turn.status = "completed";
-  turn.completedAt = turn.endTime;
-  for (const agent of turn.agents) {
-    if (agent.status === "running") {
-      agent.status = "completed";
-    }
-  }
-}
 
 /**
  * Incremental turn grouping: only rebuilds from the last turn boundary.
@@ -781,17 +643,6 @@ export function groupEventsIntoTurns(
   // Flush remaining events (this is the last/current turn)
   if (currentEvents.length > 0) {
     turns.push(buildTurn(turnNumber, currentPrompt, currentEvents, currentStartIndex, agentMeta));
-  }
-
-  // Finalize completed turns: set completedAt and agent statuses.
-  // Any non-last turn is definitively completed (a next turn boundary exists).
-  for (let i = 0; i < turns.length; i++) {
-    if (i < turns.length - 1 && turns[i].status === "running") {
-      turns[i].status = "completed";
-    }
-    if (turns[i].status === "completed") {
-      finalizeTurn(turns[i]);
-    }
   }
 
   return turns;
