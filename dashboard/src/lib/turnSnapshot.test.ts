@@ -1565,3 +1565,191 @@ describe("Turn membership by dispatch", () => {
     expect(incIds).toEqual(full[0].agents.map(a => a.agentId).sort());
   });
 });
+
+// ─── Turn status ignores subagent end_turn ──────────────────────────
+//
+// A subagent's stop_reason === "end_turn" must NEVER flip the parent turn
+// to "completed". Only main agent end_turn (or a turn_duration system event)
+// may complete a turn. Without this guard the last-assistant backward scan
+// picks up any sidechain end_turn and prematurely reports the turn done.
+//
+// NOTE: `makeAssistantEvent` does not spread the `isSidechain` override onto
+// the returned event (the helper was built for tests that filter by agentId
+// alone). These tests exercise the sidechain guard, so `isSidechain` must be
+// attached explicitly via `markSidechain` below.
+
+function markSidechain(event: AssistantEvent): AssistantEvent {
+  return { ...event, isSidechain: true };
+}
+
+describe("Turn status ignores subagent end_turn", () => {
+  it("T-TURNSTATUS-1: subagent end_turn doesn't complete parent turn (buildTurn path)", () => {
+    // Main is still running (mid tool_use dispatching a subagent). The LAST
+    // assistant event in the merged main+sidechain stream is the subagent's
+    // end_turn. The reducer must NOT complete the parent turn.
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Do the thing", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["Do the thing"],
+      }),
+      markSidechain(
+        makeAssistantEvent({
+          agentId: "subA",
+          stopReason: "end_turn",
+          timestamp: "2026-01-01T00:00:02Z",
+        }),
+      ),
+    ];
+    const subagentMeta = {
+      subA: { agentType: "bug-fixer", description: "Do the thing" },
+    };
+
+    const turns = groupEventsIntoTurns(events, subagentMeta);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].status).toBe("running");
+  });
+
+  it("T-TURNSTATUS-2: main end_turn still completes the turn (happy path)", () => {
+    // Regression guard: after the fix, a main end_turn that lands AFTER a
+    // subagent end_turn must still complete the turn.
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Do the thing", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["Do the thing"],
+      }),
+      markSidechain(
+        makeAssistantEvent({
+          agentId: "subA",
+          stopReason: "end_turn",
+          timestamp: "2026-01-01T00:00:02Z",
+        }),
+      ),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:03Z",
+      }),
+    ];
+    const subagentMeta = {
+      subA: { agentType: "bug-fixer", description: "Do the thing" },
+    };
+
+    const turns = groupEventsIntoTurns(events, subagentMeta);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].status).toBe("completed");
+  });
+
+  it("T-TURNSTATUS-3: extendTurn streaming path ignores subagent end_turn", () => {
+    // Initial state: main mid tool_use (dispatching subA). Turn is running.
+    const initialEvents: SessionEvent[] = [
+      makeUserEvent({ text: "Do the thing", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["Do the thing"],
+      }),
+    ];
+    const subagentMeta = {
+      subA: { agentType: "bug-fixer", description: "Do the thing" },
+    };
+
+    const initial = groupEventsIntoTurns(initialEvents, subagentMeta);
+    expect(initial).toHaveLength(1);
+    expect(initial[0].status).toBe("running");
+
+    // Delta: ONLY a subagent end_turn event arrives via streaming.
+    const delta: SessionEvent[] = [
+      markSidechain(
+        makeAssistantEvent({
+          agentId: "subA",
+          stopReason: "end_turn",
+          timestamp: "2026-01-01T00:00:02Z",
+        }),
+      ),
+    ];
+    const allEvents = [...initialEvents, ...delta];
+
+    const result = groupEventsIntoTurnsIncremental(
+      initial,
+      allEvents,
+      delta.length,
+      subagentMeta,
+    );
+
+    // Turn must still be running — the new event was a subagent end_turn.
+    expect(result).toHaveLength(1);
+    expect(result[result.length - 1].status).toBe("running");
+  });
+
+  it("T-TURNSTATUS-4: cross-turn bleed — late subagent end_turn doesn't flip later turn", () => {
+    // Two-turn stream. Turn 1 dispatches subA and completes normally. Turn 2
+    // is a fresh main-only prompt still running. A late sidechain event tagged
+    // as subA lands inside turn 2's window (buffered from turn 1). The late
+    // event must NOT flip turn 2 to completed.
+    //
+    // Note: the existing `computeDispatchedAgentIds` filter already excludes
+    // subA from turn 2's dispatched set, so turn 2 may pass even before the
+    // fix. The `!isSidechain` guard is still the cleaner fix because it
+    // protects against ANY sidechain event, not just cross-turn bleed.
+    const events: SessionEvent[] = [
+      // Turn 1
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["Do X"],
+      }),
+      markSidechain(
+        makeAssistantEvent({
+          agentId: "subA",
+          stopReason: "tool_use",
+          timestamp: "2026-01-01T00:00:02Z",
+        }),
+      ),
+      markSidechain(
+        makeAssistantEvent({
+          agentId: "subA",
+          stopReason: "end_turn",
+          timestamp: "2026-01-01T00:00:03Z",
+        }),
+      ),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:04Z",
+      }),
+
+      // Turn 2: main-only, still working
+      makeUserEvent({ text: "Turn 2", timestamp: "2026-01-01T00:01:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:01:01Z",
+      }),
+
+      // Late subagent event bleeding into turn 2's window.
+      markSidechain(
+        makeAssistantEvent({
+          agentId: "subA",
+          stopReason: "end_turn",
+          timestamp: "2026-01-01T00:01:02Z",
+        }),
+      ),
+    ];
+    const subagentMeta = {
+      subA: { agentType: "bug-fixer", description: "Do X" },
+    };
+
+    const turns = groupEventsIntoTurns(events, subagentMeta);
+    expect(turns).toHaveLength(2);
+    expect(turns[1].status).toBe("running");
+  });
+});

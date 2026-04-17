@@ -374,9 +374,12 @@ function buildTurn(
     }
   }
   if (status === "running") {
-    // Find last assistant event and check stop_reason
+    // Find last MAIN assistant event and check stop_reason. Sidechain
+    // (subagent) assistant events must NOT complete the parent turn — a
+    // subagent's stop_reason === "end_turn" is a per-subagent signal and
+    // bleeds across turns if allowed to flip turn-level status.
     for (let i = events.length - 1; i >= 0; i--) {
-      if (events[i].type === "assistant") {
+      if (events[i].type === "assistant" && !events[i].isSidechain) {
         const asst = events[i] as AssistantEvent;
         if (asst.message?.stop_reason === "end_turn") {
           status = "completed";
@@ -574,10 +577,12 @@ function extendTurn(
     }
   }
 
-  // If no turn_duration, check the last assistant event for stop_reason
+  // If no turn_duration, check the last MAIN assistant event for stop_reason.
+  // Sidechain (subagent) end_turn must not flip the parent turn — see the
+  // matching guard in buildTurn above.
   if (status === "running") {
     for (let i = newEvents.length - 1; i >= 0; i--) {
-      if (newEvents[i].type === "assistant") {
+      if (newEvents[i].type === "assistant" && !newEvents[i].isSidechain) {
         const asst = newEvents[i] as AssistantEvent;
         if (asst.message?.stop_reason === "end_turn") {
           status = "completed";
