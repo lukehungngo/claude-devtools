@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import type { SessionMetrics, AgentNode } from "../../lib/types";
-import { formatCost } from "../../lib/cost";
+import { formatCost, formatTokens } from "../../lib/cost";
 
 export interface CostTabProps {
   metrics: SessionMetrics | null;
@@ -142,6 +142,11 @@ function CostTabInner({ metrics }: CostTabProps) {
                     {pct.toFixed(0)}%
                   </span>
                 </div>
+                {(node.tokenUsage.inputTokens > 0 || node.tokenUsage.outputTokens > 0) && (
+                  <div style={{ fontSize: 10, color: "var(--t3)", fontFamily: "monospace", marginBottom: 3 }}>
+                    In: {formatTokens(node.tokenUsage.inputTokens)} · Out: {formatTokens(node.tokenUsage.outputTokens)}
+                  </div>
+                )}
                 <div
                   style={{
                     height: 6,

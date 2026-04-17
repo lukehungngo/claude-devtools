@@ -1,6 +1,6 @@
 import type { AgentSummary } from "../../lib/turnSnapshot";
 import type { SessionEvent } from "../../lib/types";
-import { formatCost } from "../../lib/cost";
+import { formatCost, formatTokens } from "../../lib/cost";
 import { getAgentStatus } from "../../lib/agentStatus";
 
 interface AgentPillsProps {
@@ -96,6 +96,12 @@ export function AgentPills({
             {agent.cost > 0 && (
               <span className="pill-cost opacity-70 text-sm">
                 {formatCost(agent.cost)}
+              </span>
+            )}
+            {/* Tokens */}
+            {(agent.tokensIn > 0 || agent.tokensOut > 0) && (
+              <span className="pill-tokens opacity-60 text-sm font-mono">
+                {formatTokens(agent.tokensIn)}/{formatTokens(agent.tokensOut)}
               </span>
             )}
           </button>
