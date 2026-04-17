@@ -9,7 +9,7 @@ import type {
 } from "../lib/types";
 import { normalizeContent } from "../lib/normalizeContent";
 import { formatTime } from "../lib/formatTime";
-import { formatCost, formatDuration, calculateTurnCost } from "../lib/cost";
+import { formatCost, formatDuration, formatTokens, calculateTurnCost } from "../lib/cost";
 import { getAgentBadgeStyle } from "../lib/agentColors";
 import { buildExportPayload, downloadJson } from "../lib/exportAgentLog";
 import { formatModelName } from "../lib/formatModelName";
@@ -29,6 +29,8 @@ export interface LogEntry {
   isError: boolean;
   /** Estimated cost for this log entry (from assistant events) */
   cost: number;
+  tokensIn: number;
+  tokensOut: number;
 }
 
 export interface TimelineGroup {
@@ -41,6 +43,8 @@ export interface TimelineGroup {
   endTime: string;
   durationMs: number;
   cost: number;
+  tokensIn: number;
+  tokensOut: number;
 }
 
 type FlatItem =
@@ -170,6 +174,7 @@ export function eventsToLogEntries(
         : 0;
       const contentItems = normalizeContent(assistantEvent.message?.content);
       const costPerItem = contentItems.length > 0 ? eventCost / contentItems.length : 0;
+      let isFirstEntry = true;
       for (const content of contentItems) {
         const info = extractToolInfo(content);
         if (info) {
@@ -187,7 +192,10 @@ export function eventsToLogEntries(
             toolName: info.toolName || null,
             isError: content.type === "tool_result" && !!content.is_error,
             cost: costPerItem,
+            tokensIn: isFirstEntry ? (usage?.input_tokens ?? 0) : 0,
+            tokensOut: isFirstEntry ? (usage?.output_tokens ?? 0) : 0,
           });
+          isFirstEntry = false;
         }
       }
     } else if (event.type === "user") {
@@ -203,6 +211,8 @@ export function eventsToLogEntries(
             toolName: content.is_error ? "error" : "result",
             isError: !!content.is_error,
             cost: 0,
+            tokensIn: 0,
+            tokensOut: 0,
           });
         } else if (content.type === "text") {
           entries.push({
@@ -215,6 +225,8 @@ export function eventsToLogEntries(
             toolName: null,
             isError: false,
             cost: 0,
+            tokensIn: 0,
+            tokensOut: 0,
           });
         }
       }
@@ -228,6 +240,8 @@ export function eventsToLogEntries(
         toolName: event.operation === "enqueue" ? "spawn" : "completed",
         isError: false,
         cost: 0,
+        tokensIn: 0,
+        tokensOut: 0,
       });
     }
   }
@@ -285,12 +299,16 @@ export function buildTimelineGroups(
         endTime: entry.timestamp,
         durationMs: 0,
         cost: entry.cost,
+        tokensIn: entry.tokensIn,
+        tokensOut: entry.tokensOut,
       };
       groups.push(current);
     } else {
       current.entries.push(entry);
       current.endTime = entry.timestamp;
       current.cost += entry.cost;
+      current.tokensIn += entry.tokensIn;
+      current.tokensOut += entry.tokensOut;
     }
   }
 
@@ -662,6 +680,11 @@ export function AgentLogs({
                       {group.cost > 0 && (
                         <span className="text-[10px] px-[5px] py-px rounded-[3px] font-semibold bg-dt-green-dim text-dt-green font-mono">
                           {formatCost(group.cost)}
+                        </span>
+                      )}
+                      {(group.tokensIn > 0 || group.tokensOut > 0) && (
+                        <span className="text-[10px] text-dt-text3 font-mono">
+                          {formatTokens(group.tokensIn)}/{formatTokens(group.tokensOut)}
                         </span>
                       )}
                       <span className="text-[10px] px-[5px] py-px rounded-full font-semibold bg-dt-bg4 text-dt-text2">

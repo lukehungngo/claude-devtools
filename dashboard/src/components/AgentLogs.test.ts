@@ -216,6 +216,8 @@ describe("model propagation through eventsToLogEntries and buildTimelineGroups",
         toolName: null,
         isError: false,
         cost: 0,
+        tokensIn: 0,
+        tokensOut: 0,
       },
       {
         uuid: "e2",
@@ -227,6 +229,8 @@ describe("model propagation through eventsToLogEntries and buildTimelineGroups",
         toolName: null,
         isError: false,
         cost: 0,
+        tokensIn: 0,
+        tokensOut: 0,
       },
     ];
     const depthMap = new Map([["agent1", 0]]);
@@ -247,10 +251,105 @@ describe("model propagation through eventsToLogEntries and buildTimelineGroups",
         toolName: null,
         isError: false,
         cost: 0,
+        tokensIn: 0,
+        tokensOut: 0,
       },
     ];
     const depthMap = new Map([["main", 0]]);
     const groups = buildTimelineGroups(entries, depthMap);
     expect(groups[0].model).toBeUndefined();
+  });
+});
+
+describe("AgentLogs token tracking", () => {
+  const agents: AgentNode[] = [];
+
+  it("carries full tokensIn/tokensOut from an assistant event (sum across entries equals event total)", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "assistant",
+        uuid: "a1",
+        timestamp: "2026-04-17T00:00:00Z",
+        sessionId: "s1",
+        requestId: "r1",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "thinking..." }],
+          model: "claude-opus-4-7",
+          id: "msg_1",
+          type: "message",
+          stop_reason: "end_turn",
+          usage: { input_tokens: 500, output_tokens: 200 },
+        },
+      } as any,
+    ];
+    const entries = eventsToLogEntries(events, agents);
+    expect(entries.length).toBeGreaterThanOrEqual(1);
+    // Sum across all entries for this event should equal the event's token counts
+    const totalIn = entries.reduce((s, e) => s + e.tokensIn, 0);
+    const totalOut = entries.reduce((s, e) => s + e.tokensOut, 0);
+    expect(totalIn).toBe(500);
+    expect(totalOut).toBe(200);
+  });
+
+  it("accumulates tokensIn/tokensOut in TimelineGroup", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "assistant",
+        uuid: "a1",
+        timestamp: "2026-04-17T00:00:00Z",
+        sessionId: "s1",
+        requestId: "r1",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "step 1" }],
+          model: "claude-opus-4-7",
+          id: "msg_1",
+          type: "message",
+          stop_reason: "end_turn",
+          usage: { input_tokens: 300, output_tokens: 100 },
+        },
+      } as any,
+      {
+        type: "assistant",
+        uuid: "a2",
+        timestamp: "2026-04-17T00:01:00Z",
+        sessionId: "s1",
+        requestId: "r2",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "step 2" }],
+          model: "claude-opus-4-7",
+          id: "msg_2",
+          type: "message",
+          stop_reason: "end_turn",
+          usage: { input_tokens: 200, output_tokens: 80 },
+        },
+      } as any,
+    ];
+    const entries = eventsToLogEntries(events, agents);
+    const depthMap = new Map([["main", 0]]);
+    const groups = buildTimelineGroups(entries, depthMap);
+    expect(groups.length).toBe(1);
+    expect(groups[0].tokensIn).toBe(500);
+    expect(groups[0].tokensOut).toBe(180);
+  });
+
+  it("sets tokensIn=0/tokensOut=0 for non-assistant entries", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "user",
+        uuid: "u1",
+        timestamp: "2026-04-17T00:00:00Z",
+        sessionId: "s1",
+        userType: "external",
+        message: { role: "user", content: "hello" as unknown as any },
+      } as any,
+    ];
+    const entries = eventsToLogEntries(events, agents);
+    entries.forEach((e) => {
+      expect(e.tokensIn).toBe(0);
+      expect(e.tokensOut).toBe(0);
+    });
   });
 });
