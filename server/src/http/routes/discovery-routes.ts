@@ -147,20 +147,20 @@ export function createDiscoveryRoutes({ state }: RouteContext): Router {
     res.json({ models: FALLBACK_MODELS, source: "fallback" });
   });
 
-  // Get supported slash commands for a session
+  // Get supported slash commands for a session.
+  //
+  // Historical (JSONL-only) sessions are not tracked by SessionManager, so
+  // `session` may be undefined. That is not an error — we simply skip the
+  // active-session tiers and fall through to the global cache / static
+  // fallback. Always returns 200 with a non-empty `commands` array and a
+  // `source` field indicating which tier fired ("sdk" | "cached" |
+  // "global-cache" | "fallback").
   router.get("/sessions/:sessionId/commands", async (req, res) => {
     const sessionManager = state?.sessionManager;
-    if (!sessionManager) {
-      const cached = commandCache.get();
-      return res.json({ commands: cached ?? FALLBACK_COMMANDS, source: cached ? "global-cache" : "fallback" });
-    }
-    const session = sessionManager.getStatus(req.params.sessionId);
-    if (!session) {
-      return res.status(404).json({ error: "Session not found" });
-    }
+    const session = sessionManager?.getStatus(req.params.sessionId);
 
-    // Tier 1: Live SDK query (includes marketplace/skill/plugin commands)
-    if (session.activeQuery?.supportedCommands) {
+    // Tier 1: Live SDK query (active sessions only — includes marketplace/skill/plugin commands)
+    if (session?.activeQuery?.supportedCommands) {
       try {
         const commands = await session.activeQuery.supportedCommands();
         const typed = commands as Array<{ name: string; description: string; argumentHint?: string }>;
@@ -169,12 +169,12 @@ export function createDiscoveryRoutes({ state }: RouteContext): Router {
         commandCache.update(typed);
         return res.json({ commands, source: "sdk" });
       } catch {
-        return res.json({ commands: session.cachedCommands ?? commandCache.get() ?? FALLBACK_COMMANDS, source: session.cachedCommands ? "cached" : "fallback" });
+        // Fall through to next tier
       }
     }
 
     // Tier 2: Per-session cache (from previous activeQuery)
-    if (session.cachedCommands) {
+    if (session?.cachedCommands) {
       return res.json({ commands: session.cachedCommands, source: "cached" });
     }
 
@@ -184,7 +184,7 @@ export function createDiscoveryRoutes({ state }: RouteContext): Router {
       return res.json({ commands: globalCached, source: "global-cache" });
     }
 
-    // Tier 4: Static fallback
+    // Tier 4: Static fallback — always 200
     res.json({ commands: FALLBACK_COMMANDS, source: "fallback" });
   });
 
