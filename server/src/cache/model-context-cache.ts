@@ -12,7 +12,16 @@ let memCache: Record<string, number> | null = null;
 function ensureLoaded(): Record<string, number> {
   if (memCache !== null) return memCache;
   try {
-    memCache = JSON.parse(readFileSync(CACHE_FILE, "utf-8")) as Record<string, number>;
+    const parsed: unknown = JSON.parse(readFileSync(CACHE_FILE, "utf-8"));
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+    ) {
+      memCache = parsed as Record<string, number>;
+    } else {
+      memCache = {};
+    }
   } catch {
     memCache = {};
   }

@@ -63,6 +63,14 @@ describe("model-context-cache", () => {
     expect(getModelContextWindow("claude-haiku-4-5")).toBe(200_000);
   });
 
+  it("falls back to empty cache when file contains invalid JSON shape", async () => {
+    vi.mocked(readFileSync).mockReturnValue(
+      "[]" as unknown as ReturnType<typeof readFileSync>
+    );
+    const { getModelContextWindow } = await import("./model-context-cache.js");
+    expect(getModelContextWindow("claude-opus-4-7")).toBeUndefined();
+  });
+
   it("skips write when nothing changed", async () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({ "claude-opus-4-7": 1_000_000 }) as unknown as ReturnType<typeof readFileSync>

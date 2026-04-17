@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { calculateTokenCost, computeMetrics } from "./metrics.js";
 import type { SessionEvent, SessionInfo, AssistantEvent } from "../types.js";
+import { getModelContextWindow } from "../cache/model-context-cache.js";
 
 // model-context-cache may not exist yet (built in a parallel task); mock it so
 // these tests remain green regardless of whether Task 1 has run.
@@ -507,6 +508,30 @@ describe("computeMetrics", () => {
 
     expect(metrics.contextWindowSize).toBe(1_000_000);
     // 500_000 / 1_000_000 = 50%
+    expect(metrics.contextPercent).toBe(50);
+  });
+
+  it("uses persistent cache value when available (overrides static map)", () => {
+    // Mock cache to return a custom value for an unknown model
+    vi.mocked(getModelContextWindow).mockReturnValueOnce(512_000);
+    // Build a session using "claude-future-model" (not in static map)
+    const mainEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        usage: { input_tokens: 256_000, output_tokens: 1000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        model: "claude-future-model",
+      }),
+    ];
+
+    const metrics = computeMetrics(
+      makeSessionInfo(),
+      mainEvents,
+      new Map(),
+      new Map(),
+      // sdkContextWindow omitted — persistent cache must be used
+    );
+
+    // 256_000 / 512_000 = 50%
+    expect(metrics.contextWindowSize).toBe(512_000);
     expect(metrics.contextPercent).toBe(50);
   });
 
