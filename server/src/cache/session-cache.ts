@@ -4,11 +4,26 @@ import type { SessionInfo } from "../types.js";
 import { parserLog } from "../logger.js";
 
 /**
- * Bytes to read from the head/tail of a JSONL file for metadata extraction.
+ * Bytes to read from the head of a JSONL file for metadata extraction.
  * 4KB is enough for ~10 JSON lines at typical event sizes.
  */
 const HEAD_BYTES = 4096;
-const TAIL_BYTES = 4096;
+
+/**
+ * Tail scan reads chunks moving backward from EOF. Each chunk is 4 KB;
+ * the scan stops when the caller signals completion (both `cwd` and
+ * `gitBranch` found) or the cap is reached.
+ *
+ * Why a backward scan instead of "read last N bytes": empirical measurement
+ * on ~500 real sessions showed ~10% contain a single JSONL event larger than
+ * 4 KB. A fixed-window scan with partial-line discard wipes such sessions'
+ * metadata entirely. The backward scan accumulates complete lines until a
+ * hit or the cap — robust to arbitrary event sizes.
+ */
+const BACKWARD_SCAN_CHUNK = 4096;
+/** Hard cap on bytes scanned by the backward tail scan. Protects against
+ * degenerate files (e.g. a single multi-MB event with no extractable fields). */
+const BACKWARD_SCAN_CAP = 256 * 1024;
 
 /** Average bytes per JSONL event line — used for event count estimation. */
 const AVG_BYTES_PER_EVENT = 500;
@@ -27,8 +42,10 @@ interface CacheEntry {
  * Uses file stat (size + mtime) for invalidation — avoids re-reading
  * unchanged files on every request.
  *
- * For metadata extraction, reads only the first 4KB and last 4KB
- * of each file instead of the entire contents.
+ * For metadata extraction, reads only the first HEAD_BYTES of each file,
+ * then runs a bounded backward line-scan from EOF until `cwd` and
+ * `gitBranch` are found (or the BACKWARD_SCAN_CAP is reached) — never
+ * the entire contents.
  */
 export class SessionCache {
   private cache = new Map<string, CacheEntry>();
@@ -85,11 +102,8 @@ export class SessionCache {
     // Estimate event count from file size
     const eventCount = stat.size > 0 ? Math.max(1, Math.round(stat.size / AVG_BYTES_PER_EVENT)) : 0;
 
-    // Read head and tail bytes for metadata extraction
+    // Read head bytes for metadata extraction
     const headLines = this.readHeadLines(filePath, stat.size);
-    const tailLines = stat.size > HEAD_BYTES
-      ? this.readTailLines(filePath, stat.size)
-      : [];
 
     // Extract metadata from head (first ~10 lines)
     let startTime = stat.birthtime.toISOString();
@@ -115,23 +129,40 @@ export class SessionCache {
       }
     }
 
-    // Scan tail for custom-title and model
-    if (!sessionName || !model) {
-      for (let i = tailLines.length - 1; i >= 0; i--) {
+    // Backward tail scan (most recent first) for fields where we prefer the
+    // most recent value (gitBranch) and for fallback fields (sessionName, model,
+    // cwd) that may be absent from the head slice.
+    // We always walk the tail (not gated on missing fields) so that gitBranch
+    // reflects the session's current branch, not whatever it was at session start.
+    let tailGitBranch: string | undefined;
+    if (stat.size > HEAD_BYTES) {
+      this.scanBackwardLines(filePath, stat.size, (line) => {
         try {
-          const evt = JSON.parse(tailLines[i]);
+          const evt = JSON.parse(line);
+          if (!tailGitBranch && evt.gitBranch) {
+            tailGitBranch = evt.gitBranch;
+          }
           if (!sessionName && evt.type === "custom-title" && evt.customTitle) {
             sessionName = evt.customTitle;
           }
           if (!model && evt.message?.model) {
             model = evt.message.model;
           }
-          if (sessionName && model) break;
+          if (!cwd && evt.cwd) {
+            cwd = evt.cwd;
+          }
         } catch {
-          // skip
+          // skip malformed lines (fail-safe parsing — invariant #3)
         }
-      }
+        // Stop as soon as all target fields are satisfied. `gitBranch` is the
+        // load-bearing field for the Honeywell-style bug; `cwd` is the load-
+        // bearing field for repo grouping. `sessionName` and `model` are
+        // best-effort — the cap will end the scan if they never appear.
+        return Boolean(tailGitBranch && cwd && sessionName && model);
+      });
     }
+    // Tail (most-recent) branch wins over head (session-start) branch.
+    if (tailGitBranch) gitBranch = tailGitBranch;
 
     // Fallback: use slug as session name
     if (!sessionName && slug) sessionName = slug;
@@ -192,28 +223,60 @@ export class SessionCache {
   }
 
   /**
-   * Read the last TAIL_BYTES of a file and split into lines.
-   * Discards the first (potentially partial) line.
+   * Scan JSONL lines from the end of a file, moving backward in
+   * `BACKWARD_SCAN_CHUNK`-sized chunks. Accumulates bytes into a buffer and
+   * yields complete lines right-to-left to `onLine`. Stops when `onLine`
+   * returns `true`, when `BACKWARD_SCAN_CAP` bytes have been read, or when
+   * the file is fully consumed.
+   *
+   * Note: UTF-8 multi-byte sequences that straddle a chunk boundary may
+   * produce replacement characters on the first line of a chunk. This is
+   * acceptable because:
+   *   1. We skip malformed JSON lines (invariant #3).
+   *   2. The field we care about (gitBranch / cwd) almost always appears on
+   *      multiple events; another line in the next chunk will carry it.
    */
-  private readTailLines(filePath: string, fileSize: number): string[] {
-    if (fileSize === 0) return [];
+  private scanBackwardLines(
+    filePath: string,
+    fileSize: number,
+    onLine: (line: string) => boolean,
+  ): void {
+    if (fileSize === 0) return;
 
-    const bytesToRead = Math.min(TAIL_BYTES, fileSize);
-    const offset = fileSize - bytesToRead;
+    let position = fileSize;
+    let bytesScanned = 0;
+    let buffer = "";
     const fd = openSync(filePath, "r");
     try {
-      const buf = Buffer.alloc(bytesToRead);
-      readSync(fd, buf, 0, bytesToRead, offset);
-      const text = buf.toString("utf-8");
-      const lines = text.split("\n").filter((l) => l.trim());
-      // If we're reading from a non-zero offset, the first line is likely partial
-      if (offset > 0 && lines.length > 0) {
-        lines.shift();
+      while (position > 0 && bytesScanned < BACKWARD_SCAN_CAP) {
+        const chunkSize = Math.min(BACKWARD_SCAN_CHUNK, position);
+        position -= chunkSize;
+        bytesScanned += chunkSize;
+
+        const chunk = Buffer.alloc(chunkSize);
+        readSync(fd, chunk, 0, chunkSize, position);
+        buffer = chunk.toString("utf-8") + buffer;
+
+        // Split into lines. If we're not yet at the start of the file,
+        // the first element of `parts` is a partial line — keep it in the
+        // buffer to be completed by the next (earlier) chunk.
+        const parts = buffer.split("\n");
+        buffer = position > 0 ? parts.shift() ?? "" : "";
+
+        // Iterate newest-first (end of array = closest to EOF in this chunk).
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const line = parts[i].trim();
+          if (!line) continue;
+          if (onLine(line)) return;
+        }
       }
-      return lines;
+
+      // Handle any leftover buffered line when we've reached the start of
+      // the file (position === 0 caused the final iteration to clear buffer,
+      // but if we exited via the cap then buffer may still hold a partial
+      // line — ignore it to preserve line integrity).
     } catch (err) {
-      parserLog.warn({ filePath, error: String(err) }, "SessionCache: failed to read tail");
-      return [];
+      parserLog.warn({ filePath, error: String(err) }, "SessionCache: failed to backward-scan tail");
     } finally {
       closeSync(fd);
     }

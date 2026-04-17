@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import type { SessionInfo, SessionEvent, RepoGroup } from "../types.js";
 import { parseJsonlFile } from "./jsonl-reader.js";
 import { SessionCache } from "../cache/session-cache.js";
+import { parserLog } from "../logger.js";
 
 /** Shared session cache instance — used by discoverSessions(). */
 export const sessionCache = new SessionCache();
@@ -97,24 +98,33 @@ function resolveRepoRoot(cwd: string): string {
 }
 
 /**
- * Decode a Claude Code projectHash back to an absolute path.
- * Claude Code encodes a path by replacing every "/" with "-":
- *   /Users/soh/working/eduquest  →  -Users-soh-working-eduquest
- * Reversing: restore the leading "-" to "/" then replace remaining "-" with "/".
- * Note: this is unambiguous only when directory names don't contain "-", which
- * is the common case. We use it only as a fallback lookup — we never display it.
+ * Group SessionInfo records into RepoGroup entries.
+ *
+ * Pure function — exported so tests can drive it with fixture data without
+ * touching the filesystem. `discoverRepoGroups()` composes it with
+ * `discoverSessions()`.
+ *
+ * Contract: `sessions` is expected to be sorted newest-first (matches
+ * `discoverSessions()` output). This ordering is what makes "the newest
+ * session's gitBranch wins" correct.
+ *
+ * Grouping strategy:
+ *  - Pass 1: sessions with populated `cwd` are grouped by their resolved git
+ *    repo root (handles worktrees — see `resolveRepoRoot`).
+ *  - Pass 2: sessions without `cwd` are merged into an existing group when
+ *    their `projectHash` (the path-with-slashes-replaced-with-hyphens Claude
+ *    Code uses as its directory name) encodes to a known key; otherwise they
+ *    form their own group keyed by `projectHash`.
+ *
+ *    NOTE: we deliberately do NOT attempt to decode the `projectHash` back
+ *    into a path by replacing `-` with `/`. That transformation is lossy for
+ *    folder names that legitimately contain hyphens (e.g. `conny-com-app`
+ *    would decode to `.../conny/com/app`, and `basename()` would return
+ *    `"app"`). Using the raw `projectHash` as the key preserves grouping
+ *    correctness; the display name may look slightly ugly for truly
+ *    no-cwd sessions, but that is honest rather than wrong.
  */
-function decodeProjectHash(projectHash: string): string {
-  if (!projectHash.startsWith("-")) return projectHash;
-  return "/" + projectHash.slice(1).replace(/-/g, "/");
-}
-
-export function discoverRepoGroups(): RepoGroup[] {
-  if (repoGroupsCache && Date.now() - repoGroupsCache.timestamp < DISCOVERY_TTL_MS) {
-    return repoGroupsCache.groups;
-  }
-
-  const sessions = discoverSessions();
+export function groupSessionsIntoRepos(sessions: SessionInfo[]): RepoGroup[] {
   const repoMap = new Map<string, SessionInfo[]>();
 
   // First pass: group sessions that have a cwd by their resolved git root.
@@ -134,6 +144,12 @@ export function discoverRepoGroups(): RepoGroup[] {
     encodedKeyMap.set(key.replace(/\//g, "-"), key);
   }
 
+  // Dedupe the "no-cwd fallback" log: we only want to emit once per
+  // projectHash per invocation. With the backward tail scan, every real
+  // session should have a cwd; this path should be near-zero in practice.
+  // If it does fire, repeating it per session buries signal in noise.
+  const loggedFallbackHashes = new Set<string>();
+
   // Second pass: sessions without cwd — try to merge into an existing group.
   for (const session of sessions) {
     if (session.cwd) continue;
@@ -142,10 +158,21 @@ export function discoverRepoGroups(): RepoGroup[] {
       // Merge into the already-known repo group
       repoMap.get(canonical)!.push(session);
     } else {
-      // Truly unknown path — fall back to decoded hash as the key
-      const decoded = decodeProjectHash(session.projectHash);
-      if (!repoMap.has(decoded)) repoMap.set(decoded, []);
-      repoMap.get(decoded)!.push(session);
+      // Truly unknown path — no session in this projectHash ever recorded a
+      // cwd. Group by projectHash (unique, non-lossy) and let basename()
+      // produce whatever it produces. Demoted to `debug` because after the
+      // backward tail scan this is expected to be rare/absent in practice.
+      if (!loggedFallbackHashes.has(session.projectHash)) {
+        loggedFallbackHashes.add(session.projectHash);
+        parserLog.debug(
+          { projectHash: session.projectHash, sessionId: session.id },
+          "discoverRepoGroups: session has no cwd and no matching canonical path; using projectHash as group key"
+        );
+      }
+      if (!repoMap.has(session.projectHash)) {
+        repoMap.set(session.projectHash, []);
+      }
+      repoMap.get(session.projectHash)!.push(session);
     }
   }
 
@@ -153,7 +180,12 @@ export function discoverRepoGroups(): RepoGroup[] {
   for (const [cwd, repoSessions] of repoMap) {
     const hasActiveSessions = repoSessions.some((s) => s.isActive);
     const lastActive = repoSessions[0]?.lastModified || "";
-    const gitBranch = repoSessions.find((s) => s.gitBranch)?.gitBranch;
+    // Prefer the newest session's branch (sessions are sorted newest-first).
+    // Fall back to any session's branch only if the newest is missing the
+    // field entirely — this preserves behavior for the edge case where the
+    // current session hasn't yet emitted an event carrying gitBranch.
+    const newestBranch = repoSessions[0]?.gitBranch;
+    const gitBranch = newestBranch ?? repoSessions.find((s) => s.gitBranch)?.gitBranch;
 
     repos.push({
       cwd,
@@ -173,6 +205,15 @@ export function discoverRepoGroups(): RepoGroup[] {
     return new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime();
   });
 
+  return repos;
+}
+
+export function discoverRepoGroups(): RepoGroup[] {
+  if (repoGroupsCache && Date.now() - repoGroupsCache.timestamp < DISCOVERY_TTL_MS) {
+    return repoGroupsCache.groups;
+  }
+
+  const repos = groupSessionsIntoRepos(discoverSessions());
   repoGroupsCache = { groups: repos, timestamp: Date.now() };
   return repos;
 }
