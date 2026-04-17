@@ -12,6 +12,7 @@ import type {
 import { buildAgentDAG } from "./dag-builder.js";
 import { buildToolStats } from "./tool-stats.js";
 import { normalizeContent } from "../lib/normalizeContent.js";
+import { getModelContextWindow } from "../cache/model-context-cache.js";
 
 // Fallback pricing per million tokens — used ONLY when SDK authoritative cost is unavailable
 // (e.g., historical sessions parsed from JSONL without a result event).
@@ -27,6 +28,7 @@ const FALLBACK_MODEL_PRICING: Record<
 
 // Fallback context window sizes — prefer SDK `result.modelUsage[model].contextWindow`
 const FALLBACK_CONTEXT_WINDOW_SIZES: Record<string, number> = {
+  "claude-opus-4-7": 1_000_000,
   "claude-opus-4-6": 200_000,
   "claude-sonnet-4-6": 200_000,
   "claude-haiku-4-5": 200_000,
@@ -49,10 +51,12 @@ export function calculateTokenCost(
 }
 
 function getContextWindowSize(model: string): number {
-  // Check if model ID indicates 1M context (e.g., "claude-opus-4-6[1m]")
-  if (model.includes("1m") || model.includes("1M")) {
-    return 1_000_000;
-  }
+  // 1. Persistent cache (populated from live SDK result events)
+  const cached = getModelContextWindow(model);
+  if (cached !== undefined) return cached;
+  // 2. "1m" suffix heuristic (e.g., "claude-opus-4-6[1m]")
+  if (model.includes("1m") || model.includes("1M")) return 1_000_000;
+  // 3. Static fallback map
   for (const [key, size] of Object.entries(FALLBACK_CONTEXT_WINDOW_SIZES)) {
     if (model.includes(key)) return size;
   }

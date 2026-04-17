@@ -40,6 +40,7 @@ export function calculateTurnCost(
 
 // Context window sizes — mirrors server FALLBACK_CONTEXT_WINDOW_SIZES
 const CONTEXT_WINDOW_SIZES: Record<string, number> = {
+  "claude-opus-4-7": 1_000_000,
   "claude-opus-4-6": 200_000,
   "claude-sonnet-4-6": 200_000,
   "claude-haiku-4-5": 200_000,

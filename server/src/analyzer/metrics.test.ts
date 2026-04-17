@@ -2,6 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 import { calculateTokenCost, computeMetrics } from "./metrics.js";
 import type { SessionEvent, SessionInfo, AssistantEvent } from "../types.js";
 
+// model-context-cache may not exist yet (built in a parallel task); mock it so
+// these tests remain green regardless of whether Task 1 has run.
+vi.mock("../cache/model-context-cache.js", () => ({
+  getModelContextWindow: vi.fn().mockReturnValue(undefined),
+}));
+
 // Helper to create an assistant event with usage
 function makeAssistantEvent(
   overrides: Partial<AssistantEvent> & {
@@ -481,6 +487,27 @@ describe("computeMetrics", () => {
     // Totals reflect only real events (50_000 + 30_000 = 80_000 input)
     expect(metrics.tokens.inputTokens).toBe(80_000);
     expect(metrics.tokens.outputTokens).toBe(300);
+  });
+
+  it("uses 1_000_000 context window for claude-opus-4-7", () => {
+    const mainEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        usage: { input_tokens: 500_000, output_tokens: 1000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        model: "claude-opus-4-7",
+      }),
+    ];
+
+    const metrics = computeMetrics(
+      makeSessionInfo(),
+      mainEvents,
+      new Map(),
+      new Map(),
+      // sdkContextWindow omitted — uses fallback map
+    );
+
+    expect(metrics.contextWindowSize).toBe(1_000_000);
+    // 500_000 / 1_000_000 = 50%
+    expect(metrics.contextPercent).toBe(50);
   });
 
   it("uses last real model's context window (not the first model seen)", () => {
