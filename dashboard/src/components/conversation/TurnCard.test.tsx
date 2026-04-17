@@ -43,6 +43,7 @@ function makeTurnAndEvents(
       costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
       endTime: "",
       completedAt: "",
+      dispatchedAgentIds: new Set<string>(["main"]),
       ...overrides,
     } as TurnSnapshot,
     allEvents: events,
@@ -260,6 +261,7 @@ describe("TurnCard — DOM order: tool entries before response text", () => {
       costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
       endTime: "2026-01-01T00:00:03Z",
       completedAt: "2026-01-01T00:00:03Z",
+      dispatchedAgentIds: new Set<string>(["main"]),
     } as TurnSnapshot;
 
     const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);

@@ -27,6 +27,7 @@ function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
     startIndex: 0,
     endIndex: 1,
     durationMs: null,
+    dispatchedAgentIds: new Set<string>(["main"]),
     ...overrides,
   };
 }

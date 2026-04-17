@@ -7,6 +7,7 @@ import type {
   SubagentMeta,
 } from "./types";
 import { calculateTurnCost } from "./cost";
+import { mainEventsOnly } from "./turnEventFilters";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -59,10 +60,11 @@ export interface TurnSnapshot {
    * Set of agentIds dispatched by main within this turn's window, plus "main".
    * Carried forward across streaming extensions so `extendTurn` can do O(newEvents)
    * work instead of re-scanning the full turn (Architecture Invariant #8).
-   * Optional for backward compat with test fixtures that build TurnSnapshot by
-   * literal; production code (`buildTurn` / `extendTurn`) always populates it.
+   * Required: both production builders (`buildTurn`, `extendTurn`) always populate
+   * it, and test fixtures are expected to supply it (e.g. `new Set(agents.map(a => a.agentId))`)
+   * so invariants can be enforced without optional-chain escape hatches.
    */
-  dispatchedAgentIds?: Set<string>;
+  dispatchedAgentIds: Set<string>;
 }
 
 /**
@@ -163,9 +165,8 @@ function computeDispatchedAgentIds(
   const result = seed ? new Set(seed) : new Set<string>();
   result.add("main");
 
-  for (const event of events) {
+  for (const event of mainEventsOnly(events)) {
     if (event.type !== "assistant") continue;
-    if (event.isSidechain) continue; // Only main (non-sidechain) assistant events dispatch
 
     const asst = event as AssistantEvent;
     const contentArr = asst.message?.content;
@@ -299,6 +300,10 @@ function buildTurn(
   // where a subagent event from a prior turn falls in the current turn's
   // timestamp range.
   const dispatchedAgentIds = computeDispatchedAgentIds(events, agentMeta);
+  // Main-only view used for turn-level status derivation. Subagent events must
+  // never vote on the parent turn — see the status-derivation block below and
+  // T-OWN-1 for the invariant.
+  const mainEvts = mainEventsOnly(events);
 
   for (const event of events) {
     const agentId = event.agentId ?? "main";
@@ -377,10 +382,11 @@ function buildTurn(
     // Find last MAIN assistant event and check stop_reason. Sidechain
     // (subagent) assistant events must NOT complete the parent turn — a
     // subagent's stop_reason === "end_turn" is a per-subagent signal and
-    // bleeds across turns if allowed to flip turn-level status.
-    for (let i = events.length - 1; i >= 0; i--) {
-      if (events[i].type === "assistant" && !events[i].isSidechain) {
-        const asst = events[i] as AssistantEvent;
+    // bleeds across turns if allowed to flip turn-level status. The
+    // main-only filter (mainEvts) is the named enforcement of this rule.
+    for (let i = mainEvts.length - 1; i >= 0; i--) {
+      if (mainEvts[i].type === "assistant") {
+        const asst = mainEvts[i] as AssistantEvent;
         if (asst.message?.stop_reason === "end_turn") {
           status = "completed";
         }
@@ -464,11 +470,8 @@ function buildTurn(
  * `finalizeTurn`) and `computeDispatchedAgentIds` scans ONLY the delta for
  * additional Task/Agent dispatches.
  *
- * Back-compat: if an older TurnSnapshot literal arrives without
- * `dispatchedAgentIds` populated, the seed is reconstructed from
- * `existing.agents` — lossy only if a Task dispatch was recorded but its
- * subagent hadn't emitted an event by the time the snapshot was built (so
- * `agents` lacked it). Fixture-only; production buildTurn always sets the set.
+ * `dispatchedAgentIds` is required on TurnSnapshot (required field since
+ * feature/event-ownership-filters); the seed is always present.
  */
 function extendTurn(
   existing: TurnSnapshot,
@@ -484,10 +487,13 @@ function extendTurn(
 
   // P2-1: inherit the dispatched set and scan ONLY the delta. Restores the
   // O(newEvents) streaming budget required by Architecture Invariant #8.
-  const seed =
-    existing.dispatchedAgentIds ??
-    new Set<string>(existing.agents.map((a) => a.agentId));
+  // `dispatchedAgentIds` is now a required TurnSnapshot field (TASK-002), so
+  // the seed is always present — no fallback needed.
+  const seed = existing.dispatchedAgentIds;
   const dispatchedAgentIds = computeDispatchedAgentIds(newEvents, agentMeta, seed);
+  // Main-only view of the delta for turn-level status derivation; matches the
+  // invariant enforced in buildTurn.
+  const mainNewEvts = mainEventsOnly(newEvents);
 
   // Rebuild agent map from existing summaries so we can extend it
   const agentMap = new Map<
@@ -579,11 +585,12 @@ function extendTurn(
 
   // If no turn_duration, check the last MAIN assistant event for stop_reason.
   // Sidechain (subagent) end_turn must not flip the parent turn — see the
-  // matching guard in buildTurn above.
+  // matching guard in buildTurn above. The main-only filter (mainNewEvts) is
+  // the named enforcement of this rule.
   if (status === "running") {
-    for (let i = newEvents.length - 1; i >= 0; i--) {
-      if (newEvents[i].type === "assistant" && !newEvents[i].isSidechain) {
-        const asst = newEvents[i] as AssistantEvent;
+    for (let i = mainNewEvts.length - 1; i >= 0; i--) {
+      if (mainNewEvts[i].type === "assistant") {
+        const asst = mainNewEvts[i] as AssistantEvent;
         if (asst.message?.stop_reason === "end_turn") {
           status = "completed";
         }

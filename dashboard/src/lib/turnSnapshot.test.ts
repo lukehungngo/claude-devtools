@@ -1753,3 +1753,155 @@ describe("Turn status ignores subagent end_turn", () => {
     expect(turns[1].status).toBe("running");
   });
 });
+
+// ─── Ownership invariants ────────────────────────────────────────────
+//
+// These property-style tests express the invariant enforced by routing
+// `turnSnapshot.ts` reducers through `mainEventsOnly(events)` (TASK-002).
+// Any future reducer added to turnSnapshot that walks `events` for a
+// turn-level fact MUST filter to main events only — a subagent's
+// stop_reason does not vote on the parent turn. These tests would fail if
+// that routing regresses (e.g. someone reintroduces an inline guard that
+// only partially filters, or drops the filter entirely from a reducer).
+
+describe("Ownership invariants", () => {
+  it("T-OWN-1: turn status reacts only to main events, regardless of sidechain ordering", () => {
+    const subagentMeta = {
+      subA: { agentType: "bug-fixer", description: "Do the thing" },
+    };
+
+    // (a) and (b): defensive coverage — main end_turn must complete the turn
+    // regardless of sidechain ordering. Permutation (c) below is the discriminating
+    // test that catches reverted sidechain filtering.
+
+    // (a) main end_turn BEFORE sidechain end_turn — turn should be completed.
+    //     Main is authoritative; the trailing sidechain event must not undo it.
+    const eventsA: SessionEvent[] = [
+      makeUserEvent({ text: "Do the thing", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["Do the thing"],
+      }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:02Z",
+      }),
+      markSidechain(
+        makeAssistantEvent({
+          agentId: "subA",
+          stopReason: "end_turn",
+          timestamp: "2026-01-01T00:00:03Z",
+        }),
+      ),
+    ];
+
+    // (b) sidechain end_turn BEFORE main end_turn — turn should be completed.
+    //     Main end_turn is still authoritative regardless of order.
+    const eventsB: SessionEvent[] = [
+      makeUserEvent({ text: "Do the thing", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["Do the thing"],
+      }),
+      markSidechain(
+        makeAssistantEvent({
+          agentId: "subA",
+          stopReason: "end_turn",
+          timestamp: "2026-01-01T00:00:02Z",
+        }),
+      ),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:03Z",
+      }),
+    ];
+
+    // (c) main tool_use (no end_turn) + sidechain end_turn — turn must still be
+    //     running. A subagent's end_turn NEVER completes the parent turn.
+    const eventsC: SessionEvent[] = [
+      makeUserEvent({ text: "Do the thing", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["Do the thing"],
+      }),
+      markSidechain(
+        makeAssistantEvent({
+          agentId: "subA",
+          stopReason: "end_turn",
+          timestamp: "2026-01-01T00:00:02Z",
+        }),
+      ),
+    ];
+
+    const turnsA = groupEventsIntoTurns(eventsA, subagentMeta);
+    const turnsB = groupEventsIntoTurns(eventsB, subagentMeta);
+    const turnsC = groupEventsIntoTurns(eventsC, subagentMeta);
+
+    expect(turnsA).toHaveLength(1);
+    expect(turnsA[0].status).toBe("completed");
+
+    expect(turnsB).toHaveLength(1);
+    expect(turnsB[0].status).toBe("completed");
+
+    expect(turnsC).toHaveLength(1);
+    expect(turnsC[0].status).toBe("running");
+  });
+
+  it("T-OWN-2: extendTurn ownership invariant matches groupEventsIntoTurns (streaming split)", () => {
+    // Fixture (c) from T-OWN-1: main tool_use + trailing sidechain end_turn.
+    // Verdict must be "running" whether built in one shot or split across
+    // rebuild + streaming extension.
+    const subagentMeta = {
+      subA: { agentType: "bug-fixer", description: "Do the thing" },
+    };
+
+    const initialEvents: SessionEvent[] = [
+      makeUserEvent({ text: "Do the thing", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["Do the thing"],
+      }),
+    ];
+
+    const delta: SessionEvent[] = [
+      markSidechain(
+        makeAssistantEvent({
+          agentId: "subA",
+          stopReason: "end_turn",
+          timestamp: "2026-01-01T00:00:02Z",
+        }),
+      ),
+    ];
+
+    const initial = groupEventsIntoTurns(initialEvents, subagentMeta);
+    const streamed = groupEventsIntoTurnsIncremental(
+      initial,
+      [...initialEvents, ...delta],
+      delta.length,
+      subagentMeta,
+    );
+
+    // Full-rebuild reference: groupEventsIntoTurns(all events at once).
+    const full = groupEventsIntoTurns(
+      [...initialEvents, ...delta],
+      subagentMeta,
+    );
+
+    expect(streamed).toHaveLength(1);
+    expect(full).toHaveLength(1);
+    // Streaming path must produce the same "running" verdict as full rebuild.
+    expect(streamed[0].status).toBe("running");
+    expect(full[0].status).toBe("running");
+    expect(streamed[0].status).toBe(full[0].status);
+  });
+});

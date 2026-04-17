@@ -122,6 +122,7 @@ describe("AgentLogTab", () => {
         startTime: "2026-04-01T10:00:00.000Z",
         completedAt: "2026-04-01T10:00:01.000Z",
         endTime: "2026-04-01T10:00:01.000Z",
+        dispatchedAgentIds: new Set<string>(["main"]),
       },
       {
         turnNumber: 2,
@@ -136,6 +137,7 @@ describe("AgentLogTab", () => {
         startTime: "2026-04-01T10:01:00.000Z",
         completedAt: "2026-04-01T10:01:01.000Z",
         endTime: "2026-04-01T10:01:01.000Z",
+        dispatchedAgentIds: new Set<string>(["main"]),
       },
     ];
 

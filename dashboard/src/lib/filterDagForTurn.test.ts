@@ -44,6 +44,9 @@ function makeTurn(agents: { agentId: string }[]): TurnSnapshot {
     startTime: "2026-01-01T00:00:00Z",
     completedAt: "",
     endTime: "",
+    // TASK-002: dispatchedAgentIds is now required on TurnSnapshot. Mirror
+    // production semantics by including "main" plus any agentIds in the fixture.
+    dispatchedAgentIds: new Set<string>(["main", ...agents.map((a) => a.agentId)]),
   };
 }
 
@@ -144,6 +147,7 @@ describe("filterDagForTurn", () => {
       startTime: "2026-01-01T00:00:00Z",
       completedAt: "2026-01-01T00:00:05Z",
       endTime: "2026-01-01T00:00:05Z",
+      dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
     const result = filterDagForTurn(dagWithCosts, turn)!;
@@ -186,6 +190,7 @@ describe("filterDagForTurn", () => {
       startTime: "2026-01-01T00:00:00Z",
       completedAt: "2026-01-01T00:00:01Z",
       endTime: "2026-01-01T00:00:01Z",
+      dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
     const turnB: TurnSnapshot = {
@@ -204,6 +209,7 @@ describe("filterDagForTurn", () => {
       startTime: "2026-01-01T00:01:00Z",
       completedAt: "2026-01-01T00:01:03Z",
       endTime: "2026-01-01T00:01:03Z",
+      dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
     const resultA = filterDagForTurn(dagWithCosts, turnA);
@@ -249,6 +255,7 @@ describe("filterDagForTurn", () => {
       startTime: "2026-01-01T00:00:00Z",
       completedAt: "2026-01-01T00:00:01Z",
       endTime: "2026-01-01T00:00:01Z",
+      dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
     const turnB: TurnSnapshot = {
@@ -269,6 +276,7 @@ describe("filterDagForTurn", () => {
       startTime: "2026-01-01T00:01:00Z",
       completedAt: "2026-01-01T00:01:02Z",
       endTime: "2026-01-01T00:01:02Z",
+      dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
     const resultA = filterDagForTurn(dagWithCosts, turnA);
@@ -309,6 +317,7 @@ describe("filterDagForTurn", () => {
       startTime: "2026-01-01T00:00:00Z",
       completedAt: "2026-01-01T00:00:01Z",
       endTime: "2026-01-01T00:00:01Z",
+      dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
     // prevDag has both nodes as "active" with the same token counts as the turn
@@ -354,6 +363,7 @@ describe("filterDagForTurn", () => {
       startTime: "2026-01-01T00:30:00Z",
       completedAt: "2026-01-01T00:33:00Z",
       endTime: "2026-01-01T00:33:00Z",
+      dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
     const result = filterDagForTurn(dagWithTimes, turn)!;
@@ -401,6 +411,7 @@ describe("filterDagForTurn", () => {
         startTime: turnStart,
         completedAt: turnEnd,
         endTime: turnEnd,
+        dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
       const result = filterDagForTurn(dagWithTimes, turn)!;
@@ -438,6 +449,7 @@ describe("filterDagForTurn", () => {
         startTime: turnStart,
         completedAt: turnEnd,
         endTime: turnEnd,
+        dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
       const result = filterDagForTurn(dagWithTimes, turn)!;
@@ -475,6 +487,7 @@ describe("filterDagForTurn", () => {
         startTime: turnStart,
         completedAt: "",
         endTime: "",
+        dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
       const result = filterDagForTurn(dagWithTimes, turn)!;
@@ -517,6 +530,7 @@ describe("filterDagForTurn", () => {
         startTime: turnStart,
         completedAt: turnEnd,
         endTime: turnEnd,
+        dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
       // First DAG: subagent endTime = T+10m.
@@ -572,6 +586,7 @@ describe("filterDagForTurn", () => {
         startTime: turnStart,
         completedAt: turnEnd,
         endTime: turnEnd,
+        dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
       const dag: AgentDAG = {
