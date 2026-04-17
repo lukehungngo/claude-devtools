@@ -5,7 +5,7 @@ import { getEventsForTurn } from "../lib/turnSnapshot";
 import { getAgentStatus } from "../lib/agentStatus";
 import type { AgentStatus } from "../lib/agentStatus";
 import type { SessionEvent } from "../lib/types";
-import { formatCost, formatDuration } from "../lib/cost";
+import { formatCost, formatDuration, formatTokens } from "../lib/cost";
 
 // ─── Props ──────────────────────────────────────────────────────────
 
@@ -66,6 +66,8 @@ interface TurnItemProps {
 function turnItemComparator(prev: TurnItemProps, next: TurnItemProps): boolean {
   return (
     prev.turn === next.turn &&
+    prev.turn.inputTokens === next.turn.inputTokens &&
+    prev.turn.outputTokens === next.turn.outputTokens &&
     prev.status === next.status &&
     prev.index === next.index &&
     prev.isActive === next.isActive &&
@@ -146,6 +148,11 @@ const TurnItem = memo(function TurnItem({ turn, status, index, isActive, onClick
         )}
         <div className="ml-auto flex gap-[6px] text-[9px] font-mono text-dt-text2">
           <span className="text-dt-yellow">{formatCost(turn.cost)}</span>
+          {(turn.inputTokens > 0 || turn.outputTokens > 0) && (
+            <span className="text-dt-text3">
+              {formatTokens(turn.inputTokens)}/{formatTokens(turn.outputTokens)}
+            </span>
+          )}
           {turn.durationMs !== null && (
             <span>{formatDuration(turn.durationMs)}</span>
           )}
