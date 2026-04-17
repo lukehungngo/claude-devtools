@@ -74,7 +74,7 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
       className="flex items-center shrink-0"
       style={{
         padding: "0 18px",
-        height: 40,
+        height: "var(--hud-h, 40px)",
         background: "var(--bg-s)",
         borderBottom: "1px solid var(--bd)",
         gap: 14,
@@ -98,12 +98,8 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
           }}
         />
         <span
-          className="font-semibold"
-          style={{
-            fontSize: 10,
-            letterSpacing: ".5px",
-            color: statusColor,
-          }}
+          className="t-mono-sm font-semibold"
+          style={{ color: statusColor, letterSpacing: ".5px" }}
         >
           {statusLabel}
         </span>
@@ -167,17 +163,9 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
           {!(isLive && onModelSelect) && (
             <>
               <div className="flex flex-col items-center gap-[2px]">
-                <span
-                  className="uppercase"
-                  style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
-                >
-                  Context
-                </span>
+                <span className="t-eyebrow">Context</span>
                 <div className="flex items-center gap-1">
-                  <span
-                    className="font-mono font-medium"
-                    style={{ fontSize: 12, color: "var(--t1)" }}
-                  >
+                  <span className="t-metric">
                     {contextPct}%
                   </span>
                   <div
@@ -212,30 +200,14 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
           {/* Tokens (right-aligned) */}
           <div className="flex gap-2 ml-auto">
             <div className="flex flex-col items-center gap-[2px]">
-              <span
-                className="uppercase"
-                style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
-              >
-                In
-              </span>
-              <span
-                className="font-mono font-medium"
-                style={{ fontSize: 11, color: "var(--teal)" }}
-              >
+              <span className="t-eyebrow">In</span>
+              <span className="t-mono" style={{ color: "var(--teal)" }}>
                 {formatTokens(tIn)}
               </span>
             </div>
             <div className="flex flex-col items-center gap-[2px]">
-              <span
-                className="uppercase"
-                style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
-              >
-                Out
-              </span>
-              <span
-                className="font-mono font-medium"
-                style={{ fontSize: 11, color: "var(--pur)" }}
-              >
+              <span className="t-eyebrow">Out</span>
+              <span className="t-mono" style={{ color: "var(--pur)" }}>
                 {formatTokens(tOut)}
               </span>
             </div>
@@ -262,15 +234,10 @@ function HudMetric({
 }) {
   return (
     <div className="flex flex-col items-center gap-[2px]">
+      <span className="t-eyebrow">{label}</span>
       <span
-        className="uppercase"
-        style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
-      >
-        {label}
-      </span>
-      <span
-        className="font-mono font-medium"
-        style={{ fontSize: 12, color: valueColor || "var(--t1)" }}
+        className="t-metric"
+        style={valueColor ? { color: valueColor } : undefined}
       >
         {value}
       </span>
