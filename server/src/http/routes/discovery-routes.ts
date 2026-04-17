@@ -12,6 +12,7 @@ import { aggregateCosts } from "../../analyzer/cost-aggregator.js";
 import { logger } from "../../logger.js";
 import { CommandCache } from "../../discovery/command-cache.js";
 import type { RouteContext } from "./route-context.js";
+import { RUNNING_THRESHOLD_MS } from "../../cache/session-cache.js";
 
 /** Global command cache — survives across sessions, persisted to disk */
 const commandCache = new CommandCache();
@@ -88,9 +89,9 @@ export function createDiscoveryRoutes({ state }: RouteContext): Router {
               session.isRunning = mgrStatus === "streaming" || mgrStatus === "waiting-permission";
             } else {
               // Not tracked by SessionManager — check if a CLI session is actively writing.
-              // Keep the mtime heuristic but tighten to 30s (SDK writes frequently during streaming).
+              // Use RUNNING_THRESHOLD_MS (2 min) to match session-cache heuristic.
               const ageMs = Date.now() - new Date(session.lastModified).getTime();
-              session.isRunning = ageMs < 30_000;
+              session.isRunning = ageMs < RUNNING_THRESHOLD_MS;
             }
           }
           repo.hasActiveSessions = repo.sessions.some((s) => s.isRunning);

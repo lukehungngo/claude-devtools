@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { useSessionControl } from "./useSessionControl";
 
 beforeEach(() => {
@@ -189,5 +189,100 @@ describe("useSessionControl", () => {
     expect(result.current.model).toBeNull();
     expect(result.current.fastMode).toBe(false);
     expect(result.current.effort).toBe("high");
+  });
+});
+
+describe("useSessionControl — model seeding", () => {
+  beforeEach(() => {
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("seeds model from server when session mounts", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ model: "claude-sonnet-4-6" }),
+    });
+
+    const { result } = renderHook(() => useSessionControl("session-123"));
+
+    await waitFor(() => {
+      expect(result.current.model).toBe("claude-sonnet-4-6");
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/sessions/session-123/model");
+  });
+
+  it("leaves model as null when server returns null", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ model: null }),
+    });
+
+    const { result } = renderHook(() => useSessionControl("session-123"));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/sessions/session-123/model");
+    });
+
+    expect(result.current.model).toBeNull();
+  });
+
+  it("resets and re-fetches model when sessionId changes", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ model: "claude-opus-4-7" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ model: "claude-sonnet-4-6" }) });
+
+    const { result, rerender } = renderHook(
+      ({ sid }: { sid: string | null }) => useSessionControl(sid),
+      { initialProps: { sid: "session-abc" } }
+    );
+
+    await waitFor(() => expect(result.current.model).toBe("claude-opus-4-7"));
+
+    rerender({ sid: "session-xyz" });
+
+    await waitFor(() => expect(result.current.model).toBe("claude-sonnet-4-6"));
+  });
+
+  it("does not fetch when sessionId is null", () => {
+    const { result } = renderHook(() => useSessionControl(null));
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(result.current.model).toBeNull();
+  });
+
+  it("does not apply stale model from session A after switching to session B", async () => {
+    // session-A fetch resolves AFTER session-B fetch
+    let resolveA!: (value: unknown) => void;
+    const slowFetchA = new Promise((resolve) => { resolveA = resolve; });
+
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockImplementationOnce(() => slowFetchA) // session-A: delayed
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ model: "claude-sonnet-4-6" }) }); // session-B: fast
+
+    const { result, rerender } = renderHook(
+      ({ sid }: { sid: string | null }) => useSessionControl(sid),
+      { initialProps: { sid: "session-a" } }
+    );
+
+    // Switch to session-B before session-A's fetch resolves
+    rerender({ sid: "session-b" });
+
+    // session-B resolves quickly
+    await waitFor(() => expect(result.current.model).toBe("claude-sonnet-4-6"));
+
+    // Now resolve session-A's stale fetch — should be ignored
+    act(() => {
+      resolveA({ ok: true, json: async () => ({ model: "claude-opus-4-7" }) });
+    });
+
+    // Wait a tick to let any pending microtasks run
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Model must remain from session-B, not overwritten by stale session-A response
+    expect(result.current.model).toBe("claude-sonnet-4-6");
   });
 });

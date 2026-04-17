@@ -20,11 +20,28 @@ export function useSessionControl(
   const [fastMode, setFastModeState] = useState(false);
   const [effort, setEffortState] = useState<EffortLevel>("high");
 
-  // Reset state when session changes
+  // Reset state and seed model from server when session changes
   useEffect(() => {
     setModelState(null);
     setFastModeState(false);
     setEffortState("high");
+
+    if (!sessionId) return;
+
+    let cancelled = false;
+
+    fetch(`${API_BASE}/sessions/${sessionId}/model`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data: { model: string | null } | null) => {
+        if (!cancelled && data?.model) {
+          setModelState(data.model);
+        }
+      })
+      .catch(() => {
+        // Server unavailable or session not found — leave model as null
+      });
+
+    return () => { cancelled = true; };
   }, [sessionId]);
 
   // Use ref for fastMode in toggleFastMode to read current value inside useCallback

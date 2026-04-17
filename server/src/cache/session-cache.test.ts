@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { SessionCache } from "./session-cache.js";
+import { SessionCache, RUNNING_THRESHOLD_MS } from "./session-cache.js";
+
+it("exports RUNNING_THRESHOLD_MS as 2 minutes", () => {
+  expect(RUNNING_THRESHOLD_MS).toBe(2 * 60 * 1000);
+});
 import type { SessionInfo } from "../types.js";
 import fs from "node:fs";
 import path from "node:path";
