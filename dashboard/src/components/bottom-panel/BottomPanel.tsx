@@ -221,9 +221,8 @@ export function BottomPanel({
               {tab.label}
               {tab.id === "tool-call" && detailCount !== undefined && detailCount > 0 && (
                 <span
-                  className="font-mono"
+                  className="t-mono-xs"
                   style={{
-                    fontSize: 9,
                     background: "var(--bg-s)",
                     padding: "1px 6px",
                     borderRadius: 6,
@@ -234,9 +233,8 @@ export function BottomPanel({
               )}
               {tab.id === "tasks" && sessionTasks.length > 0 && (
                 <span
-                  className="font-mono"
+                  className="t-mono-xs"
                   style={{
-                    fontSize: 9,
                     background: "var(--bg-s)",
                     padding: "1px 6px",
                     borderRadius: 6,
@@ -248,7 +246,7 @@ export function BottomPanel({
             </button>
           ))}
           {viewingTurnNumber !== undefined && (
-            <div className="ml-auto flex items-center gap-[3px] text-[10px] text-dt-text3 pr-2">
+            <div className="ml-auto flex items-center gap-[3px] t-caption pr-2">
               Scoped to{" "}
               <span className="font-mono text-[10px] font-semibold text-dt-accent bg-dt-accent-bg px-[5px] py-[1px] rounded-[3px]">
                 T{viewingTurnNumber}
