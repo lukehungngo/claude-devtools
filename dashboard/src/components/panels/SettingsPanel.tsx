@@ -299,7 +299,8 @@ export function SettingsPanel({ metrics, usage }: SettingsPanelProps) {
     );
   }
 
-  const model = metrics.models.length > 0 ? metrics.models[0] : null;
+  const realModels = metrics.models.filter((m) => !m.startsWith("<"));
+  const model = realModels.length > 0 ? realModels[0] : null;
   const permissionMode = metrics.permissionMode ?? metrics.session.permissionMode ?? null;
   const cwd = metrics.session.cwd ?? null;
   const gitBranch = metrics.session.gitBranch ?? null;

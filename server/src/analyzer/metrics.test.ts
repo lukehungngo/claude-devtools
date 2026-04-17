@@ -443,4 +443,73 @@ describe("computeMetrics", () => {
     expect(metrics.models).toContain("claude-opus-4-6");
     expect(metrics.models).toContain("claude-sonnet-4-6");
   });
+
+  it("excludes pseudo-models like <synthetic> from models list and token aggregation", () => {
+    const mainEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        uuid: "real-1",
+        model: "claude-opus-4-6",
+        usage: { input_tokens: 50_000, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      }),
+      makeAssistantEvent({
+        uuid: "synth-1",
+        model: "<synthetic>",
+        usage: { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      }),
+      makeAssistantEvent({
+        uuid: "real-2",
+        model: "claude-opus-4-6",
+        usage: { input_tokens: 30_000, output_tokens: 200, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      }),
+    ];
+
+    const metrics = computeMetrics(
+      makeSessionInfo(),
+      mainEvents,
+      new Map(),
+      new Map()
+    );
+
+    // <synthetic> must not pollute the models list
+    expect(metrics.models).not.toContain("<synthetic>");
+    expect(metrics.models).toContain("claude-opus-4-6");
+
+    // tokensByModel must not have an entry for <synthetic>
+    expect(metrics.tokensByModel["<synthetic>"]).toBeUndefined();
+    expect(metrics.tokensByModel["claude-opus-4-6"]).toBeDefined();
+
+    // Totals reflect only real events (50_000 + 30_000 = 80_000 input)
+    expect(metrics.tokens.inputTokens).toBe(80_000);
+    expect(metrics.tokens.outputTokens).toBe(300);
+  });
+
+  it("uses last real model's context window (not the first model seen)", () => {
+    const mainEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        uuid: "sonnet-1",
+        timestamp: "2026-04-17T10:00:00Z",
+        model: "claude-sonnet-4-6",
+        usage: { input_tokens: 10_000, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      }),
+      makeAssistantEvent({
+        uuid: "opus-1m-1",
+        timestamp: "2026-04-17T10:01:00Z",
+        model: "claude-opus-4-6[1m]",
+        usage: { input_tokens: 500_000, output_tokens: 200, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      }),
+    ];
+
+    const metrics = computeMetrics(
+      makeSessionInfo(),
+      mainEvents,
+      new Map(),
+      new Map()
+      // no sdkContextWindow — fallback path must pick the last real model
+    );
+
+    // The latest assistant event with usage used the 1M-tier opus — context window must be 1M, not 200k.
+    expect(metrics.contextWindowSize).toBe(1_000_000);
+    // 500_000 / 1_000_000 = 50%
+    expect(metrics.contextPercent).toBe(50);
+  });
 });

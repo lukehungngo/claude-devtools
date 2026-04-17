@@ -195,12 +195,17 @@ export function computeMetrics(
   let cumulativeCost = 0;
   const models = new Set<string>();
   let lastInputTokens = 0; // last assistant event's input_tokens = current context usage
+  let lastRealModel: string | null = null; // model of the latest real assistant event — used for context-window lookup
 
   for (const event of mainEvents) {
     if (event.type !== "assistant") continue;
     const usage = event.message.usage;
     const model = event.message.model || "unknown";
     if (!usage) continue;
+    // Skip pseudo-models (e.g. "<synthetic>") — Claude Code injects synthetic
+    // assistant events with zeroed usage. They carry no real tokens and must
+    // not pollute the models list, token aggregates, or context-window lookup.
+    if (model.startsWith("<")) continue;
 
     models.add(model);
 
@@ -227,6 +232,10 @@ export function computeMetrics(
     //   cacheWrite = tokens newly written to cache (part of this request's input)
     //   cacheRead = tokens served from cache (part of this request's input)
     lastInputTokens = input + cacheWrite + cacheRead;
+    // The model bound to this event is the "currently running" model for
+    // context-window lookup purposes — it's the last real assistant event
+    // that actually consumed tokens.
+    lastRealModel = model;
 
     if (!tokensByModel[model]) {
       tokensByModel[model] = {
@@ -288,8 +297,10 @@ export function computeMetrics(
       : startTime;
   const duration = startTime > 0 ? endTime - startTime : 0;
 
-  // Context window — use SDK authoritative value when available, fall back to model-based lookup
-  const primaryModel = Array.from(models)[0] || "claude-sonnet-4-6";
+  // Context window — use SDK authoritative value when available, fall back to model-based lookup.
+  // For the fallback, prefer the model tied to the latest real assistant event
+  // (that's the model currently running and the one whose window applies to lastInputTokens).
+  const primaryModel = lastRealModel ?? Array.from(models)[0] ?? "claude-sonnet-4-6";
   const contextWindowSize = sdkContextWindow || getContextWindowSize(primaryModel);
   const contextPercent = contextWindowSize > 0
     ? Math.min(100, Math.round((lastInputTokens / contextWindowSize) * 100))
