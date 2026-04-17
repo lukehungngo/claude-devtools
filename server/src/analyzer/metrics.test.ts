@@ -535,6 +535,21 @@ describe("computeMetrics", () => {
     expect(metrics.contextPercent).toBe(50);
   });
 
+  it("explicit sessionIsRunning overrides sessionInfo.isRunning", () => {
+    const sessionInfo = makeSessionInfo({ isRunning: true });
+
+    const metrics = computeMetrics(
+      sessionInfo,
+      [],
+      new Map(),
+      new Map(),
+      undefined,
+      false // explicit sessionIsRunning=false overrides sessionInfo.isRunning=true
+    );
+
+    expect(metrics.session.isRunning).toBe(false);
+  });
+
   it("uses last real model's context window (not the first model seen)", () => {
     const mainEvents: SessionEvent[] = [
       makeAssistantEvent({

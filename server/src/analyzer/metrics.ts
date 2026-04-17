@@ -177,6 +177,7 @@ export function computeMetrics(
   subagentEvents: Map<string, SessionEvent[]>,
   subagentMeta: Map<string, { agentType: string; description: string }>,
   sdkContextWindow?: number,
+  sessionIsRunning?: boolean,
 ): SessionMetrics {
   const allEvents = [
     ...mainEvents,
@@ -270,8 +271,11 @@ export function computeMetrics(
     });
   }
 
+  // Resolve authoritative liveness: explicit param wins over sessionInfo.isRunning (mtime heuristic)
+  const effectiveIsRunning = sessionIsRunning ?? sessionInfo.isRunning ?? false;
+
   // Build DAG
-  const dag = buildAgentDAG(mainEvents, subagentEvents, subagentMeta, sessionInfo.isRunning ?? false);
+  const dag = buildAgentDAG(mainEvents, subagentEvents, subagentMeta, effectiveIsRunning);
 
   // Tool stats
   const tools = buildToolStats(allEvents);
@@ -320,7 +324,7 @@ export function computeMetrics(
   const repoConfig = computeRepoConfig(sessionInfo.cwd);
 
   return {
-    session: sessionInfo,
+    session: { ...sessionInfo, isRunning: effectiveIsRunning },
     dag,
     tokens: totalTokens,
     tokensByModel,

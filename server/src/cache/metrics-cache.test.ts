@@ -203,4 +203,17 @@ describe("MetricsCache", () => {
     cache.clear();
     expect(cache.size).toBe(0);
   });
+
+  it("returns null on sessionIsRunning change with same file stats", () => {
+    const events: SessionEvent[] = [];
+    const subagentMeta = new Map<string, { agentType: string; description: string }>();
+
+    cache.set(
+      { filePath: "x.jsonl", size: 100, mtimeMs: 123, sessionIsRunning: true },
+      { metrics: makeMetrics(), events, subagentMeta }
+    );
+
+    const result = cache.get({ filePath: "x.jsonl", size: 100, mtimeMs: 123, sessionIsRunning: false });
+    expect(result).toBeNull();
+  });
 });

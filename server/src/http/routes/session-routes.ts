@@ -134,9 +134,26 @@ export function createSessionRoutes({ state }: RouteContext): Router {
         }
       } catch { /* ignore */ }
 
+      // Compute authoritative session liveness BEFORE cache lookup — needed in the cache key
+      // so a running→ended transition (no file change) causes a cache miss and DAG recompute.
+      const sessionManager = state?.sessionManager;
+      let sessionIsRunning: boolean;
+      if (sessionManager) {
+        const activeSession = sessionManager.getStatus(sessionId);
+        if (activeSession) {
+          sessionIsRunning = activeSession.status === "streaming" || activeSession.status === "waiting-permission";
+        } else {
+          const ageMs = Date.now() - new Date(session.lastModified).getTime();
+          sessionIsRunning = ageMs < RUNNING_THRESHOLD_MS;
+        }
+      } else {
+        const ageMs = Date.now() - new Date(session.lastModified).getTime();
+        sessionIsRunning = ageMs < RUNNING_THRESHOLD_MS;
+      }
+
       try {
         const stat = statSync(session.path);
-        const cacheKey = { filePath: session.path, size: stat.size, mtimeMs: stat.mtimeMs, subagentCount: subagentFileCount };
+        const cacheKey = { filePath: session.path, size: stat.size, mtimeMs: stat.mtimeMs, subagentCount: subagentFileCount, sessionIsRunning };
         const cached = metricsCache.get(cacheKey);
 
         if (cached) {
@@ -161,6 +178,7 @@ export function createSessionRoutes({ state }: RouteContext): Router {
           subagentEvents,
           subagentMeta,
           sdkContextWindow,
+          sessionIsRunning,
         );
 
         // Merge main + subagent events, sorted by timestamp
@@ -177,7 +195,7 @@ export function createSessionRoutes({ state }: RouteContext): Router {
         try {
           const stat = statSync(session.path);
           metricsCache.set(
-            { filePath: session.path, size: stat.size, mtimeMs: stat.mtimeMs, subagentCount: subagentFileCount },
+            { filePath: session.path, size: stat.size, mtimeMs: stat.mtimeMs, subagentCount: subagentFileCount, sessionIsRunning },
             { metrics, events: allEvents, subagentMeta }
           );
         } catch {
@@ -237,22 +255,6 @@ export function createSessionRoutes({ state }: RouteContext): Router {
           );
         } catch (err) {
           logger.warn({ error: String(err) }, "debug-db: failed to store lifecycle data");
-        }
-      }
-
-      // Cross-reference with SessionManager for accurate isRunning status,
-      // same as /repos endpoint. Without this, the session-cache's 2-min mtime
-      // heuristic can show "Completed" while the CLI session is still active.
-      const sessionManager = state?.sessionManager;
-      if (sessionManager) {
-        const activeSession = sessionManager.getStatus(sessionId);
-        if (activeSession) {
-          metrics.session.isRunning =
-            activeSession.status === "streaming" || activeSession.status === "waiting-permission";
-        } else {
-          // Not tracked by SessionManager — use RUNNING_THRESHOLD_MS (2 min) mtime heuristic
-          const ageMs = Date.now() - new Date(session.lastModified).getTime();
-          metrics.session.isRunning = ageMs < RUNNING_THRESHOLD_MS;
         }
       }
 
