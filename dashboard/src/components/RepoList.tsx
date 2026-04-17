@@ -89,14 +89,7 @@ export function RepoList({
       {/* Connection section */}
       <SectionTitle>Connection</SectionTitle>
       <div style={{ padding: "8px 14px" }} className="flex items-center gap-2">
-        <div
-          className="rounded-full shrink-0"
-          style={{
-            width: 7,
-            height: 7,
-            background: isConnected ? "var(--grn)" : "var(--red)",
-          }}
-        />
+        <div className={`dot ${isConnected ? "pass" : "fail"}`} />
         <div className="flex-1 overflow-hidden">
           <div style={{ fontSize: 12, fontWeight: 500, color: "var(--t1)" }}>Claude Code</div>
           <div className="font-mono" style={{ fontSize: 10, color: "var(--t3)" }}>
@@ -121,10 +114,7 @@ export function RepoList({
           className="flex items-center gap-2"
           style={{ padding: "4px 14px 10px", borderBottom: "1px solid var(--bd)" }}
         >
-          <div
-            className="rounded-full shrink-0"
-            style={{ width: 7, height: 7, background: "var(--grn)" }}
-          />
+          <div className="dot pass" />
           <div className="flex-1 overflow-hidden">
             <div style={{ fontSize: 12, fontWeight: 500, color: "var(--t1)" }}>
               {usage.planName}
@@ -198,7 +188,7 @@ export function RepoList({
                     &#9656;
                   </span>
                   <div
-                    className="rounded-full shrink-0"
+                    className="dot"
                     style={{
                       width: 6,
                       height: 6,
@@ -250,7 +240,7 @@ export function RepoList({
                         }}
                       >
                         <div
-                          className="rounded-full shrink-0"
+                          className="dot"
                           style={{
                             width: 5,
                             height: 5,
@@ -345,15 +335,7 @@ export function RepoList({
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className="font-medium uppercase"
-      style={{
-        fontSize: 10,
-        color: "var(--t3)",
-        letterSpacing: ".8px",
-        padding: "14px 14px 6px",
-      }}
-    >
+    <div className="t-section" style={{ padding: "14px 14px 6px" }}>
       {children}
     </div>
   );
