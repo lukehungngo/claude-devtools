@@ -223,6 +223,7 @@ export function BottomPanel({
                 <span
                   className="t-mono-xs"
                   style={{
+                    color: "inherit",
                     background: "var(--bg-s)",
                     padding: "1px 6px",
                     borderRadius: 6,
@@ -235,6 +236,7 @@ export function BottomPanel({
                 <span
                   className="t-mono-xs"
                   style={{
+                    color: "inherit",
                     background: "var(--bg-s)",
                     padding: "1px 6px",
                     borderRadius: 6,
