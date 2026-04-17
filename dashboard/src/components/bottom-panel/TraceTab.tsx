@@ -101,25 +101,19 @@ export function computeTimeline(nodes: AgentNode[]): Timeline {
   let minMs = Infinity;
   let maxMs = -Infinity;
 
-  // If a "main" node exists, use its (turn-scoped) times as timeline bounds
-  const mainNode = nodes.find((n) => n.id === "main");
-  if (mainNode?.startTime) {
-    minMs = new Date(mainNode.startTime).getTime();
-    maxMs = mainNode.endTime
-      ? new Date(mainNode.endTime).getTime()
-      : Date.now();
-  } else {
-    // Fallback: scan all nodes (no main node or no times)
-    for (const n of nodes) {
-      if (n.startTime) {
-        const t = new Date(n.startTime).getTime();
+  // Convex hull: scan ALL nodes unconditionally so the timeline encompasses
+  // every agent's span, including subagents that extend beyond main's bounds.
+  for (const n of nodes) {
+    if (n.startTime) {
+      const t = new Date(n.startTime).getTime();
+      if (!Number.isNaN(t)) {
         if (t < minMs) minMs = t;
         if (t > maxMs) maxMs = t;
       }
-      if (n.endTime) {
-        const t = new Date(n.endTime).getTime();
-        if (t > maxMs) maxMs = t;
-      }
+    }
+    if (n.endTime) {
+      const t = new Date(n.endTime).getTime();
+      if (!Number.isNaN(t) && t > maxMs) maxMs = t;
     }
   }
 
@@ -182,13 +176,44 @@ export function computeBarPosition(
   const rawLeft = ((nodeStartMs - sessionStartMs) / totalMs) * 100;
 
   if (node.status === "active" || !node.endTime) {
+    // Dev-only invariant check: bar start should fit within [0, 100].
+    // Active nodes intentionally stretch to (100 - leftPct); no end-overflow check.
+    if (import.meta.env.DEV === true && (rawLeft < -1 || rawLeft > 101)) {
+      console.warn("[TraceTab] bar extent exceeds timeline", {
+        nodeId: node.id,
+        nodeStartMs,
+        nodeEndMs: undefined,
+        timelineStart: sessionStartMs,
+        timelineEnd: sessionStartMs + totalMs,
+        rawLeft,
+        rawWidth: undefined,
+      });
+    }
     const leftPct = Math.max(0, Math.min(100, rawLeft));
     return { leftPct, widthPct: Math.max(MIN_BAR_PCT, 100 - leftPct) };
   }
 
   const nodeEndMs = new Date(node.endTime).getTime();
-  const leftPct = Math.max(0, Math.min(100, rawLeft));
   const rawWidth = ((nodeEndMs - nodeStartMs) / totalMs) * 100;
+
+  // Dev-only invariant check: bar extent must fit within [0, 100].
+  // Tiny float error (±1%) is tolerated to avoid false positives.
+  if (
+    import.meta.env.DEV === true &&
+    (rawLeft < -1 || rawLeft + rawWidth > 101)
+  ) {
+    console.warn("[TraceTab] bar extent exceeds timeline", {
+      nodeId: node.id,
+      nodeStartMs,
+      nodeEndMs,
+      timelineStart: sessionStartMs,
+      timelineEnd: sessionStartMs + totalMs,
+      rawLeft,
+      rawWidth,
+    });
+  }
+
+  const leftPct = Math.max(0, Math.min(100, rawLeft));
   const widthPct = Math.max(MIN_BAR_PCT, Math.min(rawWidth, 100 - leftPct));
 
   return { leftPct, widthPct };
