@@ -26,6 +26,7 @@ import { buildNewEventsMessage } from "../watcher.js";
 import { mapSdkMessageToSSEEvents } from "../sse-event-handler.js";
 import { metricsCache } from "./route-context.js";
 import type { RouteContext } from "./route-context.js";
+import { updateModelContextWindows } from "../../cache/model-context-cache.js";
 
 function spawnAsync(
   cmd: string,
@@ -603,6 +604,10 @@ export function createSessionRoutes({ state }: RouteContext): Router {
           if (maxContextWindow > 0) {
             sessionManager.setContextWindow(sessionId, maxContextWindow);
           }
+          // Persist per-model context windows for future historical session lookups
+          void updateModelContextWindows(
+            msg.modelUsage as Record<string, { contextWindow: number }>
+          );
         }
 
         // Immediately broadcast session events (assistant/user) via WebSocket
