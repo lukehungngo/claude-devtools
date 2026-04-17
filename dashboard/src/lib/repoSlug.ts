@@ -56,6 +56,32 @@ export function resolveSlugToProjectHash(
 }
 
 /**
+ * Resolve a URL slug to a projectHash for the purpose of firing a session fetch.
+ *
+ * Returns `null` while repos are still loading and the slug map is empty — this
+ * tells the caller to hold the fetch rather than fire one with the raw URL slug,
+ * which the server would answer with 404 (slugs are not valid projectHashes).
+ *
+ * Once repos resolve (or if the slug is already known), returns the mapped
+ * projectHash. If repos have finished loading but the slug is unknown, falls
+ * back to returning the slug itself so the caller can still attempt a fetch
+ * (preserving existing behavior for unknown projects).
+ */
+export function resolveProjectHashForFetch(
+  slug: string,
+  slugMap: Map<string, string>,
+  reposLoading: boolean,
+): string | null {
+  const mapped = slugMap.get(slug);
+  if (mapped) return mapped;
+  // Hold the fetch while repos are loading and we have no mapping yet —
+  // firing with the raw slug would 404.
+  if (reposLoading && slugMap.size === 0) return null;
+  // Repos loaded but slug is unknown: last-ditch fallback to the slug itself.
+  return slug;
+}
+
+/**
  * Build the inverse map: projectHash -> slug.
  */
 export function buildProjectHashToSlugMap(

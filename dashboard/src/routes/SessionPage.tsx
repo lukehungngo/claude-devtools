@@ -4,7 +4,7 @@ import { useLayoutContext } from "../contexts/LayoutContext";
 import { useSessionMetrics } from "../hooks/useSessionData";
 import { useEventStream } from "../hooks/useEventStream";
 import { useSessionControl } from "../hooks/useSessionControl";
-import { resolveSlugToProjectHash } from "../lib/repoSlug";
+import { resolveProjectHashForFetch } from "../lib/repoSlug";
 import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental } from "../lib/turnSnapshot";
 import { ConversationView } from "../components/conversation/ConversationView";
 import { RawLogView } from "../components/conversation/RawLogView";
@@ -50,6 +50,7 @@ export function SessionPage() {
     setCurrentActiveTurnIndex,
     setSelected,
     slugMap,
+    reposLoading,
     usage,
     setViewingTurnNumber,
     onClearViewingTurnRef,
@@ -59,11 +60,14 @@ export function SessionPage() {
     setSessionControl,
   } = ctx;
 
-  // Resolve URL slug to projectHash for API calls
-  const projectHash = resolveSlugToProjectHash(repoSlug, slugMap) ?? repoSlug;
+  // Resolve URL slug to projectHash for API calls. Returns null while repos
+  // are still loading so useSessionMetrics holds the fetch — firing with the
+  // raw URL slug would 404 (slugs are not valid projectHashes).
+  const projectHash = resolveProjectHashForFetch(repoSlug, slugMap, reposLoading);
 
-  // Sync sidebar selection with route params
+  // Sync sidebar selection with route params once we have a resolved hash
   useEffect(() => {
+    if (!projectHash) return;
     setSelected({ projectHash, sessionId });
   }, [projectHash, sessionId, setSelected]);
 
@@ -304,7 +308,9 @@ export function SessionPage() {
     };
   }, [setCurrentMetrics, setCurrentEvents, setCurrentLiveEvents, setCurrentTurns, setCurrentDag, setCurrentSelectedAgent, setCurrentActiveTurnIndex, setHasSubagents, setCurrentSubagentMeta, setViewingTurnNumber, setSessionControl]);
 
-  if (metricsLoading && !metrics) {
+  // While repos are still loading we have no projectHash yet and therefore
+  // no fetch in flight — show the loading state, not the error state.
+  if ((metricsLoading || !projectHash) && !metrics) {
     return (
       <div className="flex items-center justify-center h-full text-dt-text2">
         Loading session...
@@ -370,7 +376,7 @@ export function SessionPage() {
             isLive={isLive}
             sessionCwd={metrics.session.cwd}
             sessionId={metrics.session.id}
-            projectHash={projectHash}
+            projectHash={projectHash ?? undefined}
             activeSessionId={activeSessionId ?? undefined}
             onSessionStarted={setActiveSessionId}
             highlightedTurnIndex={highlightedTurnIndex ?? effectiveTurnIndex ?? undefined}
@@ -406,7 +412,7 @@ export function SessionPage() {
         onClose={() => setActivePanel(null)}
         metrics={metrics}
         usage={usage}
-        projectHash={projectHash}
+        projectHash={projectHash ?? undefined}
         sessionId={sessionId}
         permissions={permissions}
         onDecide={decidePermission}
