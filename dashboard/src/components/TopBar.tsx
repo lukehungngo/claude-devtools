@@ -62,7 +62,11 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
   const contextDanger = contextPct >= 80;
 
   const modelsList = metrics?.models ?? [];
-  const activeModel = model ?? (modelsList.length > 0 ? modelsList[modelsList.length - 1] : null);
+  // Defensively strip pseudo-models (e.g. "<synthetic>") that Claude Code
+  // injects into JSONL. Server already filters these, but we guard here
+  // against stale cached metrics from older server builds.
+  const realModels = modelsList.filter((m) => !m.startsWith("<"));
+  const activeModel = model ?? (realModels.length > 0 ? realModels[realModels.length - 1] : null);
   const modelName = activeModel ? formatModelShort(activeModel) : "\u2014";
 
   return (

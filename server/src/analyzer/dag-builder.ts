@@ -58,7 +58,7 @@ function analyzeEvents(events: SessionEvent[], opts?: { isSubagent?: boolean }):
 
         const rawModel = event.message.model;
         const model = rawModel || "claude-sonnet-4-6";
-        if (rawModel) lastModel = rawModel;
+        if (rawModel && !rawModel.startsWith("<")) lastModel = rawModel;
         totalCost += calculateTokenCost(model, {
           inputTokens: evtIn,
           outputTokens: evtOut,

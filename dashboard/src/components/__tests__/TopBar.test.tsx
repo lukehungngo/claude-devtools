@@ -116,6 +116,24 @@ describe("TopBar", () => {
     });
   });
 
+  describe("pseudo-model filtering", () => {
+    it("does not display <synthetic> as the active model", () => {
+      const metricsWithSynthetic = {
+        ...STUB_METRICS,
+        // Order matters: synthetic is last in the list — without the filter, TopBar
+        // would pick it via modelsList[length - 1] and render `<synthetic>`.
+        models: ["claude-opus-4-6", "<synthetic>"],
+      } as unknown as SessionMetrics;
+
+      renderTopBar({ metrics: metricsWithSynthetic, isLive: false });
+
+      // The rendered model value must not be the raw pseudo-model string.
+      expect(screen.queryByText("<synthetic>")).toBeNull();
+      // It should fall back to the real model formatted short (Opus 4.6).
+      expect(screen.getByText(/Opus/)).toBeDefined();
+    });
+  });
+
   describe("red border on context danger", () => {
     it("applies red outline when contextPercent >= 80", () => {
       const dangerMetrics = { ...STUB_METRICS, contextPercent: 85 } as unknown as SessionMetrics;
