@@ -223,61 +223,93 @@ export function loadFullSession(sessionInfo: SessionInfo): {
   subagentEvents: Map<string, SessionEvent[]>;
   subagentMeta: Map<string, { agentType: string; description: string }>;
 } {
-  const mainEvents = parseJsonlFile(sessionInfo.path);
-
   const subagentEvents = new Map<string, SessionEvent[]>();
   const subagentMeta = new Map<
     string,
     { agentType: string; description: string }
   >();
 
-  const subagentDir = join(
-    getClaudeProjectsDir(),
-    sessionInfo.projectHash,
-    sessionInfo.id,
-    "subagents"
-  );
+  // A session's files can appear under multiple projectHash directories when
+  // the user's cwd changes mid-session (e.g. switching from the main repo into
+  // a `.claude/worktrees/*` worktree). Claude Code writes subagent events into
+  // whichever projectHash was active at the time, so subagents for a single
+  // logical session are scattered across dirs. We must scan ALL project dirs
+  // for `{projectDir}/{sessionId}/subagents/` to see the full set.
+  //
+  // Additionally the `{sessionId}.jsonl` main file can exist as a one-line
+  // stub in one dir and the full content in another. Prefer the largest.
+  const claudeProjectsDir = getClaudeProjectsDir();
+  let mainJsonlPath = sessionInfo.path;
+  let mainJsonlSize = existsSync(mainJsonlPath) ? statSync(mainJsonlPath).size : 0;
 
-  if (existsSync(subagentDir)) {
-    for (const file of readdirSync(subagentDir)) {
-      if (file.endsWith(".jsonl")) {
-        const agentId = file.replace(".jsonl", "").replace("agent-", "");
-        subagentEvents.set(
-          agentId,
-          parseJsonlFile(join(subagentDir, file))
-        );
-      } else if (file.endsWith(".meta.json")) {
-        const agentId = file
-          .replace(".meta.json", "")
-          .replace("agent-", "");
-        try {
-          const meta = JSON.parse(
-            readFileSync(join(subagentDir, file), "utf-8")
+  if (existsSync(claudeProjectsDir)) {
+    const projectDirs = readdirSync(claudeProjectsDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name);
+
+    for (const projectDir of projectDirs) {
+      const projectDirPath = join(claudeProjectsDir, projectDir);
+
+      // Main JSONL upgrade: prefer the largest `{sessionId}.jsonl` across
+      // project dirs. Subagent agentIds are unique hex strings so merging
+      // maps across dirs is collision-free; main files are a single path.
+      const siblingMainPath = join(projectDirPath, `${sessionInfo.id}.jsonl`);
+      if (existsSync(siblingMainPath) && siblingMainPath !== mainJsonlPath) {
+        const siblingSize = statSync(siblingMainPath).size;
+        if (siblingSize > mainJsonlSize) {
+          mainJsonlPath = siblingMainPath;
+          mainJsonlSize = siblingSize;
+        }
+      }
+
+      // Subagents: merge every `{projectDir}/{sessionId}/subagents/*`.
+      const subagentDir = join(projectDirPath, sessionInfo.id, "subagents");
+      if (!existsSync(subagentDir)) continue;
+
+      for (const file of readdirSync(subagentDir)) {
+        if (file.endsWith(".jsonl")) {
+          const agentId = file.replace(".jsonl", "").replace("agent-", "");
+          subagentEvents.set(
+            agentId,
+            parseJsonlFile(join(subagentDir, file))
           );
-          subagentMeta.set(agentId, {
-            agentType: meta.agentType || agentId,
-            description: meta.description || agentId,
-          });
-        } catch {
-          // ignore
+        } else if (file.endsWith(".meta.json")) {
+          const agentId = file
+            .replace(".meta.json", "")
+            .replace("agent-", "");
+          try {
+            const meta = JSON.parse(
+              readFileSync(join(subagentDir, file), "utf-8")
+            );
+            subagentMeta.set(agentId, {
+              agentType: meta.agentType || agentId,
+              description: meta.description || agentId,
+            });
+          } catch {
+            // ignore malformed meta
+          }
         }
       }
     }
+  }
 
-    // Infer agent type from filename for agents without .meta.json.
-    // Claude Code internal agents use pattern: agent-a<type>-<hex>.jsonl
-    // e.g. agent-acompact-4787973a.jsonl → type "compact"
-    for (const agentId of subagentEvents.keys()) {
-      if (!subagentMeta.has(agentId)) {
-        const match = agentId.match(/^a([a-z_]+)-[0-9a-f]+$/);
-        const inferredType = match ? match[1] : agentId;
-        subagentMeta.set(agentId, {
-          agentType: inferredType,
-          description: inferredType.replace(/_/g, " "),
-        });
-      }
+  // Infer agent type from filename for agents without .meta.json.
+  // Claude Code internal agents use pattern: agent-a<type>-<hex>.jsonl
+  // e.g. agent-acompact-4787973a.jsonl → type "compact".
+  // Runs once over the fully-merged map so partial project-dir scans don't
+  // produce premature or duplicate inferences.
+  for (const agentId of subagentEvents.keys()) {
+    if (!subagentMeta.has(agentId)) {
+      const match = agentId.match(/^a([a-z_]+)-[0-9a-f]+$/);
+      const inferredType = match ? match[1] : agentId;
+      subagentMeta.set(agentId, {
+        agentType: inferredType,
+        description: inferredType.replace(/_/g, " "),
+      });
     }
   }
+
+  const mainEvents = parseJsonlFile(mainJsonlPath);
 
   return { mainEvents, subagentEvents, subagentMeta };
 }
