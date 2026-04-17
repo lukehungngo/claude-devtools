@@ -271,7 +271,7 @@ export function computeMetrics(
   }
 
   // Build DAG
-  const dag = buildAgentDAG(mainEvents, subagentEvents, subagentMeta);
+  const dag = buildAgentDAG(mainEvents, subagentEvents, subagentMeta, sessionInfo.isRunning ?? false);
 
   // Tool stats
   const tools = buildToolStats(allEvents);

@@ -548,6 +548,33 @@ describe("buildAgentDAG", () => {
     expect(sub.status).toBe("active");
   });
 
+  it("sessionIsRunning defaults to true when not passed (backward compat)", () => {
+    const subagentEvents = new Map<string, SessionEvent[]>([
+      [
+        "agent-1",
+        [
+          makeAssistantEvent({
+            timestamp: "2026-03-23T10:00:01Z",
+            agentId: "agent-1",
+            isSidechain: true,
+            stopReason: "tool_use",
+          }),
+        ],
+      ],
+    ]);
+    const subagentMeta = new Map([
+      ["agent-1", { agentType: "Explore", description: "explore" }],
+    ]);
+    // No 4th arg → defaults to true
+    const dag = buildAgentDAG(
+      [makeAssistantEvent({ stopReason: "tool_use" })],
+      subagentEvents,
+      subagentMeta,
+    );
+    const sub = dag.nodes.find((n) => n.id === "agent-1")!;
+    expect(sub.status).toBe("active");
+  });
+
   it("subagent without terminal signal shows 'active' when session is running", () => {
     const subagentEvents = new Map<string, SessionEvent[]>([
       [
