@@ -55,6 +55,10 @@ export interface TurnSnapshot {
   cost: number;
   /** Detailed cost breakdown with input/output token costs */
   costBreakdown: CostBreakdown;
+  /** Total input tokens across all agents in this turn */
+  inputTokens: number;
+  /** Total output tokens across all agents in this turn */
+  outputTokens: number;
   startTime: string;
   endTime: string;
   /** Model used in this turn, e.g. "claude-sonnet-4-6". Last model seen wins. */
@@ -350,6 +354,14 @@ function buildTurn(
     }
   }
 
+  // Sum token totals across all dispatched agents
+  let turnInputTokens = 0;
+  let turnOutputTokens = 0;
+  for (const [, info] of agentMap) {
+    turnInputTokens += info.tokensIn;
+    turnOutputTokens += info.tokensOut;
+  }
+
   // Only derive the turn_duration time from the system event. No status
   // derivation happens here: consumers compute status via isAgentCompleted.
   let durationMs: number | null = null;
@@ -391,6 +403,8 @@ function buildTurn(
       inputCost: totalInputCost,
       outputCost: totalOutputCost,
     },
+    inputTokens: turnInputTokens,
+    outputTokens: turnOutputTokens,
     startTime: events[0]?.timestamp ?? "",
     endTime,
     model: lastModel || undefined,
@@ -500,6 +514,14 @@ function extendTurn(
     }
   }
 
+  // Re-sum token totals from the merged agentMap
+  let turnInputTokens = 0;
+  let turnOutputTokens = 0;
+  for (const [, info] of agentMap) {
+    turnInputTokens += info.tokensIn;
+    turnOutputTokens += info.tokensOut;
+  }
+
   // Update durationMs from any new turn_duration event in the delta; keep the
   // existing value otherwise.
   let durationMs = existing.durationMs;
@@ -542,6 +564,8 @@ function extendTurn(
       inputCost: totalInputCost,
       outputCost: totalOutputCost,
     },
+    inputTokens: turnInputTokens,
+    outputTokens: turnOutputTokens,
     startTime: existing.startTime,
     endTime,
     model: lastModel || undefined,

@@ -1893,3 +1893,43 @@ describe("Ownership invariants", () => {
     );
   });
 });
+
+describe("TurnSnapshot token totals", () => {
+  it("sums inputTokens and outputTokens from all agents in buildTurn", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "hello" }),
+      makeAssistantEvent({ inputTokens: 300, outputTokens: 100 }),
+      makeAssistantEvent({ inputTokens: 200, outputTokens: 50 }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].inputTokens).toBe(500);
+    expect(turns[0].outputTokens).toBe(150);
+  });
+
+  it("has inputTokens=0 outputTokens=0 when no assistant events", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "hello" }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].inputTokens).toBe(0);
+    expect(turns[0].outputTokens).toBe(0);
+  });
+
+  it("accumulates inputTokens/outputTokens correctly after extendTurn", () => {
+    // groupEventsIntoTurnsIncremental does extendTurn internally
+    const events1: SessionEvent[] = [
+      makeUserEvent({ text: "hello" }),
+      makeAssistantEvent({ inputTokens: 300, outputTokens: 100 }),
+    ];
+    const events2: SessionEvent[] = [
+      ...events1,
+      makeAssistantEvent({ inputTokens: 200, outputTokens: 50 }),
+    ];
+    const [t1] = groupEventsIntoTurns(events1);
+    const [t2] = groupEventsIntoTurns(events2);
+    expect(t1.inputTokens).toBe(300);
+    expect(t1.outputTokens).toBe(100);
+    expect(t2.inputTokens).toBe(500);
+    expect(t2.outputTokens).toBe(150);
+  });
+});

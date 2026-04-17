@@ -43,6 +43,8 @@ function makeTurn(turnNumber: number, promptText: string, startIndex: number, en
     durationMs: null,
     cost: 0,
     costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+    inputTokens: 0,
+    outputTokens: 0,
     startTime: "",
     endTime: "",
     dispatchedAgentIds: new Set<string>(["main"]),

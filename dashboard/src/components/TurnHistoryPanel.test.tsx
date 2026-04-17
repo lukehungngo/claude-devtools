@@ -18,6 +18,8 @@ function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
     durationMs: 3200,
     cost: 0.0042,
     costBreakdown: { total: 0.0042, inputCost: 0.001, outputCost: 0.0032 },
+    inputTokens: 0,
+    outputTokens: 0,
     startTime: new Date(Date.now() - 120_000).toISOString(),
     endTime: new Date(Date.now() - 116_800).toISOString(),
     dispatchedAgentIds: new Set<string>(["main"]),

@@ -20,7 +20,7 @@ describe("useUsage", () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
 
     expect(result.current.usage).not.toBeNull();
-    expect((result.current.usage as { tokensIn: number }).tokensIn).toBe(100);
+    expect((result.current.usage as unknown as { tokensIn: number }).tokensIn).toBe(100);
   });
 
   it("non-2xx response leaves usage null (does not accept poisoned usage data)", async () => {

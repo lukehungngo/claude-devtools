@@ -272,10 +272,12 @@ describe("TurnCard — DOM order: tool entries before response text", () => {
       endIndex: allEvents.length,
       durationMs: null,
       costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+      inputTokens: 0,
+      outputTokens: 0,
       endTime: "2026-01-01T00:00:03Z",
       completedAt: "2026-01-01T00:00:03Z",
       dispatchedAgentIds: new Set<string>(["main"]),
-    } as TurnSnapshot;
+    } as unknown as TurnSnapshot;
 
     const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
 

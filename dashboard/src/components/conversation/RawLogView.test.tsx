@@ -34,6 +34,8 @@ function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
     durationMs: 1000,
     cost: 0.001,
     costBreakdown: { total: 0.001, inputCost: 0.0005, outputCost: 0.0005 },
+    inputTokens: 0,
+    outputTokens: 0,
     startTime: "2026-01-01T00:00:00.000Z",
     endTime: "2026-01-01T00:00:01.000Z",
     dispatchedAgentIds: new Set<string>(["main"]),

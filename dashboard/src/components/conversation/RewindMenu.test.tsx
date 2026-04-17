@@ -46,6 +46,8 @@ function makeTurnAndEvents(
       durationMs: 5000,
       cost: 0.04,
       costBreakdown: { total: 0.04, inputCost: 0.025, outputCost: 0.015 },
+      inputTokens: 0,
+      outputTokens: 0,
       startTime: "2026-03-29T12:30:00Z",
       endTime: "2026-03-29T12:30:05Z",
       agents: [],
