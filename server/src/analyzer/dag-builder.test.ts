@@ -548,6 +548,82 @@ describe("buildAgentDAG", () => {
     expect(sub.status).toBe("active");
   });
 
+  it("subagent without terminal signal shows 'active' when session is running", () => {
+    const subagentEvents = new Map<string, SessionEvent[]>([
+      [
+        "agent-1",
+        [
+          makeAssistantEvent({
+            timestamp: "2026-03-23T10:00:01Z",
+            agentId: "agent-1",
+            isSidechain: true,
+            stopReason: "tool_use",
+          }),
+        ],
+      ],
+    ]);
+    const subagentMeta = new Map([
+      ["agent-1", { agentType: "Explore", description: "explore" }],
+    ]);
+    const dag = buildAgentDAG(
+      [makeAssistantEvent({ stopReason: "tool_use" })],
+      subagentEvents,
+      subagentMeta,
+      true,
+    );
+    const sub = dag.nodes.find((n) => n.id === "agent-1")!;
+    expect(sub.status).toBe("active");
+  });
+
+  it("subagent without terminal signal shows 'completed' when session is NOT running", () => {
+    const subagentEvents = new Map<string, SessionEvent[]>([
+      [
+        "agent-1",
+        [
+          makeAssistantEvent({
+            timestamp: "2026-03-23T10:00:01Z",
+            agentId: "agent-1",
+            isSidechain: true,
+            stopReason: "tool_use",
+          }),
+        ],
+      ],
+    ]);
+    const subagentMeta = new Map([
+      ["agent-1", { agentType: "Explore", description: "explore" }],
+    ]);
+    const dag = buildAgentDAG(
+      [makeAssistantEvent({ stopReason: "tool_use" })],
+      subagentEvents,
+      subagentMeta,
+      false,
+    );
+    const sub = dag.nodes.find((n) => n.id === "agent-1")!;
+    expect(sub.status).toBe("completed");
+  });
+
+  it("main without terminal signal shows 'active' when session is running", () => {
+    const dag = buildAgentDAG(
+      [makeAssistantEvent({ stopReason: "tool_use" })],
+      new Map(),
+      new Map(),
+      true,
+    );
+    const main = dag.nodes.find((n) => n.id === "main")!;
+    expect(main.status).toBe("active");
+  });
+
+  it("main without terminal signal shows 'completed' when session is NOT running", () => {
+    const dag = buildAgentDAG(
+      [makeAssistantEvent({ stopReason: "tool_use" })],
+      new Map(),
+      new Map(),
+      false,
+    );
+    const main = dag.nodes.find((n) => n.id === "main")!;
+    expect(main.status).toBe("completed");
+  });
+
   // Transitive SDK invariant at the DAG level:
   // main completed ⇒ every subagent node is completed or errored.
   it("main completed in DAG ⇒ every subagent node is completed or errored", () => {

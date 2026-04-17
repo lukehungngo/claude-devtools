@@ -7,7 +7,7 @@ import type {
 } from "../types.js";
 import { calculateTokenCost } from "./metrics.js";
 import { normalizeContent } from "../lib/normalizeContent.js";
-import { isAgentCompleted } from "./agentStatus.js";
+import { getAgentStatus } from "./agentStatus.js";
 
 /**
  * Analyze a list of events in a single pass, returning:
@@ -19,10 +19,10 @@ import { isAgentCompleted } from "./agentStatus.js";
  * - last-seen model
  *
  * Status derivation (completed vs active) is NOT done here. It's computed
- * in buildAgentDAG by calling isAgentCompleted(agentId, events) — the single
- * predicate reading the three terminal signals (end_turn, turn_duration,
- * parent tool_result ack). Error detection stays here because it's a content
- * check on the same event stream already being walked for token aggregation.
+ * in buildAgentDAG by calling getAgentStatus(agentId, events, sessionIsRunning),
+ * which reads the three terminal signals (end_turn, turn_duration, parent
+ * tool_result ack) and incorporates session-level activity. Error detection
+ * stays here because it's a content check on the same event stream.
  */
 function analyzeEvents(events: SessionEvent[]): {
   tokens: AggregatedTokens;
@@ -105,22 +105,26 @@ function analyzeEvents(events: SessionEvent[]): {
 }
 
 /**
- * Derive a node's status from error flag + predicate.
+ * Derive a node's status from error flag + getAgentStatus.
  * Error takes precedence over completion.
  */
 function deriveStatus(
   agentId: string,
   events: readonly SessionEvent[],
   hasError: boolean,
+  sessionIsRunning: boolean,
 ): "active" | "completed" | "error" {
   if (hasError) return "error";
-  return isAgentCompleted(agentId, events) ? "completed" : "active";
+  const status = getAgentStatus(agentId, events, sessionIsRunning);
+  // "indeterminate" = session closed, no terminal signal → agent is no longer running
+  return status === "running" ? "active" : "completed";
 }
 
 export function buildAgentDAG(
   mainEvents: SessionEvent[],
   subagentEvents: Map<string, SessionEvent[]>,
-  subagentMeta: Map<string, { agentType: string; description: string }>
+  subagentMeta: Map<string, { agentType: string; description: string }>,
+  sessionIsRunning: boolean = true,
 ): AgentDAG {
   const nodes: AgentNode[] = [];
   const edges: AgentEdge[] = [];
@@ -144,7 +148,7 @@ export function buildAgentDAG(
     tokenUsage: mainAnalysis.tokens,
     toolCalls: mainAnalysis.toolCalls,
     mcpToolCalls: mainAnalysis.mcpToolCalls,
-    status: deriveStatus("main", mainEvents, mainAnalysis.hasError),
+    status: deriveStatus("main", mainEvents, mainAnalysis.hasError, sessionIsRunning),
     startTime: mainEvents[0]?.timestamp,
     endTime: mainEvents[mainEvents.length - 1]?.timestamp,
     model: mainAnalysis.model,
@@ -177,7 +181,7 @@ export function buildAgentDAG(
       tokenUsage: analysis.tokens,
       toolCalls: analysis.toolCalls,
       mcpToolCalls: analysis.mcpToolCalls,
-      status: deriveStatus(agentId, mergedForPredicate, analysis.hasError),
+      status: deriveStatus(agentId, mergedForPredicate, analysis.hasError, sessionIsRunning),
       startTime: events[0]?.timestamp,
       endTime: events[events.length - 1]?.timestamp,
       model: analysis.model,
