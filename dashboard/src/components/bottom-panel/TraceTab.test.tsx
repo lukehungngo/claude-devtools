@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import type { AgentDAG, AgentNode } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
@@ -332,6 +332,71 @@ describe("computeTimeline", () => {
     const timeline = computeTimeline(nodes);
     expect(timeline.totalMs).toBeGreaterThan(0);
     expect(timeline.ticks.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("Timeline convex hull", () => {
+  it("T-TIMELINE-1 computeTimeline uses convex hull when a subagent ends after main", () => {
+    // Main spans 10 min (T..T+10m); subB extends past main to T+11m.
+    const T = new Date("2026-01-01T00:00:00Z").getTime();
+    const nodes: AgentNode[] = [
+      makeNode({
+        id: "main",
+        type: "orchestrator",
+        startTime: new Date(T).toISOString(),
+        endTime: new Date(T + 10 * 60_000).toISOString(),
+      }),
+      makeNode({
+        id: "subA",
+        startTime: new Date(T + 2 * 60_000).toISOString(),
+        endTime: new Date(T + 8 * 60_000).toISOString(),
+      }),
+      makeNode({
+        id: "subB",
+        startTime: new Date(T + 7 * 60_000).toISOString(),
+        endTime: new Date(T + 11 * 60_000).toISOString(),
+      }),
+    ];
+    const timeline = computeTimeline(nodes);
+    expect(timeline.sessionStartMs).toBe(T);
+    expect(timeline.sessionEndMs).toBe(T + 11 * 60_000);
+    expect(timeline.totalMs).toBe(11 * 60_000);
+  });
+
+  it("T-TIMELINE-2 computeTimeline extends beyond main's span when subagent runs longer", () => {
+    // Main is only 1 minute; subagent runs for 5 minutes starting at the same time.
+    const T = new Date("2026-01-01T00:00:00Z").getTime();
+    const nodes: AgentNode[] = [
+      makeNode({
+        id: "main",
+        type: "orchestrator",
+        startTime: new Date(T).toISOString(),
+        endTime: new Date(T + 1 * 60_000).toISOString(),
+      }),
+      makeNode({
+        id: "subagent",
+        startTime: new Date(T).toISOString(),
+        endTime: new Date(T + 5 * 60_000).toISOString(),
+      }),
+    ];
+    const timeline = computeTimeline(nodes);
+    expect(timeline.totalMs).toBe(5 * 60_000);
+    expect(timeline.sessionEndMs).toBe(T + 5 * 60_000);
+  });
+
+  it("T-TIMELINE-3 computeBarPosition main fills timeline when convex hull matches main", () => {
+    // Single main node, completed — timeline equals main's span.
+    const T = new Date("2026-01-01T00:00:00Z").getTime();
+    const main = makeNode({
+      id: "main",
+      type: "orchestrator",
+      startTime: new Date(T).toISOString(),
+      endTime: new Date(T + 20 * 60_000).toISOString(),
+    });
+    const timeline = computeTimeline([main]);
+    const pos = computeBarPosition(main, timeline.sessionStartMs, timeline.totalMs);
+    expect(pos.leftPct).toBe(0);
+    expect(pos.widthPct).toBe(100);
   });
 });
 
@@ -692,5 +757,81 @@ describe("getSpanIcon", () => {
 
   it("handles underscore-separated types", () => {
     expect(getSpanIcon("my_agent")).toBe("MA");
+  });
+});
+
+describe("computeBarPosition clip warning", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it("T-WARN-1 warns when node extent exceeds timeline end", () => {
+    // Timeline: [0, 60_000] ms (1 minute).
+    // Node runs 5 minutes — end is 4 minutes past timeline end.
+    const sessionStartMs = 0;
+    const totalMs = 60_000;
+    const node = makeNode({
+      id: "overrun-node",
+      startTime: new Date(0).toISOString(),
+      endTime: new Date(5 * 60_000).toISOString(),
+      status: "completed",
+    });
+
+    const pos = computeBarPosition(node, sessionStartMs, totalMs);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("bar extent exceeds timeline"),
+      expect.objectContaining({ nodeId: "overrun-node" }),
+    );
+    // Clipping behavior must remain unchanged: widthPct is clamped to 100.
+    expect(pos.leftPct).toBe(0);
+    expect(pos.widthPct).toBe(100);
+  });
+
+  it("T-WARN-2 does not warn when bar fits within timeline", () => {
+    // Timeline: [0, 60_000] ms. Node spans [0, 30_000] — fits entirely inside.
+    const sessionStartMs = 0;
+    const totalMs = 60_000;
+    const node = makeNode({
+      id: "fits-node",
+      startTime: new Date(0).toISOString(),
+      endTime: new Date(30_000).toISOString(),
+      status: "completed",
+    });
+
+    computeBarPosition(node, sessionStartMs, totalMs);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("T-WARN-3 warns when node starts before timeline", () => {
+    // Timeline anchored at T=0, node starts at -10_000 and ends at +10_000.
+    const sessionStartMs = 0;
+    const totalMs = 60_000;
+    const node = makeNode({
+      id: "early-start",
+      startTime: new Date(-10_000).toISOString(),
+      endTime: new Date(10_000).toISOString(),
+      status: "completed",
+    });
+
+    const pos = computeBarPosition(node, sessionStartMs, totalMs);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("bar extent exceeds timeline"),
+      expect.objectContaining({ nodeId: "early-start" }),
+    );
+    // Clamping behavior must remain unchanged.
+    expect(pos.leftPct).toBe(0);
+    expect(pos.widthPct).toBeGreaterThanOrEqual(0);
+    expect(pos.leftPct + pos.widthPct).toBeLessThanOrEqual(100);
   });
 });

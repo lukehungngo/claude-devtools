@@ -329,7 +329,7 @@ describe("filterDagForTurn", () => {
     expect(result!.nodes.find((n) => n.id === "agent-1")!.status).toBe("completed");
   });
 
-  it("overrides startTime/endTime with turn-scoped values", () => {
+  it("overrides startTime/endTime with turn-scoped values, widening endTime to subagent envelope", () => {
     const dagWithTimes: AgentDAG = {
       nodes: [
         { ...makeNode("main"), startTime: "2026-01-01T00:00:00Z", endTime: "2026-01-01T01:00:00Z" },
@@ -360,11 +360,233 @@ describe("filterDagForTurn", () => {
     const mainNode = result.nodes.find((n) => n.id === "main")!;
     const agentNode = result.nodes.find((n) => n.id === "agent-1")!;
 
-    // Root (main) gets turn-scoped times to set timeline scope
-    expect(mainNode.startTime).toBe("2026-01-01T00:30:00Z");
-    expect(mainNode.endTime).toBe("2026-01-01T00:33:00Z");
+    // Root (main) gets turn startTime (turn bound wins when present).
+    // Times are normalized through Date.toISOString() so the value has .000Z.
+    expect(new Date(mainNode.startTime!).getTime()).toBe(new Date("2026-01-01T00:30:00Z").getTime());
+    // Root endTime is widened to max(turn.endTime=00:33, groupEnd=00:55)
+    // because subagent agent-1's endTime extends beyond the turn-scoped endTime.
+    expect(new Date(mainNode.endTime!).getTime()).toBe(new Date("2026-01-01T00:55:00Z").getTime());
     // Child keeps its original times for accurate bar positioning
     expect(agentNode.startTime).toBe("2026-01-01T00:05:00Z");
     expect(agentNode.endTime).toBe("2026-01-01T00:55:00Z");
+  });
+
+  describe("main endTime widening", () => {
+    it("T-FILTER-1 main endTime widens to include subagent that ends beyond turn.endTime", () => {
+      const T = new Date("2026-01-01T00:00:00Z").getTime();
+      const turnStart = new Date(T).toISOString();
+      const turnEnd = new Date(T + 5 * 60_000).toISOString(); // T+5m
+      const subEnd = new Date(T + 10 * 60_000).toISOString(); // T+10m
+
+      const dagWithTimes: AgentDAG = {
+        nodes: [
+          { ...makeNode("main"), startTime: turnStart, endTime: turnEnd },
+          { ...makeNode("agent-1"), startTime: turnStart, endTime: subEnd },
+        ],
+        edges: [{ source: "main", target: "agent-1" }],
+      };
+      const turn: TurnSnapshot = {
+        turnNumber: 1,
+        promptText: "t",
+        startIndex: 0,
+        endIndex: 10,
+        agents: [
+          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+        ],
+        status: "completed",
+        cost: 0,
+        costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+        durationMs: null,
+        startTime: turnStart,
+        completedAt: turnEnd,
+        endTime: turnEnd,
+      };
+
+      const result = filterDagForTurn(dagWithTimes, turn)!;
+      const mainNode = result.nodes.find((n) => n.id === "main")!;
+      // groupEnd (subagent T+10m) > turn.endTime (T+5m) → main endTime = T+10m
+      expect(mainNode.endTime).toBe(subEnd);
+    });
+
+    it("T-FILTER-2 main endTime uses max when turn.endTime is later than groupEnd", () => {
+      const T = new Date("2026-01-01T00:00:00Z").getTime();
+      const turnStart = new Date(T).toISOString();
+      const turnEnd = new Date(T + 20 * 60_000).toISOString(); // T+20m
+      const subEnd = new Date(T + 10 * 60_000).toISOString(); // T+10m
+
+      const dagWithTimes: AgentDAG = {
+        nodes: [
+          { ...makeNode("main"), startTime: turnStart, endTime: turnEnd },
+          { ...makeNode("agent-1"), startTime: turnStart, endTime: subEnd },
+        ],
+        edges: [{ source: "main", target: "agent-1" }],
+      };
+      const turn: TurnSnapshot = {
+        turnNumber: 1,
+        promptText: "t",
+        startIndex: 0,
+        endIndex: 10,
+        agents: [
+          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+        ],
+        status: "completed",
+        cost: 0,
+        costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+        durationMs: null,
+        startTime: turnStart,
+        completedAt: turnEnd,
+        endTime: turnEnd,
+      };
+
+      const result = filterDagForTurn(dagWithTimes, turn)!;
+      const mainNode = result.nodes.find((n) => n.id === "main")!;
+      // turn.endTime (T+20m) > groupEnd (T+10m) → main endTime = T+20m
+      expect(mainNode.endTime).toBe(turnEnd);
+    });
+
+    it("T-FILTER-3 main endTime extends to now for active subagent", () => {
+      // Active subagent with no endTime — envelope should reach Date.now().
+      const now = Date.now();
+      const turnStart = new Date(now - 2 * 60_000).toISOString(); // 2 min ago
+      const subStart = new Date(now - 2 * 60_000).toISOString();
+
+      const dagWithTimes: AgentDAG = {
+        nodes: [
+          { ...makeNode("main"), startTime: turnStart },
+          { ...makeNode("agent-1"), status: "active", startTime: subStart },
+        ],
+        edges: [{ source: "main", target: "agent-1" }],
+      };
+      const turn: TurnSnapshot = {
+        turnNumber: 1,
+        promptText: "t",
+        startIndex: 0,
+        endIndex: 10,
+        agents: [
+          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "running", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "running", cost: 0, tokensIn: 0, tokensOut: 0, tools: [] },
+        ],
+        status: "running",
+        cost: 0,
+        costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+        durationMs: null,
+        startTime: turnStart,
+        completedAt: "",
+        endTime: "",
+      };
+
+      const result = filterDagForTurn(dagWithTimes, turn)!;
+      const mainNode = result.nodes.find((n) => n.id === "main")!;
+      // Active subagent with no endTime extends group envelope to Date.now().
+      // Allow 1s tolerance for clock drift between computeGroupEnvelope and assertion.
+      expect(mainNode.endTime).toBeDefined();
+      const mainEndMs = new Date(mainNode.endTime!).getTime();
+      expect(mainEndMs).toBeGreaterThanOrEqual(now - 1000);
+      expect(mainEndMs).toBeLessThanOrEqual(Date.now() + 1000);
+    });
+
+    // P2-3: sameData memo check must include main's computed endTime. When a
+    // subagent's endTime advances (group envelope grows) but tokens/status
+    // remain unchanged, prev must NOT be reused — otherwise the timeline
+    // "lurches" forward only when tokens happen to change.
+
+    it("T-FILTER-4: prev result is not reused when group envelope changed", () => {
+      // Turn with one completed subagent; endTime of the subagent is the
+      // thing that changes between calls. Main's tokens/status are stable.
+      const T = new Date("2026-01-01T00:00:00Z").getTime();
+      const turnStart = new Date(T).toISOString();
+      const turnEnd = new Date(T + 5 * 60_000).toISOString();
+      const sub1EndA = new Date(T + 10 * 60_000).toISOString(); // T+10m
+      const sub1EndB = new Date(T + 15 * 60_000).toISOString(); // T+15m (later)
+
+      const turn: TurnSnapshot = {
+        turnNumber: 1,
+        promptText: "t",
+        startIndex: 0,
+        endIndex: 10,
+        agents: [
+          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0, tokensIn: 100, tokensOut: 50, tools: [] },
+          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0, tokensIn: 200, tokensOut: 100, tools: [] },
+        ],
+        status: "completed",
+        cost: 0,
+        costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+        durationMs: null,
+        startTime: turnStart,
+        completedAt: turnEnd,
+        endTime: turnEnd,
+      };
+
+      // First DAG: subagent endTime = T+10m.
+      const dagA: AgentDAG = {
+        nodes: [
+          { ...makeNode("main"), startTime: turnStart, endTime: turnEnd, tokenUsage: { inputTokens: 100, outputTokens: 50, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 } },
+          { ...makeNode("agent-1"), startTime: turnStart, endTime: sub1EndA, tokenUsage: { inputTokens: 200, outputTokens: 100, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 } },
+        ],
+        edges: [{ source: "main", target: "agent-1" }],
+      };
+
+      // Second DAG: subagent endTime now T+15m (envelope grew).
+      // Tokens and status on the turn are unchanged.
+      const dagB: AgentDAG = {
+        nodes: [
+          { ...makeNode("main"), startTime: turnStart, endTime: turnEnd, tokenUsage: { inputTokens: 100, outputTokens: 50, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 } },
+          { ...makeNode("agent-1"), startTime: turnStart, endTime: sub1EndB, tokenUsage: { inputTokens: 200, outputTokens: 100, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 } },
+        ],
+        edges: [{ source: "main", target: "agent-1" }],
+      };
+
+      const first = filterDagForTurn(dagA, turn, null);
+      const second = filterDagForTurn(dagB, turn, first);
+
+      // Envelope changed → must NOT be prev reference.
+      expect(second).not.toBe(first);
+      const mainB = second!.nodes.find(n => n.id === "main")!;
+      expect(mainB.endTime).toBe(sub1EndB);
+    });
+
+    it("T-FILTER-5: prev result IS reused when nothing changed", () => {
+      // All subagents completed with explicit endTime; no active branch → no
+      // Date.now() drift → repeated calls with identical inputs must return
+      // the same reference (memoization works).
+      const T = new Date("2026-01-01T00:00:00Z").getTime();
+      const turnStart = new Date(T).toISOString();
+      const turnEnd = new Date(T + 5 * 60_000).toISOString();
+      const subEnd = new Date(T + 4 * 60_000).toISOString();
+
+      const turn: TurnSnapshot = {
+        turnNumber: 1,
+        promptText: "t",
+        startIndex: 0,
+        endIndex: 10,
+        agents: [
+          { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, status: "completed", cost: 0, tokensIn: 100, tokensOut: 50, tools: [] },
+          { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, status: "completed", cost: 0, tokensIn: 200, tokensOut: 100, tools: [] },
+        ],
+        status: "completed",
+        cost: 0,
+        costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+        durationMs: null,
+        startTime: turnStart,
+        completedAt: turnEnd,
+        endTime: turnEnd,
+      };
+
+      const dag: AgentDAG = {
+        nodes: [
+          { ...makeNode("main"), startTime: turnStart, endTime: turnEnd, tokenUsage: { inputTokens: 100, outputTokens: 50, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 } },
+          { ...makeNode("agent-1"), startTime: turnStart, endTime: subEnd, tokenUsage: { inputTokens: 200, outputTokens: 100, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 0 } },
+        ],
+        edges: [{ source: "main", target: "agent-1" }],
+      };
+
+      const first = filterDagForTurn(dag, turn, null);
+      const second = filterDagForTurn(dag, turn, first);
+
+      // Identical inputs → same reference.
+      expect(second).toBe(first);
+    });
   });
 });

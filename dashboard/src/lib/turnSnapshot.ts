@@ -55,6 +55,14 @@ export interface TurnSnapshot {
   endTime: string;
   /** Model used in this turn, e.g. "claude-sonnet-4-6". Last model seen wins. */
   model?: string;
+  /**
+   * Set of agentIds dispatched by main within this turn's window, plus "main".
+   * Carried forward across streaming extensions so `extendTurn` can do O(newEvents)
+   * work instead of re-scanning the full turn (Architecture Invariant #8).
+   * Optional for backward compat with test fixtures that build TurnSnapshot by
+   * literal; production code (`buildTurn` / `extendTurn`) always populates it.
+   */
+  dispatchedAgentIds?: Set<string>;
 }
 
 /**
@@ -107,6 +115,105 @@ function cleanPromptText(raw: string): string {
     return "(continued session)";
   }
   return raw;
+}
+
+// ─── Dispatch-based turn membership (TASK-002) ──────────────────────
+
+/**
+ * Window (ms) after a main Task/Agent tool_use during which a sidechain
+ * event's agentId is considered "dispatched by that tool_use" when no
+ * subagentMeta description match exists.
+ */
+const TEMPORAL_DISPATCH_WINDOW_MS = 5000;
+
+/**
+ * Compute the set of agentIds that were dispatched by main tool_use events
+ * within the given event window. "main" is always included unless a `seed`
+ * already contains it.
+ *
+ * Resolution order for each main tool_use (Task/Agent):
+ *   1. Description match against subagentMeta: if any entry's description
+ *      equals the tool_use input's description AND that agentId is not
+ *      already bound, include that agentId.
+ *   2. Temporal-proximity fallback: if no description match, find any
+ *      non-main event with an agentId whose timestamp falls within
+ *      [mainTs, mainTs + TEMPORAL_DISPATCH_WINDOW_MS]. Include its agentId.
+ *
+ * When `seed` is provided, the result is seeded from it (copied, not mutated).
+ * This lets `extendTurn` inherit the dispatched set from the prior snapshot
+ * and scan ONLY new events for additional dispatches — O(newEvents) instead of
+ * O(turn_events) per streaming batch (Architecture Invariant #8).
+ *
+ * Events whose agentId is not in the returned set are excluded from
+ * turn-level aggregation: they belong to a subagent dispatched by a
+ * different turn (cross-turn bleed) or are defensive/rogue events.
+ *
+ * Known tradeoff: if a main Task tool_use lands in one streaming batch but
+ * its temporal-proximity candidate arrives in the NEXT batch, the delta-only
+ * scan won't bind — the candidate is outside `events` when the main is
+ * processed. In practice the description-match path covers this whenever
+ * subagentMeta is populated; the fallback is a defensive path for sessions
+ * without meta.
+ */
+function computeDispatchedAgentIds(
+  events: SessionEvent[],
+  subagentMeta?: SubagentMeta,
+  seed?: Set<string>,
+): Set<string> {
+  const result = seed ? new Set(seed) : new Set<string>();
+  result.add("main");
+
+  for (const event of events) {
+    if (event.type !== "assistant") continue;
+    if (event.isSidechain) continue; // Only main (non-sidechain) assistant events dispatch
+
+    const asst = event as AssistantEvent;
+    const contentArr = asst.message?.content;
+    if (!Array.isArray(contentArr)) continue;
+
+    const mainTs = new Date(asst.timestamp).getTime();
+
+    for (const item of contentArr) {
+      if (item.type !== "tool_use") continue;
+      if (item.name !== "Task" && item.name !== "Agent") continue;
+
+      const description = (item.input as Record<string, unknown>)?.description;
+      let matched = false;
+
+      // 1. Description match against subagentMeta. Symmetric with the
+      //    temporal-proximity branch: skip agentIds already bound so two
+      //    concurrent Task tool_uses sharing a description (pathological
+      //    but possible) don't collapse to the same agentId.
+      if (typeof description === "string" && subagentMeta) {
+        for (const [agentId, meta] of Object.entries(subagentMeta)) {
+          if (meta.description !== description) continue;
+          if (result.has(agentId)) continue;
+          result.add(agentId);
+          matched = true;
+          break;
+        }
+      }
+      if (matched) continue;
+
+      // 2. Temporal-proximity fallback: find a non-main event within the
+      //    window whose agentId we can attribute to this dispatch. Skip
+      //    "main", events without an agentId, and agentIds already bound
+      //    (so parallel dispatches map to distinct subagents rather than
+      //    all collapsing to the first candidate).
+      for (const candidate of events) {
+        if (candidate.agentId === undefined || candidate.agentId === null) continue;
+        if (candidate.agentId === "main") continue;
+        if (result.has(candidate.agentId)) continue;
+        const candTs = new Date(candidate.timestamp).getTime();
+        if (candTs < mainTs) continue;
+        if (candTs - mainTs > TEMPORAL_DISPATCH_WINDOW_MS) continue;
+        result.add(candidate.agentId);
+        break;
+      }
+    }
+  }
+
+  return result;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -187,8 +294,15 @@ function buildTurn(
     { count: number; agentType: string; lastEvent: SessionEvent; cost: number; tokensIn: number; tokensOut: number; tools: Set<string> }
   >();
 
+  // TASK-002: restrict agent-map membership to agents dispatched by a main
+  // Task/Agent tool_use within this turn's window. Prevents cross-turn bleed
+  // where a subagent event from a prior turn falls in the current turn's
+  // timestamp range.
+  const dispatchedAgentIds = computeDispatchedAgentIds(events, agentMeta);
+
   for (const event of events) {
     const agentId = event.agentId ?? "main";
+    if (!dispatchedAgentIds.has(agentId)) continue;
 
     let eventCost = 0;
     let eventTokensIn = 0;
@@ -323,6 +437,9 @@ function buildTurn(
     completedAt: "",  // Populated by finalizeTurn below when turn is completed
     endTime,
     model: lastModel || undefined,
+    // Carry the dispatched set forward so extendTurn can inherit it without
+    // re-scanning the full turn event range (Architecture Invariant #8).
+    dispatchedAgentIds,
   };
 
   // Hierarchy invariant: when the turn is completed, no agent may be running.
@@ -337,19 +454,37 @@ function buildTurn(
 
 /**
  * Extend an existing TurnSnapshot with new events, without re-processing old events.
- * Only iterates the newEvents slice — O(newEvents) not O(allTurnEvents).
+ *
+ * Performance invariant (Architecture Invariant #8): this path must be
+ * O(newEvents), NOT O(turn_events). The dispatched-agent set is inherited
+ * from `existing.dispatchedAgentIds` (carried forward by `buildTurn` /
+ * `finalizeTurn`) and `computeDispatchedAgentIds` scans ONLY the delta for
+ * additional Task/Agent dispatches.
+ *
+ * Back-compat: if an older TurnSnapshot literal arrives without
+ * `dispatchedAgentIds` populated, the seed is reconstructed from
+ * `existing.agents` — lossy only if a Task dispatch was recorded but its
+ * subagent hadn't emitted an event by the time the snapshot was built (so
+ * `agents` lacked it). Fixture-only; production buildTurn always sets the set.
  */
 function extendTurn(
   existing: TurnSnapshot,
   newEvents: SessionEvent[],
   newEndIndex: number,
-  agentMeta?: SubagentMeta
+  agentMeta?: SubagentMeta,
 ): TurnSnapshot {
   // Start from existing aggregated values
   let cost = existing.cost;
   let totalInputCost = existing.costBreakdown.inputCost;
   let totalOutputCost = existing.costBreakdown.outputCost;
   let lastModel = existing.model ?? "";
+
+  // P2-1: inherit the dispatched set and scan ONLY the delta. Restores the
+  // O(newEvents) streaming budget required by Architecture Invariant #8.
+  const seed =
+    existing.dispatchedAgentIds ??
+    new Set<string>(existing.agents.map((a) => a.agentId));
+  const dispatchedAgentIds = computeDispatchedAgentIds(newEvents, agentMeta, seed);
 
   // Rebuild agent map from existing summaries so we can extend it
   const agentMap = new Map<
@@ -371,6 +506,7 @@ function extendTurn(
   // Process only the new events
   for (const event of newEvents) {
     const agentId = event.agentId ?? "main";
+    if (!dispatchedAgentIds.has(agentId)) continue;
 
     let eventCost = 0;
     let eventTokensIn = 0;
@@ -504,6 +640,7 @@ function extendTurn(
     completedAt: status === "completed" ? endTime : "",
     endTime,
     model: lastModel || undefined,
+    dispatchedAgentIds,
   };
 
   // Mirrors the finalization loop in groupEventsIntoTurns. Required because extendTurn
@@ -575,7 +712,9 @@ export function groupEventsIntoTurnsIncremental(
 
   if (!hasBoundary) {
     // Fast path: no new turn boundary — extend the last turn with only the new events.
-    // Cost is O(newEventCount) not O(allEventsFromLastTurnStart).
+    // Cost is O(newEventCount) for aggregation AND for dispatch detection: the
+    // dispatched-agent set is inherited from `lastTurn.dispatchedAgentIds` and
+    // only `newEvents` is scanned for additional Task dispatches (P2-1 fix).
     // During streaming, 99% of incoming events are assistant/tool events within the same turn.
     const newEvents = allEvents.slice(newStartIndex);
     const extended = extendTurn(lastTurn, newEvents, allEvents.length, subagentMeta);

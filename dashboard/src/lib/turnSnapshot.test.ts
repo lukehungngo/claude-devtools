@@ -41,6 +41,13 @@ function makeAssistantEvent(
     cacheReadTokens?: number;
     stopReason?: "end_turn" | "tool_use" | null;
     model?: string;
+    /**
+     * If provided, the message content is a list of Task tool_use items with these
+     * descriptions. Used to wire up dispatch-membership tests: the dispatched
+     * agentId is resolved via subagentMeta description match OR via temporal
+     * proximity to the sidechain events' timestamps.
+     */
+    taskDispatches?: string[];
   } = {}
 ): AssistantEvent {
   const usage = {
@@ -53,6 +60,19 @@ function makeAssistantEvent(
       cache_read_input_tokens: overrides.cacheReadTokens,
     }),
   };
+  let content = overrides.message?.content;
+  if (!content) {
+    if (overrides.taskDispatches && overrides.taskDispatches.length > 0) {
+      content = overrides.taskDispatches.map((description, i) => ({
+        type: "tool_use" as const,
+        id: `toolu-${Math.random().toString(36).slice(2, 8)}-${i}`,
+        name: "Task",
+        input: { description },
+      }));
+    } else {
+      content = [{ type: "text" as const, text: "response" }];
+    }
+  }
   return {
     type: "assistant",
     uuid:
@@ -63,9 +83,7 @@ function makeAssistantEvent(
     agentId: overrides.agentId ?? "main",
     message: {
       role: "assistant",
-      content: overrides.message?.content ?? [
-        { type: "text" as const, text: "response" },
-      ],
+      content,
       model: overrides.model ?? "claude-sonnet-4-20250514",
       id: "msg-1",
       type: "message",
@@ -186,16 +204,23 @@ describe("groupEventsIntoTurns", () => {
   });
 
   it("computes agent summaries with unique agents and invocation counts", () => {
+    // TASK-002: main must dispatch the subagent via a Task tool_use so the
+    // dispatch-membership filter admits "agent-explore-1" into turn.agents.
+    // Temporal proximity (subagent event within 5s of main's tool_use) resolves
+    // the mapping because no agentMeta is provided.
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({
         agentId: "main",
+        stopReason: "tool_use",
         timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["explore the repo"],
       }),
       makeAssistantEvent({
         agentId: "agent-explore-1",
         timestamp: "2026-01-01T00:00:02Z",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent>),
       makeAssistantEvent({
         agentId: "main",
         timestamp: "2026-01-01T00:00:03Z",
@@ -333,20 +358,27 @@ describe("groupEventsIntoTurns — cache token cost calculation", () => {
 
 describe("groupEventsIntoTurns with agentMeta", () => {
   it("propagates agentType from agentMeta into agent summaries", () => {
+    // TASK-002: main dispatches both subagents via Task tool_uses. Descriptions
+    // match agentMeta entries so the dispatch-membership filter resolves by
+    // description to admit both subagent agentIds into turn.agents.
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({
         agentId: "main",
+        stopReason: "tool_use",
         timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["explores code", "plans work"],
       }),
       makeAssistantEvent({
         agentId: "agent-explore-abc",
         timestamp: "2026-01-01T00:00:02Z",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent>),
       makeAssistantEvent({
         agentId: "agent-plan-def",
         timestamp: "2026-01-01T00:00:03Z",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent>),
     ];
     const agentMeta = {
       "agent-explore-abc": { agentType: "Explore", description: "explores code" },
@@ -362,12 +394,21 @@ describe("groupEventsIntoTurns with agentMeta", () => {
   });
 
   it("falls back to agentId when agentMeta is not provided", () => {
+    // TASK-002: without agentMeta, the temporal-proximity fallback maps the
+    // subagent's sidechain event (< 5s after main's tool_use) into turn.agents.
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:00Z",
+        taskDispatches: ["do the thing"],
+      }),
+      makeAssistantEvent({
         agentId: "agent-unknown-xyz",
         timestamp: "2026-01-01T00:00:01Z",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent>),
     ];
     const turns = groupEventsIntoTurns(events);
     const unknownAgent = turns[0].agents.find((a) => a.agentId === "agent-unknown-xyz");
@@ -965,12 +1006,16 @@ describe("extendTurn finalizes agent statuses when turn completes", () => {
     // Incremental (pre-fix): extendTurn never calls finalizeTurn. Main's lastEvent
     //   is still tool_use (no main events in delta) so main.status stays "running",
     //   while turn.status === "completed". Bug visible.
+    //
+    // TASK-002: main dispatches sub-1 via Task tool_use; sub-1 is a sidechain
+    // event and matched via temporal proximity to main's dispatch timestamp.
     const initial: SessionEvent[] = [
       makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({
         agentId: "main",
         stopReason: "tool_use",
         timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["do sub-1 work"],
       }),
     ];
     const existing = groupEventsIntoTurns(initial);
@@ -985,7 +1030,8 @@ describe("extendTurn finalizes agent statuses when turn completes", () => {
         agentId: "sub-1",
         stopReason: "end_turn",
         timestamp: "2026-01-01T00:00:02Z",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
     ];
     const turns = groupEventsIntoTurnsIncremental(existing, allEvents, 1);
 
@@ -1014,23 +1060,29 @@ describe("extendTurn finalizes agent statuses when turn completes", () => {
     //
     // Without finalizeTurn in extendTurn, main stays "running" while the turn
     // is "completed" — the user-visible hierarchy divergence bug.
+    // TASK-002: main dispatches both sub-1 and sub-2 via Task tool_uses. Each
+    // subagent's sidechain events fall within 5s of main's dispatch timestamp,
+    // so the temporal-proximity fallback admits them into turn.agents.
     const initial: SessionEvent[] = [
       makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({
         agentId: "main",
         stopReason: "tool_use",
         timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["sub-1 work", "sub-2 work"],
       }),
       makeAssistantEvent({
         agentId: "sub-1",
         stopReason: "tool_use",
         timestamp: "2026-01-01T00:00:02Z",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
       makeAssistantEvent({
         agentId: "sub-2",
         stopReason: "tool_use",
         timestamp: "2026-01-01T00:00:03Z",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
     ];
     const existing = groupEventsIntoTurns(initial);
     expect(existing).toHaveLength(1);
@@ -1042,12 +1094,14 @@ describe("extendTurn finalizes agent statuses when turn completes", () => {
         agentId: "sub-1",
         stopReason: "end_turn",
         timestamp: "2026-01-01T00:00:04Z",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
       makeAssistantEvent({
         agentId: "sub-2",
         stopReason: "end_turn",
         timestamp: "2026-01-01T00:00:05Z",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
     ];
     const turns = groupEventsIntoTurnsIncremental(existing, allEvents, 2);
 
@@ -1069,29 +1123,41 @@ describe("extendTurn finalizes agent statuses when turn completes", () => {
     // Property-style check: for a realistic mixed stream, incremental and full
     // rebuild must agree on turn.status and every agent's status. This catches
     // any future divergence between extendTurn and buildTurn.
+    //
+    // TASK-002: main must dispatch sub-1 so the dispatch-membership filter
+    // admits sub-1 into turn.agents. P2-1: agentMeta is provided so
+    // description-match binds the dispatch in the INITIAL snapshot (before
+    // sub-1's event arrives) — this is the production path whenever
+    // subagentMeta is populated by the server (the normal case).
     const allEvents: SessionEvent[] = [
       makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({
         agentId: "main",
         stopReason: "tool_use",
         timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["sub-1 work"],
       }),
       makeAssistantEvent({
         agentId: "sub-1",
         stopReason: "end_turn",
         timestamp: "2026-01-01T00:00:02Z",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
     ];
+    const agentMeta = {
+      "sub-1": { agentType: "worker", description: "sub-1 work" },
+    };
 
-    const full = groupEventsIntoTurns(allEvents);
+    const full = groupEventsIntoTurns(allEvents, agentMeta);
 
     // Split midstream and run incrementally over the remainder.
     const splitPoint = 2;
-    const existing = groupEventsIntoTurns(allEvents.slice(0, splitPoint));
+    const existing = groupEventsIntoTurns(allEvents.slice(0, splitPoint), agentMeta);
     const incremental = groupEventsIntoTurnsIncremental(
       existing,
       allEvents,
-      allEvents.length - splitPoint
+      allEvents.length - splitPoint,
+      agentMeta
     );
 
     expect(incremental.length).toBe(full.length);
@@ -1111,18 +1177,31 @@ describe("extendTurn finalizes agent statuses when turn completes", () => {
 
 describe("Bug 2: turn status with running subagents", () => {
   it("marks turn as running when subagent is dispatched and main end_turn is last event (buildTurn)", () => {
-    // Real scenario: subagent starts (tool_use), then main agent's end_turn comes AFTER.
-    // The last assistant event is main's end_turn, so old code says "completed".
-    // But sub-1 is still running (its last stop_reason was tool_use).
+    // Real scenario: main dispatches sub-1 (tool_use), sub-1 starts working, then
+    // main emits a second end_turn AFTER. The last assistant event is main's
+    // end_turn, so old code said "completed". But sub-1 is still running (its
+    // last stop_reason was tool_use).
+    //
+    // TASK-002: the initial main tool_use carries a Task dispatch; sub-1's
+    // sidechain event follows within 5s so temporal proximity admits it.
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Do something complex", timestamp: "2026-01-01T00:00:00Z" }),
+      // Main dispatches sub-1
+      makeAssistantEvent({
+        agentId: "main",
+        timestamp: "2026-01-01T00:00:00Z",
+        stopReason: "tool_use",
+        model: "claude-opus-4-6",
+        taskDispatches: ["sub-1 work"],
+      }),
       // Subagent starts working
       makeAssistantEvent({
         agentId: "sub-1",
         timestamp: "2026-01-01T00:00:01Z",
         stopReason: "tool_use", // Still running
         model: "claude-sonnet-4-6",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
       // Main agent's response comes after (end_turn — dispatching done)
       makeAssistantEvent({
         agentId: "main",
@@ -1143,19 +1222,29 @@ describe("Bug 2: turn status with running subagents", () => {
   });
 
   it("marks turn as completed when main and all subagents have finished", () => {
+    // TASK-002: the preceding main event dispatches sub-1 via Task; sub-1's
+    // sidechain event follows within 5s so temporal proximity admits it.
     const events: SessionEvent[] = [
       makeUserEvent({ text: "Do something", timestamp: "2026-01-01T00:00:00Z" }),
       makeAssistantEvent({
         agentId: "main",
         timestamp: "2026-01-01T00:00:01Z",
-        stopReason: "end_turn",
+        stopReason: "tool_use",
         model: "claude-opus-4-6",
+        taskDispatches: ["sub-1 work"],
       }),
       makeAssistantEvent({
         agentId: "sub-1",
         timestamp: "2026-01-01T00:00:02Z",
         stopReason: "end_turn", // Subagent also finished
         model: "claude-sonnet-4-6",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+      makeAssistantEvent({
+        agentId: "main",
+        timestamp: "2026-01-01T00:00:03Z",
+        stopReason: "end_turn",
+        model: "claude-opus-4-6",
       }),
     ];
 
@@ -1166,15 +1255,26 @@ describe("Bug 2: turn status with running subagents", () => {
   });
 
   it("marks turn as running via extendTurn when main sent end_turn and subagent still running (extendTurn)", () => {
-    // Initial: subagent is running, main has NOT yet sent end_turn
+    // TASK-002: main dispatches sub-1 via Task before sub-1's sidechain events
+    // appear; temporal proximity binds sub-1 to the dispatch.
+    // Initial: main dispatches sub-1 (tool_use), sub-1 running, main has NOT
+    // yet sent final end_turn.
     const initial: SessionEvent[] = [
       makeUserEvent({ text: "hello", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        timestamp: "2026-01-01T00:00:00Z",
+        stopReason: "tool_use",
+        model: "claude-opus-4-6",
+        taskDispatches: ["sub-1 work"],
+      }),
       makeAssistantEvent({
         agentId: "sub-1",
         timestamp: "2026-01-01T00:00:01Z",
         stopReason: "tool_use", // Still running
         model: "claude-sonnet-4-6",
-      }),
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
     ];
     const existingTurns = groupEventsIntoTurns(initial);
     expect(existingTurns[0].status).toBe("running");
@@ -1194,5 +1294,274 @@ describe("Bug 2: turn status with running subagents", () => {
     const sub1 = turns[0].agents.find(a => a.agentId === "sub-1");
     expect(sub1).toBeDefined();
     expect(sub1!.status).toBe("running");
+  });
+});
+
+// ─── TASK-002: Turn membership by dispatch ──────────────────────────
+
+describe("Turn membership by dispatch", () => {
+  it("T-DISPATCH-1: subagent events from a prior turn do not leak into current turn", () => {
+    // Three-turn stream. Turn 1 dispatches subA via a main Task tool_use and the
+    // subagent's sidechain events occur inside turn 1. Turn 2 is main-only. Turn 3
+    // is main-only but has a rogue sidechain event tagged with subA's agentId whose
+    // timestamp falls inside turn 3's window. Expected: turn 1 contains subA; turns
+    // 2 and 3 contain only "main" (subA was NOT dispatched in either).
+    const events: SessionEvent[] = [
+      // Turn 1: user, main dispatches subA, sidechain event from subA
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["Do X"],
+      }),
+      makeAssistantEvent({
+        agentId: "subA",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:02Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:03Z",
+      }),
+
+      // Turn 2: user, main-only (no Task dispatches)
+      makeUserEvent({ text: "Turn 2", timestamp: "2026-01-01T00:01:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:01:01Z",
+      }),
+
+      // Turn 3: user, main-only + rogue subA sidechain event (simulates late event)
+      makeUserEvent({ text: "Turn 3", timestamp: "2026-01-01T00:02:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:02:01Z",
+      }),
+      makeAssistantEvent({
+        agentId: "subA",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:02:02Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:02:03Z",
+      }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(3);
+
+    const turn1AgentIds = turns[0].agents.map(a => a.agentId).sort();
+    expect(turn1AgentIds).toEqual(["main", "subA"]);
+
+    const turn2AgentIds = turns[1].agents.map(a => a.agentId);
+    expect(turn2AgentIds).toEqual(["main"]);
+
+    const turn3AgentIds = turns[2].agents.map(a => a.agentId);
+    expect(turn3AgentIds).toEqual(["main"]);
+  });
+
+  it("T-DISPATCH-2: turn with no Task dispatch has only main", () => {
+    // Single turn with a rogue sidechain event (agentId "subX") whose timestamp
+    // falls inside the turn. No Task dispatch, so subX must be filtered out.
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+      makeAssistantEvent({
+        agentId: "subX",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:02Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    const ids = turns[0].agents.map(a => a.agentId);
+    expect(ids).toEqual(["main"]);
+  });
+
+  it("T-DISPATCH-3: description match adds dispatched agentId", () => {
+    // Main tool_use description "Fix the foo bug" matches subagentMeta entry for
+    // "agent-abc123". Sidechain events with that agentId must end up in agents list.
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["Fix the foo bug"],
+      }),
+      makeAssistantEvent({
+        agentId: "agent-abc123",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:02Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:03Z",
+      }),
+    ];
+    const agentMeta = {
+      "agent-abc123": { agentType: "bug-fixer", description: "Fix the foo bug" },
+    };
+
+    const turns = groupEventsIntoTurns(events, agentMeta);
+    expect(turns).toHaveLength(1);
+    const ids = turns[0].agents.map(a => a.agentId).sort();
+    expect(ids).toEqual(["agent-abc123", "main"]);
+    const bugFixer = turns[0].agents.find(a => a.agentId === "agent-abc123");
+    expect(bugFixer?.agentType).toBe("bug-fixer");
+  });
+
+  it("T-DISPATCH-4: temporal proximity fallback when description mismatches", () => {
+    // Main tool_use at T with description "unknown"; subagentMeta has no entry
+    // matching "unknown". A sidechain event with agentId "agent-xyz" at T+2s must
+    // be matched via the temporal-proximity fallback.
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:10Z",
+        taskDispatches: ["unknown"],
+      }),
+      makeAssistantEvent({
+        agentId: "agent-xyz",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:12Z", // T + 2s — within 5s window
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:13Z",
+      }),
+    ];
+    // agentMeta does NOT contain an entry whose description === "unknown"
+    const agentMeta = {
+      "agent-other": { agentType: "other", description: "not a match" },
+    };
+
+    const turns = groupEventsIntoTurns(events, agentMeta);
+    expect(turns).toHaveLength(1);
+    const ids = turns[0].agents.map(a => a.agentId).sort();
+    expect(ids).toEqual(["agent-xyz", "main"]);
+  });
+
+  // T-DISPATCH-5 / T-DISPATCH-6 — P2-1: extendTurn must scan only the delta,
+  // not the full turn event slice, per Architecture Invariant #8 (O(1) per
+  // live event). The previous design re-scanned `allTurnEvents` on every
+  // streaming batch; the fix inherits the dispatched set from the prior
+  // snapshot and only scans `newEvents` for additional dispatches.
+
+  it("T-DISPATCH-5: extendTurn inherits dispatched set from prior state", () => {
+    // Existing turn dispatched sub-A via main's Task tool_use. A subsequent
+    // delta brings ONLY sub-A's sidechain events — no new Task dispatch in
+    // the delta. The inherited dispatched set must keep sub-A admitted into
+    // turn.agents; a full-rebuild on the same stream must agree.
+    const initial: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["do sub-A work"],
+      }),
+      makeAssistantEvent({
+        agentId: "sub-A",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:02Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
+    ];
+    const existing = groupEventsIntoTurns(initial);
+    expect(existing).toHaveLength(1);
+    expect(existing[0].agents.map(a => a.agentId).sort()).toEqual(["main", "sub-A"]);
+
+    // Delta: more sub-A sidechain events, NO new Task dispatch.
+    const allEvents: SessionEvent[] = [
+      ...initial,
+      makeAssistantEvent({
+        agentId: "sub-A",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:03Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
+      makeAssistantEvent({
+        agentId: "sub-A",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:04Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+    ];
+
+    const incremental = groupEventsIntoTurnsIncremental(existing, allEvents, 2);
+    const full = groupEventsIntoTurns(allEvents);
+
+    // Inheritance worked: sub-A is still in agents.
+    const incIds = incremental[0].agents.map(a => a.agentId).sort();
+    expect(incIds).toEqual(["main", "sub-A"]);
+    // Incremental output matches full rebuild (no divergence).
+    expect(incIds).toEqual(full[0].agents.map(a => a.agentId).sort());
+  });
+
+  it("T-DISPATCH-6: extendTurn picks up a new Task dispatch in the delta", () => {
+    // Existing turn has no dispatches (main-only). The delta contains a new
+    // main assistant with a Task tool_use matching subagentMeta, plus that
+    // subagent's first sidechain event. extendTurn must scan the delta and
+    // admit the new subagent.
+    const initial: SessionEvent[] = [
+      makeUserEvent({ text: "Turn 1", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+    ];
+    const agentMeta = {
+      "agent-new-1": { agentType: "Fixer", description: "fix the bug" },
+    };
+    const existing = groupEventsIntoTurns(initial, agentMeta);
+    expect(existing).toHaveLength(1);
+    expect(existing[0].agents.map(a => a.agentId)).toEqual(["main"]);
+
+    // Delta: main emits a Task dispatch; the subagent's first event follows.
+    const allEvents: SessionEvent[] = [
+      ...initial,
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:02Z",
+        taskDispatches: ["fix the bug"],
+      }),
+      makeAssistantEvent({
+        agentId: "agent-new-1",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:03Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+    ];
+
+    const incremental = groupEventsIntoTurnsIncremental(existing, allEvents, 2, agentMeta);
+    const full = groupEventsIntoTurns(allEvents, agentMeta);
+
+    const incIds = incremental[0].agents.map(a => a.agentId).sort();
+    expect(incIds).toEqual(["agent-new-1", "main"]);
+    // Incremental output matches full rebuild.
+    expect(incIds).toEqual(full[0].agents.map(a => a.agentId).sort());
   });
 });
