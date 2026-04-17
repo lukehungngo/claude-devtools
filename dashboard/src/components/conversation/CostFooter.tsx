@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { formatCost } from "../../lib/cost";
+import { formatCost, formatTokens } from "../../lib/cost";
 
 interface CostFooterProps {
   totalCost: number;
@@ -7,6 +7,8 @@ interface CostFooterProps {
   mainTurns: number;
   agentCost: number;
   agentCalls: number;
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
 export const CostFooter = memo(function CostFooter({
@@ -14,6 +16,8 @@ export const CostFooter = memo(function CostFooter({
   mainCost,
   agentCost,
   agentCalls,
+  inputTokens,
+  outputTokens,
 }: CostFooterProps) {
   const hasMain = mainCost > 0;
   const hasAgent = agentCalls > 0 && agentCost > 0;
@@ -36,6 +40,12 @@ export const CostFooter = memo(function CostFooter({
         <>
           <span>&middot;</span>
           <span>{agentCalls} agent{agentCalls !== 1 ? "s" : ""}</span>
+        </>
+      )}
+      {inputTokens != null && outputTokens != null && (inputTokens > 0 || outputTokens > 0) && (
+        <>
+          <span>&middot;</span>
+          <span>In: {formatTokens(inputTokens)} / Out: {formatTokens(outputTokens)}</span>
         </>
       )}
     </div>

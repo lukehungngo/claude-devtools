@@ -9,10 +9,12 @@ import { DiffBlock } from "../viewer/DiffBlock";
 import { AgentCard } from "./AgentCard";
 import { PhaseGroup } from "./PhaseGroup";
 import { ExpandHint } from "./ExpandHint";
+import type { AgentSummary } from "../../lib/turnSnapshot";
 
 interface ToolEntriesProps {
   events: SessionEvent[];
   onToolClick?: (toolName: string) => void;
+  agentSummaries?: AgentSummary[];
 }
 
 export interface ToolEntry {
@@ -379,17 +381,33 @@ const STATUS_ICONS: Record<string, { char: string; className: string }> = {
   error: { char: "\u2717", className: "tool-err" },
 };
 
-const ToolEntryRow = memo(function ToolEntryRow({ entry, isLast, onToolClick }: { entry: ToolEntry; isLast: boolean; onToolClick?: (toolName: string) => void }) {
+const ToolEntryRow = memo(function ToolEntryRow({
+  entry,
+  isLast,
+  onToolClick,
+  agentSummaries,
+}: {
+  entry: ToolEntry;
+  isLast: boolean;
+  onToolClick?: (toolName: string) => void;
+  agentSummaries?: AgentSummary[];
+}) {
   // Agent dispatch entries render as AgentCard instead of normal tool row
   if (isAgentDispatch(entry.name)) {
+    const agentName = extractAgentName(entry);
+    const matchedSummary = agentSummaries?.find(
+      (s) => s.agentType === agentName || s.agentType.endsWith(`:${agentName}`),
+    );
     return (
       <AgentCard
-        agentName={extractAgentName(entry)}
+        agentName={agentName}
         description={extractAgentDescription(entry)}
         status={entry.status}
         toolStats={extractToolStatsFromResult(entry.resultContent ?? [])}
         durationMs={extractDurationFromResult(entry.resultContent ?? [])}
         cost={extractCostFromResult(entry.resultContent ?? [])}
+        tokensIn={matchedSummary?.tokensIn}
+        tokensOut={matchedSummary?.tokensOut}
       >
         {entry.resultContent != null && (
           <div className="font-mono" style={{ fontSize: 10, color: "var(--t3)", lineHeight: 1.5 }}>
@@ -607,6 +625,7 @@ function renderGroups(
   allGroupsLength: number,
   startIndex: number,
   onToolClick?: (toolName: string) => void,
+  agentSummaries?: AgentSummary[],
 ): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   for (let gi = 0; gi < groups.length; gi++) {
@@ -624,6 +643,7 @@ function renderGroups(
             entry={entry}
             isLast={isLast && ei === group.entries.length - 1}
             onToolClick={onToolClick}
+            agentSummaries={agentSummaries}
           />,
         );
       }
@@ -632,7 +652,7 @@ function renderGroups(
   return nodes;
 }
 
-export function ToolEntriesInner({ events, onToolClick }: ToolEntriesProps) {
+export function ToolEntriesInner({ events, onToolClick, agentSummaries }: ToolEntriesProps) {
   const { entries, textBoundaryIndices, thinkingContext } = extractToolEntries(events);
   const groups = groupToolEntries(entries);
 
@@ -692,7 +712,7 @@ export function ToolEntriesInner({ events, onToolClick }: ToolEntriesProps) {
           if (phaseFirstGroup.get(phase) !== group) return null; // skip — rendered by first group
           return (
             <PhaseGroup key={`phase-${gi}`} phase={phase}>
-              {renderGroups(phase.groups, groups.length, gi, onToolClick)}
+              {renderGroups(phase.groups, groups.length, gi, onToolClick, agentSummaries)}
             </PhaseGroup>
           );
         }
@@ -708,6 +728,7 @@ export function ToolEntriesInner({ events, onToolClick }: ToolEntriesProps) {
             entry={entry}
             isLast={isLast && ei === group.entries.length - 1}
             onToolClick={onToolClick}
+            agentSummaries={agentSummaries}
           />
         ));
       })}
@@ -717,5 +738,7 @@ export function ToolEntriesInner({ events, onToolClick }: ToolEntriesProps) {
 
 /** Memoized ToolEntries — skips re-render when events ref is stable */
 export const ToolEntries = memo(ToolEntriesInner, (prev, next) =>
-  prev.events === next.events && prev.onToolClick === next.onToolClick
+  prev.events === next.events &&
+  prev.onToolClick === next.onToolClick &&
+  prev.agentSummaries?.length === next.agentSummaries?.length
 );

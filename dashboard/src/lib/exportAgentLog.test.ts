@@ -13,6 +13,8 @@ describe("buildExportPayload", () => {
         toolName: null,
         isError: false,
         cost: 0.1,
+        tokensIn: 0,
+        tokensOut: 0,
       },
     ];
     const groups = [
@@ -25,6 +27,8 @@ describe("buildExportPayload", () => {
         endTime: "2026-01-01T00:00:05Z",
         durationMs: 5000,
         cost: 0.1,
+        tokensIn: 0,
+        tokensOut: 0,
       },
     ];
 
@@ -50,6 +54,8 @@ describe("buildExportPayload", () => {
         toolName: "Read",
         isError: false,
         cost: 0,
+        tokensIn: 0,
+        tokensOut: 0,
       },
     ];
 

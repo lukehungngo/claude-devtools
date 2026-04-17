@@ -301,7 +301,7 @@ export function TurnCard({
             />
 
             {/* Tool entries (grouped card) -- click opens bottom panel tool-call tab */}
-            <ToolEntries events={turnEvents} onToolClick={onToolClick} />
+            <ToolEntries events={turnEvents} onToolClick={onToolClick} agentSummaries={turn.agents} />
 
             {/* Final response text — only non-narration text blocks */}
             {responseContent
@@ -337,6 +337,8 @@ export function TurnCard({
                 mainTurns={1}
                 agentCost={agentCost}
                 agentCalls={turn.agents.length}
+                inputTokens={turn.inputTokens}
+                outputTokens={turn.outputTokens}
               />
             )}
 

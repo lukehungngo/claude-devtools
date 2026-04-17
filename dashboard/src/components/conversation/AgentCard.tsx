@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { ChevronRight } from "lucide-react";
-import { formatCost, formatDuration } from "../../lib/cost";
+import { formatCost, formatDuration, formatTokens } from "../../lib/cost";
 import { getToolBadgeColors } from "./ToolEntries";
 
 export interface AgentCardProps {
@@ -10,6 +10,8 @@ export interface AgentCardProps {
   toolStats?: Array<{ name: string; count: number }>;
   durationMs?: number;
   cost?: number;
+  tokensIn?: number;
+  tokensOut?: number;
   children?: React.ReactNode;
 }
 
@@ -26,6 +28,8 @@ function AgentCardInner({
   toolStats,
   durationMs,
   cost,
+  tokensIn,
+  tokensOut,
   children,
 }: AgentCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -140,6 +144,16 @@ function AgentCardInner({
           </span>
         )}
 
+        {/* 8b. Tokens */}
+        {tokensIn != null && tokensOut != null && (tokensIn > 0 || tokensOut > 0) && (
+          <span
+            data-testid="agent-tokens"
+            className="shrink-0 font-mono text-sm text-[var(--t3)]"
+          >
+            In: {formatTokens(tokensIn)} / Out: {formatTokens(tokensOut)}
+          </span>
+        )}
+
         {/* 9. Duration */}
         {durationMs != null && (
           <span
@@ -172,6 +186,8 @@ export const AgentCard = memo(AgentCardInner, (prev, next) => {
   if (prev.status !== next.status) return false;
   if (prev.durationMs !== next.durationMs) return false;
   if (prev.cost !== next.cost) return false;
+  if (prev.tokensIn !== next.tokensIn) return false;
+  if (prev.tokensOut !== next.tokensOut) return false;
   if (prev.children !== next.children) return false;
   // Shallow compare toolStats
   const a = prev.toolStats;
