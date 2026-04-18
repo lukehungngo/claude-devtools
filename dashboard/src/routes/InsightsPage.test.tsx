@@ -1,38 +1,137 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { InsightsPage } from "./InsightsPage";
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
+}));
 
 vi.mock("../contexts/LayoutContext", () => ({
   useLayoutContext: () => ({ setCurrentMetrics: vi.fn() }),
 }));
 
-import { InsightsPage } from "./InsightsPage";
+vi.mock("../hooks/useInsightsAggregate", () => ({
+  useInsightsAggregate: vi.fn(),
+}));
+
+import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
+
+function mockLoading() {
+  vi.mocked(useInsightsAggregate).mockReturnValue({
+    data: null,
+    delta: null,
+    loading: true,
+    error: null,
+  });
+}
+
+function mockData() {
+  vi.mocked(useInsightsAggregate).mockReturnValue({
+    data: {
+      tokensIn: 120_000,
+      tokensOut: 45_000,
+      cost: 1.23,
+      sessions: 8,
+      turns: 42,
+      avgCostPerTurn: 0.029,
+      avgTokensPerTurn: 3928,
+      activeDays: 5,
+      peakHour: 15,
+      daily: [],
+    },
+    delta: { tokensIn: 0.12, tokensOut: -0.05, cost: 0.08 },
+    loading: false,
+    error: null,
+  });
+}
+
+function mockError() {
+  vi.mocked(useInsightsAggregate).mockReturnValue({
+    data: null,
+    delta: null,
+    loading: false,
+    error: "HTTP 500",
+  });
+}
+
+beforeEach(() => {
+  mockLoading();
+});
 
 afterEach(() => {
   cleanup();
 });
 
 describe("InsightsPage", () => {
-  it("renders heading", () => {
+  it("renders the Insights heading", () => {
     render(<InsightsPage />);
-    expect(screen.getByRole("heading", { name: /insights/i })).toBeDefined();
+    expect(screen.getByText("Insights")).toBeTruthy();
   });
 
-  it("renders time-range controls", () => {
+  it("renders time-range scope pill", () => {
     render(<InsightsPage />);
-    expect(screen.getByTestId("time-range-pill")).toBeDefined();
+    expect(screen.getByTestId("time-range-pill")).toBeTruthy();
+    expect(screen.getByTestId("time-range-7d")).toBeTruthy();
   });
 
-  it("renders section placeholder cards", () => {
+  it("renders repo scope pill", () => {
     render(<InsightsPage />);
-    const cards = screen.getAllByTestId(/section-card/);
-    expect(cards.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByTestId("repo-pill")).toBeTruthy();
   });
 
-  it("clicking 7d time range button does not crash", () => {
+  it("renders loading skeletons when loading", () => {
+    mockLoading();
     render(<InsightsPage />);
-    // Button testId follows pattern: time-range-{value} (derived from container "time-range-pill")
-    const btn = screen.getByTestId("time-range-7d");
-    fireEvent.click(btn);
-    expect(screen.getByTestId("time-range-7d")).toBeDefined();
+    expect(screen.getAllByTestId("tile-skeleton").length).toBeGreaterThan(0);
+  });
+
+  it("renders headline and stat tiles when data loaded", () => {
+    mockData();
+    render(<InsightsPage />);
+    expect(screen.getByTestId("tile-tokensIn")).toBeTruthy();
+    expect(screen.getByTestId("tile-tokensOut")).toBeTruthy();
+    expect(screen.getByTestId("tile-cost")).toBeTruthy();
+    expect(screen.getByTestId("tile-sessions")).toBeTruthy();
+    expect(screen.getByTestId("tile-turns")).toBeTruthy();
+  });
+
+  it("renders secondary tiles when data loaded", () => {
+    mockData();
+    render(<InsightsPage />);
+    expect(screen.getByTestId("tile-avgCostPerTurn")).toBeTruthy();
+    expect(screen.getByTestId("tile-avgTokensPerTurn")).toBeTruthy();
+    expect(screen.getByTestId("tile-activeDays")).toBeTruthy();
+    expect(screen.getByTestId("tile-peakHour")).toBeTruthy();
+  });
+
+  it("renders delta chips with correct sign", () => {
+    mockData();
+    render(<InsightsPage />);
+    expect(screen.getByTestId("delta-tokensIn").textContent).toContain("+12.0%");
+    expect(screen.getByTestId("delta-tokensOut").textContent).toContain("-5.0%");
+  });
+
+  it("renders placeholder section cards for future milestones", () => {
+    mockData();
+    render(<InsightsPage />);
+    const cards = screen.getAllByTestId(/^section-card-/);
+    expect(cards.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it("shows error banner with role=alert when fetch fails", () => {
+    mockError();
+    render(<InsightsPage />);
+    const banner = screen.getByTestId("insights-error");
+    expect(banner).toBeTruthy();
+    expect(banner.textContent).toContain("HTTP 500");
+    expect(banner.getAttribute("role")).toBe("alert");
+  });
+
+  it("passes updated timeRange to hook when scope bar changes", () => {
+    mockLoading();
+    render(<InsightsPage />);
+    expect(useInsightsAggregate).toHaveBeenCalledWith("7d", "all");
+    fireEvent.click(screen.getByTestId("time-range-30d"));
+    expect(useInsightsAggregate).toHaveBeenCalledWith("30d", "all");
   });
 });

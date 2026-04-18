@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLayoutContext } from "../contexts/LayoutContext";
+import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
+import { formatCost, formatTokens } from "../lib/cost";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -11,8 +13,9 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
   { value: "all", label: "All" },
 ];
 
-const SECTION_CARDS = [
-  "Usage Overview",
+const REPO_OPTIONS = [{ value: "all", label: "All repos" }];
+
+const PLACEHOLDER_SECTIONS = [
   "Activity Heatmap",
   "Model Mix",
   "Top Consumers",
@@ -21,6 +24,12 @@ const SECTION_CARDS = [
   "Skills",
   "Efficiency Hints",
 ];
+
+function formatHour(h: number): string {
+  if (h === 0) return "12am";
+  if (h === 12) return "12pm";
+  return h < 12 ? `${h}am` : `${h - 12}pm`;
+}
 
 interface SegPillProps {
   options: { value: string; label: string }[];
@@ -83,9 +92,137 @@ function PlaceholderCard({ title, testId }: PlaceholderCardProps): JSX.Element {
   );
 }
 
+interface DeltaChipProps {
+  value: number | null;
+  testId?: string;
+}
+
+function DeltaChip({ value, testId }: DeltaChipProps): JSX.Element {
+  if (value === null) {
+    return (
+      <span data-testid={testId} className="text-dt-text2 text-xxs font-mono">
+        —
+      </span>
+    );
+  }
+  const pct = (Math.abs(value) * 100).toFixed(1);
+  const positive = value >= 0;
+  return (
+    <span
+      data-testid={testId}
+      className={[
+        "text-xxs font-mono font-semibold px-1 py-0.5 rounded-dt-xs",
+        positive
+          ? "text-dt-green bg-dt-green/10"
+          : "text-dt-red bg-dt-red/10",
+      ].join(" ")}
+    >
+      {positive ? "+" : "-"}{pct}%
+    </span>
+  );
+}
+
+function SparklinePlaceholder(): JSX.Element {
+  return (
+    <svg
+      width="64"
+      height="20"
+      viewBox="0 0 64 20"
+      className="text-dt-accent opacity-40"
+      aria-hidden="true"
+    >
+      <polyline
+        points="0,18 16,12 32,8 48,14 64,4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+interface HeadlineTileProps {
+  label: string;
+  value: string;
+  delta: number | null;
+  deltaTestId?: string;
+  testId?: string;
+}
+
+function HeadlineTile({
+  label,
+  value,
+  delta,
+  deltaTestId,
+  testId,
+}: HeadlineTileProps): JSX.Element {
+  return (
+    <div
+      data-testid={testId}
+      className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-2"
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-mono text-dt-text2 tracking-wide">{label}</span>
+        <SparklinePlaceholder />
+      </div>
+      <div className="text-2xl font-bold text-dt-text0 font-mono leading-none">{value}</div>
+      <DeltaChip value={delta} testId={deltaTestId} />
+    </div>
+  );
+}
+
+interface StatTileProps {
+  label: string;
+  value: string;
+  delta?: number | null;
+  deltaTestId?: string;
+  testId?: string;
+}
+
+function StatTile({
+  label,
+  value,
+  delta,
+  deltaTestId,
+  testId,
+}: StatTileProps): JSX.Element {
+  return (
+    <div
+      data-testid={testId}
+      className="bg-dt-bg1 border border-dt-border rounded-dt p-4 flex flex-col gap-1.5"
+    >
+      <span className="text-xs font-mono text-dt-text2 tracking-wide">{label}</span>
+      <div className="text-xl font-bold text-dt-text0 font-mono leading-none">{value}</div>
+      {delta !== undefined && <DeltaChip value={delta} testId={deltaTestId} />}
+    </div>
+  );
+}
+
+interface SecondaryTileProps {
+  label: string;
+  value: string;
+  testId?: string;
+}
+
+function SecondaryTile({ label, value, testId }: SecondaryTileProps): JSX.Element {
+  return (
+    <div
+      data-testid={testId}
+      className="bg-dt-bg1 border border-dt-border rounded-dt p-3.5 flex flex-col gap-1"
+    >
+      <span className="text-xxs font-mono text-dt-text2 tracking-wide uppercase">{label}</span>
+      <div className="text-lg font-bold text-dt-text0 font-mono leading-none">{value}</div>
+    </div>
+  );
+}
+
 export function InsightsPage(): JSX.Element {
   const { setCurrentMetrics } = useLayoutContext();
   const [timeRange, setTimeRange] = useState<TimeRange>("7d");
+  const [repo, setRepo] = useState("all");
+  const { data, delta, loading, error } = useInsightsAggregate(timeRange, repo);
 
   useEffect(() => {
     setCurrentMetrics(null);
@@ -100,6 +237,12 @@ export function InsightsPage(): JSX.Element {
             Insights
           </h1>
           <SegPill
+            options={REPO_OPTIONS}
+            value={repo}
+            onChange={setRepo}
+            testId="repo-pill"
+          />
+          <SegPill
             options={TIME_RANGE_OPTIONS}
             value={timeRange}
             onChange={(v) => setTimeRange(v as TimeRange)}
@@ -107,8 +250,116 @@ export function InsightsPage(): JSX.Element {
           />
         </div>
 
-        {/* Section placeholder cards */}
-        {SECTION_CARDS.map((title) => (
+        {/* Error banner */}
+        {error && (
+          <div
+            data-testid="insights-error"
+            role="alert"
+            className="bg-dt-bg1 border border-dt-red/40 rounded-dt p-4 text-dt-red font-mono text-sm"
+          >
+            Failed to load insights: {error}
+          </div>
+        )}
+
+        {/* Headline tiles: Tokens In + Tokens Out */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {loading ? (
+            <>
+              <div
+                data-testid="tile-skeleton"
+                className="bg-dt-bg1 border border-dt-border rounded-dt p-5 h-28 animate-pulse"
+              />
+              <div className="bg-dt-bg1 border border-dt-border rounded-dt p-5 h-28 animate-pulse" />
+            </>
+          ) : data ? (
+            <>
+              <HeadlineTile
+                label="Tokens In"
+                value={formatTokens(data.tokensIn)}
+                delta={delta?.tokensIn ?? null}
+                deltaTestId="delta-tokensIn"
+                testId="tile-tokensIn"
+              />
+              <HeadlineTile
+                label="Tokens Out"
+                value={formatTokens(data.tokensOut)}
+                delta={delta?.tokensOut ?? null}
+                deltaTestId="delta-tokensOut"
+                testId="tile-tokensOut"
+              />
+            </>
+          ) : null}
+        </div>
+
+        {/* Stat tiles: Cost, Sessions, Turns */}
+        {loading && !error ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {([0, 1, 2] as const).map((i) => (
+              <div
+                key={i}
+                className="bg-dt-bg1 border border-dt-border rounded-dt p-4 h-20 animate-pulse"
+              />
+            ))}
+          </div>
+        ) : data ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <StatTile
+              label="Cost"
+              value={formatCost(data.cost)}
+              delta={delta?.cost ?? null}
+              deltaTestId="delta-cost"
+              testId="tile-cost"
+            />
+            <StatTile
+              label="Sessions"
+              value={String(data.sessions)}
+              testId="tile-sessions"
+            />
+            <StatTile
+              label="Turns"
+              value={String(data.turns)}
+              testId="tile-turns"
+            />
+          </div>
+        ) : null}
+
+        {/* Secondary tiles */}
+        {loading && !error ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {([0, 1, 2, 3] as const).map((i) => (
+              <div
+                key={i}
+                className="bg-dt-bg1 border border-dt-border rounded-dt p-3.5 h-16 animate-pulse"
+              />
+            ))}
+          </div>
+        ) : data ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <SecondaryTile
+              label="Avg cost/turn"
+              value={formatCost(data.avgCostPerTurn)}
+              testId="tile-avgCostPerTurn"
+            />
+            <SecondaryTile
+              label="Avg tokens/turn"
+              value={formatTokens(data.avgTokensPerTurn)}
+              testId="tile-avgTokensPerTurn"
+            />
+            <SecondaryTile
+              label="Active days"
+              value={String(data.activeDays)}
+              testId="tile-activeDays"
+            />
+            <SecondaryTile
+              label="Peak hour"
+              value={formatHour(data.peakHour)}
+              testId="tile-peakHour"
+            />
+          </div>
+        ) : null}
+
+        {/* Placeholder sections for future milestones */}
+        {PLACEHOLDER_SECTIONS.map((title) => (
           <PlaceholderCard
             key={title}
             title={title}
