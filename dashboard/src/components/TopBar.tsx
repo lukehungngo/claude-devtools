@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
 import type { SessionMetrics, EffortLevel } from "../lib/types";
 import type { PermissionMode } from "./conversation/permissionModeTypes";
@@ -102,12 +102,19 @@ export function TopBar({ metrics, repoName, branch, isLive, hasPermissionPending
             <>
               <span style={{ color: "var(--t3)", margin: "0 2px" }}>@</span>
               <span
+                className="flex items-center gap-[3px]"
                 style={{
                   fontFamily: "var(--font-mono)", fontSize: 11,
                   color: "var(--acc)", fontWeight: 500,
                 }}
               >
-                &#x2387; {branch}
+                <Pencil
+                  size={11}
+                  aria-hidden="true"
+                  data-testid="branch-edit-icon"
+                  style={{ color: "var(--t3)", display: "inline" }}
+                />
+                {branch}
               </span>
             </>
           )}

@@ -195,4 +195,29 @@ describe("TopBar", () => {
       expect(screen.getByText("YOLO")).toBeDefined();
     });
   });
+
+  describe("branch crumb Pencil icon", () => {
+    it("renders a Pencil icon before the branch name when branch is provided", () => {
+      const { container } = render(
+        <TopBar
+          metrics={null}
+          repoName="my-repo"
+          branch="main"
+        />
+      );
+      const pencilIcon = container.querySelector('[data-testid="branch-edit-icon"]');
+      expect(pencilIcon).not.toBeNull();
+    });
+
+    it("does not render Pencil icon when branch is not provided", () => {
+      const { container } = render(
+        <TopBar
+          metrics={null}
+          repoName="my-repo"
+        />
+      );
+      const pencilIcon = container.querySelector('[data-testid="branch-edit-icon"]');
+      expect(pencilIcon).toBeNull();
+    });
+  });
 });
