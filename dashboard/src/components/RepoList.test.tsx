@@ -3,6 +3,8 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { RepoList } from "./RepoList";
 import type { RepoGroup } from "../lib/types";
 
+// Note: file-level afterEach already handles cleanup
+
 afterEach(() => {
   cleanup();
 });
@@ -170,5 +172,55 @@ describe("RepoList", () => {
       fireEvent.click(resumeBtns[0]);
       expect(onResumeSession).toHaveBeenCalledWith("session-1", "/project/test");
     });
+  });
+});
+
+describe("RepoList REPOS header", () => {
+  afterEach(() => { cleanup(); });
+
+  it("renders REPOS header text", () => {
+    render(
+      <RepoList repos={[]} loading={false} selected={null} onSelect={() => {}} />
+    );
+    expect(screen.getByText("REPOS")).toBeDefined();
+  });
+
+  it("calls onToggleTurnHistory when toggle button clicked", () => {
+    const onToggle = vi.fn();
+    render(
+      <RepoList
+        repos={[]}
+        loading={false}
+        selected={null}
+        onSelect={() => {}}
+        onToggleTurnHistory={onToggle}
+      />
+    );
+    const toggleBtn = screen.getByTitle("Toggle turn history panel");
+    fireEvent.click(toggleBtn);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onNewSession when + button clicked", () => {
+    const onNew = vi.fn();
+    render(
+      <RepoList
+        repos={[]}
+        loading={false}
+        selected={null}
+        onSelect={() => {}}
+        onNewSession={onNew}
+      />
+    );
+    const newBtn = screen.getByTitle("Start new session");
+    fireEvent.click(newBtn);
+    expect(onNew).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show toggle button when onToggleTurnHistory not provided", () => {
+    render(
+      <RepoList repos={[]} loading={false} selected={null} onSelect={() => {}} />
+    );
+    expect(screen.queryByTitle("Toggle turn history panel")).toBeNull();
   });
 });

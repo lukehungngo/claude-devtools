@@ -292,8 +292,6 @@ export function AppLayout() {
         onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
         titlebar={
           <Titlebar
-            repoName={currentRepo?.repoName}
-            branch={currentMetrics?.session.gitBranch ?? currentRepo?.gitBranch}
             isConnected={isLive}
             wsLatency={wsLatency}
             usage={usage}
@@ -350,6 +348,7 @@ export function AppLayout() {
                 console.error("Failed to resume session:", err);
               }
             }}
+            onToggleTurnHistory={toggleTurnHistory}
           />
         }
         turnHistory={

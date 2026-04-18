@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Play, Settings, Copy, Check } from "lucide-react";
+import { Play, Settings, Copy, Check, Plus, LayoutList } from "lucide-react";
 import type { RepoGroup } from "../lib/types";
 
 const SESSION_NAMES_KEY = "session-names";
@@ -30,6 +30,7 @@ interface Props {
   activeSessionId?: string | null;
   onResumeSession?: (sessionId: string, cwd: string) => void;
   onAddRepo?: (path: string) => void;
+  onToggleTurnHistory?: () => void;
 }
 
 export function RepoList({
@@ -40,6 +41,7 @@ export function RepoList({
   onNewSession,
   activeSessionId,
   onResumeSession,
+  onToggleTurnHistory,
 }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [sessionNames] = useState<Record<string, string>>(() => loadSessionNames());
@@ -78,6 +80,49 @@ export function RepoList({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {/* REPOS header */}
+      <div
+        className="flex items-center shrink-0"
+        style={{
+          padding: "10px 14px 8px",
+          borderBottom: "1px solid var(--bd)",
+          gap: 6,
+        }}
+      >
+        <span className="t-section flex-1">REPOS</span>
+        {onNewSession && (
+          <button
+            onClick={onNewSession}
+            className="flex items-center justify-center cursor-pointer border-none bg-transparent"
+            style={{
+              width: 20, height: 20, borderRadius: 4,
+              color: "var(--t3)", transition: "color .15s",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--t1)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--t3)"; }}
+            title="Start new session"
+            aria-label="Start new session"
+          >
+            <Plus size={12} />
+          </button>
+        )}
+        {onToggleTurnHistory && (
+          <button
+            onClick={onToggleTurnHistory}
+            className="flex items-center justify-center cursor-pointer border-none bg-transparent"
+            style={{
+              width: 20, height: 20, borderRadius: 4,
+              color: "var(--t3)", transition: "color .15s",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--t1)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--t3)"; }}
+            title="Toggle turn history panel"
+            aria-label="Toggle turn history panel"
+          >
+            <LayoutList size={12} />
+          </button>
+        )}
+      </div>
       {/* Repositories */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden dt-scrollbar">
         {loading ? (

@@ -4,8 +4,6 @@ import { useTheme } from "../contexts/ThemeContext";
 import type { UsageInfo } from "../lib/types";
 
 interface TitlebarProps {
-  repoName?: string;
-  branch?: string;
   isConnected?: boolean;
   wsLatency?: number | null;
   usage?: UsageInfo | null;
