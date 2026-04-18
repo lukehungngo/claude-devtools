@@ -292,6 +292,22 @@ export interface InsightsAggregate {
   daily: InsightsDailyBucket[];
 }
 
+export interface InsightsHeatmapCell {
+  day: number;    // 0=Mon … 6=Sun (UTC weekday, Mon-indexed)
+  hour: number;   // 0-23 UTC hour
+  intensity: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface InsightsHourlyBucket {
+  hour: number;       // 0-23 UTC hour
+  tokensAvg: number;  // average (tokensIn + tokensOut) across sessions starting in this hour
+}
+
+export interface InsightsActivity {
+  heatmap: InsightsHeatmapCell[];
+  hourly: InsightsHourlyBucket[];
+}
+
 export interface PermissionSuggestion {
   type: string;
   rules?: Array<{ toolName: string; ruleContent?: string }>;

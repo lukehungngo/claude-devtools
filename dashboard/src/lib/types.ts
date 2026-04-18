@@ -304,3 +304,21 @@ export interface AgentLogEntry {
 // === Session Control Types ===
 
 export type EffortLevel = "low" | "medium" | "high";
+
+// === Insights Activity Types ===
+
+export interface InsightsHeatmapCell {
+  day: number;
+  hour: number;
+  intensity: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface InsightsHourlyBucket {
+  hour: number;
+  tokensAvg: number;
+}
+
+export interface InsightsActivity {
+  heatmap: InsightsHeatmapCell[];
+  hourly: InsightsHourlyBucket[];
+}
