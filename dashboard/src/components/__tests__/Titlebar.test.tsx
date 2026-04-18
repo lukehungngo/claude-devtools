@@ -76,6 +76,12 @@ describe("Titlebar", () => {
     const pill = screen.getByRole("button", { name: /usage/i });
     expect(pill).toBeDefined();
   });
+
+  it("renders tb-sep divider between brand and connection pill", () => {
+    const { container } = render(<Titlebar isConnected={true} wsLatency={47} />);
+    const sep = container.querySelector('[data-testid="tb-sep"]');
+    expect(sep).not.toBeNull();
+  });
 });
 
 describe("formatTimeUntil", () => {

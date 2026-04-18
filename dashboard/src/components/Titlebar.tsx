@@ -65,6 +65,18 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
         Claude DevTools
       </button>
 
+      {/* tb-sep: vertical divider between brand and pills */}
+      <span
+        data-testid="tb-sep"
+        style={{
+          width: '1px',
+          height: '18px',
+          background: 'var(--bd)',
+          margin: '0 4px',
+          flexShrink: 0,
+        }}
+      />
+
       {/* Connection pill */}
       {isConnected !== undefined && (
         <button
