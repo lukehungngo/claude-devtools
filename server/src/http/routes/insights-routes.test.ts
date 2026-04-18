@@ -1,0 +1,91 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("../../parser/session-discovery.js", () => ({
+  discoverSessions: vi.fn(() => []),
+}));
+vi.mock("../../analyzer/insights-aggregator.js", () => ({
+  computeInsightsAggregate: vi.fn(() => ({
+    tokensIn: 1000,
+    tokensOut: 500,
+    cost: 0.005,
+    sessions: 3,
+    turns: 12,
+    avgCostPerTurn: 0.0004,
+    avgTokensPerTurn: 125,
+    activeDays: 2,
+    peakHour: 14,
+    daily: [{ date: "2026-04-18", tokensIn: 1000, tokensOut: 500, cost: 0.005 }],
+  })),
+}));
+vi.mock("../../logger.js", () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+import request from "supertest";
+import express from "express";
+import { json } from "express";
+import { createInsightsRoutes } from "./insights-routes.js";
+import { discoverSessions } from "../../parser/session-discovery.js";
+import { computeInsightsAggregate } from "../../analyzer/insights-aggregator.js";
+
+const mockedDiscover = vi.mocked(discoverSessions);
+const mockedAggregate = vi.mocked(computeInsightsAggregate);
+
+function buildApp() {
+  const app = express();
+  app.use(json());
+  app.use(createInsightsRoutes({}));
+  return app;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("GET /api/insights/aggregate", () => {
+  it("returns 200 with aggregate data", async () => {
+    const res = await request(buildApp()).get("/api/insights/aggregate");
+    expect(res.status).toBe(200);
+    expect(res.body.tokensIn).toBe(1000);
+    expect(res.body.sessions).toBe(3);
+    expect(res.body.daily).toHaveLength(1);
+  });
+
+  it("passes timeRange and repo to computeInsightsAggregate", async () => {
+    await request(buildApp()).get(
+      "/api/insights/aggregate?timeRange=30d&repo=/home/user/project"
+    );
+    expect(mockedAggregate).toHaveBeenCalledWith(
+      expect.anything(),
+      "30d",
+      "/home/user/project"
+    );
+  });
+
+  it("uses 7d and all as defaults", async () => {
+    await request(buildApp()).get("/api/insights/aggregate");
+    expect(mockedAggregate).toHaveBeenCalledWith(expect.anything(), "7d", "all");
+  });
+
+  it("returns 400 for invalid timeRange", async () => {
+    const res = await request(buildApp()).get(
+      "/api/insights/aggregate?timeRange=invalid"
+    );
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/timeRange/);
+  });
+
+  it("calls discoverSessions()", async () => {
+    await request(buildApp()).get("/api/insights/aggregate");
+    expect(mockedDiscover).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts all valid timeRange values", async () => {
+    for (const tr of ["24h", "7d", "30d", "90d", "all"]) {
+      const res = await request(buildApp()).get(
+        `/api/insights/aggregate?timeRange=${tr}`
+      );
+      expect(res.status).toBe(200);
+    }
+  });
+});

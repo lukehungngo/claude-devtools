@@ -5,6 +5,7 @@ import { createSettingsRoutes } from "./routes/settings-routes.js";
 import { createMcpRoutes } from "./routes/mcp-routes.js";
 import { createDiscoveryRoutes } from "./routes/discovery-routes.js";
 import { createDebugRoutes } from "./routes/debug-routes.js";
+import { createInsightsRoutes } from "./routes/insights-routes.js";
 
 export function setupRoutes(state?: ServerState): Router {
   const router = Router();
@@ -19,6 +20,7 @@ export function setupRoutes(state?: ServerState): Router {
   router.use(createSettingsRoutes());
   router.use(createMcpRoutes(context));
   router.use(createDebugRoutes(context));
+  router.use(createInsightsRoutes(context));
 
   return router;
 }
