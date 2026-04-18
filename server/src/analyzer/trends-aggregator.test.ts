@@ -217,23 +217,50 @@ describe("cache invalidation", () => {
 });
 
 describe("linear regression verdict", () => {
-  it("improving trend detected when values increase week over week", async () => {
+  it("improving trend detected when agent token volume increases week over week", () => {
+    // Verdict is based on weekly token volume (in+out), not call count.
+    // Commands have tokensIn=0; use agents which carry real token counts.
     const now = Date.now();
     const week = 7 * 24 * 60 * 60 * 1000;
     const sessions = [
-      makeSession([userTextEvent("/review")], { startTime: new Date(now - 3.5 * week).toISOString() }),
-      makeSession([userTextEvent("/review")], { startTime: new Date(now - 2.5 * week).toISOString() }),
-      makeSession([userTextEvent("/review")], { startTime: new Date(now - 2.5 * week).toISOString() }),
-      makeSession([userTextEvent("/review")], { startTime: new Date(now - 1.5 * week).toISOString() }),
-      makeSession([userTextEvent("/review")], { startTime: new Date(now - 1.5 * week).toISOString() }),
-      makeSession([userTextEvent("/review")], { startTime: new Date(now - 1.5 * week).toISOString() }),
-      makeSession([userTextEvent("/review")], { startTime: new Date(now - 0.5 * week).toISOString() }),
-      makeSession([userTextEvent("/review")], { startTime: new Date(now - 0.5 * week).toISOString() }),
+      // week-3: 100+50 tokens
+      makeSession(
+        [assistantWithTools([{ name: "Agent", input: { subagent_type: "engineer" } }], 100, 50)],
+        { startTime: new Date(now - 3.5 * week).toISOString() }
+      ),
+      // week-2: 200+100 tokens
+      makeSession(
+        [assistantWithTools([{ name: "Agent", input: { subagent_type: "engineer" } }], 200, 100)],
+        { startTime: new Date(now - 2.5 * week).toISOString() }
+      ),
+      // week-1: 400+200 tokens
+      makeSession(
+        [assistantWithTools([{ name: "Agent", input: { subagent_type: "engineer" } }], 400, 200)],
+        { startTime: new Date(now - 1.5 * week).toISOString() }
+      ),
+      // week-0: 800+400 tokens
+      makeSession(
+        [assistantWithTools([{ name: "Agent", input: { subagent_type: "engineer" } }], 800, 400)],
+        { startTime: new Date(now - 0.5 * week).toISOString() }
+      ),
+    ];
+    const result = computeInsightsTrends(sessions, "30d", "all");
+    const agent = result.agents.find((a) => a.name === "engineer");
+    expect(agent?.verdict).toBe("improving");
+  });
+
+  it("commands always show stable because they carry no token volume", () => {
+    // Commands are detected from user events which don't have token counts.
+    // With token-volume verdict, weekly[i].in + weekly[i].out is always 0,
+    // so computeVerdict returns "stable" regardless of call frequency.
+    const now = Date.now();
+    const week = 7 * 24 * 60 * 60 * 1000;
+    const sessions = [
       makeSession([userTextEvent("/review")], { startTime: new Date(now - 0.5 * week).toISOString() }),
       makeSession([userTextEvent("/review")], { startTime: new Date(now - 0.5 * week).toISOString() }),
     ];
-    const result = computeInsightsTrends(sessions, "30d", "all");
+    const result = computeInsightsTrends(sessions, "7d", "all");
     const cmd = result.commands.find((c) => c.name === "/review");
-    expect(cmd?.verdict).toBe("improving");
+    expect(cmd?.verdict).toBe("stable");
   });
 });

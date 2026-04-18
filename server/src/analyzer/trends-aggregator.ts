@@ -246,7 +246,7 @@ function aggregateEntries(
 
     const calls = rawList.length;
     const weekly = weeklyIn.map((inVal, i) => ({ in: inVal, out: weeklyOut[i] }));
-    const verdict = computeVerdict(weeklyCalls);
+    const verdict = computeVerdict(weeklyIn.map((inVal, i) => inVal + weeklyOut[i]));
 
     entries.push({
       name,
