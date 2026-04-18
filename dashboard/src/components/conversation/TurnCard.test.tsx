@@ -1,5 +1,5 @@
 /**
- * Tests for TurnCard v4 avatar-based message layout.
+ * Tests for TurnCard chat bubble layout.
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -51,25 +51,29 @@ function makeTurnAndEvents(
   };
 }
 
-describe("TurnCard — avatar-based message layout", () => {
-  it("renders user avatar and prompt text", () => {
+describe("TurnCard — chat bubble message layout", () => {
+  it("renders user prompt in a right-aligned bubble", () => {
     const { turn, allEvents } = makeTurnAndEvents();
     const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
 
     const card = container.querySelector(".conv-turn") as HTMLElement;
     expect(card).not.toBeNull();
-    expect(card.textContent).toContain("U");
-    expect(card.textContent).toContain("You");
+    // No avatar circle — neither "U" initial nor "You" label in the new layout
+    expect(card.textContent).not.toContain("You");
     expect(card.textContent).toContain("Hello world");
+    // Prompt is inside the collapsible prompt component
+    const collapsiblePrompt = container.querySelector('[data-testid="collapsible-prompt"]');
+    expect(collapsiblePrompt).not.toBeNull();
   });
 
-  it("renders Claude avatar and response when events present", () => {
+  it("renders Claude response content when events present", () => {
     const evts = [makeAssistantEvent("I can help with that.")] as SessionEvent[];
     const { turn, allEvents } = makeTurnAndEvents({}, evts);
     const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
 
-    expect(container.textContent).toContain("C");
-    expect(container.textContent).toContain("Claude");
+    // No avatar circle — no "C" initial in the new layout
+    // "Claude" only appears in model badge line when model is set; this turn has no model
+    expect(container.textContent).not.toContain("Claude");
     expect(container.textContent).toContain("I can help with that.");
   });
 
