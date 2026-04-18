@@ -18,11 +18,13 @@ export interface TurnHistoryPanelProps {
    */
   allEvents?: SessionEvent[];
   /**
-   * Server-side session.isActive. When explicitly `false`, turns without a
-   * terminal signal render as `indeterminate` (grey static dot, honest truth
-   * about closed sessions) rather than "running" (pulsing forever). When
-   * undefined, we assume active to preserve legacy behavior for callers that
-   * don't thread it through yet.
+   * Server-side session.isActive. When explicitly `true`, turns without a
+   * terminal signal render as `running` (green pulsing dot). When `false` or
+   * `undefined`, turns without a terminal signal render as `indeterminate`
+   * (grey static dot, honest truth about closed or unknown sessions).
+   *
+   * `undefined` is the safe default — unknown liveness must not be treated as
+   * "running" to avoid perpetually pulsing dots on historical sessions.
    *
    * PREFERRED SOURCE: `metrics.session.isActive` from the current session's
    * metrics — this is per-session authoritative (SDK session_state_changed
@@ -223,9 +225,9 @@ function TurnHistoryPanelInner({
     }
   }, [activeTurnIndex]);
 
-  // Treat undefined as active (legacy caller preservation). When the value
-  // is explicitly `false`, closed-session turns render as `indeterminate`.
-  const sessionIsActive = sessionIsRunning !== false;
+  // Safe default: undefined means "not running". Only explicit `true` activates
+  // the running state. This prevents historical sessions from pulsing forever.
+  const sessionIsActive = sessionIsRunning === true;
 
   return (
     <div

@@ -464,4 +464,114 @@ describe("SessionCache", () => {
     const info = cache.getSessionInfo(filePath, "proj-tail-4");
     expect(info!.gitBranch).toBe("branch-9");
   });
+
+  // T-RUNNING-1 through T-RUNNING-4: isRunning must be derived from JSONL
+  // terminal signals, not file modification time.
+
+  it("T-RUNNING-1: isRunning=false when last event has stop_reason=end_turn, even if mtime is 1s ago", () => {
+    const projectDir = path.join(tmpDir, "proj-running-1");
+    const filePath = path.join(projectDir, "session-running-1.jsonl");
+    writeJsonlFile(filePath, [
+      JSON.stringify({
+        type: "assistant",
+        uuid: "u1",
+        timestamp: "2026-04-19T10:00:00Z",
+        sessionId: "session-running-1",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "done" }],
+          model: "claude-sonnet-4-6",
+          id: "msg-1",
+          type: "message",
+          stop_reason: "end_turn",
+          usage: { input_tokens: 10, output_tokens: 5 },
+        },
+      }),
+    ]);
+    // Set mtime to 1 second ago — old heuristic would mark isRunning=true
+    const oneSecAgo = new Date(Date.now() - 1000);
+    fs.utimesSync(filePath, oneSecAgo, oneSecAgo);
+
+    const info = cache.getSessionInfo(filePath, "proj-running-1");
+    expect(info!.isRunning).toBe(false);
+  });
+
+  it("T-RUNNING-2: isRunning=false when last event has subtype=turn_duration", () => {
+    const projectDir = path.join(tmpDir, "proj-running-2");
+    const filePath = path.join(projectDir, "session-running-2.jsonl");
+    writeJsonlFile(filePath, [
+      JSON.stringify({
+        type: "system",
+        uuid: "u1",
+        timestamp: "2026-04-19T10:00:00Z",
+        sessionId: "session-running-2",
+        subtype: "turn_duration",
+        durationMs: 3000,
+      }),
+    ]);
+    // Set mtime to 1 second ago — old heuristic would mark isRunning=true
+    const oneSecAgo = new Date(Date.now() - 1000);
+    fs.utimesSync(filePath, oneSecAgo, oneSecAgo);
+
+    const info = cache.getSessionInfo(filePath, "proj-running-2");
+    expect(info!.isRunning).toBe(false);
+  });
+
+  it("T-RUNNING-3: isRunning=true when no terminal signal and mtime is 5 seconds ago", () => {
+    const projectDir = path.join(tmpDir, "proj-running-3");
+    const filePath = path.join(projectDir, "session-running-3.jsonl");
+    // An event that is NOT a terminal signal
+    writeJsonlFile(filePath, [
+      JSON.stringify({
+        type: "assistant",
+        uuid: "u1",
+        timestamp: "2026-04-19T10:00:00Z",
+        sessionId: "session-running-3",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "t1", name: "Bash", input: {} }],
+          model: "claude-sonnet-4-6",
+          id: "msg-1",
+          type: "message",
+          stop_reason: "tool_use",
+          usage: { input_tokens: 10, output_tokens: 5 },
+        },
+      }),
+    ]);
+    // Set mtime to 5 seconds ago — within the 30s active window
+    const fiveSecAgo = new Date(Date.now() - 5000);
+    fs.utimesSync(filePath, fiveSecAgo, fiveSecAgo);
+
+    const info = cache.getSessionInfo(filePath, "proj-running-3");
+    expect(info!.isRunning).toBe(true);
+  });
+
+  it("T-RUNNING-4: isRunning=false when no terminal signal and mtime is 10 minutes ago", () => {
+    const projectDir = path.join(tmpDir, "proj-running-4");
+    const filePath = path.join(projectDir, "session-running-4.jsonl");
+    // An event that is NOT a terminal signal
+    writeJsonlFile(filePath, [
+      JSON.stringify({
+        type: "assistant",
+        uuid: "u1",
+        timestamp: "2026-04-19T10:00:00Z",
+        sessionId: "session-running-4",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "t1", name: "Bash", input: {} }],
+          model: "claude-sonnet-4-6",
+          id: "msg-1",
+          type: "message",
+          stop_reason: "tool_use",
+          usage: { input_tokens: 10, output_tokens: 5 },
+        },
+      }),
+    ]);
+    // Set mtime to 10 minutes ago — far outside the 30s active window
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+    fs.utimesSync(filePath, tenMinAgo, tenMinAgo);
+
+    const info = cache.getSessionInfo(filePath, "proj-running-4");
+    expect(info!.isRunning).toBe(false);
+  });
 });
