@@ -5,6 +5,44 @@ import { renderHook, act } from "@testing-library/react";
 // import { useUnifiedWebSocket, dispatchWsMessage } from "./useUnifiedWebSocket";
 import type { UnifiedWebSocketHandlers } from "./useUnifiedWebSocket";
 
+describe("parsePongLatency", () => {
+  it("returns latency ms when message is pong with ts", async () => {
+    const { parsePongLatency } = await import("./useUnifiedWebSocket");
+    const sentAt = 1000;
+    const now = 1047;
+    const data = JSON.stringify({ type: "pong", ts: sentAt });
+    expect(parsePongLatency(data, now)).toBe(47);
+  });
+
+  it("returns null for non-pong messages", async () => {
+    const { parsePongLatency } = await import("./useUnifiedWebSocket");
+    const data = JSON.stringify({ type: "new-events", events: [] });
+    expect(parsePongLatency(data, Date.now())).toBeNull();
+  });
+
+  it("returns null for pong without ts", async () => {
+    const { parsePongLatency } = await import("./useUnifiedWebSocket");
+    const data = JSON.stringify({ type: "pong" });
+    expect(parsePongLatency(data, Date.now())).toBeNull();
+  });
+
+  it("returns null for malformed JSON", async () => {
+    const { parsePongLatency } = await import("./useUnifiedWebSocket");
+    expect(parsePongLatency("not json", Date.now())).toBeNull();
+  });
+
+  it("does not interfere with dispatchWsMessage for business messages", async () => {
+    const { dispatchWsMessage } = await import("./useUnifiedWebSocket");
+    let called = false;
+    const handlers: UnifiedWebSocketHandlers = {
+      onNewSession: () => { called = true; },
+    };
+    const data = JSON.stringify({ type: "new-session", filePath: "/tmp/x.jsonl" });
+    dispatchWsMessage(data, handlers);
+    expect(called).toBe(true);
+  });
+});
+
 describe("dispatchWsMessage (pure function)", () => {
   it("dispatches new-events messages to onNewEvents handler", async () => {
     const { dispatchWsMessage } = await import("./useUnifiedWebSocket");
@@ -119,7 +157,9 @@ describe("dispatchWsMessage (pure function)", () => {
 describe("useUnifiedWebSocket hook", () => {
   let MockWebSocket: ReturnType<typeof vi.fn>;
   interface MockWsInstance {
+    send: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
+    readyState: number;
     onopen: (() => void) | null;
     onclose: (() => void) | null;
     onerror: (() => void) | null;
@@ -132,7 +172,9 @@ describe("useUnifiedWebSocket hook", () => {
     wsInstances = [];
     MockWebSocket = vi.fn(() => {
       const instance: MockWsInstance = {
+        send: vi.fn(),
         close: vi.fn(),
+        readyState: WebSocket.OPEN,
         onopen: null,
         onclose: null,
         onerror: null,
