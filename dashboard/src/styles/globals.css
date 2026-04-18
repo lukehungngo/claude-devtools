@@ -1017,6 +1017,11 @@
   50%      { box-shadow: 0 0 0 4px rgba(61,138,74,.14); }
 }
 
+@keyframes cpulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--grn-bg); }
+  50%       { box-shadow: 0 0 0 5px rgba(61, 138, 74, .12); }
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

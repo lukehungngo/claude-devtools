@@ -5,6 +5,7 @@ import { Titlebar } from "../components/Titlebar";
 import { RepoList } from "../components/RepoList";
 import { TopBar } from "../components/TopBar";
 import { TurnHistoryPanel } from "../components/TurnHistoryPanel";
+import { ProfileDrawer } from "../components/ProfileDrawer";
 
 const BottomPanel = lazy(() =>
   import("../components/bottom-panel/BottomPanel").then(m => ({ default: m.BottomPanel }))
@@ -394,6 +395,13 @@ export function AppLayout() {
             />
           </Suspense>
         }
+      />
+      <ProfileDrawer
+        isOpen={drawerOpen}
+        onClose={closeDrawer}
+        isConnected={isLive}
+        wsLatency={wsLatency}
+        usage={usage}
       />
     </LayoutContext.Provider>
   );
