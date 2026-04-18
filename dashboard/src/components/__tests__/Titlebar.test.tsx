@@ -3,6 +3,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
+  useRouterState: () => ({ location: { pathname: "/" } }),
 }));
 
 vi.mock("../../contexts/ThemeContext", () => ({

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Sun, Moon } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTheme } from "../contexts/ThemeContext";
 import type { UsageInfo } from "../lib/types";
 
@@ -27,6 +27,8 @@ export function formatTimeUntil(resetsAt: string | null | undefined, now: number
 export function Titlebar({ isConnected, wsLatency, usage, onOpenDrawer }: TitlebarProps) {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+  const { location } = useRouterState();
+  const isInsights = location.pathname === "/insights";
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -65,6 +67,37 @@ export function Titlebar({ isConnected, wsLatency, usage, onOpenDrawer }: Titleb
       >
         Claude DevTools
       </button>
+
+      {/* Nav pill — Session · Insights */}
+      <div
+        data-testid="nav-pill"
+        className="flex items-center gap-0.5 bg-dt-bg2 border border-dt-border rounded-full p-0.5 shrink-0"
+      >
+        <button
+          type="button"
+          data-testid="nav-session"
+          aria-current={!isInsights ? ("page" as const) : undefined}
+          onClick={() => navigate({ to: "/" })}
+          className={[
+            "px-2.5 py-0.5 rounded-full font-mono text-xs font-semibold transition-all border-none cursor-pointer",
+            !isInsights ? "bg-dt-bg1 text-dt-accent" : "bg-transparent text-dt-text2",
+          ].join(" ")}
+        >
+          Session
+        </button>
+        <button
+          type="button"
+          data-testid="nav-insights"
+          aria-current={isInsights ? ("page" as const) : undefined}
+          onClick={() => navigate({ to: "/insights" })}
+          className={[
+            "px-2.5 py-0.5 rounded-full font-mono text-xs font-semibold transition-all border-none cursor-pointer",
+            isInsights ? "bg-dt-bg1 text-dt-accent" : "bg-transparent text-dt-text2",
+          ].join(" ")}
+        >
+          Insights
+        </button>
+      </div>
 
       {/* tb-sep: vertical divider between brand and pills */}
       <span
