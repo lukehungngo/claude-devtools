@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Sun, Moon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTheme } from "../contexts/ThemeContext";
@@ -9,9 +10,28 @@ interface TitlebarProps {
   usage?: UsageInfo | null;
 }
 
+export function formatTimeUntil(resetsAt: string | null | undefined, now: number): string | null {
+  if (!resetsAt) return null;
+  const ms = new Date(resetsAt).getTime() - now;
+  if (ms <= 0) return null;
+  const totalMins = Math.ceil(ms / 60_000);
+  const days = Math.floor(totalMins / (60 * 24));
+  const hours = Math.floor((totalMins % (60 * 24)) / 60);
+  const mins = totalMins % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
 export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const toggleTheme = () => {
     setTheme(theme === "light" ? "dark" : "light");
@@ -19,6 +39,8 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
 
   const sessionPct = usage?.fiveHour.utilization ?? null;
   const ratePct = usage?.sevenDay.utilization ?? null;
+  const sessionCountdown = formatTimeUntil(usage?.fiveHour.resetsAt, now);
+  const rateCountdown = formatTimeUntil(usage?.sevenDay.resetsAt, now);
 
   return (
     <div
@@ -85,13 +107,18 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
         </div>
       )}
 
-      {/* Center: usage meters */}
+      {/* Center: plan badge + usage meters */}
       <div className="flex-1 flex items-center justify-center gap-3">
+        {usage?.planName && (
+          <span style={{ color: "var(--t1)", fontWeight: 600, fontSize: "11px" }}>
+            {usage.planName}
+          </span>
+        )}
         {sessionPct != null && (
-          <UsageMeter label="5h" pct={sessionPct} resetsAt={usage?.fiveHour.resetsAt} />
+          <UsageMeter label="5h" pct={sessionPct} resetsAt={usage?.fiveHour.resetsAt} countdown={sessionCountdown} />
         )}
         {ratePct != null && (
-          <UsageMeter label="7d" pct={ratePct} resetsAt={usage?.sevenDay.resetsAt} />
+          <UsageMeter label="7d" pct={ratePct} resetsAt={usage?.sevenDay.resetsAt} countdown={rateCountdown} />
         )}
       </div>
 
@@ -142,10 +169,12 @@ function UsageMeter({
   label,
   pct,
   resetsAt,
+  countdown,
 }: {
   label: string;
   pct: number;
   resetsAt: string | null | undefined;
+  countdown: string | null;
 }) {
   const color = pct > 80 ? "var(--red)" : pct > 50 ? "var(--amb)" : "var(--grn)";
   const title = resetsAt
@@ -189,6 +218,11 @@ function UsageMeter({
       >
         {pct}%
       </span>
+      {countdown && (
+        <span style={{ fontSize: "9px", marginLeft: "2px" }}>
+          <span style={{ opacity: 0.7 }}>↻</span> {countdown}
+        </span>
+      )}
     </div>
   );
 }
