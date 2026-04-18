@@ -156,4 +156,43 @@ describe("TopBar", () => {
       expect(outerDiv.style.outline).not.toBe("2px solid var(--red)");
     });
   });
+
+  describe("context window size suffix", () => {
+    it("shows context percent", () => {
+      const metricsWithPct = { ...STUB_METRICS, contextPercent: 67, contextWindowSize: 200000 } as unknown as SessionMetrics;
+      renderTopBar({ metrics: metricsWithPct });
+      expect(screen.getByText("67%")).toBeDefined();
+    });
+
+    it("shows 'of 200K' suffix for 200k context window", () => {
+      const metricsWithSize = { ...STUB_METRICS, contextPercent: 67, contextWindowSize: 200000 } as unknown as SessionMetrics;
+      renderTopBar({ metrics: metricsWithSize });
+      expect(screen.getByText(/of 200K/)).toBeDefined();
+    });
+
+    it("shows 'of 1M' for 1M context window", () => {
+      const metricsWithLargeWindow = { ...STUB_METRICS, contextPercent: 10, contextWindowSize: 1000000 } as unknown as SessionMetrics;
+      renderTopBar({ metrics: metricsWithLargeWindow });
+      expect(screen.getByText(/of 1M/)).toBeDefined();
+    });
+
+    it("does not show suffix when contextWindowSize is 0", () => {
+      const metricsNoSize = { ...STUB_METRICS, contextPercent: 30, contextWindowSize: 0 } as unknown as SessionMetrics;
+      renderTopBar({ metrics: metricsNoSize });
+      expect(screen.queryByText(/of 0/)).toBeNull();
+    });
+  });
+
+  describe("YOLO badge", () => {
+    it("renders YOLO badge for bypassPermissions mode", () => {
+      render(
+        <TopBar
+          metrics={null}
+          permissionMode="bypassPermissions"
+          onPermissionModeChange={() => {}}
+        />
+      );
+      expect(screen.getByText("YOLO")).toBeDefined();
+    });
+  });
 });

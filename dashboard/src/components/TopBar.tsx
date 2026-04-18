@@ -219,6 +219,14 @@ export function TopBar({ metrics, repoName, branch, isLive, hasPermissionPending
                       }}
                     />
                   </div>
+                  {metrics.contextWindowSize > 0 && (
+                    <span
+                      className="t-mono-xs"
+                      style={{ color: "var(--t3)", fontSize: 9 }}
+                    >
+                      of {formatTokens(metrics.contextWindowSize)}
+                    </span>
+                  )}
                 </div>
               </div>
               <HudSep />
