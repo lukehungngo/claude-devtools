@@ -70,6 +70,12 @@ describe("Titlebar", () => {
     const pill = screen.getByRole("button", { name: /connected/i });
     expect(pill).toBeDefined();
   });
+
+  it("usage section renders as a single button pill", () => {
+    render(<Titlebar usage={mockUsage} />);
+    const pill = screen.getByRole("button", { name: /usage/i });
+    expect(pill).toBeDefined();
+  });
 });
 
 describe("formatTimeUntil", () => {

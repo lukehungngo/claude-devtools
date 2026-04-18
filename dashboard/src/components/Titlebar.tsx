@@ -119,20 +119,49 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
         </button>
       )}
 
-      {/* Center: plan badge + usage meters */}
-      <div className="flex-1 flex items-center justify-center gap-3">
-        {usage?.planName && (
-          <span style={{ color: "var(--t1)", fontWeight: 600, fontSize: "11px" }}>
-            {usage.planName}
-          </span>
-        )}
-        {sessionPct != null && (
-          <UsageMeter label="5h" pct={sessionPct} resetsAt={usage?.fiveHour.resetsAt} countdown={sessionCountdown} />
-        )}
-        {ratePct != null && (
-          <UsageMeter label="7d" pct={ratePct} resetsAt={usage?.sevenDay.resetsAt} countdown={rateCountdown} />
-        )}
-      </div>
+      {/* Plan badge — outside the usage pill */}
+      {usage?.planName && (
+        <span style={{ color: "var(--t1)", fontWeight: 600, fontSize: "11px", flexShrink: 0 }}>
+          {usage.planName}
+        </span>
+      )}
+
+      {/* Usage pill — single grouped button */}
+      {(sessionPct != null || ratePct != null) && (
+        <button
+          type="button"
+          aria-label="Usage"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "3px 10px",
+            background: "transparent",
+            border: "1px solid var(--bd)",
+            borderRadius: "var(--r)",
+            height: "24px",
+            cursor: "pointer",
+            flexShrink: 0,
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-e)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+        >
+          {sessionPct != null && (
+            <>
+              <UsageMeter label="5h" pct={sessionPct} countdown={sessionCountdown} barWidth={60} />
+              {ratePct != null && (
+                <span style={{ width: "1px", height: "12px", background: "var(--bd)", flexShrink: 0 }} />
+              )}
+            </>
+          )}
+          {ratePct != null && (
+            <UsageMeter label="7d" pct={ratePct} countdown={rateCountdown} barWidth={60} />
+          )}
+        </button>
+      )}
+
+      {/* Spacer — keeps theme/avatar right-aligned */}
+      <span style={{ flex: 1 }} />
 
       {/* Theme toggle */}
       <button
@@ -180,24 +209,20 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
 function UsageMeter({
   label,
   pct,
-  resetsAt,
   countdown,
+  barWidth,
 }: {
   label: string;
   pct: number;
-  resetsAt: string | null | undefined;
   countdown: string | null;
+  barWidth: number;
 }) {
-  const color = pct > 80 ? "var(--red)" : pct > 50 ? "var(--amb)" : "var(--grn)";
-  const title = resetsAt
-    ? `Resets at ${new Date(resetsAt).toLocaleTimeString()}`
-    : undefined;
+  const barColor = pct >= 90 ? "var(--red)" : "var(--amb)";
 
   return (
     <div
       className="flex items-center shrink-0"
       style={{ gap: 4 }}
-      title={title}
     >
       <span
         className="font-mono"
@@ -207,26 +232,25 @@ function UsageMeter({
       </span>
       <div
         style={{
-          width: 28,
-          height: 3,
-          borderRadius: 2,
-          background: "var(--bd)",
+          width: barWidth,
+          height: "4px",
+          background: "var(--bg-e)",
+          border: "1px solid var(--bd)",
+          borderRadius: "2px",
           overflow: "hidden",
+          position: "relative",
         }}
       >
         <div
           style={{
             height: "100%",
-            width: `${pct}%`,
-            background: color,
-            borderRadius: 2,
-            transition: "width .3s",
+            width: `${Math.min(pct, 100)}%`,
+            background: barColor,
           }}
         />
       </div>
       <span
-        className="font-mono"
-        style={{ fontSize: 9, color, letterSpacing: ".2px" }}
+        style={{ color: "var(--t1)", fontWeight: 600, fontSize: "11px" }}
       >
         {pct}%
       </span>
