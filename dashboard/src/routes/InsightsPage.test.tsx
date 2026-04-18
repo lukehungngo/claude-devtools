@@ -14,7 +14,12 @@ vi.mock("../hooks/useInsightsAggregate", () => ({
   useInsightsAggregate: vi.fn(),
 }));
 
+vi.mock("../hooks/useInsightsActivity", () => ({
+  useInsightsActivity: vi.fn(),
+}));
+
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
+import { useInsightsActivity } from "../hooks/useInsightsActivity";
 
 function mockLoading() {
   vi.mocked(useInsightsAggregate).mockReturnValue({
@@ -54,8 +59,28 @@ function mockError() {
   });
 }
 
+function mockActivityData() {
+  vi.mocked(useInsightsActivity).mockReturnValue({
+    data: {
+      heatmap: [{ day: 0, hour: 9, intensity: 3 as const }],
+      hourly: [{ hour: 9, tokensAvg: 1500 }],
+    },
+    loading: false,
+    error: null,
+  });
+}
+
+function mockActivityLoading() {
+  vi.mocked(useInsightsActivity).mockReturnValue({
+    data: null,
+    loading: true,
+    error: null,
+  });
+}
+
 beforeEach(() => {
   mockLoading();
+  mockActivityLoading();
 });
 
 afterEach(() => {
@@ -115,7 +140,7 @@ describe("InsightsPage", () => {
     mockData();
     render(<InsightsPage />);
     const cards = screen.getAllByTestId(/^section-card-/);
-    expect(cards.length).toBeGreaterThanOrEqual(7);
+    expect(cards.length).toBeGreaterThanOrEqual(6);
   });
 
   it("shows error banner with role=alert when fetch fails", () => {
@@ -186,5 +211,23 @@ describe("InsightsPage", () => {
     expect(tokensInTile.querySelector("svg")).not.toBeNull();
     const tokensOutTile = screen.getByTestId("tile-tokensOut");
     expect(tokensOutTile.querySelector("svg")).not.toBeNull();
+  });
+});
+
+describe("activity section", () => {
+  it("renders section-activity when data loads", () => {
+    mockData();
+    mockActivityData();
+    render(<InsightsPage />);
+    const section = document.querySelector("[data-testid='section-activity']");
+    expect(section).toBeTruthy();
+  });
+
+  it("renders section-activity skeleton when loading", () => {
+    mockData();
+    mockActivityLoading();
+    render(<InsightsPage />);
+    const section = document.querySelector("[data-testid='section-activity']");
+    expect(section).toBeTruthy();
   });
 });

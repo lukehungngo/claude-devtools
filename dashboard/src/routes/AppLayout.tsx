@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect, useMemo, lazy, Suspense } from "react";
-import { Outlet, useNavigate } from "@tanstack/react-router";
+import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Layout } from "../components/Layout";
 import { Titlebar } from "../components/Titlebar";
 import { RepoList } from "../components/RepoList";
@@ -25,6 +25,8 @@ import type { TurnSnapshot } from "../lib/turnSnapshot";
 
 export function AppLayout() {
   const navigate = useNavigate();
+  const routerState = useRouterState();
+  const isInsights = routerState.location.pathname === "/insights";
   const { repos, loading: reposLoading, refresh: refreshRepos } = useRepos();
   const { permissions, decide, decideSession, handlePermissionRequest, handlePermissionResolved } = usePermissions();
   const { usage } = useUsage();
@@ -287,8 +289,8 @@ export function AppLayout() {
   return (
     <LayoutContext.Provider value={contextValue}>
       <Layout
-        sidebarCollapsed={sidebarCollapsed}
-        onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+        sidebarCollapsed={isInsights ? false : sidebarCollapsed}
+        onToggleSidebar={isInsights ? undefined : () => setSidebarCollapsed((prev) => !prev)}
         titlebar={
           <Titlebar
             isConnected={isLive}
@@ -297,7 +299,7 @@ export function AppLayout() {
             onOpenDrawer={openDrawer}
           />
         }
-        topBar={
+        topBar={isInsights ? null : (
           <TopBar
             repoName={currentRepo?.repoName}
             branch={currentMetrics?.session.gitBranch ?? currentRepo?.gitBranch}
@@ -309,8 +311,8 @@ export function AppLayout() {
             permissionMode={permissionMode}
             onPermissionModeChange={setPermissionMode}
           />
-        }
-        sidebar={
+        )}
+        sidebar={isInsights ? null : (
           <RepoList
             repos={repos}
             loading={reposLoading}
@@ -342,8 +344,8 @@ export function AppLayout() {
             }}
             onToggleTurnHistory={toggleTurnHistory}
           />
-        }
-        turnHistory={
+        )}
+        turnHistory={isInsights ? null : (
           <TurnHistoryPanel
             turns={currentTurns}
             allEvents={currentEvents}
@@ -360,15 +362,14 @@ export function AppLayout() {
             isOpen={turnHistoryOpen}
             onToggle={toggleTurnHistory}
           />
-        }
+        )}
         center={<Outlet />}
-        bottomPanel={
+        bottomPanel={isInsights ? null : (
           <Suspense fallback={null}>
             <BottomPanel
               metrics={currentMetrics}
               turns={currentTurns}
               events={currentEvents}
-
               dag={currentDag}
               activeTurnIndex={currentActiveTurnIndex}
               selectedAgent={currentSelectedAgent}
@@ -381,7 +382,7 @@ export function AppLayout() {
               openBottomTabRef={openBottomTabRef}
             />
           </Suspense>
-        }
+        )}
       />
       <ProfileDrawer
         isOpen={drawerOpen}

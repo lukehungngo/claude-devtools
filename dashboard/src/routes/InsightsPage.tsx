@@ -4,6 +4,9 @@ import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { formatCost, formatTokens } from "../lib/cost";
 import { Sparkline } from "../components/insights/Sparkline";
 import { TrendChart } from "../components/insights/TrendChart";
+import { useInsightsActivity } from "../hooks/useInsightsActivity.js";
+import { HeatmapGrid } from "../components/insights/HeatmapGrid.js";
+import { HourlyBars } from "../components/insights/HourlyBars.js";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -18,7 +21,6 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
 const REPO_OPTIONS = [{ value: "all", label: "All repos" }];
 
 const PLACEHOLDER_SECTIONS = [
-  "Activity Heatmap",
   "Model Mix",
   "Top Consumers",
   "Commands",
@@ -235,6 +237,7 @@ export function InsightsPage(): JSX.Element {
   const [timeRange, setTimeRange] = useState<TimeRange>("7d");
   const [repo, setRepo] = useState("all");
   const { data, delta, loading, error } = useInsightsAggregate(timeRange, repo);
+  const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo);
 
   useEffect(() => {
     setCurrentMetrics(null);
@@ -398,6 +401,25 @@ export function InsightsPage(): JSX.Element {
             <TrendChart daily={data.daily} />
           </div>
         )}
+
+        {/* When you work — single card, heatmap + hourly side by side */}
+        <section data-testid="section-activity" className="dt-card p-4 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-dt-text0">When you work</h2>
+            <span className="text-xxs text-dt-text2">Last 7 days · by hour &amp; day</span>
+          </div>
+          {activityLoading || !activityData ? (
+            <div className="h-36 bg-dt-bg2 rounded animate-pulse" />
+          ) : (
+            <div className="grid grid-cols-2 gap-6 items-start">
+              <div className="flex flex-col gap-2">
+                <span className="text-xxs text-dt-text2 uppercase tracking-wide">Weekday × Hour</span>
+                <HeatmapGrid heatmap={activityData.heatmap} />
+              </div>
+              <HourlyBars hourly={activityData.hourly} />
+            </div>
+          )}
+        </section>
 
         {/* Placeholder sections for future milestones */}
         {PLACEHOLDER_SECTIONS.map((title) => (
