@@ -29,10 +29,8 @@ export function ThinkingGroup({ items }: ThinkingGroupProps) {
         style={{ padding: "6px 10px" }}
       >
         <span
-          className="shrink-0 inline-block transition-transform duration-150"
+          className="shrink-0 inline-block transition-transform duration-150 t-mono-xs"
           style={{
-            fontSize: 9,
-            color: "var(--t3)",
             width: 12,
             textAlign: "center",
             transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
@@ -41,14 +39,14 @@ export function ThinkingGroup({ items }: ThinkingGroupProps) {
           &#9656;
         </span>
         <span
-          className="font-mono font-semibold uppercase tracking-wide"
-          style={{ fontSize: 10, color: "var(--pur)" }}
+          className="font-mono font-semibold uppercase tracking-wide t-mono-sm"
+          style={{ color: "var(--pur)" }}
         >
           Thinking
         </span>
         <span
-          className="font-mono"
-          style={{ fontSize: 10, color: "var(--t3)" }}
+          className="font-mono t-mono-sm"
+          style={{ color: "var(--t3)" }}
         >
           {thinkingItems.length > 1
             ? `${thinkingItems.length} blocks`

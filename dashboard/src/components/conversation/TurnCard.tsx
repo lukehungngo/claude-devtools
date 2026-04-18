@@ -246,13 +246,13 @@ export function TurnCard({
       {turn.promptText.trim() && (
         <div className="flex items-start gap-2.5">
           <div
-            className="flex items-center justify-center shrink-0 w-7 h-7 rounded-[7px] text-[11px] font-semibold"
+            className="flex items-center justify-center shrink-0 w-7 h-7 rounded-[7px] t-avatar"
             style={{ background: "var(--bg-h)", color: "var(--t2)" }}
           >
             U
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] font-medium mb-0.5" style={{ color: "var(--t3)" }}>
+            <div className="t-caption font-medium mb-0.5" style={{ color: "var(--t3)" }}>
               You
             </div>
             <div className="t-body">
@@ -266,13 +266,13 @@ export function TurnCard({
       {(responseContent.length > 0 || turnEvents.length > 0) && (
         <div className="flex items-start gap-2.5">
           <div
-            className="flex items-center justify-center shrink-0 w-7 h-7 rounded-[7px] text-[11px] font-semibold"
+            className="flex items-center justify-center shrink-0 w-7 h-7 rounded-[7px] t-avatar"
             style={{ background: "var(--acc-bg)", color: "var(--acc)" }}
           >
             C
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1 text-[10px] font-medium mb-0.5" style={{ color: "var(--t3)" }}>
+            <div className="flex items-center gap-1 t-caption font-medium mb-0.5" style={{ color: "var(--t3)" }}>
               <span>Claude</span>
               {turn.model && (
                 <>
