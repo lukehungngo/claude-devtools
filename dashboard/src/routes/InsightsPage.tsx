@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useLayoutContext } from "../contexts/LayoutContext";
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { formatCost, formatTokens } from "../lib/cost";
+import { Sparkline } from "../components/insights/Sparkline";
+import { TrendChart } from "../components/insights/TrendChart";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -149,6 +151,8 @@ interface HeadlineTileProps {
   delta: number | null;
   deltaTestId?: string;
   testId?: string;
+  sparklineData?: number[];
+  sparklineColor?: "teal" | "purple";
 }
 
 function HeadlineTile({
@@ -157,7 +161,15 @@ function HeadlineTile({
   delta,
   deltaTestId,
   testId,
+  sparklineData,
+  sparklineColor,
 }: HeadlineTileProps): JSX.Element {
+  const sparkline =
+    sparklineData && sparklineData.length > 0 ? (
+      <Sparkline data={sparklineData} color={sparklineColor} />
+    ) : (
+      <SparklinePlaceholder />
+    );
   return (
     <div
       data-testid={testId}
@@ -165,7 +177,7 @@ function HeadlineTile({
     >
       <div className="flex items-center justify-between">
         <span className="text-xs font-mono text-dt-text2 tracking-wide">{label}</span>
-        <SparklinePlaceholder />
+        {sparkline}
       </div>
       <div className="text-2xl font-bold text-dt-text0 font-mono leading-none">{value}</div>
       <DeltaChip value={delta} testId={deltaTestId} />
@@ -279,6 +291,8 @@ export function InsightsPage(): JSX.Element {
                 delta={delta?.tokensIn ?? null}
                 deltaTestId="delta-tokensIn"
                 testId="tile-tokensIn"
+                sparklineData={data.daily.map((d) => d.tokensIn)}
+                sparklineColor="teal"
               />
               <HeadlineTile
                 label="Tokens Out"
@@ -286,6 +300,8 @@ export function InsightsPage(): JSX.Element {
                 delta={delta?.tokensOut ?? null}
                 deltaTestId="delta-tokensOut"
                 testId="tile-tokensOut"
+                sparklineData={data.daily.map((d) => d.tokensOut)}
+                sparklineColor="purple"
               />
             </>
           ) : null}
@@ -357,6 +373,31 @@ export function InsightsPage(): JSX.Element {
             />
           </div>
         ) : null}
+
+        {/* Token Usage Trend chart */}
+        {data && (
+          <div
+            data-testid="section-trend-chart"
+            className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-3"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-md font-semibold text-dt-text2 font-mono tracking-wide">
+                Token Usage Trend
+              </span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-2 rounded-sm bg-dt-teal opacity-60" />
+                  <span className="text-xxs font-mono text-dt-text2">Tokens In</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-2 rounded-sm bg-dt-purple opacity-60" />
+                  <span className="text-xxs font-mono text-dt-text2">Tokens Out</span>
+                </div>
+              </div>
+            </div>
+            <TrendChart daily={data.daily} />
+          </div>
+        )}
 
         {/* Placeholder sections for future milestones */}
         {PLACEHOLDER_SECTIONS.map((title) => (

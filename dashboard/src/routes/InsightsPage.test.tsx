@@ -134,4 +134,57 @@ describe("InsightsPage", () => {
     fireEvent.click(screen.getByTestId("time-range-30d"));
     expect(useInsightsAggregate).toHaveBeenCalledWith("30d", "all");
   });
+
+  it("renders TrendChart section card when data has daily entries", () => {
+    vi.mocked(useInsightsAggregate).mockReturnValue({
+      data: {
+        tokensIn: 120_000,
+        tokensOut: 45_000,
+        cost: 1.23,
+        sessions: 8,
+        turns: 42,
+        avgCostPerTurn: 0.029,
+        avgTokensPerTurn: 3928,
+        activeDays: 5,
+        peakHour: 15,
+        daily: [
+          { date: "2026-04-10", tokensIn: 1000, tokensOut: 500, cost: 0.01 },
+          { date: "2026-04-11", tokensIn: 2000, tokensOut: 1000, cost: 0.02 },
+        ],
+      },
+      delta: null,
+      loading: false,
+      error: null,
+    });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-trend-chart")).toBeTruthy();
+  });
+
+  it("renders sparkline SVGs inside HeadlineTiles when daily data present", () => {
+    vi.mocked(useInsightsAggregate).mockReturnValue({
+      data: {
+        tokensIn: 120_000,
+        tokensOut: 45_000,
+        cost: 1.23,
+        sessions: 8,
+        turns: 42,
+        avgCostPerTurn: 0.029,
+        avgTokensPerTurn: 3928,
+        activeDays: 5,
+        peakHour: 15,
+        daily: [
+          { date: "2026-04-10", tokensIn: 1000, tokensOut: 500, cost: 0.01 },
+          { date: "2026-04-11", tokensIn: 2000, tokensOut: 1000, cost: 0.02 },
+        ],
+      },
+      delta: null,
+      loading: false,
+      error: null,
+    });
+    render(<InsightsPage />);
+    const tokensInTile = screen.getByTestId("tile-tokensIn");
+    expect(tokensInTile.querySelector("svg")).not.toBeNull();
+    const tokensOutTile = screen.getByTestId("tile-tokensOut");
+    expect(tokensOutTile.querySelector("svg")).not.toBeNull();
+  });
 });
