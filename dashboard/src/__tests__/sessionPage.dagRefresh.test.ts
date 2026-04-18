@@ -156,4 +156,31 @@ describe('DAG refresh trigger (shouldRefreshDag)', () => {
     const staleRefresh = now - THROTTLE_MS - 1; // throttle expired
     expect(shouldRefreshDag(agentEvents, staleRefresh, THROTTLE_MS, now)).toBe(true);
   });
+
+  it('documents the dead-man switch bug: when throttled, refresh must not depend on future events', () => {
+    const agentEvent: SessionEvent = {
+      type: 'assistant',
+      uuid: 'a-dead-switch',
+      sessionId: 's1',
+      timestamp: new Date().toISOString(),
+      message: {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'tu-dead', name: 'Agent', input: {} }],
+        model: 'claude-sonnet',
+        id: 'msg-dead',
+        type: 'message',
+        stop_reason: 'tool_use',
+        usage: { input_tokens: 10, output_tokens: 5 },
+      },
+    };
+
+    const now = Date.now();
+    const recentRefresh = now - 2000; // 2s ago, throttle is 5s — still blocked
+
+    expect(shouldRefreshDag([agentEvent], recentRefresh, THROTTLE_MS, now)).toBe(false);
+
+    const remainingMs = THROTTLE_MS - (now - recentRefresh);
+    expect(remainingMs).toBeGreaterThan(0);
+    expect(remainingMs).toBeLessThan(THROTTLE_MS);
+  });
 });
