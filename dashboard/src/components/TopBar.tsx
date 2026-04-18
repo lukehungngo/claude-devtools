@@ -57,7 +57,9 @@ export function TopBar({ metrics, repoName, branch, isLive, hasPermissionPending
   // injects into JSONL. Server already filters these, but we guard here
   // against stale cached metrics from older server builds.
   const realModels = modelsList.filter((m) => !m.startsWith("<"));
-  const activeModel = realModels.length > 0 ? realModels[realModels.length - 1] : null;
+  // session.model is the session's configured model — use it as ground truth.
+  // Fall back to last event model only if session.model is absent.
+  const activeModel = metrics?.session?.model ?? (realModels.length > 0 ? realModels[realModels.length - 1] : null);
   const modelName = activeModel ? formatModelShort(activeModel) : "\u2014";
 
   return (
