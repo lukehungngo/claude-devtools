@@ -16,6 +16,7 @@ import { computeLiveMetrics } from "../lib/cost";
 import type { ModelOption } from "../components/controls/ModelSwitcher";
 
 const AVAILABLE_MODELS: ModelOption[] = [
+  { id: "claude-opus-4-7", label: "Opus 4.7" },
   { id: "claude-sonnet-4-6-20250514", label: "Sonnet 4.6" },
   { id: "claude-opus-4-6-20250514", label: "Opus 4.6" },
   { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
@@ -335,17 +336,6 @@ export function SessionPage() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tab bar */}
       <div className="flex items-center shrink-0 border-b border-dt-border bg-dt-bg">
-        {/* Turn history toggle — always accessible */}
-        {!turnHistoryOpen && (
-          <button
-            onClick={handleReopenTurnHistory}
-            className="flex items-center justify-center w-7 h-7 ml-1 bg-transparent border-none text-dt-text3 rounded cursor-pointer hover:bg-dt-bg3 hover:text-dt-text0 transition-colors duration-150"
-            aria-label="Open turn history panel"
-            title="Open turn history"
-          >
-            <Menu size={14} />
-          </button>
-        )}
         {(["conversation", "raw-log", "agent-log"] as const).map((tab) => (
           <button
             key={tab}
@@ -375,26 +365,26 @@ export function SessionPage() {
       {/* Tab content */}
       {mainTab === "conversation" ? (
         <ConversationView
-            events={allEvents}
-            turns={turns}
-            metrics={metrics}
-            isLive={isLive}
-            sessionCwd={metrics.session.cwd}
-            sessionId={metrics.session.id}
-            projectHash={projectHash ?? undefined}
-            activeSessionId={activeSessionId ?? undefined}
-            onSessionStarted={setActiveSessionId}
-            highlightedTurnIndex={highlightedTurnIndex ?? effectiveTurnIndex ?? undefined}
-            permissions={permissions}
-            onPermissionDecide={decidePermission}
-            onDecideSession={decidePermissionSession}
-            questions={questions}
-            onSubmitAnswer={submitAnswer}
-            onAgentPillClick={handleAgentPillClick}
-            onTurnClick={handleTurnClick}
-            onOpenPanel={handleOpenPanel}
-            onSdkContextWindow={handleSdkContextWindow}
-          />
+          events={allEvents}
+          turns={turns}
+          metrics={metrics}
+          isLive={isLive}
+          sessionCwd={metrics.session.cwd}
+          sessionId={metrics.session.id}
+          projectHash={projectHash ?? undefined}
+          activeSessionId={activeSessionId ?? undefined}
+          onSessionStarted={setActiveSessionId}
+          highlightedTurnIndex={highlightedTurnIndex ?? effectiveTurnIndex ?? undefined}
+          permissions={permissions}
+          onPermissionDecide={decidePermission}
+          onDecideSession={decidePermissionSession}
+          questions={questions}
+          onSubmitAnswer={submitAnswer}
+          onAgentPillClick={handleAgentPillClick}
+          onTurnClick={handleTurnClick}
+          onOpenPanel={handleOpenPanel}
+          onSdkContextWindow={handleSdkContextWindow}
+        />
       ) : mainTab === "raw-log" ? (
         <RawLogView
           turns={turns}
