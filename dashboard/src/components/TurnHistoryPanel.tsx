@@ -266,8 +266,11 @@ function TurnHistoryPanelInner({
             const turn = turns[ri];
             // Compute the 3-state status once in the parent; TurnItem memoizes
             // on the scalar `status` value rather than recomputing per render.
+            // Only the last turn needs the session liveness flag — if a successor
+            // turn exists, this turn is definitively over regardless of its signals.
             const turnEvents = getEventsForTurn(turn, allEvents);
-            const status = getAgentStatus("main", turnEvents, sessionIsActive);
+            const isLastTurn = ri === turns.length - 1;
+            const status = getAgentStatus("main", turnEvents, sessionIsActive && isLastTurn);
             return (
               <TurnItem
                 key={turn.turnNumber}
