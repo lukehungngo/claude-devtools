@@ -113,10 +113,10 @@ vi.mock("../components/bottom-panel/BottomPanel", () => ({
   BottomPanel: () => null,
 }));
 
-// Mock tanstack router (AppLayout uses useNavigate, useRouterState, and renders <Outlet />)
+// Mock tanstack router (AppLayout uses useNavigate, useLocation, and renders <Outlet />)
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
-  useRouterState: () => ({ location: { pathname: "/" } }),
+  useLocation: () => ({ pathname: "/" }),
   Outlet: MetricsProbe, // Renders MetricsProbe in center slot to capture context
 }));
 

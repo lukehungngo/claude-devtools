@@ -1,34 +1,37 @@
 ---
-task_id: hud-readonly
-title: "TopBar HUD read-only fix"
-verdict: APPROVED_WITH_CHANGES
+task_id: bugfix-applayout-router-state-loop
+title: "Fix: AppLayout useRouterState loop — replace useRouterState with useLocation, stabilize useRepos.refresh"
+verdict: APPROVED
 depth: standard
 model: "claude-sonnet-4-6"
 findings:
   p0: 0
   p1: 0
-  p2: 2
+  p2: 0
   p3: 1
 business_alignment: PASS
 build_status: PASS
-reviewed_at: "2026-04-18T10:01:44Z"
-commit: "555f1126bac9e8b664d78e0fc511194614e469a1"
+reviewed_at: "2026-04-18T18:07:01Z"
+commit: "d72bb07bee69dfcd8c034c249574382b72f52062 (HEAD — note: fix is in uncommitted working tree on branch fix/applayout-router-state-loop)"
 ---
 
-## Review: hud-readonly — TopBar HUD read-only fix
+## Review: bugfix-applayout-router-state-loop — AppLayout router-state re-render loop
 
 ### Business Alignment
 
-- [PASS] Bug reproduced and fixed: `TopBar.tsx` no longer accepts control props (ControlsZone, ModelSwitcher, FastModeToggle removed), Model and Context are always shown as static HudMetric regardless of `isLive`.
-- [PASS] Plan step "useSessionControl hook stays (used for actual control elsewhere)" — plan explicitly permits leaving the hook in place. The fix correctly removed only the `setSessionControl` context bridge, not the hook itself.
-- [PASS] Plan step "LayoutContext remove sessionControl if consumed only by TopBar" — the context no longer declares `sessionControl` or `setSessionControl`. Confirmed by reading `LayoutContext.ts` — neither field is present.
-- [PASS] 1269 tests pass.
+- [PASS] Root cause addressed — `useRouterState()` subscribes to full TanStack Router state (loading, pending, match changes), firing on every router event. Replaced with `useLocation()` which notifies only on pathname changes. Evidence: `dashboard/src/routes/AppLayout.tsx:2,28-29` (working tree).
+- [PASS] Secondary fix applied — `useRepos.refresh` wrapped in `useCallback(fn, [])`, preventing a new function reference on every render. Evidence: `dashboard/src/hooks/useRepos.ts:21`.
+- [PASS] Test mock updated to match API change — mock replaced `useRouterState: () => ({ location: { pathname: "/" } })` with `useLocation: () => ({ pathname: "/" })`. Evidence: `dashboard/src/__tests__/applayout-sessionisrunning-wiring.test.tsx:117-120`.
 
 ### Build Status
 
-PASS — `pnpm test` (dashboard): 1269 tests, 109 files, 0 failures.
+PASS — 1335/1335 tests pass, tsc zero errors, eslint zero warnings on all modified files.
 
-TypeScript: `tsc --noEmit` reports 3 pre-existing errors in `useSessionControl.test.ts` (Cannot find name `global`) and `globals.test.ts` (Cannot find `fs`/`url`/`path` modules). These are pre-existing environmental issues; the diff does not touch these files and does not introduce any new tsc errors.
+```
+tsc --noEmit (dashboard): clean
+eslint (AppLayout.tsx, useRepos.ts, wiring test): clean
+pnpm -C dashboard test: 118 test files, 1335 tests — all pass
+```
 
 ### P0 — Blockers
 
@@ -40,28 +43,18 @@ None.
 
 ### P2 — Should Fix
 
-**Dead control components still ship in the bundle**
-
-`dashboard/src/components/controls/ControlsZone.tsx`, `ModelSwitcher.tsx`, and `FastModeToggle.tsx` have zero production consumers. The plan's file map only listed modifying `TopBar.tsx`, `AppLayout.tsx`, `SessionPage.tsx`, `LayoutContext.ts`, and `TopBar.test.tsx` — it did not call for deleting the control components. However, these components mutate server state via `useSessionControl` callbacks passed down to them. Leaving them in the bundle means future code can inadvertently re-wire them and reintroduce the bug. The related test files (`ControlsZone.test.tsx`, `ModelSwitcher.test.tsx`, `FastModeToggle.test.tsx`) cover components that are no longer reachable from any route.
-
-The plan explicitly scoped this fix as "remove from TopBar; hook stays for use elsewhere," so this is not a plan violation — but the plan's intent was "TopBar never mutates state." Having the control components unused and untethered is a maintenance footgun.
-
-Recommendation: In a follow-up, either delete the control component files or document in a comment why they're retained for future use.
-
-**`SessionControlState` type in `lib/types.ts:308-313` is now unreferenced from any component or context**
-
-The interface `SessionControlState` was removed from `LayoutContext.ts` but the type declaration itself remains in `dashboard/src/lib/types.ts` (lines 308-313). No component imports or uses it. Dead type in the public type module adds confusion about intended usage.
+None.
 
 ### P3 — Optional
 
-**Pre-existing unused `Menu` import in `SessionPage.tsx:11`**
-
-`import { Menu } from "lucide-react"` was already present and unused on `master` before this fix. The diff does not introduce it. Minor cleanup opportunity.
+- `dashboard/src/components/Titlebar.tsx:2` — still uses `useRouterState()` with the same anti-pattern (`const { location } = useRouterState()`). The Titlebar only reads `location.pathname` for nav-pill highlighting and is rendered once in AppLayout, but it subscribes to the full router state on every router event. Low frequency impact compared to AppLayout (Titlebar renders are lightweight), but it's the same root pattern. Out of scope for this bugfix but worth a follow-up.
 
 ### Verdict
 
-APPROVED_WITH_CHANGES
+APPROVED
 
 ### Summary
 
-The core fix is correct and complete: TopBar.tsx's Props interface lost all 8 control props, ControlsZone import is gone, Model and Context are always rendered as static HudMetric regardless of isLive. AppLayout.tsx passes no control state. LayoutContext.ts no longer exposes sessionControl/setSessionControl. The two new invariant regression tests directly exercise the bug condition (isLive=true) and confirm it stays fixed. Test count went from 1270 to 1269 net (deleted controls test file offset by 2 new tests). The P2 items are dead-code leftovers that the plan explicitly did not scope for deletion — they are non-blocking but should be addressed in a cleanup pass to prevent the control components from being accidentally re-wired.
+The fix correctly replaces `useRouterState()` with `useLocation()` in AppLayout — the minimal, idiomatic TanStack Router API for observing only pathname changes. The `useCallback` wrapping of `useRepos.refresh` is belt-and-suspenders here (the hook's consumers store handlers via a ref, so the stability doesn't affect runtime behavior), but it correctly prevents the anti-pattern of unstable function references in hook return values. All three modified files have clean lint, clean types, and 1335 passing tests. The one P3 note (Titlebar.tsx using the same deprecated pattern) is out of scope and non-blocking.
+
+Note: This review covers uncommitted working-tree changes on branch `fix/applayout-router-state-loop`. The HEAD commit (d72bb07) introduced `useRouterState()` — the fix reverts that API choice to `useLocation()` without being committed yet.

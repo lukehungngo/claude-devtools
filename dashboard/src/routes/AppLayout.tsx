@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect, useMemo, lazy, Suspense } from "react";
-import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Outlet, useNavigate, useLocation } from "@tanstack/react-router";
 import { Layout } from "../components/Layout";
 import { Titlebar } from "../components/Titlebar";
 import { RepoList } from "../components/RepoList";
@@ -25,8 +25,8 @@ import type { TurnSnapshot } from "../lib/turnSnapshot";
 
 export function AppLayout() {
   const navigate = useNavigate();
-  const routerState = useRouterState();
-  const isInsights = routerState.location.pathname === "/insights";
+  const { pathname } = useLocation();
+  const isInsights = pathname === "/insights";
   const { repos, loading: reposLoading, refresh: refreshRepos } = useRepos();
   const { permissions, decide, decideSession, handlePermissionRequest, handlePermissionResolved } = usePermissions();
   const { usage } = useUsage();
