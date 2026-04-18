@@ -85,8 +85,7 @@ export function TrendChart({ daily, className }: TrendChartProps): JSX.Element {
         preserveAspectRatio="none"
         role="img"
         aria-label="Token usage trend chart"
-        className="w-full"
-        style={{ height: "100px" }}
+        className="w-full h-[100px]"
       >
         {/* Grid lines */}
         {gridYs.map((y) => (
@@ -141,7 +140,7 @@ export function TrendChart({ daily, className }: TrendChartProps): JSX.Element {
       </svg>
 
       {/* Date labels (HTML, not SVG — avoids text distortion) */}
-      <div className="relative" style={{ height: "16px" }}>
+      <div className="relative h-4">
         {indices.map((i) => {
           const xPct = n <= 1 ? 50 : (i / (n - 1)) * 100;
           const text = daily[i].date.slice(5);

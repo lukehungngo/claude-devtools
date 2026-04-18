@@ -34,7 +34,7 @@ function computePoints(data: number[]): string {
     .join(" ");
 }
 
-export function Sparkline({ data, color = "teal", className }: SparklineProps) {
+export function Sparkline({ data, color = "teal", className }: SparklineProps): JSX.Element {
   const points = computePoints(data);
   const colorClass = color === "purple" ? "text-dt-purple" : "text-dt-teal";
 
