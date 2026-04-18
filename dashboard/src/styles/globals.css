@@ -36,6 +36,8 @@
   --fs-sm: 10px;  --fs-base: 11px; --fs-md: 12px;  --fs-lg: 13px;
   --fs-xl: 14px;  --fs-2xl: 15px; --fs-3xl: 18px;  --fs-display: 24px;
   --hud-h: 56px;
+  --titlebar-h: 38px;
+  --ribbon-w: 260px;
   --trace-h: 88px;
   --sidebar-w: var(--sidebar-width, 220px);
 }
@@ -366,6 +368,9 @@
   --ci-run:  var(--acc);    --ci-run-bg:  var(--acc-bg);
   --ci-skip: var(--t3);     --ci-skip-bg: rgba(176, 176, 176, .15);
   --ci-deny: #f472b6;       --ci-deny-bg: rgba(244, 114, 182, .15);
+  --spark-base: rgba(232, 137, 106, .30);
+  --spark-fill: rgba(232, 137, 106, .12);
+  --spark-grid: rgba(255, 255, 255, .08);
   --resp-working:  #d4c5a0;  --resp-working-bg: rgba(212, 197, 160, .15);
   --resp-code:     #22d3ee;  --resp-code-bg:    rgba(34, 211, 238, .15);
   --resp-tool:     #c4b5fd;  --resp-tool-bg:    rgba(196, 181, 253, .15);
@@ -637,6 +642,77 @@
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: 4px;
 }
+
+/* ── .rblock response block system ── */
+.rblock {
+  position: relative;
+  border-left: 3px solid transparent;
+  padding: 7px 10px 7px 13px;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  display: flex; flex-direction: column; gap: 4px;
+  margin-bottom: 2px;
+}
+.rblock.working  { border-left-color: var(--resp-working);  background: var(--resp-working-bg); }
+.rblock.code     { border-left-color: var(--resp-code);     background: var(--resp-code-bg); }
+.rblock.tool     { border-left-color: var(--resp-tool);     background: var(--resp-tool-bg); }
+.rblock.dispatch { border-left-color: var(--resp-dispatch); background: var(--resp-dispatch-bg); }
+.rblock.think    { border-left-color: var(--resp-think);    background: var(--resp-think-bg); }
+.rblock.reply    { border-left-color: transparent;          background: transparent; }
+.rblock.final    { border-left-color: var(--resp-final);    background: var(--resp-final-bg); }
+
+.rblock .ic {
+  width: 16px; height: 16px; border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; flex-shrink: 0;
+}
+.rblock .lbl {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .5px; color: var(--t3);
+}
+.rblock .peek {
+  font-size: 11px; color: var(--t2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── .btn base + variants ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 5px; padding: 6px 12px; border-radius: var(--r-sm);
+  border: 1px solid var(--bd); background: var(--bg-e);
+  color: var(--t1); font-family: var(--font-sans); font-size: 12px;
+  font-weight: 500; cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.btn:hover { background: var(--bg-h); }
+.btn.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
+.btn.primary:hover { background: var(--acc-h); border-color: var(--acc-h); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--bg-h); border-color: var(--bd); }
+.btn.sm { padding: 4px 8px; font-size: 11px; }
+.btn.danger { color: var(--red); border-color: var(--red); }
+.btn.danger:hover { background: var(--red-bg); }
+
+/* ── .pill agent span pill ── */
+.pill {
+  padding: 0 5px; border-radius: 3px;
+  font-family: var(--font-mono); font-size: 8px; font-weight: 600;
+  letter-spacing: .3px; text-transform: uppercase;
+  display: inline-block; line-height: 16px;
+}
+
+/* ── .badge CI badge ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 6px; border-radius: var(--r-xs);
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  letter-spacing: .3px;
+}
+.badge.pass { background: var(--ci-pass-bg); color: var(--ci-pass); }
+.badge.fail { background: var(--ci-fail-bg); color: var(--ci-fail); }
+.badge.wait { background: var(--ci-wait-bg); color: var(--ci-wait); }
+.badge.run  { background: var(--ci-run-bg);  color: var(--ci-run); }
+.badge.skip { background: var(--ci-skip-bg); color: var(--ci-skip); }
+.badge.deny { background: var(--ci-deny-bg); color: var(--ci-deny); }
 
 /* Responsive layout breakpoints */
 @media (min-width: 1920px) {
