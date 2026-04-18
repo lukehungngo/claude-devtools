@@ -18,6 +18,31 @@ vi.mock("../hooks/useInsightsActivity", () => ({
   useInsightsActivity: vi.fn(),
 }));
 
+vi.mock("../hooks/useInsightsBreakdown", () => ({
+  useInsightsBreakdown: () => ({
+    data: {
+      models: [{ model: "claude-sonnet-4-6", tokensIn: 1000, tokensOut: 500, cost: 0.005, turns: 2, share: 100 }],
+      topRepos: [{ slug: "/project", tokens: 1500, cost: 0.005 }],
+      topSessions: [{ id: "s1", label: "project · 2026-04-19", cost: 0.005 }],
+      topTools: [{ name: "Read", calls: 10 }],
+    },
+    loading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../hooks/useInsightsTrends", () => ({
+  useInsightsTrends: () => ({
+    data: {
+      commands: [{ name: "/review", calls: 3, avgIn: 100, avgOut: 50, weekly: [{ in: 100, out: 50 }], verdict: "stable" }],
+      agents: [],
+      skills: [{ name: "verification", calls: 2, avgIn: 200, avgOut: 100, weekly: [{ in: 200, out: 100 }], verdict: "stable" }],
+    },
+    loading: false,
+    error: null,
+  }),
+}));
+
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { useInsightsActivity } from "../hooks/useInsightsActivity";
 
@@ -136,11 +161,11 @@ describe("InsightsPage", () => {
     expect(screen.getByTestId("delta-tokensOut").textContent).toContain("-5.0%");
   });
 
-  it("renders placeholder section cards for future milestones", () => {
+  it("renders Efficiency Hints placeholder section card", () => {
     mockData();
     render(<InsightsPage />);
-    const cards = screen.getAllByTestId(/^section-card-/);
-    expect(cards.length).toBeGreaterThanOrEqual(6);
+    // Only Efficiency Hints remains as a placeholder card (M6/M7 sections are now real components)
+    expect(screen.getByTestId("section-card-efficiency-hints")).toBeTruthy();
   });
 
   it("shows error banner with role=alert when fetch fails", () => {
@@ -231,3 +256,32 @@ describe("activity section", () => {
     expect(section).toBeTruthy();
   });
 });
+
+describe("M6 sections", () => {
+  it("renders Model Mix section", () => {
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-model-mix")).toBeDefined();
+  });
+
+  it("renders Top Consumers section", () => {
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-top-consumers")).toBeDefined();
+  });
+});
+
+describe("M7 sections", () => {
+  it("renders Commands trend section", () => {
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-commands")).toBeDefined();
+  });
+
+  it("renders Agents trend section", () => {
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-agents")).toBeDefined();
+  });
+
+  it("renders Skills trend section", () => {
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-skills")).toBeDefined();
+  });
+});;

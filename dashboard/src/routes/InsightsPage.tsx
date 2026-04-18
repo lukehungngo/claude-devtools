@@ -7,6 +7,11 @@ import { TrendChart } from "../components/insights/TrendChart";
 import { useInsightsActivity } from "../hooks/useInsightsActivity.js";
 import { HeatmapGrid } from "../components/insights/HeatmapGrid.js";
 import { HourlyBars } from "../components/insights/HourlyBars.js";
+import { useInsightsBreakdown } from "../hooks/useInsightsBreakdown";
+import { useInsightsTrends } from "../hooks/useInsightsTrends";
+import { ModelMix } from "../components/insights/ModelMix";
+import { TopConsumers } from "../components/insights/TopConsumers";
+import { TrendSection } from "../components/insights/TrendSection";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -20,14 +25,6 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
 
 const REPO_OPTIONS = [{ value: "all", label: "All repos" }];
 
-const PLACEHOLDER_SECTIONS = [
-  "Model Mix",
-  "Top Consumers",
-  "Commands",
-  "Agents",
-  "Skills",
-  "Efficiency Hints",
-];
 
 function formatHour(h: number): string {
   if (h === 0) return "12am";
@@ -238,6 +235,8 @@ export function InsightsPage(): JSX.Element {
   const [repo, setRepo] = useState("all");
   const { data, delta, loading, error } = useInsightsAggregate(timeRange, repo);
   const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo);
+  const { data: breakdownData, loading: breakdownLoading } = useInsightsBreakdown(timeRange, repo);
+  const { data: trendsData, loading: trendsLoading } = useInsightsTrends(timeRange, repo);
 
   useEffect(() => {
     setCurrentMetrics(null);
@@ -421,14 +420,75 @@ export function InsightsPage(): JSX.Element {
           )}
         </section>
 
-        {/* Placeholder sections for future milestones */}
-        {PLACEHOLDER_SECTIONS.map((title) => (
-          <PlaceholderCard
-            key={title}
-            title={title}
-            testId={`section-card-${title.toLowerCase().replace(/\s+/g, "-")}`}
-          />
-        ))}
+        {/* M6 — Model Mix */}
+        <div
+          data-testid="section-model-mix"
+          className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-3"
+        >
+          <span className="text-md font-semibold text-dt-text2 font-mono tracking-wide">
+            Model Mix
+          </span>
+          {breakdownLoading || !breakdownData ? (
+            <div className="h-24 bg-dt-bg2 rounded animate-pulse" />
+          ) : (
+            <ModelMix models={breakdownData.models} />
+          )}
+        </div>
+
+        {/* M6 — Top Consumers */}
+        <div
+          data-testid="section-top-consumers"
+          className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-3"
+        >
+          <span className="text-md font-semibold text-dt-text2 font-mono tracking-wide">
+            Top Consumers
+          </span>
+          {breakdownLoading || !breakdownData ? (
+            <div className="h-32 bg-dt-bg2 rounded animate-pulse" />
+          ) : (
+            <TopConsumers
+              topRepos={breakdownData.topRepos}
+              topSessions={breakdownData.topSessions}
+              topTools={breakdownData.topTools}
+            />
+          )}
+        </div>
+
+        {/* M7 — Commands / Agents / Skills */}
+        {trendsLoading || !trendsData ? (
+          <div className="bg-dt-bg1 border border-dt-border rounded-dt p-5 h-32 animate-pulse" />
+        ) : (
+          <>
+            <TrendSection
+              testId="section-commands"
+              title="Commands"
+              entries={trendsData.commands}
+            />
+            <TrendSection
+              testId="section-agents"
+              title="Agents"
+              entries={trendsData.agents}
+            />
+            <TrendSection
+              testId="section-skills"
+              title="Skills"
+              entries={trendsData.skills}
+            />
+          </>
+        )}
+
+        {/* M8 placeholder (not yet implemented) */}
+        <div
+          data-testid="section-card-efficiency-hints"
+          className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-3"
+        >
+          <div className="text-md font-semibold text-dt-text2 font-mono tracking-wide">
+            Efficiency Hints
+          </div>
+          <div className="h-2.5 rounded bg-dt-bg2 w-4/5" />
+          <div className="h-2.5 rounded bg-dt-bg2 w-3/5" />
+          <div className="h-2.5 rounded bg-dt-bg2 w-2/5" />
+        </div>
       </div>
     </div>
   );
