@@ -8,8 +8,8 @@ interface AgentPillsProps {
   /** Events for this turn; used to derive per-agent status via getAgentStatus. */
   turnEvents: SessionEvent[];
   /**
-   * Server-side session.isRunning (SDK session_state_changed for SSE sessions,
-   * mtime < 2min heuristic for JSONL sessions). When explicitly `false`, pills
+   * Server-side session.isActive (SDK session_state_changed for SSE sessions,
+   * 12-hour mtime for JSONL sessions). When explicitly `false`, pills
    * for agents without a terminal signal render as `indeterminate` (honest
    * grey static dot) rather than "running" (pulsing amber forever). When
    * undefined, we treat the session as active to preserve legacy behavior for

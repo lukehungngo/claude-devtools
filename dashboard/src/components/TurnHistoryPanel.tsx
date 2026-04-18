@@ -18,15 +18,15 @@ export interface TurnHistoryPanelProps {
    */
   allEvents?: SessionEvent[];
   /**
-   * Server-side session.isRunning. When explicitly `false`, turns without a
+   * Server-side session.isActive. When explicitly `false`, turns without a
    * terminal signal render as `indeterminate` (grey static dot, honest truth
    * about closed sessions) rather than "running" (pulsing forever). When
    * undefined, we assume active to preserve legacy behavior for callers that
    * don't thread it through yet.
    *
-   * PREFERRED SOURCE: `metrics.session.isRunning` from the current session's
+   * PREFERRED SOURCE: `metrics.session.isActive` from the current session's
    * metrics — this is per-session authoritative (SDK session_state_changed
-   * for SSE, mtime heuristic for JSONL). Do NOT wire this from raw WebSocket
+   * for SSE, 12-hour mtime for JSONL). Do NOT wire this from raw WebSocket
    * connectivity (`isLive`): that flag is true for the whole UI while the WS
    * is connected, including when viewing historical closed sessions, and
    * would defeat the point of the indeterminate state.

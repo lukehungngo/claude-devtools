@@ -785,10 +785,13 @@ export function ConversationView({
         streamingState={streamingState}
         tasksByTurn={tasksByTurn}
         sessionIsRunning={
-          // Prefer authoritative SDK session_state_changed signal over mtime heuristic
+          // Prefer authoritative SDK session_state_changed signal over mtime heuristic.
+          // Fall back to isActive (12-hour mtime), NOT isRunning (2-minute mtime).
+          // isRunning answers "is the session actively streaming?" (sidebar green dot).
+          // isActive answers "is this session still alive?" (TurnCard indeterminate guard).
           streamingState.sessionState != null
             ? streamingState.sessionState === "running"
-            : metrics?.session?.isRunning
+            : metrics?.session?.isActive
         }
       />
 

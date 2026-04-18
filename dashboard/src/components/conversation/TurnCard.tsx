@@ -34,7 +34,7 @@ interface TurnCardProps {
   onTurnClick?: () => void;
   onToolClick?: (toolName: string) => void;
   tasks?: TaskItem[];
-  /** Server-side session.isRunning (JSONL mtime < 2min). When false, suppresses "Generating..." on stale turns. */
+  /** Server-side session.isActive (12-hour mtime). When false, suppresses "Generating..." on closed/stale turns. */
   sessionIsRunning?: boolean;
 }
 
@@ -110,7 +110,7 @@ function TurnFooter({
   //
   // `sessionIsRunning` resolution, in order of authority:
   //   - For SSE sessions: SDK session_state_changed is authoritative.
-  //   - For JSONL sessions: server uses mtime < 2min heuristic.
+  //   - For JSONL sessions: server uses 12-hour mtime (isActive) heuristic.
   //   - When the prop is undefined (legacy callers, tests), assume active so
   //     existing running turns keep pulsing — the dishonesty we're closing
   //     is the FALSE case, not the undefined case.

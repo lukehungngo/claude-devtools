@@ -285,4 +285,7 @@ describe("TurnHistoryPanel", () => {
       container.querySelector("[data-testid='running-dot']"),
     ).not.toBeNull();
   });
+
+  // Note: the AppLayout wiring bug (passing session.isRunning instead of session.isActive)
+  // is reproduced and tested in src/__tests__/applayout-sessionisrunning-wiring.test.tsx.
 });
