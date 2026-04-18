@@ -8,6 +8,7 @@ interface TitlebarProps {
   isConnected?: boolean;
   wsLatency?: number | null;
   usage?: UsageInfo | null;
+  onOpenDrawer?: () => void;
 }
 
 export function formatTimeUntil(resetsAt: string | null | undefined, now: number): string | null {
@@ -23,7 +24,7 @@ export function formatTimeUntil(resetsAt: string | null | undefined, now: number
   return `${mins}m`;
 }
 
-export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
+export function Titlebar({ isConnected, wsLatency, usage, onOpenDrawer }: TitlebarProps) {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const [now, setNow] = useState(() => Date.now());
@@ -83,6 +84,7 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
           type="button"
           aria-label={isConnected ? "Connected — WebSocket connection status" : "Disconnected — WebSocket connection status"}
           title="WebSocket connection status"
+          onClick={onOpenDrawer}
           style={{
             display: "flex",
             alignItems: "center",
@@ -143,6 +145,7 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
         <button
           type="button"
           aria-label="Usage"
+          onClick={onOpenDrawer}
           style={{
             display: "flex",
             alignItems: "center",
@@ -191,7 +194,10 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
       </button>
 
       {/* Avatar button */}
-      <div
+      <button
+        type="button"
+        aria-label="Profile"
+        onClick={onOpenDrawer}
         className="flex items-center justify-center shrink-0"
         style={{
           width: 26, height: 26, borderRadius: "50%",
@@ -200,10 +206,9 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
           color: "#fff", fontFamily: "var(--font-mono)",
           fontSize: 10, fontWeight: 700,
           cursor: "pointer", position: "relative", marginLeft: 4,
+          padding: 0,
         }}
         title="Profile"
-        role="button"
-        aria-label="Profile"
       >
         LH
         <span
@@ -213,7 +218,7 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
             background: "var(--grn)", border: "1.5px solid var(--bg-s)",
           }}
         />
-      </div>
+      </button>
     </div>
   );
 }

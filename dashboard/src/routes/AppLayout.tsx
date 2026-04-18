@@ -30,6 +30,9 @@ export function AppLayout() {
   const { costs } = useCosts();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const [activeSessionId, setActiveSessionIdRaw] = useState<string | null>(() => {
     try {
       return localStorage.getItem("activeSessionId");
@@ -295,6 +298,7 @@ export function AppLayout() {
             isConnected={isLive}
             wsLatency={wsLatency}
             usage={usage}
+            onOpenDrawer={openDrawer}
           />
         }
         topBar={

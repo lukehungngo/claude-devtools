@@ -82,6 +82,30 @@ describe("Titlebar", () => {
     const sep = container.querySelector('[data-testid="tb-sep"]');
     expect(sep).not.toBeNull();
   });
+
+  it("calls onOpenDrawer when connection pill is clicked", () => {
+    const onOpenDrawer = vi.fn();
+    render(<Titlebar isConnected={true} wsLatency={47} onOpenDrawer={onOpenDrawer} />);
+    const pill = screen.getByRole("button", { name: /connected/i });
+    pill.click();
+    expect(onOpenDrawer).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onOpenDrawer when usage pill is clicked", () => {
+    const onOpenDrawer = vi.fn();
+    render(<Titlebar usage={mockUsage} onOpenDrawer={onOpenDrawer} />);
+    const pill = screen.getByRole("button", { name: /usage/i });
+    pill.click();
+    expect(onOpenDrawer).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onOpenDrawer when avatar is clicked", () => {
+    const onOpenDrawer = vi.fn();
+    render(<Titlebar onOpenDrawer={onOpenDrawer} />);
+    const avatar = screen.getByRole("button", { name: /profile/i });
+    avatar.click();
+    expect(onOpenDrawer).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("formatTimeUntil", () => {
