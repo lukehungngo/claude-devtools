@@ -72,26 +72,6 @@ function SegPill({ options, value, onChange, testId }: SegPillProps): JSX.Elemen
   );
 }
 
-interface PlaceholderCardProps {
-  title: string;
-  testId: string;
-}
-
-function PlaceholderCard({ title, testId }: PlaceholderCardProps): JSX.Element {
-  return (
-    <div
-      data-testid={testId}
-      className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-3"
-    >
-      <div className="text-md font-semibold text-dt-text2 font-mono tracking-wide">
-        {title}
-      </div>
-      <div className="h-2.5 rounded bg-dt-bg2 w-4/5" />
-      <div className="h-2.5 rounded bg-dt-bg2 w-3/5" />
-      <div className="h-2.5 rounded bg-dt-bg2 w-2/5" />
-    </div>
-  );
-}
 
 interface DeltaChipProps {
   value: number | null;
