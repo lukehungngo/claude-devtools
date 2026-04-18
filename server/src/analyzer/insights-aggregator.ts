@@ -19,7 +19,7 @@ interface InsightsSessionData {
 
 const sessionDataCache = new Map<string, InsightsSessionData>();
 
-function computeInsightsSessionData(session: SessionInfo): InsightsSessionData {
+export function computeInsightsSessionData(session: SessionInfo): InsightsSessionData {
   let stat: ReturnType<typeof statSync>;
   try {
     stat = statSync(session.path);
