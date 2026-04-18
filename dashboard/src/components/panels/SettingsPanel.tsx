@@ -344,11 +344,11 @@ export function SettingsPanel({ metrics, usage }: SettingsPanelProps) {
                 <div className="w-24 h-1.5 bg-dt-bg3 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-dt-accent rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min(usage.fiveHour.utilization * 100, 100)}%` }}
+                    style={{ width: `${Math.min(usage.fiveHour.utilization, 100)}%` }}
                   />
                 </div>
                 <span className="text-dt-text0 font-mono text-sm">
-                  {Math.round(usage.fiveHour.utilization * 100)}%
+                  {usage.fiveHour.utilization}%
                 </span>
               </div>
             </div>
@@ -360,11 +360,11 @@ export function SettingsPanel({ metrics, usage }: SettingsPanelProps) {
                 <div className="w-24 h-1.5 bg-dt-bg3 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-dt-accent rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min(usage.sevenDay.utilization * 100, 100)}%` }}
+                    style={{ width: `${Math.min(usage.sevenDay.utilization, 100)}%` }}
                   />
                 </div>
                 <span className="text-dt-text0 font-mono text-sm">
-                  {Math.round(usage.sevenDay.utilization * 100)}%
+                  {usage.sevenDay.utilization}%
                 </span>
               </div>
             </div>

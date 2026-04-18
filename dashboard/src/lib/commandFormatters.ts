@@ -46,7 +46,7 @@ export function formatUsageCommand(usage: UsageInfo | null): string {
   }
 
   const fiveHourPct = usage.fiveHour.utilization !== null
-    ? `${Math.round(usage.fiveHour.utilization * 100)}%`
+    ? `${Math.round(usage.fiveHour.utilization)}%`
     : "N/A";
   const fiveHourReset = usage.fiveHour.resetsAt
     ? ` (resets ${formatResetTime(usage.fiveHour.resetsAt)})`
@@ -54,7 +54,7 @@ export function formatUsageCommand(usage: UsageInfo | null): string {
   lines.push(`5-hour: ${fiveHourPct}${fiveHourReset}`);
 
   const sevenDayPct = usage.sevenDay.utilization !== null
-    ? `${Math.round(usage.sevenDay.utilization * 100)}%`
+    ? `${Math.round(usage.sevenDay.utilization)}%`
     : "N/A";
   const sevenDayReset = usage.sevenDay.resetsAt
     ? ` (resets ${formatResetTime(usage.sevenDay.resetsAt)})`
