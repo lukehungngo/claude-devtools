@@ -223,6 +223,7 @@ export function SessionPage() {
   const lastDagRefreshTimeRef = useRef<number>(0);
   const lastScannedLiveIndexRef = useRef<number>(0);
   const pendingDagRefreshRef = useRef<boolean>(false);
+  const pendingDagTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const DAG_REFRESH_THROTTLE_MS = 5000;
 
   useEffect(() => {
@@ -241,8 +242,25 @@ export function SessionPage() {
     }
 
     if (!pendingDagRefreshRef.current) return;
-    if (Date.now() - lastDagRefreshTimeRef.current < DAG_REFRESH_THROTTLE_MS) return;
 
+    const elapsed = Date.now() - lastDagRefreshTimeRef.current;
+    if (elapsed < DAG_REFRESH_THROTTLE_MS) {
+      if (pendingDagTimerRef.current === null) {
+        pendingDagTimerRef.current = setTimeout(() => {
+          pendingDagTimerRef.current = null;
+          if (!pendingDagRefreshRef.current) return;
+          pendingDagRefreshRef.current = false;
+          lastDagRefreshTimeRef.current = Date.now();
+          refreshMetrics();
+        }, DAG_REFRESH_THROTTLE_MS - elapsed);
+      }
+      return;
+    }
+
+    if (pendingDagTimerRef.current !== null) {
+      clearTimeout(pendingDagTimerRef.current);
+      pendingDagTimerRef.current = null;
+    }
     pendingDagRefreshRef.current = false;
     lastDagRefreshTimeRef.current = Date.now();
     refreshMetrics();
@@ -284,6 +302,10 @@ export function SessionPage() {
     lastScannedLiveIndexRef.current = 0;
     lastDagRefreshTimeRef.current = 0;
     pendingDagRefreshRef.current = false;
+    if (pendingDagTimerRef.current !== null) {
+      clearTimeout(pendingDagTimerRef.current);
+      pendingDagTimerRef.current = null;
+    }
   }, [repoSlug, sessionId]);
 
   // Sync selectedAgent to layout context for BottomPanel
