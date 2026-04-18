@@ -12,6 +12,29 @@ import { Menu } from "lucide-react";
 import { AgentLogTab } from "../components/bottom-panel/AgentLogTab";
 import { PanelModal } from "../components/PanelModal";
 import { computeLiveMetrics } from "../lib/cost";
+import type { SessionEvent } from "../lib/types";
+
+/**
+ * Returns true when newEvents contains an Agent tool_use dispatch AND the
+ * throttle window (throttleMs) has elapsed since lastRefreshTime.
+ *
+ * Exported for unit testing. Used by the DAG live-refresh useEffect.
+ */
+export function shouldRefreshDag(
+  newEvents: SessionEvent[],
+  lastRefreshTime: number,
+  throttleMs: number,
+  now: number,
+): boolean {
+  if (now - lastRefreshTime < throttleMs) return false;
+  return newEvents.some((e) => {
+    if (e.type !== 'assistant') return false;
+    const content = e.message.content;
+    if (!Array.isArray(content)) return false;
+    return content.some((c) => c.type === 'tool_use' && c.name === 'Agent');
+  });
+}
+
 export function SessionPage() {
   const { repoSlug, sessionId } = useParams({ strict: false }) as {
     repoSlug: string;
@@ -193,6 +216,38 @@ export function SessionPage() {
     lastTurnCompletedRef.current = lastCompleted;
   }, [turns, allEvents, refreshMetrics]);
 
+  // Refresh DAG when a new subagent is dispatched in the live stream.
+  // Uses a throttle to avoid hammering the server during rapid streaming.
+  // pendingDagRefreshRef ensures Agent dispatches are not silently dropped
+  // when they arrive within the throttle window.
+  const lastDagRefreshTimeRef = useRef<number>(0);
+  const lastScannedLiveIndexRef = useRef<number>(0);
+  const pendingDagRefreshRef = useRef<boolean>(false);
+  const DAG_REFRESH_THROTTLE_MS = 5000;
+
+  useEffect(() => {
+    const newEvents = liveEvents.slice(lastScannedLiveIndexRef.current);
+    lastScannedLiveIndexRef.current = liveEvents.length;
+    if (newEvents.length === 0) return;
+
+    // Mark pending if any new event is an Agent dispatch
+    if (newEvents.some((e) => {
+      if (e.type !== 'assistant') return false;
+      const content = e.message.content;
+      if (!Array.isArray(content)) return false;
+      return content.some((c) => c.type === 'tool_use' && c.name === 'Agent');
+    })) {
+      pendingDagRefreshRef.current = true;
+    }
+
+    if (!pendingDagRefreshRef.current) return;
+    if (Date.now() - lastDagRefreshTimeRef.current < DAG_REFRESH_THROTTLE_MS) return;
+
+    pendingDagRefreshRef.current = false;
+    lastDagRefreshTimeRef.current = Date.now();
+    refreshMetrics();
+  }, [liveEvents, refreshMetrics]);
+
   // Default to last turn so panels show data immediately without requiring a click
   const effectiveTurnIndex = useMemo(
     () => selectedTurnIndex ?? (turns.length > 0 ? turns.length - 1 : null),
@@ -226,6 +281,9 @@ export function SessionPage() {
     setHighlightedTurnIndex(undefined);
     setSelectedTurnIndex(null);
     sdkContextWindowRef.current = undefined;
+    lastScannedLiveIndexRef.current = 0;
+    lastDagRefreshTimeRef.current = 0;
+    pendingDagRefreshRef.current = false;
   }, [repoSlug, sessionId]);
 
   // Sync selectedAgent to layout context for BottomPanel
