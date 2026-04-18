@@ -17,12 +17,8 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
     setTheme(theme === "light" ? "dark" : "light");
   };
 
-  const sessionPct = usage?.fiveHour.utilization != null
-    ? Math.round(usage.fiveHour.utilization * 100)
-    : null;
-  const ratePct = usage?.sevenDay.utilization != null
-    ? Math.round(usage.sevenDay.utilization * 100)
-    : null;
+  const sessionPct = usage?.fiveHour.utilization ?? null;
+  const ratePct = usage?.sevenDay.utilization ?? null;
 
   return (
     <div

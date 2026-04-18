@@ -13,8 +13,8 @@ import { Titlebar } from "../Titlebar";
 import type { UsageInfo } from "../../lib/types";
 
 const mockUsage: UsageInfo = {
-  fiveHour: { utilization: 0.13, resetsAt: null },
-  sevenDay: { utilization: 0.33, resetsAt: null },
+  fiveHour: { utilization: 13, resetsAt: null },
+  sevenDay: { utilization: 33, resetsAt: null },
   planName: "Max",
 };
 
