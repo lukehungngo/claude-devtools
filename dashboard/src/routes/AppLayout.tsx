@@ -177,7 +177,7 @@ export function AppLayout() {
   }, []);
 
   // WebSocket: delegates new-events to session-scoped handler
-  const { isConnected: isLive } = useUnifiedWebSocket({
+  const { isConnected: isLive, wsLatency } = useUnifiedWebSocket({
     onNewEvents: (sessionId, filePath, events) => {
       sessionHandlersRef.current?.onNewEvents(sessionId, filePath, events);
     },
@@ -294,6 +294,9 @@ export function AppLayout() {
           <Titlebar
             repoName={currentRepo?.repoName}
             branch={currentMetrics?.session.gitBranch ?? currentRepo?.gitBranch}
+            isConnected={isLive}
+            wsLatency={wsLatency}
+            usage={usage}
           />
         }
         topBar={
@@ -347,8 +350,6 @@ export function AppLayout() {
                 console.error("Failed to resume session:", err);
               }
             }}
-            usage={usage}
-            isConnected={isLive}
           />
         }
         turnHistory={

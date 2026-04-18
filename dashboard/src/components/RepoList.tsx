@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { Plus, Play, Settings, Copy, Check } from "lucide-react";
-import type { RepoGroup, SessionInfo, UsageInfo } from "../lib/types";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { Play, Settings, Copy, Check } from "lucide-react";
+import type { RepoGroup } from "../lib/types";
 
 const SESSION_NAMES_KEY = "session-names";
 
@@ -30,8 +30,6 @@ interface Props {
   activeSessionId?: string | null;
   onResumeSession?: (sessionId: string, cwd: string) => void;
   onAddRepo?: (path: string) => void;
-  usage?: UsageInfo | null;
-  isConnected?: boolean;
 }
 
 export function RepoList({
@@ -42,8 +40,6 @@ export function RepoList({
   onNewSession,
   activeSessionId,
   onResumeSession,
-  usage,
-  isConnected,
 }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [sessionNames] = useState<Record<string, string>>(() => loadSessionNames());
@@ -80,73 +76,9 @@ export function RepoList({
     }
   }, [selected, repos]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Usage percentages
-  const sessionPct = usage?.fiveHour.utilization ?? null;
-  const ratePct = usage?.sevenDay.utilization ?? null;
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Connection section */}
-      <SectionTitle>Connection</SectionTitle>
-      <div style={{ padding: "8px 14px" }} className="flex items-center gap-2">
-        <div className={`dot ${isConnected ? "pass" : "fail"}`} />
-        <div className="flex-1 overflow-hidden">
-          <div style={{ fontSize: 12, fontWeight: 500, color: "var(--t1)" }}>Claude Code</div>
-          <div className="font-mono" style={{ fontSize: 10, color: "var(--t3)" }}>
-            MCP + logs + hooks
-          </div>
-        </div>
-        <span
-          style={{
-            fontSize: 9,
-            padding: "2px 8px",
-            borderRadius: 8,
-            fontWeight: 500,
-            background: isConnected ? "var(--grn-bg)" : "var(--red-bg)",
-            color: isConnected ? "var(--grn)" : "var(--red)",
-          }}
-        >
-          {isConnected ? "connected" : "disconnected"}
-        </span>
-      </div>
-      {usage?.planName && (
-        <div
-          className="flex items-center gap-2"
-          style={{ padding: "4px 14px 10px", borderBottom: "1px solid var(--bd)" }}
-        >
-          <div className="dot pass" />
-          <div className="flex-1 overflow-hidden">
-            <div style={{ fontSize: 12, fontWeight: 500, color: "var(--t1)" }}>
-              {usage.planName}
-            </div>
-            <div className="font-mono" style={{ fontSize: 10, color: "var(--t3)" }}>
-              {usage.planName} plan
-            </div>
-          </div>
-          <span
-            style={{
-              fontSize: 9,
-              padding: "2px 8px",
-              borderRadius: 8,
-              fontWeight: 500,
-              background: "var(--acc-bg)",
-              color: "var(--acc)",
-            }}
-          >
-            {usage.planName}
-          </span>
-        </div>
-      )}
-
-      {/* Usage section */}
-      <SectionTitle>Usage</SectionTitle>
-      <div style={{ padding: "8px 14px", borderBottom: "1px solid var(--bd)" }}>
-        <UsageRow label="Session limit (5h)" value={sessionPct} resetsAt={usage?.fiveHour.resetsAt} />
-        <UsageRow label="Rate limit (7d)" value={ratePct} resetsAt={usage?.sevenDay.resetsAt} />
-      </div>
-
-      {/* Repositories section */}
-      <SectionTitle>Repositories</SectionTitle>
+      {/* Repositories */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden dt-scrollbar">
         {loading ? (
           <p style={{ padding: "8px 14px", fontSize: 11, color: "var(--t3)" }}>Loading...</p>
@@ -329,96 +261,6 @@ export function RepoList({
         <Settings size={12} />
         Settings
       </div>
-    </div>
-  );
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="t-section" style={{ padding: "14px 14px 6px" }}>
-      {children}
-    </div>
-  );
-}
-
-function formatCountdown(resetsAt: string | null): string {
-  if (!resetsAt) return "";
-  const diffMs = new Date(resetsAt).getTime() - Date.now();
-  if (diffMs <= 0) return "resetting...";
-  const mins = Math.floor(diffMs / 60_000);
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(diffMs / 3_600_000);
-  const remainMins = Math.floor((diffMs % 3_600_000) / 60_000);
-  if (hours < 24) return remainMins > 0 ? `${hours}h ${remainMins}m` : `${hours}h`;
-  const days = Math.floor(diffMs / 86_400_000);
-  const remainHours = Math.floor((diffMs % 86_400_000) / 3_600_000);
-  return remainHours > 0 ? `${days}d ${remainHours}h` : `${days}d`;
-}
-
-function UsageRow({
-  label,
-  value,
-  resetsAt,
-}: {
-  label: string;
-  value: number | null;
-  resetsAt?: string | null;
-}) {
-  const pct = value ?? 0;
-  const remaining = value != null ? Math.max(0, 100 - pct) : null;
-  // Color based on remaining: green when plenty left, amber when low, red when critical
-  const barColor =
-    pct > 80 ? "var(--red)" : pct > 50 ? "var(--amb)" : "var(--grn)";
-  const countdown = formatCountdown(resetsAt ?? null);
-
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <div
-        className="flex justify-between items-baseline"
-        style={{ marginBottom: 4 }}
-      >
-        <span style={{ fontSize: 10, color: "var(--t3)" }}>{label}</span>
-        <span
-          className="font-mono font-medium flex items-baseline gap-1"
-          style={{ fontSize: 11 }}
-        >
-          {value != null ? (
-            <>
-              <span style={{ color: "var(--t1)" }}>{pct}%</span>
-              <span style={{ fontSize: 9, color: "var(--t3)" }}>used</span>
-            </>
-          ) : (
-            <span style={{ color: "var(--t3)" }}>--</span>
-          )}
-        </span>
-      </div>
-      <div
-        style={{
-          height: 4,
-          background: "var(--bd)",
-          borderRadius: 2,
-          overflow: "hidden",
-        }}
-      >
-        {value != null && (
-          <div
-            style={{
-              height: "100%",
-              width: `${pct}%`,
-              borderRadius: 2,
-              background: barColor,
-            }}
-          />
-        )}
-      </div>
-      {countdown && (
-        <div
-          className="font-mono"
-          style={{ fontSize: 9, color: "var(--t3)", marginTop: 2 }}
-        >
-          resets in {countdown}
-        </div>
-      )}
     </div>
   );
 }

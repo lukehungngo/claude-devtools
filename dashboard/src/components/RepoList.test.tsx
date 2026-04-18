@@ -46,49 +46,35 @@ function makeRepoGroup(overrides: Partial<RepoGroup> = {}): RepoGroup {
 }
 
 describe("RepoList", () => {
-  describe("v4 sidebar sections", () => {
-    it("renders Connection, Usage, and Repositories sections", () => {
+  describe("sidebar sections", () => {
+    it("does not render Connection, Usage, or Repositories section headers", () => {
       render(
         <RepoList
           repos={[makeRepoGroup()]}
           loading={false}
           selected={null}
           onSelect={vi.fn()}
-          isConnected={true}
         />,
       );
 
-      expect(screen.getByText("Connection")).toBeDefined();
-      expect(screen.getByText("Usage")).toBeDefined();
-      expect(screen.getByText("Repositories")).toBeDefined();
+      expect(screen.queryByText("Connection")).toBeNull();
+      expect(screen.queryByText("Usage")).toBeNull();
+      expect(screen.queryByText("Repositories")).toBeNull();
     });
 
-    it("shows connected badge when isConnected is true", () => {
+    it("shows repo tree directly without connection badge", () => {
       render(
         <RepoList
           repos={[makeRepoGroup()]}
           loading={false}
           selected={null}
           onSelect={vi.fn()}
-          isConnected={true}
         />,
       );
 
-      expect(screen.getByText("connected")).toBeDefined();
-    });
-
-    it("shows disconnected badge when isConnected is false", () => {
-      render(
-        <RepoList
-          repos={[makeRepoGroup()]}
-          loading={false}
-          selected={null}
-          onSelect={vi.fn()}
-          isConnected={false}
-        />,
-      );
-
-      expect(screen.getByText("disconnected")).toBeDefined();
+      expect(screen.getByText("test-repo")).toBeDefined();
+      expect(screen.queryByText("connected")).toBeNull();
+      expect(screen.queryByText("disconnected")).toBeNull();
     });
 
     it("shows Settings footer", () => {

@@ -1,13 +1,17 @@
 import { Sun, Moon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTheme } from "../contexts/ThemeContext";
+import type { UsageInfo } from "../lib/types";
 
 interface TitlebarProps {
   repoName?: string;
   branch?: string;
+  isConnected?: boolean;
+  wsLatency?: number | null;
+  usage?: UsageInfo | null;
 }
 
-export function Titlebar({ repoName, branch }: TitlebarProps) {
+export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
 
@@ -15,9 +19,12 @@ export function Titlebar({ repoName, branch }: TitlebarProps) {
     setTheme(theme === "light" ? "dark" : "light");
   };
 
-  const suffix = repoName
-    ? `${repoName}${branch ? ` @ ${branch}` : ""}`
-    : "";
+  const sessionPct = usage?.fiveHour.utilization != null
+    ? Math.round(usage.fiveHour.utilization * 100)
+    : null;
+  const ratePct = usage?.sevenDay.utilization != null
+    ? Math.round(usage.sevenDay.utilization * 100)
+    : null;
 
   return (
     <div
@@ -42,12 +49,56 @@ export function Titlebar({ repoName, branch }: TitlebarProps) {
         Claude DevTools
       </button>
 
-      {/* Center: repo@branch */}
-      <div
-        className="flex-1 text-center"
-        style={{ fontSize: 12, color: "var(--t3)", letterSpacing: ".2px" }}
-      >
-        {suffix}
+      {/* Connection pill */}
+      {isConnected !== undefined && (
+        <div
+          className="flex items-center shrink-0"
+          style={{
+            gap: 5,
+            padding: "2px 8px",
+            borderRadius: 10,
+            background: isConnected ? "var(--grn-bg)" : "var(--red-bg)",
+            marginLeft: 4,
+          }}
+          title="WebSocket connection status"
+        >
+          <div
+            className="rounded-full shrink-0"
+            style={{
+              width: 6,
+              height: 6,
+              background: isConnected ? "var(--grn)" : "var(--red)",
+            }}
+          />
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 500,
+              color: isConnected ? "var(--grn)" : "var(--red)",
+              letterSpacing: ".2px",
+            }}
+          >
+            {isConnected ? "Connected" : "Disconnected"}
+          </span>
+          {isConnected && wsLatency != null && (
+            <span
+              className="font-mono"
+              style={{ fontSize: 9, color: "var(--grn)", opacity: 0.75 }}
+            >
+              {wsLatency}ms
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Center: usage meters */}
+      <div className="flex-1 flex items-center justify-center gap-3">
+        {sessionPct != null && (
+          <UsageMeter label="5h" pct={sessionPct} resetsAt={usage?.fiveHour.resetsAt} />
+        )}
+        {ratePct != null && (
+          <UsageMeter label="7d" pct={ratePct} resetsAt={usage?.sevenDay.resetsAt} />
+        )}
       </div>
 
       {/* Theme toggle */}
@@ -89,6 +140,61 @@ export function Titlebar({ repoName, branch }: TitlebarProps) {
           }}
         />
       </div>
+    </div>
+  );
+}
+
+function UsageMeter({
+  label,
+  pct,
+  resetsAt,
+}: {
+  label: string;
+  pct: number;
+  resetsAt: string | null | undefined;
+}) {
+  const color = pct > 80 ? "var(--red)" : pct > 50 ? "var(--amb)" : "var(--grn)";
+  const title = resetsAt
+    ? `Resets at ${new Date(resetsAt).toLocaleTimeString()}`
+    : undefined;
+
+  return (
+    <div
+      className="flex items-center shrink-0"
+      style={{ gap: 4 }}
+      title={title}
+    >
+      <span
+        className="font-mono"
+        style={{ fontSize: 9, color: "var(--t3)", letterSpacing: ".2px" }}
+      >
+        {label}
+      </span>
+      <div
+        style={{
+          width: 28,
+          height: 3,
+          borderRadius: 2,
+          background: "var(--bd)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${pct}%`,
+            background: color,
+            borderRadius: 2,
+            transition: "width .3s",
+          }}
+        />
+      </div>
+      <span
+        className="font-mono"
+        style={{ fontSize: 9, color, letterSpacing: ".2px" }}
+      >
+        {pct}%
+      </span>
     </div>
   );
 }
