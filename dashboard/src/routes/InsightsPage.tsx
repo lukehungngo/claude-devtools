@@ -48,7 +48,7 @@ function SegPill({ options, value, onChange, testId }: SegPillProps): JSX.Elemen
             aria-pressed={isActive}
             onClick={() => onChange(opt.value)}
             className={[
-              "px-2.5 py-0.5 rounded-full font-mono text-sm font-semibold transition-all",
+              "px-2.5 py-0.5 rounded-full font-mono text-xs font-semibold transition-all",
               isActive
                 ? "bg-dt-bg1 text-dt-accent"
                 : "text-dt-text2 hover:text-dt-text1",
