@@ -17,7 +17,7 @@ import { useUsage } from "../hooks/useUsage";
 import { useCosts } from "../hooks/useCosts";
 import { LayoutContext } from "../contexts/LayoutContext";
 import { buildSlugMap, buildProjectHashToSlugMap } from "../lib/repoSlug";
-import type { SessionWsHandlers, QuestionItem, SessionControlState } from "../contexts/LayoutContext";
+import type { SessionWsHandlers, QuestionItem } from "../contexts/LayoutContext";
 import type { SessionMetrics, SessionEvent, AgentDAG, SubagentMeta } from "../lib/types";
 import type { PermissionMode } from "../components/conversation/permissionModeTypes";
 import type { TurnSnapshot } from "../lib/turnSnapshot";
@@ -104,9 +104,6 @@ export function AppLayout() {
   const onClearViewingTurnRef = useRef<(() => void) | null>(null);
   const onTurnClickRef = useRef<((turnIndex: number) => void) | null>(null);
   const openBottomTabRef = useRef<((tab: string) => void) | null>(null);
-
-  // Session control state (Phase 5) — set by SessionPage, consumed by TopBar
-  const [sessionControl, setSessionControl] = useState<SessionControlState | null>(null);
 
   const handleTurnSelect = useCallback((turnIndex: number) => {
     onTurnClickRef.current?.(turnIndex);
@@ -285,8 +282,6 @@ export function AppLayout() {
     onClearViewingTurnRef,
     onTurnClickRef,
     openBottomTabRef,
-    sessionControl,
-    setSessionControl,
   };
 
   return (
@@ -313,14 +308,6 @@ export function AppLayout() {
             onClearViewingTurn={handleClearViewingTurn}
             permissionMode={permissionMode}
             onPermissionModeChange={setPermissionMode}
-            model={sessionControl?.model ?? undefined}
-            availableModels={sessionControl?.availableModels}
-            fastMode={sessionControl?.fastMode}
-            effort={sessionControl?.effort}
-            onModelSelect={sessionControl?.onModelSelect}
-            onFastToggle={sessionControl?.onFastToggle}
-            onEffortChange={sessionControl?.onEffortChange}
-            onCompact={sessionControl?.onCompact}
           />
         }
         sidebar={

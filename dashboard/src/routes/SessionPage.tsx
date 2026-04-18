@@ -3,7 +3,6 @@ import { useParams } from "@tanstack/react-router";
 import { useLayoutContext } from "../contexts/LayoutContext";
 import { useSessionMetrics } from "../hooks/useSessionData";
 import { useEventStream } from "../hooks/useEventStream";
-import { useSessionControl } from "../hooks/useSessionControl";
 import { resolveProjectHashForFetch } from "../lib/repoSlug";
 import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental, getEventsForTurn } from "../lib/turnSnapshot";
 import { isAgentCompleted } from "../lib/agentStatus";
@@ -13,15 +12,6 @@ import { Menu } from "lucide-react";
 import { AgentLogTab } from "../components/bottom-panel/AgentLogTab";
 import { PanelModal } from "../components/PanelModal";
 import { computeLiveMetrics } from "../lib/cost";
-import type { ModelOption } from "../components/controls/ModelSwitcher";
-
-const AVAILABLE_MODELS: ModelOption[] = [
-  { id: "claude-opus-4-7", label: "Opus 4.7" },
-  { id: "claude-sonnet-4-6-20250514", label: "Sonnet 4.6" },
-  { id: "claude-opus-4-6-20250514", label: "Opus 4.6" },
-  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
-];
-
 export function SessionPage() {
   const { repoSlug, sessionId } = useParams({ strict: false }) as {
     repoSlug: string;
@@ -59,7 +49,6 @@ export function SessionPage() {
     onTurnClickRef,
     turnHistoryOpen,
     setTurnHistoryOpen,
-    setSessionControl,
   } = ctx;
 
   // Resolve URL slug to projectHash for API calls. Returns null while repos
@@ -102,35 +91,6 @@ export function SessionPage() {
   useEffect(() => {
     setCurrentSubagentMeta(subagentMeta ?? null);
   }, [subagentMeta, setCurrentSubagentMeta]);
-
-  // Session control hook (Phase 5)
-  const {
-    model: controlModel,
-    fastMode: controlFastMode,
-    effort: controlEffort,
-    setModel: controlSetModel,
-    toggleFastMode: controlToggleFastMode,
-    setEffort: controlSetEffort,
-    sendCompact: controlSendCompact,
-  } = useSessionControl(activeSessionId);
-
-  // Push control state to layout context for TopBar
-  useEffect(() => {
-    if (!activeSessionId) {
-      setSessionControl(null);
-      return;
-    }
-    setSessionControl({
-      availableModels: AVAILABLE_MODELS,
-      model: controlModel,
-      fastMode: controlFastMode,
-      effort: controlEffort,
-      onModelSelect: controlSetModel,
-      onFastToggle: controlToggleFastMode,
-      onEffortChange: controlSetEffort,
-      onCompact: controlSendCompact,
-    });
-  }, [activeSessionId, controlModel, controlFastMode, controlEffort, controlSetModel, controlToggleFastMode, controlSetEffort, controlSendCompact, setSessionControl]);
 
   // SDK context window from result events — stored in ref for stable identity
   const sdkContextWindowRef = useRef<number | undefined>(undefined);
@@ -310,9 +270,8 @@ export function SessionPage() {
       setHasSubagents(false);
       setCurrentSubagentMeta(null);
       setViewingTurnNumber(undefined);
-      setSessionControl(null);
     };
-  }, [setCurrentMetrics, setCurrentEvents, setCurrentLiveEvents, setCurrentTurns, setCurrentDag, setCurrentSelectedAgent, setCurrentActiveTurnIndex, setHasSubagents, setCurrentSubagentMeta, setViewingTurnNumber, setSessionControl]);
+  }, [setCurrentMetrics, setCurrentEvents, setCurrentLiveEvents, setCurrentTurns, setCurrentDag, setCurrentSelectedAgent, setCurrentActiveTurnIndex, setHasSubagents, setCurrentSubagentMeta, setViewingTurnNumber]);
 
   // While repos are still loading we have no projectHash yet and therefore
   // no fetch in flight — show the loading state, not the error state.

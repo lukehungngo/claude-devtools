@@ -1,10 +1,8 @@
 import { Pencil, X } from "lucide-react";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
-import type { SessionMetrics, EffortLevel } from "../lib/types";
+import type { SessionMetrics } from "../lib/types";
 import type { PermissionMode } from "./conversation/permissionModeTypes";
 import { cyclePermissionMode } from "./conversation/PermissionModeBadge";
-import { ControlsZone } from "./controls/ControlsZone";
-import type { ModelOption } from "./controls/ModelSwitcher";
 
 interface Props {
   metrics: SessionMetrics | null;
@@ -16,15 +14,6 @@ interface Props {
   onClearViewingTurn?: () => void;
   permissionMode?: PermissionMode;
   onPermissionModeChange?: (mode: PermissionMode) => void;
-  // P5-01 control props
-  model?: string;
-  availableModels?: ModelOption[];
-  fastMode?: boolean;
-  effort?: EffortLevel;
-  onModelSelect?: (modelId: string) => void;
-  onFastToggle?: () => void;
-  onEffortChange?: (level: EffortLevel) => void;
-  onCompact?: () => void;
 }
 
 const MODE_LABELS: Record<PermissionMode, string> = {
@@ -45,7 +34,7 @@ const MODE_COLORS: Record<PermissionMode, { bg: string; fg: string }> = {
   bypassPermissions: { bg: "color-mix(in srgb, var(--red) 15%, transparent)", fg: "var(--red)" },
 };
 
-export function TopBar({ metrics, repoName, branch, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange, model, availableModels, fastMode, effort, onModelSelect, onFastToggle, onEffortChange, onCompact }: Props) {
+export function TopBar({ metrics, repoName, branch, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange }: Props) {
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
@@ -68,7 +57,7 @@ export function TopBar({ metrics, repoName, branch, isLive, hasPermissionPending
   // injects into JSONL. Server already filters these, but we guard here
   // against stale cached metrics from older server builds.
   const realModels = modelsList.filter((m) => !m.startsWith("<"));
-  const activeModel = model ?? (realModels.length > 0 ? realModels[realModels.length - 1] : null);
+  const activeModel = realModels.length > 0 ? realModels[realModels.length - 1] : null;
   const modelName = activeModel ? formatModelShort(activeModel) : "\u2014";
 
   return (
@@ -174,71 +163,51 @@ export function TopBar({ metrics, repoName, branch, isLive, hasPermissionPending
 
       {metrics ? (
         <>
-          {isLive && onModelSelect && availableModels && onFastToggle && effort && onEffortChange && onCompact ? (
-            <>
-              <ControlsZone
-                currentModel={activeModel}
-                models={availableModels}
-                onModelSelect={onModelSelect}
-                fastMode={fastMode ?? false}
-                onFastToggle={onFastToggle}
-                effort={effort}
-                onEffortChange={onEffortChange}
-                contextPercent={contextPct}
-                onCompact={onCompact}
-                isLive={isLive}
-              />
-            </>
-          ) : (
-            <>
-              <HudMetric label="Model" value={modelName} />
-              <HudSep />
-            </>
-          )}
+          <>
+            <HudMetric label="Model" value={modelName} />
+            <HudSep />
+          </>
           <HudMetric label="Age" value={formatDuration(metrics.duration)} />
           <HudSep />
 
-          {/* Context — only show static when controls are NOT active */}
-          {!(isLive && onModelSelect) && (
-            <>
-              <div className="flex flex-col items-center gap-[2px]">
-                <span className="t-eyebrow">Context</span>
-                <div className="flex items-center gap-1">
-                  <span className="t-metric">
-                    {contextPct}%
-                  </span>
+          <>
+            <div className="flex flex-col items-center gap-[2px]">
+              <span className="t-eyebrow">Context</span>
+              <div className="flex items-center gap-1">
+                <span className="t-metric">
+                  {contextPct}%
+                </span>
+                <div
+                  style={{
+                    width: 42,
+                    height: 4,
+                    borderRadius: 2,
+                    background: "var(--bd)",
+                    overflow: "hidden",
+                  }}
+                >
                   <div
                     style={{
-                      width: 42,
-                      height: 4,
+                      height: "100%",
+                      width: `${contextPct}%`,
                       borderRadius: 2,
-                      background: "var(--bd)",
-                      overflow: "hidden",
+                      background: contextColor,
+                      transition: "width .3s, background .3s",
                     }}
-                  >
-                    <div
-                      style={{
-                        height: "100%",
-                        width: `${contextPct}%`,
-                        borderRadius: 2,
-                        background: contextColor,
-                        transition: "width .3s, background .3s",
-                      }}
-                    />
-                  </div>
-                  {metrics.contextWindowSize > 0 && (
-                    <span
-                      className="t-mono-xs"
-                      style={{ color: "var(--t3)", fontSize: 9 }}
-                    >
-                      of {formatTokens(metrics.contextWindowSize)}
-                    </span>
-                  )}
+                  />
                 </div>
+                {metrics.contextWindowSize > 0 && (
+                  <span
+                    className="t-mono-xs"
+                    style={{ color: "var(--t3)", fontSize: 9 }}
+                  >
+                    of {formatTokens(metrics.contextWindowSize)}
+                  </span>
+                )}
               </div>
-              <HudSep />
-            </>
-          )}
+            </div>
+            <HudSep />
+          </>
 
           <HudMetric label="Cost" value={formatCost(sCost)} valueColor="var(--amb)" />
           <HudSep />

@@ -183,6 +183,25 @@ describe("TopBar", () => {
     });
   });
 
+  describe("HUD read-only — model always shown", () => {
+    it("renders Model HudMetric even when isLive=true", () => {
+      // Invariant: TopBar is a read-only HUD. Model must always display as static text.
+      // Bug (now fixed): when isLive=true the ControlsZone replaced HudMetric("Model"),
+      // hiding the "Model" label entirely.
+      renderTopBar({ metrics: STUB_METRICS, isLive: true });
+      expect(screen.getByText("Model")).toBeDefined();
+      expect(screen.getByText(/Sonnet/)).toBeDefined();
+    });
+
+    it("renders Context even when isLive=true", () => {
+      // Bug (now fixed): !(isLive && onModelSelect) guard hid Context while live.
+      const metricsWithPct = { ...STUB_METRICS, contextPercent: 45, contextWindowSize: 200000 } as unknown as SessionMetrics;
+      renderTopBar({ metrics: metricsWithPct, isLive: true });
+      expect(screen.getByText("Context")).toBeDefined();
+      expect(screen.getByText("45%")).toBeDefined();
+    });
+  });
+
   describe("YOLO badge", () => {
     it("renders YOLO badge for bypassPermissions mode", () => {
       render(

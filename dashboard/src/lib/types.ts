@@ -304,10 +304,3 @@ export interface AgentLogEntry {
 // === Session Control Types ===
 
 export type EffortLevel = "low" | "medium" | "high";
-
-export interface SessionControlState {
-  model: string | null;
-  fastMode: boolean;
-  effort: EffortLevel;
-  activeSessionId: string | null;
-}
