@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { discoverSessions } from "../../parser/session-discovery.js";
 import { computeInsightsAggregate } from "../../analyzer/insights-aggregator.js";
+import { computeInsightsActivity } from "../../analyzer/activity-aggregator.js";
 import type { InsightsTimeRange } from "../../types.js";
 import type { RouteContext } from "./route-context.js";
 
@@ -28,8 +29,32 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
         repo
       );
       res.json(aggregate);
-    } catch (err) {
+    } catch {
       res.status(500).json({ error: "Failed to compute insights aggregate" });
+    }
+  });
+
+  router.get("/api/insights/activity", (req, res) => {
+    const timeRange = (req.query.timeRange as string) ?? "7d";
+    const repo = (req.query.repo as string) ?? "all";
+
+    if (!VALID_TIME_RANGES.has(timeRange)) {
+      res.status(400).json({
+        error: `Invalid timeRange. Must be one of: ${[...VALID_TIME_RANGES].join(", ")}`,
+      });
+      return;
+    }
+
+    try {
+      const sessions = discoverSessions();
+      const activity = computeInsightsActivity(
+        sessions,
+        timeRange as InsightsTimeRange,
+        repo
+      );
+      res.json(activity);
+    } catch {
+      res.status(500).json({ error: "Failed to compute insights activity" });
     }
   });
 

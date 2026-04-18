@@ -17,6 +17,12 @@ vi.mock("../../analyzer/insights-aggregator.js", () => ({
     daily: [{ date: "2026-04-18", tokensIn: 1000, tokensOut: 500, cost: 0.005 }],
   })),
 }));
+vi.mock("../../analyzer/activity-aggregator.js", () => ({
+  computeInsightsActivity: vi.fn(() => ({
+    heatmap: [{ day: 0, hour: 9, intensity: 3 }],
+    hourly: [{ hour: 9, tokensAvg: 1500 }],
+  })),
+}));
 vi.mock("../../logger.js", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -27,9 +33,11 @@ import { json } from "express";
 import { createInsightsRoutes } from "./insights-routes.js";
 import { discoverSessions } from "../../parser/session-discovery.js";
 import { computeInsightsAggregate } from "../../analyzer/insights-aggregator.js";
+import { computeInsightsActivity } from "../../analyzer/activity-aggregator.js";
 
 const mockedDiscover = vi.mocked(discoverSessions);
 const mockedAggregate = vi.mocked(computeInsightsAggregate);
+const mockedActivity = vi.mocked(computeInsightsActivity);
 
 function buildApp() {
   const app = express();
@@ -84,6 +92,47 @@ describe("GET /api/insights/aggregate", () => {
     for (const tr of ["24h", "7d", "30d", "90d", "all"]) {
       const res = await request(buildApp()).get(
         `/api/insights/aggregate?timeRange=${tr}`
+      );
+      expect(res.status).toBe(200);
+    }
+  });
+});
+
+describe("GET /api/insights/activity", () => {
+  it("returns 200 with heatmap and hourly data", async () => {
+    const res = await request(buildApp()).get("/api/insights/activity");
+    expect(res.status).toBe(200);
+    expect(res.body.heatmap).toBeDefined();
+    expect(res.body.hourly).toBeDefined();
+  });
+
+  it("passes timeRange and repo to computeInsightsActivity", async () => {
+    await request(buildApp()).get(
+      "/api/insights/activity?timeRange=30d&repo=/home/user/project"
+    );
+    expect(mockedActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      "30d",
+      "/home/user/project"
+    );
+  });
+
+  it("uses 7d and all as defaults", async () => {
+    await request(buildApp()).get("/api/insights/activity");
+    expect(mockedActivity).toHaveBeenCalledWith(expect.anything(), "7d", "all");
+  });
+
+  it("returns 400 for invalid timeRange", async () => {
+    const res = await request(buildApp()).get(
+      "/api/insights/activity?timeRange=invalid"
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts all valid timeRange values", async () => {
+    for (const tr of ["24h", "7d", "30d", "90d", "all"]) {
+      const res = await request(buildApp()).get(
+        `/api/insights/activity?timeRange=${tr}`
       );
       expect(res.status).toBe(200);
     }
