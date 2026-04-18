@@ -8,6 +8,8 @@ import type { ModelOption } from "./controls/ModelSwitcher";
 
 interface Props {
   metrics: SessionMetrics | null;
+  repoName?: string;
+  branch?: string;
   isLive?: boolean;
   hasPermissionPending?: boolean;
   viewingTurnNumber?: number;
@@ -43,7 +45,7 @@ const MODE_COLORS: Record<PermissionMode, { bg: string; fg: string }> = {
   bypassPermissions: { bg: "color-mix(in srgb, var(--red) 15%, transparent)", fg: "var(--red)" },
 };
 
-export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange, model, availableModels, fastMode, effort, onModelSelect, onFastToggle, onEffortChange, onCompact }: Props) {
+export function TopBar({ metrics, repoName, branch, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange, model, availableModels, fastMode, effort, onModelSelect, onFastToggle, onEffortChange, onCompact }: Props) {
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
@@ -82,6 +84,36 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
         outlineOffset: -2,
       }}
     >
+      {/* Repo@branch crumb */}
+      {(repoName || branch) && (
+        <div
+          className="flex items-center shrink-0"
+          style={{
+            gap: 4, paddingRight: 12,
+            borderRight: "1px solid var(--bd)",
+            fontSize: 12, color: "var(--t2)",
+            letterSpacing: ".1px",
+          }}
+        >
+          {repoName && (
+            <span style={{ color: "var(--t1)", fontWeight: 600 }}>{repoName}</span>
+          )}
+          {branch && (
+            <>
+              <span style={{ color: "var(--t3)", margin: "0 2px" }}>@</span>
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)", fontSize: 11,
+                  color: "var(--acc)", fontWeight: 500,
+                }}
+              >
+                &#x2387; {branch}
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Live status */}
       <div
         className="flex items-center gap-[5px] shrink-0"

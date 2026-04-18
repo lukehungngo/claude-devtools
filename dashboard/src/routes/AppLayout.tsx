@@ -298,6 +298,8 @@ export function AppLayout() {
         }
         topBar={
           <TopBar
+            repoName={currentRepo?.repoName}
+            branch={currentMetrics?.session.gitBranch ?? currentRepo?.gitBranch}
             metrics={currentMetrics}
             isLive={isLive}
             hasPermissionPending={permissions.some(p => p.status === "pending")}
