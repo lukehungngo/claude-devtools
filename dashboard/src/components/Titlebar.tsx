@@ -67,44 +67,56 @@ export function Titlebar({ isConnected, wsLatency, usage }: TitlebarProps) {
 
       {/* Connection pill */}
       {isConnected !== undefined && (
-        <div
-          className="flex items-center shrink-0"
+        <button
+          type="button"
+          aria-label={isConnected ? "Connected — WebSocket connection status" : "Disconnected — WebSocket connection status"}
+          title="WebSocket connection status"
           style={{
-            gap: 5,
-            padding: "2px 8px",
-            borderRadius: 10,
-            background: isConnected ? "var(--grn-bg)" : "var(--red-bg)",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "3px 10px",
+            background: "transparent",
+            border: "1px solid var(--bd)",
+            borderRadius: "var(--r)",
+            height: "24px",
+            fontFamily: "var(--font-mono)",
+            cursor: "pointer",
             marginLeft: 4,
           }}
-          title="WebSocket connection status"
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-e)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
         >
-          <div
-            className="rounded-full shrink-0"
-            style={{
-              width: 6,
-              height: 6,
-              background: isConnected ? "var(--grn)" : "var(--red)",
-            }}
-          />
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              color: isConnected ? "var(--grn)" : "var(--red)",
-              letterSpacing: ".2px",
-            }}
-          >
+          {isConnected ? (
+            <span
+              style={{
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: "var(--grn)",
+                boxShadow: "0 0 0 2px var(--grn-bg)",
+                animation: "tbcpulse 2.2s ease-in-out infinite",
+                flexShrink: 0,
+              }}
+            />
+          ) : (
+            <span
+              style={{
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: "var(--amb)",
+                flexShrink: 0,
+              }}
+            />
+          )}
+          <span style={{ color: "var(--t1)", fontWeight: 600 }}>
             {isConnected ? "Connected" : "Disconnected"}
           </span>
           {isConnected && wsLatency != null && (
-            <span
-              className="font-mono"
-              style={{ fontSize: 9, color: "var(--grn)", opacity: 0.75 }}
-            >
-              {wsLatency}ms
-            </span>
+            <span style={{ color: "var(--t3)" }}>{wsLatency}ms</span>
           )}
-        </div>
+        </button>
       )}
 
       {/* Center: plan badge + usage meters */}

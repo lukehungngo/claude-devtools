@@ -64,6 +64,12 @@ describe("Titlebar", () => {
     const arrows = screen.getAllByText("↻");
     expect(arrows.length >= 1).toBe(true);
   });
+
+  it("connection pill is a button element", () => {
+    render(<Titlebar isConnected={true} wsLatency={47} />);
+    const pill = screen.getByRole("button", { name: /connected/i });
+    expect(pill).toBeDefined();
+  });
 });
 
 describe("formatTimeUntil", () => {
