@@ -110,11 +110,10 @@ function TurnFooter({
   //
   // `sessionIsRunning` resolution, in order of authority:
   //   - For SSE sessions: SDK session_state_changed is authoritative.
-  //   - For JSONL sessions: server uses 12-hour mtime (isActive) heuristic.
-  //   - When the prop is undefined (legacy callers, tests), assume active so
-  //     existing running turns keep pulsing — the dishonesty we're closing
-  //     is the FALSE case, not the undefined case.
-  const sessionIsActive = sessionIsRunning !== false;
+  //   - For JSONL sessions: server uses JSONL terminal signals (isRunning).
+  //   - undefined = safe default "not running". ConversationView passes false
+  //     for all non-last turns; only the last turn receives the real flag.
+  const sessionIsActive = sessionIsRunning === true;
   const status = getAgentStatus("main", turnEvents, sessionIsActive);
   const [elapsed, setElapsed] = useState<number>(0);
 
@@ -228,7 +227,7 @@ export function TurnCard({
   const mainStatus = getAgentStatus(
     "main",
     turnEvents,
-    sessionIsRunning !== false,
+    sessionIsRunning === true,
   );
   const isRunning = mainStatus === "running";
   const responseContent = extractResponseContent(turnEvents);

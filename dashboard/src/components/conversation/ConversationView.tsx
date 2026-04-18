@@ -226,6 +226,13 @@ function VirtualizedTurnList({
     return map;
   }, [turns]);
 
+  // Only the last turn in the session needs the liveness flag. If turn N has a
+  // successor N+1, it is definitively over — the existence of the next turn is
+  // proof. Passing sessionIsRunning to historical turns causes them to pulse
+  // "running" when their main agent stopped on tool_use (MAS dispatch pattern)
+  // and has no terminal signal in its event slice.
+  const lastTurnNumber = turns[turns.length - 1]?.turnNumber;
+
   // Pre-group permissions by turn (avoids O(perms) filter per row)
   const permsByTurn = useMemo(() => {
     const map = new Map<number, PermissionRequest[]>();
@@ -334,7 +341,7 @@ function VirtualizedTurnList({
                   turnQuestions={questionsByTurn.get(virtualItem.index) || emptyQuestions}
                   onSubmitAnswer={onSubmitAnswer}
                   tasks={tasksByTurn?.get(turn.turnNumber)}
-                  sessionIsRunning={sessionIsRunning}
+                  sessionIsRunning={turn.turnNumber === lastTurnNumber ? sessionIsRunning : false}
                 />
               </div>
             );
@@ -361,7 +368,7 @@ function VirtualizedTurnList({
                 turnQuestions={questionsByTurn.get(filteredIndex) || emptyQuestions}
                 onSubmitAnswer={onSubmitAnswer}
                 tasks={tasksByTurn?.get(turn.turnNumber)}
-                sessionIsRunning={sessionIsRunning}
+                sessionIsRunning={turn.turnNumber === lastTurnNumber ? sessionIsRunning : false}
               />
             </div>
           );
