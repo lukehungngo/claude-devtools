@@ -268,6 +268,30 @@ export interface CostSummary {
   tokenOut7d: number;
 }
 
+// === Insights Aggregate Types ===
+
+export type InsightsTimeRange = "24h" | "7d" | "30d" | "90d" | "all";
+
+export interface InsightsDailyBucket {
+  date: string; // "YYYY-MM-DD" UTC
+  tokensIn: number;
+  tokensOut: number;
+  cost: number;
+}
+
+export interface InsightsAggregate {
+  tokensIn: number;
+  tokensOut: number;
+  cost: number;
+  sessions: number;
+  turns: number;
+  avgCostPerTurn: number;
+  avgTokensPerTurn: number;
+  activeDays: number;
+  peakHour: number; // 0-23 UTC hour with highest combined token activity
+  daily: InsightsDailyBucket[];
+}
+
 export interface PermissionSuggestion {
   type: string;
   rules?: Array<{ toolName: string; ruleContent?: string }>;
