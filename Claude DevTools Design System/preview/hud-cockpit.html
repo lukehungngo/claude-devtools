@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css"><style>
+body{padding:12px;background:var(--bg-s);}
+.hud{display:flex;gap:10px;align-items:stretch;}
+.tile{background:var(--bg-e);border:1px solid var(--bd);border-radius:var(--r-md);padding:8px 12px;display:flex;flex-direction:column;gap:4px;min-width:0;}
+.tile .row{display:flex;align-items:baseline;gap:8px;}
+.spark{height:18px;display:flex;align-items:flex-end;gap:1px;margin-top:2px;}
+.spark span{flex:1;background:var(--spark-base);border-radius:1px;}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:var(--r-pill);font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.5px;}
+.bar{height:4px;background:var(--bd);border-radius:2px;overflow:hidden;margin-top:3px;}
+.bar>i{display:block;height:100%;background:var(--amb);border-radius:2px;}
+</style></head><body>
+<div class="hud">
+  <div class="tile" style="flex:0 0 auto">
+    <span class="t-eyebrow">Status</span>
+    <div class="row"><span class="pill" style="background:var(--acc-bg);color:var(--acc)"><span class="dot live"></span>LIVE</span><span class="pill" style="background:var(--red-bg);color:var(--red)">YOLO</span></div>
+  </div>
+  <div class="tile" style="flex:1">
+    <span class="t-eyebrow">Flight</span>
+    <div class="row">
+      <span class="t-display">67%</span>
+      <span class="t-eyebrow">ctx</span>
+      <span class="t-display" style="color:var(--amb);margin-left:12px">$76.62</span>
+      <span class="t-eyebrow">cost</span>
+      <span class="t-metric" style="margin-left:12px">2h 59m</span>
+      <span class="t-eyebrow">age</span>
+    </div>
+    <div class="bar"><i style="width:67%"></i></div>
+  </div>
+  <div class="tile" style="flex:0 0 auto">
+    <span class="t-eyebrow">Tokens</span>
+    <div class="row"><span class="t-metric" style="color:var(--teal)">79K</span><span class="t-eyebrow">in</span><span class="t-metric" style="color:var(--pur);margin-left:6px">665K</span><span class="t-eyebrow">out</span></div>
+    <div class="spark"><span style="height:30%"></span><span style="height:55%"></span><span style="height:40%"></span><span style="height:70%"></span><span style="height:88%"></span><span style="height:62%"></span><span style="height:100%"></span><span style="height:75%"></span></div>
+  </div>
+</div>
+</body></html>

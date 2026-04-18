@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css"><style>
+body{padding:12px;background:var(--bg);}
+.strip{background:var(--bg-e);border:1px solid var(--bd);border-radius:var(--r-md);padding:10px 14px;}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;}
+.ticks{display:flex;flex:1;}.ticks span{flex:1;font-family:var(--font-mono);font-size:8px;color:var(--t3);}
+.row{display:flex;align-items:center;height:22px;gap:6px;}
+.lbl{width:72px;display:flex;align-items:center;gap:5px;}
+.lbl .ic{width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:9px;font-weight:600;}
+.lbl .nm{font-family:var(--font-mono);font-size:10px;color:var(--t1);}
+.track{flex:1;position:relative;height:16px;border-left:1px solid var(--bd);}
+.bar{position:absolute;height:14px;border-radius:3px;top:1px;}
+</style></head><body>
+<div class="strip">
+  <div class="head">
+    <span class="t-eyebrow">Trace · live</span>
+    <div class="ticks"><span>0s</span><span>30s</span><span>1m</span><span>1m30</span><span>2m</span><span>2m30</span><span>3m</span><span>3m30</span><span>4m</span></div>
+  </div>
+  <div class="row"><div class="lbl"><div class="ic" style="background:var(--span-pm);color:var(--span-pm-t)">M</div><span class="nm">main</span></div><div class="track"><div class="bar" style="left:0;width:95%;background:var(--span-pm);"></div></div></div>
+  <div class="row"><div class="lbl"><div class="ic" style="background:var(--span-swe);color:var(--span-swe-t)">S</div><span class="nm">swe</span></div><div class="track"><div class="bar" style="left:12%;width:40%;background:var(--span-swe);"></div><div class="bar" style="left:60%;width:28%;background:var(--span-swe);"></div></div></div>
+  <div class="row"><div class="lbl"><div class="ic" style="background:var(--span-qa);color:var(--span-qa-t)">Q</div><span class="nm">qa</span></div><div class="track"><div class="bar" style="left:55%;width:22%;background:var(--span-qa);"></div></div></div>
+  <div class="row"><div class="lbl"><div class="ic" style="background:var(--span-doc);color:var(--span-doc-t)">D</div><span class="nm">doc</span></div><div class="track"><div class="bar" style="left:80%;width:18%;background:var(--span-doc);"></div></div></div>
+</div>
+</body></html>

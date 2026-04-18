@@ -1,0 +1,43 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css"><style>
+body{padding:14px;background:var(--bg-s);}
+.ribbon{display:flex;flex-direction:column;gap:4px;max-width:260px;}
+.turn{background:var(--bg-e);border:1px solid var(--bd);border-left:2px solid var(--acc);border-radius:var(--r-sm);padding:8px 10px;display:flex;flex-direction:column;gap:4px;}
+.turn.idle{border-left-color:var(--bd);}
+.top{display:flex;align-items:center;gap:6px;}
+.tid{font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--acc);}
+.title{font-size:11px;color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.meta{display:flex;gap:6px;align-items:center;}
+.meta span{font-family:var(--font-mono);font-size:9px;color:var(--t3);}
+.cost{color:var(--amb)!important;}
+.spark{height:10px;display:flex;align-items:flex-end;gap:1px;flex:1;}
+.spark span{flex:1;background:var(--spark-base);border-radius:1px;}
+.pill{padding:0 5px;border-radius:3px;font-family:var(--font-mono);font-size:8px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;}
+</style></head><body>
+<div class="ribbon">
+  <div class="turn">
+    <div class="top"><span class="dot run"></span><span class="tid">T26</span><span class="title">fix subagent running after session end</span></div>
+    <div class="meta">
+      <span class="pill" style="background:var(--span-pm);color:var(--span-pm-t)">pm</span>
+      <span class="pill" style="background:var(--span-swe);color:var(--span-swe-t)">swe</span>
+      <div class="spark"><span style="height:40%"></span><span style="height:60%"></span><span style="height:80%"></span><span style="height:50%"></span><span style="height:90%"></span><span style="height:70%"></span></div>
+      <span class="cost">$2.59</span><span>4m 12s</span>
+    </div>
+  </div>
+  <div class="turn idle">
+    <div class="top"><span class="dot pass"></span><span class="tid" style="color:var(--t2)">T25</span><span class="title">/mas:effort max</span></div>
+    <div class="meta">
+      <span class="pill" style="background:var(--span-doc);color:var(--span-doc-t)">doc</span>
+      <div class="spark"><span style="height:30%"></span><span style="height:50%"></span><span style="height:40%"></span><span style="height:60%"></span></div>
+      <span class="cost">$0.0033</span><span>9s</span>
+    </div>
+  </div>
+  <div class="turn idle">
+    <div class="top"><span class="dot fail"></span><span class="tid" style="color:var(--t2)">T24</span><span class="title">/mas:effort high</span></div>
+    <div class="meta">
+      <span class="pill" style="background:var(--span-bug);color:var(--span-bug-t)">bug</span>
+      <div class="spark"><span style="height:70%"></span><span style="height:40%"></span><span style="height:20%"></span></div>
+      <span class="cost">$0.0033</span><span>18s</span>
+    </div>
+  </div>
+</div>
+</body></html>

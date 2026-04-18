@@ -57,4 +57,4 @@ blob-report/
 dashboard/.claude/
 
 # Dashboard build output (rebuilt from source)
-dashboard/dist/
+dashboard/dist/.mcp.json

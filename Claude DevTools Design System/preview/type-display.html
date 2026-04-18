@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { padding: 28px 32px; background: var(--bg); }
+  .stack { display: flex; flex-direction: column; gap: 20px; }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--bd);
+    border-bottom: 1px solid var(--bd);
+  }
+  .metric {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .metric + .metric { border-left: 1px solid var(--bd); }
+  .metric .eyebrow {
+    font-family: var(--font-sans);
+    font-size: 8px;
+    font-weight: 600;
+    color: var(--t3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .metric .value {
+    font-family: var(--font-mono);
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-feature-settings: "tnum", "zero";
+  }
+
+  .headline {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .headline h1 {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--t1);
+  }
+  .headline .sub {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 20px;
+    font-weight: 500;
+    color: var(--t2);
+  }
+
+  .scale-note {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--t3);
+    letter-spacing: 0.2px;
+  }
+</style>
+</head>
+<body>
+  <div class="stack">
+    <div class="metrics">
+      <div class="metric">
+        <span class="eyebrow">Context</span>
+        <span class="value" style="color: var(--t1)">67<span style="color:var(--t3);font-size:18px">%</span></span>
+      </div>
+      <div class="metric">
+        <span class="eyebrow">Cost</span>
+        <span class="value" style="color: var(--amb)">$76.62</span>
+      </div>
+      <div class="metric">
+        <span class="eyebrow">Tokens In</span>
+        <span class="value" style="color: var(--teal)">79K</span>
+      </div>
+      <div class="metric">
+        <span class="eyebrow">Tokens Out</span>
+        <span class="value" style="color: var(--pur)">665K</span>
+      </div>
+    </div>
+
+    <div class="headline">
+      <h1>Flight deck for agent runs</h1>
+      <div class="sub">Observation-first telemetry for Claude Code sessions</div>
+    </div>
+
+    <div class="scale-note">Display&nbsp;26 · H1&nbsp;22 · H2&nbsp;15 · DM Sans + JetBrains Mono</div>
+  </div>
+</body>
+</html>
