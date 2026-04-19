@@ -1,34 +1,18 @@
 import { useMemo } from "react";
-import type { EChartsOption } from "echarts";
 import type { InsightsHourlyBucket } from "../../lib/types.js";
-import { EChartsWrapper } from "./EChartsWrapper.js";
 
 interface HourlyBarsProps {
   hourly: InsightsHourlyBucket[];
   className?: string;
 }
 
-function getCSSVar(name: string, fallback: string): string {
-  if (typeof window === "undefined") return fallback;
-  const val = getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
-  return val || fallback;
-}
-
-function findPeakBlock(
-  hourly: InsightsHourlyBucket[]
-): { start: number; pct: number } | null {
+function findPeakBlock(hourly: InsightsHourlyBucket[]): { start: number; pct: number } | null {
   const total = hourly.reduce((s, h) => s + h.tokensAvg, 0);
   if (total === 0) return null;
-  let bestStart = 0;
-  let bestSum = 0;
+  let bestStart = 0, bestSum = 0;
   for (let s = 0; s <= 20; s++) {
     const sum = hourly.slice(s, s + 4).reduce((acc, h) => acc + h.tokensAvg, 0);
-    if (sum > bestSum) {
-      bestSum = sum;
-      bestStart = s;
-    }
+    if (sum > bestSum) { bestSum = sum; bestStart = s; }
   }
   return { start: bestStart, pct: Math.round((bestSum / total) * 100) };
 }
@@ -37,74 +21,83 @@ function fmtHour(h: number): string {
   return `${String(h).padStart(2, "0")}:00`;
 }
 
-export function buildHourlyBarsOption(
-  hourly: InsightsHourlyBucket[]
-): EChartsOption {
-  const teal = getCSSVar("--teal", "#4B8A8A");
-  const accent = getCSSVar("--accent", "#C2592E");
-  const text2 = getCSSVar("--text-2", "#8B8780");
-
-  const peak = findPeakBlock(hourly);
-  const peakHour =
-    peak !== null
-      ? hourly
-          .slice(peak.start, peak.start + 4)
-          .reduce(
-            (best, h) => (h.tokensAvg > best.tokensAvg ? h : best),
-            hourly[peak.start]
-          ).hour
-      : -1;
-
-  return {
-    backgroundColor: "transparent",
-    tooltip: {
-      trigger: "axis",
-    },
-    grid: { left: 0, right: 0, top: 4, bottom: 20, containLabel: false },
-    xAxis: {
-      type: "category",
-      data: hourly.map((h) => h.hour),
-      axisLabel: { color: text2, fontSize: 8, interval: 5 },
-      axisTick: { show: false },
-      axisLine: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      show: false,
-    },
-    series: [
-      {
-        type: "bar",
-        data: hourly.map((h) => ({
-          value: h.tokensAvg,
-          itemStyle: {
-            color: h.hour === peakHour && peak !== null ? accent : teal,
-            opacity: h.hour === peakHour && peak !== null ? 1 : 0.5,
-            borderRadius: [1, 1, 0, 0],
-          },
-        })),
-      },
-    ],
-  };
-}
-
-export function HourlyBars({
-  hourly,
-  className,
-}: HourlyBarsProps): JSX.Element {
+export function HourlyBars({ hourly, className }: HourlyBarsProps): JSX.Element {
   const peak = useMemo(() => findPeakBlock(hourly), [hourly]);
-  const option = useMemo(() => buildHourlyBarsOption(hourly), [hourly]);
 
-  const observation =
-    peak !== null
-      ? `You do ${peak.pct}% of your work between ${fmtHour(peak.start)} and ${fmtHour(peak.start + 4)}`
-      : "No activity recorded in this period";
+  const maxVal = Math.max(...hourly.map(h => h.tokensAvg), 1);
+
+  const peakHour = peak !== null
+    ? hourly
+        .slice(peak.start, peak.start + 4)
+        .reduce((best, h) => (h.tokensAvg > best.tokensAvg ? h : best), hourly[peak.start])
+        .hour
+    : -1;
+
+  const SVG_H = 80;
+  const BAR_W = 100 / 24;
 
   return (
-    <div className={`flex flex-col gap-2 ${className ?? ""}`}>
-      <EChartsWrapper option={option} style={{ height: 80, width: "100%" }} />
-      <p data-testid="hourly-observation" className="text-xs text-dt-text2">
-        {observation}
+    <div className={`flex flex-col ${className ?? ""}`}>
+      {/* SVG bars */}
+      <svg
+        viewBox={`0 0 100 ${SVG_H}`}
+        preserveAspectRatio="none"
+        style={{ display: "block", width: "100%", height: SVG_H }}
+      >
+        {hourly.map((h, i) => {
+          const barH = Math.max((h.tokensAvg / maxVal) * (SVG_H - 2), h.tokensAvg > 0 ? 1 : 0);
+          const isPeak = h.hour === peakHour && peak !== null;
+          return (
+            <rect
+              key={h.hour}
+              x={i * BAR_W + BAR_W * 0.1}
+              y={SVG_H - barH}
+              width={BAR_W * 0.8}
+              height={barH}
+              fill={isPeak ? "var(--acc)" : "var(--teal)"}
+              opacity={isPeak ? 1 : 0.5}
+              rx={0.5}
+            >
+              <title>{String(h.hour).padStart(2, "0")}:00</title>
+            </rect>
+          );
+        })}
+      </svg>
+
+      {/* X-axis hour labels */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(24, 1fr)",
+        fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--t3)",
+        marginTop: 4,
+      }}>
+        {Array.from({ length: 24 }, (_, h) => (
+          <span key={h} style={{
+            textAlign: "center",
+            visibility: h % 6 === 0 ? "visible" : "hidden",
+          }}>{h}</span>
+        ))}
+      </div>
+
+      {/* Observation */}
+      <p
+        data-testid="hourly-observation"
+        style={{
+          fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--t2)",
+          marginTop: 10, lineHeight: 1.5,
+        }}
+      >
+        {peak !== null ? (
+          <>
+            You do{" "}
+            <strong style={{ color: "var(--acc)" }}>{peak.pct}%</strong>
+            {" "}of your work between{" "}
+            <strong style={{ color: "var(--acc)" }}>{fmtHour(peak.start)}</strong>
+            {" "}and{" "}
+            <strong style={{ color: "var(--acc)" }}>{fmtHour(peak.start + 4)}</strong>
+          </>
+        ) : (
+          "No activity recorded in this period"
+        )}
       </p>
     </div>
   );

@@ -138,9 +138,7 @@ function parseCasForSession(session: SessionInfo): {
 
       if (event.type === "assistant") {
         const usage = event.message.usage as typeof event.message.usage | undefined;
-        const tokIn = (usage?.input_tokens ?? 0)
-          + (usage?.cache_read_input_tokens ?? 0)
-          + (usage?.cache_creation_input_tokens ?? 0);
+        const tokIn = usage?.input_tokens ?? 0;
         const tokOut = usage?.output_tokens ?? 0;
 
         // Attribute this turn's tokens to any commands dispatched in the preceding user event
