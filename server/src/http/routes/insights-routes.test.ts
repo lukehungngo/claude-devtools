@@ -23,26 +23,19 @@ vi.mock("../../analyzer/activity-aggregator.js", () => ({
     hourly: [{ hour: 9, tokensAvg: 1500 }],
   })),
 }));
-vi.mock("../../analyzer/insights-model-mix.js", () => ({
-  computeInsightsModelMix: vi.fn(() => ({
-    models: [
-      { model: "claude-sonnet-4-6", tokensIn: 1000, tokensOut: 500, cost: 0.01, turns: 5, share: 0.8 },
-    ],
-    totalTokens: 1500,
+vi.mock("../../analyzer/breakdown-aggregator.js", () => ({
+  computeInsightsBreakdown: vi.fn(() => ({
+    models: [{ model: "claude-sonnet-4-6", tokensIn: 1000, tokensOut: 500, cost: 0.005, turns: 2, share: 100 }],
+    topRepos: [{ slug: "/project", tokens: 1500, cost: 0.005 }],
+    topSessions: [{ id: "s1", label: "project · 2026-04-19", cost: 0.005 }],
+    topTools: [{ name: "Read", calls: 10 }],
   })),
 }));
-vi.mock("../../analyzer/insights-top-consumers.js", () => ({
-  computeInsightsTopConsumers: vi.fn(() => ({
-    repos: [{ repo: "my-repo", tokensIn: 1000, tokensOut: 500, totalTokens: 1500, cost: 0.01, share: 1.0 }],
-    sessions: [{ sessionId: "s1", date: "2026-04-18", repo: "my-repo", cost: 0.01, share: 1.0 }],
-    tools: [{ name: "Read", count: 10, share: 1.0 }],
-  })),
-}));
-vi.mock("../../analyzer/insights-commands-agents-skills.js", () => ({
-  computeInsightsCommandsAgentsSkills: vi.fn(() => ({
-    commands: [{ name: "/compact", count: 5, share: 1.0, daily: [0, 1, 2, 1, 0, 1, 0], trend: "stable" as const, tokensIn: 500, tokensOut: 200, avgTokensIn: 100, avgTokensOut: 40 }],
-    agents: [{ type: "mas:engineer:engineer", count: 3, share: 1.0, daily: [0, 0, 1, 0, 0, 1, 1], trend: "regressing" as const, tokensIn: 900, tokensOut: 600, avgTokensIn: 300, avgTokensOut: 200 }],
-    skills: [{ name: "verification", count: 2, share: 1.0, daily: [1, 1, 0, 0, 0, 0, 0], trend: "improving" as const, tokensIn: 400, tokensOut: 300, avgTokensIn: 200, avgTokensOut: 150 }],
+vi.mock("../../analyzer/trends-aggregator.js", () => ({
+  computeInsightsTrends: vi.fn(() => ({
+    commands: [{ name: "/review", calls: 3, avgIn: 100, avgOut: 50, weekly: [{ in: 100, out: 50 }], verdict: "stable" }],
+    agents: [],
+    skills: [],
   })),
 }));
 vi.mock("../../logger.js", () => ({
@@ -56,16 +49,14 @@ import { createInsightsRoutes } from "./insights-routes.js";
 import { discoverSessions } from "../../parser/session-discovery.js";
 import { computeInsightsAggregate } from "../../analyzer/insights-aggregator.js";
 import { computeInsightsActivity } from "../../analyzer/activity-aggregator.js";
-import { computeInsightsModelMix } from "../../analyzer/insights-model-mix.js";
-import { computeInsightsTopConsumers } from "../../analyzer/insights-top-consumers.js";
-import { computeInsightsCommandsAgentsSkills } from "../../analyzer/insights-commands-agents-skills.js";
+import { computeInsightsBreakdown } from "../../analyzer/breakdown-aggregator.js";
+import { computeInsightsTrends } from "../../analyzer/trends-aggregator.js";
 
 const mockedDiscover = vi.mocked(discoverSessions);
 const mockedAggregate = vi.mocked(computeInsightsAggregate);
 const mockedActivity = vi.mocked(computeInsightsActivity);
-const mockedModelMix = vi.mocked(computeInsightsModelMix);
-const mockedTopConsumers = vi.mocked(computeInsightsTopConsumers);
-const mockedCas = vi.mocked(computeInsightsCommandsAgentsSkills);
+const mockedBreakdown = vi.mocked(computeInsightsBreakdown);
+const mockedTrends = vi.mocked(computeInsightsTrends);
 
 function buildApp() {
   const app = express();
@@ -167,85 +158,81 @@ describe("GET /insights/activity", () => {
   });
 });
 
-describe("GET /insights/model-mix", () => {
-  it("returns 200 with model mix data", async () => {
-    mockedDiscover.mockReturnValue([]);
-    const res = await request(buildApp()).get("/insights/model-mix?timeRange=7d&repo=all");
+describe("GET /insights/breakdown", () => {
+  it("returns 200 with breakdown data", async () => {
+    const res = await request(buildApp()).get("/insights/breakdown");
     expect(res.status).toBe(200);
     expect(res.body.models).toBeDefined();
-    expect(res.body.totalTokens).toBeDefined();
+    expect(res.body.topRepos).toBeDefined();
+    expect(res.body.topSessions).toBeDefined();
+    expect(res.body.topTools).toBeDefined();
   });
 
-  it("returns 400 for invalid timeRange", async () => {
-    const res = await request(buildApp()).get("/insights/model-mix?timeRange=bad");
-    expect(res.status).toBe(400);
-  });
-
-  it("passes timeRange and repo to computeInsightsModelMix", async () => {
-    mockedDiscover.mockReturnValue([]);
-    await request(buildApp()).get("/insights/model-mix?timeRange=30d&repo=my-repo");
-    expect(mockedModelMix).toHaveBeenCalledWith([], "30d", "my-repo");
+  it("passes timeRange and repo to computeInsightsBreakdown", async () => {
+    await request(buildApp()).get("/insights/breakdown?timeRange=30d&repo=/my/project");
+    expect(mockedBreakdown).toHaveBeenCalledWith(expect.anything(), "30d", "/my/project");
   });
 
   it("uses 7d and all as defaults", async () => {
-    mockedDiscover.mockReturnValue([]);
-    await request(buildApp()).get("/insights/model-mix");
-    expect(mockedModelMix).toHaveBeenCalledWith(expect.anything(), "7d", "all");
-  });
-});
-
-describe("GET /insights/top-consumers", () => {
-  it("returns 200 with top consumers data", async () => {
-    mockedDiscover.mockReturnValue([]);
-    const res = await request(buildApp()).get("/insights/top-consumers?timeRange=7d&repo=all");
-    expect(res.status).toBe(200);
-    expect(res.body.repos).toBeDefined();
-    expect(res.body.sessions).toBeDefined();
-    expect(res.body.tools).toBeDefined();
+    await request(buildApp()).get("/insights/breakdown");
+    expect(mockedBreakdown).toHaveBeenCalledWith(expect.anything(), "7d", "all");
   });
 
   it("returns 400 for invalid timeRange", async () => {
-    const res = await request(buildApp()).get("/insights/top-consumers?timeRange=xyz");
+    const res = await request(buildApp()).get("/insights/breakdown?timeRange=invalid");
     expect(res.status).toBe(400);
   });
 
-  it("passes timeRange and repo to computeInsightsTopConsumers", async () => {
-    mockedDiscover.mockReturnValue([]);
-    await request(buildApp()).get("/insights/top-consumers?timeRange=90d&repo=all");
-    expect(mockedTopConsumers).toHaveBeenCalledWith([], "90d", "all");
+  it("accepts all valid timeRange values", async () => {
+    for (const tr of ["24h", "7d", "30d", "90d", "all"]) {
+      const res = await request(buildApp()).get(`/insights/breakdown?timeRange=${tr}`);
+      expect(res.status).toBe(200);
+    }
   });
 
-  it("uses 7d and all as defaults", async () => {
-    mockedDiscover.mockReturnValue([]);
-    await request(buildApp()).get("/insights/top-consumers");
-    expect(mockedTopConsumers).toHaveBeenCalledWith(expect.anything(), "7d", "all");
+  it("returns 500 when computeInsightsBreakdown throws", async () => {
+    mockedBreakdown.mockImplementationOnce(() => { throw new Error("compute failed"); });
+    const res = await request(buildApp()).get("/insights/breakdown");
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBeDefined();
   });
 });
 
-describe("GET /insights/commands-agents-skills", () => {
-  it("returns 200 with commands, agents, skills", async () => {
-    mockedDiscover.mockReturnValue([]);
-    const res = await request(buildApp()).get("/insights/commands-agents-skills?timeRange=7d&repo=all");
+describe("GET /insights/trends", () => {
+  it("returns 200 with trends data", async () => {
+    const res = await request(buildApp()).get("/insights/trends");
     expect(res.status).toBe(200);
     expect(res.body.commands).toBeDefined();
     expect(res.body.agents).toBeDefined();
     expect(res.body.skills).toBeDefined();
   });
 
-  it("returns 400 for invalid timeRange", async () => {
-    const res = await request(buildApp()).get("/insights/commands-agents-skills?timeRange=bad");
-    expect(res.status).toBe(400);
-  });
-
-  it("passes timeRange and repo to computeInsightsCommandsAgentsSkills", async () => {
-    mockedDiscover.mockReturnValue([]);
-    await request(buildApp()).get("/insights/commands-agents-skills?timeRange=30d&repo=my-repo");
-    expect(mockedCas).toHaveBeenCalledWith([], "30d", "my-repo");
+  it("passes timeRange and repo to computeInsightsTrends", async () => {
+    await request(buildApp()).get("/insights/trends?timeRange=30d&repo=/my/project");
+    expect(mockedTrends).toHaveBeenCalledWith(expect.anything(), "30d", "/my/project");
   });
 
   it("uses 7d and all as defaults", async () => {
-    mockedDiscover.mockReturnValue([]);
-    await request(buildApp()).get("/insights/commands-agents-skills");
-    expect(mockedCas).toHaveBeenCalledWith(expect.anything(), "7d", "all");
+    await request(buildApp()).get("/insights/trends");
+    expect(mockedTrends).toHaveBeenCalledWith(expect.anything(), "7d", "all");
+  });
+
+  it("returns 400 for invalid timeRange", async () => {
+    const res = await request(buildApp()).get("/insights/trends?timeRange=bad");
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts all valid timeRange values", async () => {
+    for (const tr of ["24h", "7d", "30d", "90d", "all"]) {
+      const res = await request(buildApp()).get(`/insights/trends?timeRange=${tr}`);
+      expect(res.status).toBe(200);
+    }
+  });
+
+  it("returns 500 when computeInsightsTrends throws", async () => {
+    mockedTrends.mockImplementationOnce(() => { throw new Error("compute failed"); });
+    const res = await request(buildApp()).get("/insights/trends");
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBeDefined();
   });
 });

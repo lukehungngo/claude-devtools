@@ -2,9 +2,8 @@ import { Router } from "express";
 import { discoverSessions } from "../../parser/session-discovery.js";
 import { computeInsightsAggregate } from "../../analyzer/insights-aggregator.js";
 import { computeInsightsActivity } from "../../analyzer/activity-aggregator.js";
-import { computeInsightsModelMix } from "../../analyzer/insights-model-mix.js";
-import { computeInsightsTopConsumers } from "../../analyzer/insights-top-consumers.js";
-import { computeInsightsCommandsAgentsSkills } from "../../analyzer/insights-commands-agents-skills.js";
+import { computeInsightsBreakdown } from "../../analyzer/breakdown-aggregator.js";
+import { computeInsightsTrends } from "../../analyzer/trends-aggregator.js";
 import type { InsightsTimeRange } from "../../types.js";
 import type { RouteContext } from "./route-context.js";
 
@@ -61,7 +60,7 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
     }
   });
 
-  router.get("/insights/model-mix", (req, res) => {
+  router.get("/insights/breakdown", (req, res) => {
     const timeRange = (req.query.timeRange as string) ?? "7d";
     const repo = (req.query.repo as string) ?? "all";
 
@@ -74,18 +73,18 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
 
     try {
       const sessions = discoverSessions();
-      const modelMix = computeInsightsModelMix(
+      const breakdown = computeInsightsBreakdown(
         sessions,
         timeRange as InsightsTimeRange,
         repo
       );
-      res.json(modelMix);
+      res.json(breakdown);
     } catch {
-      res.status(500).json({ error: "Failed to compute model mix" });
+      res.status(500).json({ error: "Failed to compute insights breakdown" });
     }
   });
 
-  router.get("/insights/top-consumers", (req, res) => {
+  router.get("/insights/trends", (req, res) => {
     const timeRange = (req.query.timeRange as string) ?? "7d";
     const repo = (req.query.repo as string) ?? "all";
 
@@ -98,38 +97,14 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
 
     try {
       const sessions = discoverSessions();
-      const topConsumers = computeInsightsTopConsumers(
+      const trends = computeInsightsTrends(
         sessions,
         timeRange as InsightsTimeRange,
         repo
       );
-      res.json(topConsumers);
+      res.json(trends);
     } catch {
-      res.status(500).json({ error: "Failed to compute top consumers" });
-    }
-  });
-
-  router.get("/insights/commands-agents-skills", (req, res) => {
-    const timeRange = (req.query.timeRange as string) ?? "7d";
-    const repo = (req.query.repo as string) ?? "all";
-
-    if (!VALID_TIME_RANGES.has(timeRange)) {
-      res.status(400).json({
-        error: `Invalid timeRange. Must be one of: ${[...VALID_TIME_RANGES].join(", ")}`,
-      });
-      return;
-    }
-
-    try {
-      const sessions = discoverSessions();
-      const data = computeInsightsCommandsAgentsSkills(
-        sessions,
-        timeRange as InsightsTimeRange,
-        repo
-      );
-      res.json(data);
-    } catch {
-      res.status(500).json({ error: "Failed to compute commands/agents/skills" });
+      res.status(500).json({ error: "Failed to compute insights trends" });
     }
   });
 

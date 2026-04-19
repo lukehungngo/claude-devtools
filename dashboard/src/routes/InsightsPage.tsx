@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { RefreshCw } from "lucide-react";
 import { useLayoutContext } from "../contexts/LayoutContext";
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { formatCost, formatTokens } from "../lib/cost";
@@ -8,10 +7,11 @@ import { TrendChart } from "../components/insights/TrendChart";
 import { useInsightsActivity } from "../hooks/useInsightsActivity.js";
 import { HeatmapGrid } from "../components/insights/HeatmapGrid.js";
 import { HourlyBars } from "../components/insights/HourlyBars.js";
-import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
-import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
-import { useInsightsCommandsAgentsSkills } from "../hooks/useInsightsCommandsAgentsSkills";
-import { CASRow, BADGE_PALETTE, abbreviateName } from "../components/insights/CASRow";
+import { useInsightsBreakdown } from "../hooks/useInsightsBreakdown";
+import { useInsightsTrends } from "../hooks/useInsightsTrends";
+import { ModelMix } from "../components/insights/ModelMix";
+import { TopConsumers } from "../components/insights/TopConsumers";
+import { TrendSection } from "../components/insights/TrendSection";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -24,6 +24,7 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
 ];
 
 const REPO_OPTIONS = [{ value: "all", label: "All repos" }];
+
 
 function formatHour(h: number): string {
   if (h === 0) return "12am";
@@ -71,6 +72,7 @@ function SegPill({ options, value, onChange, testId }: SegPillProps): JSX.Elemen
   );
 }
 
+
 interface DeltaChipProps {
   value: number | null;
   testId?: string;
@@ -79,36 +81,46 @@ interface DeltaChipProps {
 function DeltaChip({ value, testId }: DeltaChipProps): JSX.Element {
   if (value === null) {
     return (
-      <span data-testid={testId} className="text-dt-text2 text-xs font-mono">
+      <span data-testid={testId} className="text-dt-text2 text-xxs font-mono">
         —
       </span>
     );
   }
   const pct = (Math.abs(value) * 100).toFixed(1);
-  const isFlat = Math.abs(value) < 0.005;
-  if (isFlat) {
-    return (
-      <span
-        data-testid={testId}
-        className="text-xs font-mono font-semibold px-1.5 py-0.5 rounded-dt-xs text-dt-text2 bg-dt-bg2"
-      >
-        → {pct}%
-      </span>
-    );
-  }
-  const isUp = value > 0;
+  const positive = value >= 0;
   return (
     <span
       data-testid={testId}
       className={[
-        "text-xs font-mono font-semibold px-1.5 py-0.5 rounded-dt-xs",
-        isUp
-          ? "text-dt-red bg-dt-red/10"
-          : "text-dt-green bg-dt-green/10",
+        "text-xxs font-mono font-semibold px-1 py-0.5 rounded-dt-xs",
+        positive
+          ? "text-dt-green bg-dt-green/10"
+          : "text-dt-red bg-dt-red/10",
       ].join(" ")}
     >
-      {isUp ? "▲" : "▼"} {isUp ? "+" : "-"}{pct}%
+      {positive ? "+" : "-"}{pct}%
     </span>
+  );
+}
+
+function SparklinePlaceholder(): JSX.Element {
+  return (
+    <svg
+      width="64"
+      height="20"
+      viewBox="0 0 64 20"
+      className="text-dt-accent opacity-40"
+      aria-hidden="true"
+    >
+      <polyline
+        points="0,18 16,12 32,8 48,14 64,4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
@@ -131,35 +143,23 @@ function HeadlineTile({
   sparklineData,
   sparklineColor,
 }: HeadlineTileProps): JSX.Element {
+  const sparkline =
+    sparklineData && sparklineData.length > 0 ? (
+      <Sparkline data={sparklineData} color={sparklineColor} />
+    ) : (
+      <SparklinePlaceholder />
+    );
   return (
     <div
       data-testid={testId}
-      className="bg-dt-bg1 border border-dt-border rounded-dt relative overflow-hidden"
-      style={{ padding: "16px 18px" }}
+      className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-2"
     >
-      <span className="text-xs font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
-        {label}
-      </span>
-      <div
-        className="font-mono font-medium text-dt-text0 leading-none mt-1"
-        style={{ fontSize: "32px", letterSpacing: "-0.02em" }}
-      >
-        {value}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-mono text-dt-text2 tracking-wide">{label}</span>
+        {sparkline}
       </div>
-      <div className="mt-2">
-        <DeltaChip value={delta} testId={deltaTestId} />
-      </div>
-      {sparklineData && sparklineData.length > 1 && (
-        <div className="absolute bottom-3 right-2.5 opacity-80">
-          <Sparkline
-            data={sparklineData}
-            color={sparklineColor}
-            showArea
-            width={72}
-            height={36}
-          />
-        </div>
-      )}
+      <div className="text-2xl font-bold text-dt-text0 font-mono leading-none">{value}</div>
+      <DeltaChip value={delta} testId={deltaTestId} />
     </div>
   );
 }
@@ -182,23 +182,11 @@ function StatTile({
   return (
     <div
       data-testid={testId}
-      className="bg-dt-bg1 border border-dt-border rounded-dt"
-      style={{ padding: "14px 16px" }}
+      className="bg-dt-bg1 border border-dt-border rounded-dt p-4 flex flex-col gap-1.5"
     >
-      <span className="text-xs font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
-        {label}
-      </span>
-      <div
-        className="font-mono font-medium text-dt-text0 leading-none mt-1"
-        style={{ fontSize: "26px", letterSpacing: "-0.02em" }}
-      >
-        {value}
-      </div>
-      {delta !== undefined && (
-        <div className="mt-2">
-          <DeltaChip value={delta ?? null} testId={deltaTestId} />
-        </div>
-      )}
+      <span className="text-xs font-mono text-dt-text2 tracking-wide">{label}</span>
+      <div className="text-xl font-bold text-dt-text0 font-mono leading-none">{value}</div>
+      {delta !== undefined && <DeltaChip value={delta} testId={deltaTestId} />}
     </div>
   );
 }
@@ -206,61 +194,29 @@ function StatTile({
 interface SecondaryTileProps {
   label: string;
   value: string;
-  delta?: number | null;
-  deltaTestId?: string;
   testId?: string;
 }
 
-function SecondaryTile({ label, value, delta, deltaTestId, testId }: SecondaryTileProps): JSX.Element {
+function SecondaryTile({ label, value, testId }: SecondaryTileProps): JSX.Element {
   return (
     <div
       data-testid={testId}
-      className="bg-dt-bg1 border border-dt-border rounded-dt"
-      style={{ padding: "14px 16px" }}
+      className="bg-dt-bg1 border border-dt-border rounded-dt p-3.5 flex flex-col gap-1"
     >
-      <span className="text-xs font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
-        {label}
-      </span>
-      <div
-        className="font-mono font-medium text-dt-text0 leading-none mt-1"
-        style={{ fontSize: "26px", letterSpacing: "-0.02em" }}
-      >
-        {value}
-      </div>
-      {delta !== undefined && (
-        <div className="mt-2">
-          <DeltaChip value={delta ?? null} testId={deltaTestId} />
-        </div>
-      )}
+      <span className="text-xxs font-mono text-dt-text2 tracking-wide uppercase">{label}</span>
+      <div className="text-lg font-bold text-dt-text0 font-mono leading-none">{value}</div>
     </div>
   );
-}
-
-function modelColor(model: string): string {
-  if (model.includes("sonnet")) return "var(--accent)";
-  if (model.includes("opus")) return "var(--purple)";
-  if (model.includes("haiku")) return "var(--teal)";
-  return "var(--text-2)";
-}
-
-function formatTok(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
 }
 
 export function InsightsPage(): JSX.Element {
   const { setCurrentMetrics } = useLayoutContext();
   const [timeRange, setTimeRange] = useState<TimeRange>("7d");
   const [repo, setRepo] = useState("all");
-  const [refreshCount, setRefreshCount] = useState(0);
-  const { data, delta, loading, error } = useInsightsAggregate(timeRange, repo, refreshCount);
-  const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo, refreshCount);
-  const { data: modelMixData, loading: modelMixLoading } = useInsightsModelMix(timeRange, repo, refreshCount);
-  const { data: topConsumersData, loading: topConsumersLoading } = useInsightsTopConsumers(timeRange, repo, refreshCount);
-  const { data: casData, loading: casLoading } =
-    useInsightsCommandsAgentsSkills(timeRange, repo, refreshCount);
-  const anyLoading = loading || activityLoading || modelMixLoading || topConsumersLoading || casLoading;
+  const { data, delta, loading, error } = useInsightsAggregate(timeRange, repo);
+  const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo);
+  const { data: breakdownData, loading: breakdownLoading } = useInsightsBreakdown(timeRange, repo);
+  const { data: trendsData, loading: trendsLoading } = useInsightsTrends(timeRange, repo);
 
   useEffect(() => {
     setCurrentMetrics(null);
@@ -270,34 +226,22 @@ export function InsightsPage(): JSX.Element {
     <div className="flex-1 overflow-y-auto px-7 py-6 pb-14">
       <div className="max-w-screen-xl mx-auto flex flex-col gap-5">
         {/* Scope bar */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-xl font-semibold text-dt-text0 font-sans m-0" style={{ letterSpacing: "-0.01em" }}>
-              Insights
-            </h1>
-            <span className="text-md text-dt-text2 font-sans">
-              Aggregate usage across your repos and sessions
-            </span>
-          </div>
-          <div className="flex items-center gap-2.5 flex-wrap pt-1">
-            <SegPill options={REPO_OPTIONS} value={repo} onChange={setRepo} testId="repo-pill" />
-            <SegPill
-              options={TIME_RANGE_OPTIONS}
-              value={timeRange}
-              onChange={(v) => setTimeRange(v as TimeRange)}
-              testId="time-range-pill"
-            />
-            <button
-              data-testid="insights-reload-btn"
-              onClick={() => setRefreshCount((c) => c + 1)}
-              disabled={anyLoading}
-              title="Reload insights"
-              aria-label="Reload insights"
-              className="flex items-center justify-center text-dt-text3 hover:text-dt-text1 disabled:opacity-40 bg-transparent border-none cursor-pointer p-1 rounded"
-            >
-              <RefreshCw size={13} className={anyLoading ? "animate-spin" : ""} />
-            </button>
-          </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="flex-1 text-xl font-bold text-dt-text0 font-sans m-0">
+            Insights
+          </h1>
+          <SegPill
+            options={REPO_OPTIONS}
+            value={repo}
+            onChange={setRepo}
+            testId="repo-pill"
+          />
+          <SegPill
+            options={TIME_RANGE_OPTIONS}
+            value={timeRange}
+            onChange={(v) => setTimeRange(v as TimeRange)}
+            testId="time-range-pill"
+          />
         </div>
 
         {/* Error banner */}
@@ -311,40 +255,54 @@ export function InsightsPage(): JSX.Element {
           </div>
         )}
 
-        {/* Headline + Stat tiles: 5-col grid */}
-        {loading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            {([0, 1, 2, 3, 4] as const).map((i) => (
+        {/* Headline tiles: Tokens In + Tokens Out */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {loading ? (
+            <>
+              <div
+                data-testid="tile-skeleton"
+                className="bg-dt-bg1 border border-dt-border rounded-dt p-5 h-28 animate-pulse"
+              />
+              <div className="bg-dt-bg1 border border-dt-border rounded-dt p-5 h-28 animate-pulse" />
+            </>
+          ) : data ? (
+            <>
+              <HeadlineTile
+                label="Tokens In"
+                value={formatTokens(data.tokensIn)}
+                delta={delta?.tokensIn ?? null}
+                deltaTestId="delta-tokensIn"
+                testId="tile-tokensIn"
+                sparklineData={data.daily.map((d) => d.tokensIn)}
+                sparklineColor="teal"
+              />
+              <HeadlineTile
+                label="Tokens Out"
+                value={formatTokens(data.tokensOut)}
+                delta={delta?.tokensOut ?? null}
+                deltaTestId="delta-tokensOut"
+                testId="tile-tokensOut"
+                sparklineData={data.daily.map((d) => d.tokensOut)}
+                sparklineColor="purple"
+              />
+            </>
+          ) : null}
+        </div>
+
+        {/* Stat tiles: Cost, Sessions, Turns */}
+        {loading && !error ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {([0, 1, 2] as const).map((i) => (
               <div
                 key={i}
-                data-testid={i === 0 ? "tile-skeleton" : undefined}
-                className="bg-dt-bg1 border border-dt-border rounded-dt animate-pulse"
-                style={{ height: 88 }}
+                className="bg-dt-bg1 border border-dt-border rounded-dt p-4 h-20 animate-pulse"
               />
             ))}
           </div>
         ) : data ? (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <HeadlineTile
-              label="Tokens In"
-              value={formatTokens(data.tokensIn)}
-              delta={delta?.tokensIn ?? null}
-              deltaTestId="delta-tokensIn"
-              testId="tile-tokensIn"
-              sparklineData={data.daily.map((d) => d.tokensIn)}
-              sparklineColor="teal"
-            />
-            <HeadlineTile
-              label="Tokens Out"
-              value={formatTokens(data.tokensOut)}
-              delta={delta?.tokensOut ?? null}
-              deltaTestId="delta-tokensOut"
-              testId="tile-tokensOut"
-              sparklineData={data.daily.map((d) => d.tokensOut)}
-              sparklineColor="purple"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatTile
-              label="Total Cost"
+              label="Cost"
               value={formatCost(data.cost)}
               delta={delta?.cost ?? null}
               deltaTestId="delta-cost"
@@ -363,590 +321,153 @@ export function InsightsPage(): JSX.Element {
           </div>
         ) : null}
 
-        {/* Secondary tiles: 4-col grid */}
-        {data ? (
+        {/* Secondary tiles */}
+        {loading && !error ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {([0, 1, 2, 3] as const).map((i) => (
+              <div
+                key={i}
+                className="bg-dt-bg1 border border-dt-border rounded-dt p-3.5 h-16 animate-pulse"
+              />
+            ))}
+          </div>
+        ) : data ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <SecondaryTile
-              label="Avg Cost / Turn"
+              label="Avg cost/turn"
               value={formatCost(data.avgCostPerTurn)}
               testId="tile-avgCostPerTurn"
             />
             <SecondaryTile
-              label="Avg Tokens / Turn"
+              label="Avg tokens/turn"
               value={formatTokens(data.avgTokensPerTurn)}
               testId="tile-avgTokensPerTurn"
             />
             <SecondaryTile
-              label="Active Days"
+              label="Active days"
               value={String(data.activeDays)}
               testId="tile-activeDays"
             />
             <SecondaryTile
-              label="Peak Hour"
+              label="Peak hour"
               value={formatHour(data.peakHour)}
               testId="tile-peakHour"
             />
           </div>
         ) : null}
 
-        {/* Token trend card */}
+        {/* Token Usage Trend chart */}
         {data && (
           <div
             data-testid="section-trend-chart"
-            className="bg-dt-bg1 border border-dt-border rounded-dt"
-            style={{ padding: "18px 20px 16px" }}
+            className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-3"
           >
-            <div className="flex items-center gap-2.5">
-              <span className="text-lg font-semibold text-dt-text0" style={{ letterSpacing: "-0.01em" }}>
-                Token trend
+            <div className="flex items-center justify-between">
+              <span className="text-md font-semibold text-dt-text2 font-mono tracking-wide">
+                Token Usage Trend
               </span>
-              <div className="flex items-center gap-3 ml-auto">
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="inline-block rounded-full bg-dt-teal"
-                    style={{ width: 8, height: 8 }}
-                  />
-                  <span className="text-xs font-mono text-dt-text2">Tokens in</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="inline-block rounded-full bg-dt-purple"
-                    style={{ width: 8, height: 8 }}
-                  />
-                  <span className="text-xs font-mono text-dt-text2">Tokens out</span>
-                </span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-2 rounded-sm bg-dt-teal opacity-60" />
+                  <span className="text-xxs font-mono text-dt-text2">Tokens In</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-2 rounded-sm bg-dt-purple opacity-60" />
+                  <span className="text-xxs font-mono text-dt-text2">Tokens Out</span>
+                </div>
               </div>
-              <span className="text-xs font-mono text-dt-text2 ml-3">Hourly · last 7 days</span>
             </div>
-            <div className="mt-3">
-              <TrendChart daily={data.daily} />
-            </div>
+            <TrendChart daily={data.daily} />
           </div>
         )}
 
-        {/* When you work — heatmap + hourly with divider */}
-        <section data-testid="section-activity" className="bg-dt-bg1 border border-dt-border rounded-dt overflow-hidden">
+        {/* When you work — single card, heatmap + hourly side by side */}
+        <section data-testid="section-activity" className="dt-card p-4 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-dt-text0">When you work</h2>
+            <span className="text-xxs text-dt-text2">Last 7 days · by hour &amp; day</span>
+          </div>
           {activityLoading || !activityData ? (
-            <div className="m-5 h-36 bg-dt-bg2 rounded animate-pulse" />
+            <div className="h-36 bg-dt-bg2 rounded animate-pulse" />
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1px 1fr" }}>
-              <div style={{ padding: "18px 20px 16px" }}>
-                <span className="font-mono font-bold uppercase text-dt-text2 block mb-2.5" style={{ fontSize: 9, letterSpacing: "0.8px" }}>
-                  Weekday × hour
-                </span>
+            <div className="grid grid-cols-2 gap-6 items-start">
+              <div className="flex flex-col gap-2">
+                <span className="text-xxs text-dt-text2 uppercase tracking-wide">Weekday × Hour</span>
                 <HeatmapGrid heatmap={activityData.heatmap} />
               </div>
-              <div className="bg-dt-border" />
-              <div style={{ padding: "18px 20px 16px" }}>
-                <span className="font-mono font-bold uppercase text-dt-text2 block mb-2.5" style={{ fontSize: 9, letterSpacing: "0.8px" }}>
-                  Hour of day · avg tokens, all time
-                </span>
-                <HourlyBars hourly={activityData.hourly} />
-              </div>
+              <HourlyBars hourly={activityData.hourly} />
             </div>
           )}
         </section>
 
-        {/* Model Mix section */}
+        {/* M6 — Model Mix */}
         <div
           data-testid="section-model-mix"
-          className="bg-dt-bg1 border border-dt-border rounded-dt"
-          style={{ padding: "18px 20px 16px" }}
+          className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-3"
         >
-          <div className="flex items-center gap-2.5 mb-3.5">
-            <span className="text-lg font-semibold text-dt-text0" style={{ letterSpacing: "-0.01em" }}>
-              Model mix
-            </span>
-            {modelMixData && (
-              <span className="text-xs font-mono text-dt-text2 ml-auto">
-                Share of total tokens · {formatTokens(modelMixData.totalTokens)}
-              </span>
-            )}
-          </div>
-
-          {modelMixLoading || !modelMixData ? (
-            <div className="h-7 rounded-full bg-dt-bg2 animate-pulse mb-4" />
+          <span className="text-md font-semibold text-dt-text2 font-mono tracking-wide">
+            Model Mix
+          </span>
+          {breakdownLoading || !breakdownData ? (
+            <div className="h-24 bg-dt-bg2 rounded animate-pulse" />
           ) : (
-            <>
-              {/* Stacked proportion bar */}
-              <div
-                className="flex overflow-hidden mb-4"
-                style={{ height: 28, borderRadius: 999, boxShadow: "var(--shadow-xs)" }}
-              >
-                {modelMixData.models.map((m) => (
-                  <div
-                    key={m.model}
-                    title={`${m.model} · ${(m.share * 100).toFixed(0)}%`}
-                    style={{
-                      flex: m.share,
-                      background: modelColor(m.model),
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      overflow: "hidden",
-                      minWidth: 0,
-                    }}
-                  >
-                    {m.share > 0.08 && (
-                      <span
-                        className="font-mono font-semibold text-white"
-                        style={{ fontSize: 10, padding: "0 8px", overflow: "hidden" }}
-                      >
-                        {m.model.replace("claude-", "")} · {(m.share * 100).toFixed(0)}%
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Model rows */}
-              <div className="flex flex-col gap-2">
-                {modelMixData.models.map((m) => (
-                  <div
-                    key={m.model}
-                    className="grid items-center bg-dt-bg0 border border-dt-border rounded-dt"
-                    style={{ gridTemplateColumns: "180px 1fr 1fr 140px", padding: "14px 16px" }}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className="rounded flex-shrink-0"
-                        style={{ width: 14, height: 14, background: modelColor(m.model) }}
-                      />
-                      <div>
-                        <div className="text-lg font-semibold text-dt-text0">{m.model}</div>
-                        <div className="text-xs font-mono text-dt-text2 mt-0.5">
-                          {(m.share * 100).toFixed(0)}% of total · {m.turns} turns
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-0.5 px-3">
-                      <div
-                        className="text-xs font-mono font-bold uppercase flex items-center gap-1"
-                        style={{ letterSpacing: "0.5px", color: "var(--teal)" }}
-                      >
-                        <span
-                          className="inline-block rounded-full"
-                          style={{ width: 6, height: 6, background: "var(--teal)" }}
-                        />
-                        TOKENS IN
-                      </div>
-                      <div
-                        className="font-mono font-medium text-dt-text0"
-                        style={{ fontSize: 24, letterSpacing: "-0.02em", lineHeight: 1 }}
-                      >
-                        {formatTokens(m.tokensIn)}
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-0.5 px-3">
-                      <div
-                        className="text-xs font-mono font-bold uppercase flex items-center gap-1"
-                        style={{ letterSpacing: "0.5px", color: "var(--purple)" }}
-                      >
-                        <span
-                          className="inline-block rounded-full"
-                          style={{ width: 6, height: 6, background: "var(--purple)" }}
-                        />
-                        TOKENS OUT
-                      </div>
-                      <div
-                        className="font-mono font-medium text-dt-text0"
-                        style={{ fontSize: 24, letterSpacing: "-0.02em", lineHeight: 1 }}
-                      >
-                        {formatTokens(m.tokensOut)}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xl font-semibold text-dt-text0">{formatCost(m.cost)}</div>
-                      <div className="text-xs font-mono text-dt-text2 mt-0.5">total spend</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
+            <ModelMix models={breakdownData.models} />
           )}
         </div>
 
-        {/* Top Consumers section */}
-        <div data-testid="section-top-consumers" className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Top repos card */}
-          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
-            <div className="text-lg font-semibold text-dt-text0 mb-3">
-              Top repos{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by token spend</span>
-            </div>
-            {topConsumersLoading ? (
-              <div className="flex flex-col gap-2">
-                {([0, 1, 2] as const).map((i) => (
-                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {(topConsumersData?.repos ?? []).map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                    style={{ gridTemplateColumns: "26px 1fr 80px" }}
-                  >
-                    <div
-                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
-                      style={{ width: 22, height: 22 }}
-                    >
-                      {idx + 1}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-md font-semibold text-dt-text0 truncate">{item.repo}</div>
-                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
-                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--purple)" }} />
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{formatTokens(item.totalTokens)}</div>
-                      <span className="text-xs font-mono text-dt-text2">tokens</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Top sessions card */}
-          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
-            <div className="text-lg font-semibold text-dt-text0 mb-3">
-              Top sessions{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by cost</span>
-            </div>
-            {topConsumersLoading ? (
-              <div className="flex flex-col gap-2">
-                {([0, 1, 2] as const).map((i) => (
-                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {(topConsumersData?.sessions ?? []).map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                    style={{ gridTemplateColumns: "26px 1fr 80px" }}
-                  >
-                    <div
-                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
-                      style={{ width: 22, height: 22 }}
-                    >
-                      {idx + 1}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-md font-semibold text-dt-text0 truncate">{`${item.repo} · ${item.date}`}</div>
-                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
-                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--accent)" }} />
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{formatCost(item.cost)}</div>
-                      <span className="text-xs font-mono text-dt-text2">spend</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Top tool calls card */}
-          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
-            <div className="text-lg font-semibold text-dt-text0 mb-3">
-              Top tool calls{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by count</span>
-            </div>
-            {topConsumersLoading ? (
-              <div className="flex flex-col gap-2">
-                {([0, 1, 2] as const).map((i) => (
-                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {(topConsumersData?.tools ?? []).map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                    style={{ gridTemplateColumns: "26px 1fr 80px" }}
-                  >
-                    <div
-                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
-                      style={{ width: 22, height: 22 }}
-                    >
-                      {idx + 1}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-md font-semibold text-dt-text0 truncate">{item.name}</div>
-                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
-                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--teal)" }} />
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{item.count.toLocaleString()}</div>
-                      <span className="text-xs font-mono text-dt-text2">calls</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        {/* M6 — Top Consumers */}
+        <div
+          data-testid="section-top-consumers"
+          className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-3"
+        >
+          <span className="text-md font-semibold text-dt-text2 font-mono tracking-wide">
+            Top Consumers
+          </span>
+          {breakdownLoading || !breakdownData ? (
+            <div className="h-32 bg-dt-bg2 rounded animate-pulse" />
+          ) : (
+            <TopConsumers
+              topRepos={breakdownData.topRepos}
+              topSessions={breakdownData.topSessions}
+              topTools={breakdownData.topTools}
+            />
+          )}
         </div>
 
-        {/* Commands, Agents, Skills + Efficiency Hints coming soon */}
-        <div className="flex flex-col gap-3">
-          {/* Commands card */}
-          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-commands">
-            <div className="text-lg font-semibold text-dt-text0 mb-3">
-              Commands{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by invocations</span>
-            </div>
-            {casLoading ? (
-              <div className="flex flex-col gap-2">
-                {([0, 1, 2] as const).map((i) => (
-                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
-                ))}
-              </div>
-            ) : (casData?.commands ?? []).length === 0 ? (
-              <div className="text-sm text-dt-text2 py-4 text-center">No slash commands found</div>
-            ) : (
-              <div className="flex gap-4">
-                {/* Left panel: ranked list */}
-                <div className="flex flex-col gap-1.5" style={{ width: "50%", flexShrink: 0 }}>
-                  {(casData?.commands ?? []).map((item, idx) => (
-                    <div
-                      key={item.name}
-                      className="px-2 py-2 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                      style={{ display: "grid", gridTemplateColumns: "26px 1fr 52px 64px 64px", alignItems: "center", gap: "0 8px" }}
-                    >
-                      <div
-                        className="font-mono text-xs font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2"
-                        style={{ width: 22, height: 22 }}
-                      >
-                        {idx + 1}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-mono font-semibold text-dt-text0 truncate" title={item.name}>{item.name}</div>
-                        <div
-                          className="rounded overflow-hidden mt-1"
-                          style={{ height: 3, background: "var(--border)" }}
-                          role="progressbar"
-                          aria-valuenow={Math.round(item.share * 100)}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-label={`${item.name} — ${Math.round(item.share * 100)}% share of invocations`}
-                        >
-                          <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--teal)" }} />
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[10px] font-mono text-dt-text2">calls</div>
-                        <div className="text-sm font-mono font-semibold text-dt-text0 leading-none mt-0.5">{item.count.toLocaleString()}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[10px] font-mono text-dt-text2">avg</div>
-                        <div className="text-sm font-mono font-semibold text-dt-text0 leading-none mt-0.5">{formatTok(item.avgTokensIn)} in</div>
-                        <div className="text-sm font-mono text-dt-text1 leading-none mt-0.5">{formatTok(item.avgTokensOut)} out</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[10px] font-mono text-dt-text2">total</div>
-                        <div className="text-sm font-mono font-semibold text-dt-text0 leading-none mt-0.5">{formatTok(item.tokensIn)} in</div>
-                        <div className="text-sm font-mono text-dt-text1 leading-none mt-0.5">{formatTok(item.tokensOut)} out</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+        {/* M7 — Commands / Agents / Skills */}
+        {trendsLoading || !trendsData ? (
+          <div className="bg-dt-bg1 border border-dt-border rounded-dt p-5 h-32 animate-pulse" />
+        ) : (
+          <>
+            <TrendSection
+              testId="section-commands"
+              title="Commands"
+              entries={trendsData.commands}
+            />
+            <TrendSection
+              testId="section-agents"
+              title="Agents"
+              entries={trendsData.agents}
+            />
+            <TrendSection
+              testId="section-skills"
+              title="Skills"
+              entries={trendsData.skills}
+            />
+          </>
+        )}
 
-                {/* Right panel: CASRow cards */}
-                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                  {(casData?.commands ?? []).map((item, idx) => (
-                    <CASRow
-                      key={item.name}
-                      name={item.name}
-                      daily={item.daily}
-                      count={item.count}
-                      trend={item.trend}
-                      badgeIndex={idx}
-                      sparklineColor="teal"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+        {/* M8 placeholder (not yet implemented) */}
+        <div
+          data-testid="section-card-efficiency-hints"
+          className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-3"
+        >
+          <div className="text-md font-semibold text-dt-text2 font-mono tracking-wide">
+            Efficiency Hints
           </div>
-
-          {/* Agents card */}
-          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-agents">
-            <div className="text-lg font-semibold text-dt-text0 mb-3">
-              Agents{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by dispatches</span>
-            </div>
-            {casLoading ? (
-              <div className="flex flex-col gap-2">
-                {([0, 1, 2] as const).map((i) => (
-                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
-                ))}
-              </div>
-            ) : (casData?.agents ?? []).length === 0 ? (
-              <div className="text-sm text-dt-text2 py-4 text-center">No agent dispatches found</div>
-            ) : (
-              <div className="flex gap-4">
-                {/* Left panel: ranked list */}
-                <div className="flex flex-col gap-1.5" style={{ width: "50%", flexShrink: 0 }}>
-                  {(casData?.agents ?? []).map((item, idx) => {
-                    const badgeColor = BADGE_PALETTE[idx % BADGE_PALETTE.length];
-                    const abbrev = abbreviateName(item.type);
-                    return (
-                      <div
-                        key={item.type}
-                        className="px-2 py-2 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                        style={{ display: "grid", gridTemplateColumns: "32px 1fr 52px 64px 64px", alignItems: "center", gap: "0 8px" }}
-                      >
-                        <div
-                          aria-hidden="true"
-                          className="font-mono text-[11px] font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0"
-                          style={{ width: 32, height: 22, background: badgeColor }}
-                        >
-                          {abbrev}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-mono font-semibold text-dt-text0 truncate" title={item.type}>{item.type}</div>
-                          <div
-                            className="rounded overflow-hidden mt-1"
-                            style={{ height: 3, background: "var(--border)" }}
-                            role="progressbar"
-                            aria-valuenow={Math.round(item.share * 100)}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-label={`${item.type} — ${Math.round(item.share * 100)}% share of dispatches`}
-                          >
-                            <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: badgeColor }} />
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-[10px] font-mono text-dt-text2">runs</div>
-                          <div className="text-sm font-mono font-semibold text-dt-text0 leading-none mt-0.5">{item.count.toLocaleString()}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-[10px] font-mono text-dt-text2">avg</div>
-                          <div className="text-sm font-mono font-semibold text-dt-text0 leading-none mt-0.5">{formatTok(item.avgTokensIn)} in</div>
-                          <div className="text-sm font-mono text-dt-text1 leading-none mt-0.5">{formatTok(item.avgTokensOut)} out</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-[10px] font-mono text-dt-text2">total</div>
-                          <div className="text-sm font-mono font-semibold text-dt-text0 leading-none mt-0.5">{formatTok(item.tokensIn)} in</div>
-                          <div className="text-sm font-mono text-dt-text1 leading-none mt-0.5">{formatTok(item.tokensOut)} out</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Right panel: CASRow cards */}
-                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                  {(casData?.agents ?? []).map((item, idx) => (
-                    <CASRow
-                      key={item.type}
-                      name={item.type}
-                      daily={item.daily}
-                      count={item.count}
-                      trend={item.trend}
-                      badgeIndex={idx}
-                      sparklineColor="purple"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Skills card */}
-          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-skills">
-            <div className="text-lg font-semibold text-dt-text0 mb-3">
-              Skills{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by invocations</span>
-            </div>
-            {casLoading ? (
-              <div className="flex flex-col gap-2">
-                {([0, 1, 2] as const).map((i) => (
-                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
-                ))}
-              </div>
-            ) : (casData?.skills ?? []).length === 0 ? (
-              <div className="text-sm text-dt-text2 py-4 text-center">No skill invocations found</div>
-            ) : (
-              <div className="flex gap-4">
-                {/* Left panel: ranked list */}
-                <div className="flex flex-col gap-1.5" style={{ width: "50%", flexShrink: 0 }}>
-                  {(casData?.skills ?? []).map((item, idx) => (
-                    <div
-                      key={item.name}
-                      className="px-2 py-2 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                      style={{ display: "grid", gridTemplateColumns: "26px 1fr 52px 64px 64px", alignItems: "center", gap: "0 8px" }}
-                    >
-                      <div
-                        className="font-mono text-xs font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2"
-                        style={{ width: 22, height: 22 }}
-                      >
-                        {idx + 1}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-mono font-semibold text-dt-text0 truncate" title={item.name}>{item.name}</div>
-                        <div
-                          className="rounded overflow-hidden mt-1"
-                          style={{ height: 3, background: "var(--border)" }}
-                          role="progressbar"
-                          aria-valuenow={Math.round(item.share * 100)}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-label={`${item.name} — ${Math.round(item.share * 100)}% share of invocations`}
-                        >
-                          <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--teal)" }} />
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[10px] font-mono text-dt-text2">runs</div>
-                        <div className="text-sm font-mono font-semibold text-dt-text0 leading-none mt-0.5">{item.count.toLocaleString()}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[10px] font-mono text-dt-text2">avg</div>
-                        <div className="text-sm font-mono font-semibold text-dt-text0 leading-none mt-0.5">{formatTok(item.avgTokensIn)} in</div>
-                        <div className="text-sm font-mono text-dt-text1 leading-none mt-0.5">{formatTok(item.avgTokensOut)} out</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[10px] font-mono text-dt-text2">total</div>
-                        <div className="text-sm font-mono font-semibold text-dt-text0 leading-none mt-0.5">{formatTok(item.tokensIn)} in</div>
-                        <div className="text-sm font-mono text-dt-text1 leading-none mt-0.5">{formatTok(item.tokensOut)} out</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Right panel: CASRow cards */}
-                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                  {(casData?.skills ?? []).map((item, idx) => (
-                    <CASRow
-                      key={item.name}
-                      name={item.name}
-                      daily={item.daily}
-                      count={item.count}
-                      trend={item.trend}
-                      badgeIndex={idx}
-                      sparklineColor="teal"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Efficiency Hints — coming soon */}
-        <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-efficiency-hints">
-          <div className="text-lg font-semibold text-dt-text0 mb-1">Efficiency Hints</div>
-          <div className="text-sm text-dt-text2">Coming soon — pattern-based usage recommendations.</div>
+          <div className="h-2.5 rounded bg-dt-bg2 w-4/5" />
+          <div className="h-2.5 rounded bg-dt-bg2 w-3/5" />
+          <div className="h-2.5 rounded bg-dt-bg2 w-2/5" />
         </div>
       </div>
     </div>

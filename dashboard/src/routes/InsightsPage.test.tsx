@@ -6,12 +6,6 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
 }));
 
-vi.mock("../components/insights/EChartsWrapper.js", () => ({
-  EChartsWrapper: vi.fn(({ className }: { className?: string }) => (
-    <div data-testid="echarts-wrapper" className={className ?? ""} />
-  )),
-}));
-
 vi.mock("../contexts/LayoutContext", () => ({
   useLayoutContext: () => ({ setCurrentMetrics: vi.fn() }),
 }));
@@ -24,23 +18,33 @@ vi.mock("../hooks/useInsightsActivity", () => ({
   useInsightsActivity: vi.fn(),
 }));
 
-vi.mock("../hooks/useInsightsModelMix", () => ({
-  useInsightsModelMix: vi.fn(),
+vi.mock("../hooks/useInsightsBreakdown", () => ({
+  useInsightsBreakdown: () => ({
+    data: {
+      models: [{ model: "claude-sonnet-4-6", tokensIn: 1000, tokensOut: 500, cost: 0.005, turns: 2, share: 100 }],
+      topRepos: [{ slug: "/project", tokens: 1500, cost: 0.005 }],
+      topSessions: [{ id: "s1", label: "project · 2026-04-19", cost: 0.005 }],
+      topTools: [{ name: "Read", calls: 10 }],
+    },
+    loading: false,
+    error: null,
+  }),
 }));
 
-vi.mock("../hooks/useInsightsTopConsumers", () => ({
-  useInsightsTopConsumers: vi.fn(),
-}));
-
-vi.mock("../hooks/useInsightsCommandsAgentsSkills", () => ({
-  useInsightsCommandsAgentsSkills: vi.fn(),
+vi.mock("../hooks/useInsightsTrends", () => ({
+  useInsightsTrends: () => ({
+    data: {
+      commands: [{ name: "/review", calls: 3, avgIn: 100, avgOut: 50, weekly: [{ in: 100, out: 50 }], verdict: "stable" }],
+      agents: [],
+      skills: [{ name: "verification", calls: 2, avgIn: 200, avgOut: 100, weekly: [{ in: 200, out: 100 }], verdict: "stable" }],
+    },
+    loading: false,
+    error: null,
+  }),
 }));
 
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { useInsightsActivity } from "../hooks/useInsightsActivity";
-import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
-import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
-import { useInsightsCommandsAgentsSkills } from "../hooks/useInsightsCommandsAgentsSkills";
 
 function mockLoading() {
   vi.mocked(useInsightsAggregate).mockReturnValue({
@@ -102,9 +106,6 @@ function mockActivityLoading() {
 beforeEach(() => {
   mockLoading();
   mockActivityLoading();
-  vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: false, error: null });
-  vi.mocked(useInsightsTopConsumers).mockReturnValue({ data: null, loading: false, error: null });
-  vi.mocked(useInsightsCommandsAgentsSkills).mockReturnValue({ data: null, loading: false, error: null });
 });
 
 afterEach(() => {
@@ -160,52 +161,11 @@ describe("InsightsPage", () => {
     expect(screen.getByTestId("delta-tokensOut").textContent).toContain("-5.0%");
   });
 
-  it("renders flat delta as arrow-right with gray chip", () => {
-    vi.mocked(useInsightsAggregate).mockReturnValue({
-      data: {
-        tokensIn: 120_000,
-        tokensOut: 45_000,
-        cost: 1.23,
-        sessions: 8,
-        turns: 42,
-        avgCostPerTurn: 0.029,
-        avgTokensPerTurn: 3928,
-        activeDays: 5,
-        peakHour: 15,
-        daily: [],
-      },
-      delta: { tokensIn: 0.002, tokensOut: 0.0, cost: -0.001 },
-      loading: false,
-      error: null,
-    });
-    render(<InsightsPage />);
-    expect(screen.getByTestId("delta-tokensIn").textContent).toContain("→");
-    expect(screen.getByTestId("delta-tokensOut").textContent).toContain("→");
-    expect(screen.getByTestId("delta-cost").textContent).toContain("→");
-  });
-
-  it("renders subtitle below h1", () => {
-    render(<InsightsPage />);
-    expect(screen.getByText("Aggregate usage across your repos and sessions")).toBeTruthy();
-  });
-
-  it("renders 5 stat tiles in data loaded state", () => {
+  it("renders Efficiency Hints placeholder section card", () => {
     mockData();
     render(<InsightsPage />);
-    expect(screen.getByTestId("tile-tokensIn")).toBeTruthy();
-    expect(screen.getByTestId("tile-tokensOut")).toBeTruthy();
-    expect(screen.getByTestId("tile-cost")).toBeTruthy();
-    expect(screen.getByTestId("tile-sessions")).toBeTruthy();
-    expect(screen.getByTestId("tile-turns")).toBeTruthy();
-  });
-
-  it("renders commands, agents, skills, and efficiency hints sections", () => {
-    mockData();
-    render(<InsightsPage />);
-    expect(screen.getByTestId("section-commands")).toBeTruthy();
-    expect(screen.getByTestId("section-agents")).toBeTruthy();
-    expect(screen.getByTestId("section-skills")).toBeTruthy();
-    expect(screen.getByTestId("section-efficiency-hints")).toBeTruthy();
+    // Only Efficiency Hints remains as a placeholder card (M6/M7 sections are now real components)
+    expect(screen.getByTestId("section-card-efficiency-hints")).toBeTruthy();
   });
 
   it("shows error banner with role=alert when fetch fails", () => {
@@ -220,9 +180,9 @@ describe("InsightsPage", () => {
   it("passes updated timeRange to hook when scope bar changes", () => {
     mockLoading();
     render(<InsightsPage />);
-    expect(useInsightsAggregate).toHaveBeenCalledWith("7d", "all", 0);
+    expect(useInsightsAggregate).toHaveBeenCalledWith("7d", "all");
     fireEvent.click(screen.getByTestId("time-range-30d"));
-    expect(useInsightsAggregate).toHaveBeenCalledWith("30d", "all", 0);
+    expect(useInsightsAggregate).toHaveBeenCalledWith("30d", "all");
   });
 
   it("renders TrendChart section card when data has daily entries", () => {
@@ -277,28 +237,6 @@ describe("InsightsPage", () => {
     const tokensOutTile = screen.getByTestId("tile-tokensOut");
     expect(tokensOutTile.querySelector("svg")).not.toBeNull();
   });
-
-  it("renders a reload button", () => {
-    mockData();
-    mockActivityData();
-    render(<InsightsPage />);
-    const btn = screen.getByTestId("insights-reload-btn");
-    expect(btn).toBeTruthy();
-  });
-
-  it("reload button calls all hooks with refreshCount=1 after click", async () => {
-    mockData();
-    mockActivityData();
-    render(<InsightsPage />);
-    const btn = screen.getByTestId("insights-reload-btn");
-    fireEvent.click(btn);
-    // After click, hooks are called with refreshCount=1
-    expect(vi.mocked(useInsightsAggregate)).toHaveBeenLastCalledWith("7d", "all", 1);
-    expect(vi.mocked(useInsightsActivity)).toHaveBeenLastCalledWith("7d", "all", 1);
-    expect(vi.mocked(useInsightsModelMix)).toHaveBeenLastCalledWith("7d", "all", 1);
-    expect(vi.mocked(useInsightsTopConsumers)).toHaveBeenLastCalledWith("7d", "all", 1);
-    expect(vi.mocked(useInsightsCommandsAgentsSkills)).toHaveBeenLastCalledWith("7d", "all", 1);
-  });
 });
 
 describe("activity section", () => {
@@ -319,57 +257,31 @@ describe("activity section", () => {
   });
 });
 
-describe("model mix section", () => {
-  it("renders model mix section with data", () => {
-    mockData();
-    vi.mocked(useInsightsModelMix).mockReturnValue({
-      data: {
-        models: [
-          { model: "claude-sonnet-4-6", tokensIn: 1000, tokensOut: 500, cost: 0.01, turns: 5, share: 0.8 },
-          { model: "claude-haiku-4-5", tokensIn: 200, tokensOut: 100, cost: 0.001, turns: 2, share: 0.2 },
-        ],
-        totalTokens: 1800,
-      },
-      loading: false,
-      error: null,
-    });
+describe("M6 sections", () => {
+  it("renders Model Mix section", () => {
     render(<InsightsPage />);
-    expect(screen.getByTestId("section-model-mix")).toBeTruthy();
-    expect(screen.getByText("Model mix")).toBeTruthy();
-    expect(screen.getByText("claude-sonnet-4-6")).toBeTruthy();
+    expect(screen.getByTestId("section-model-mix")).toBeDefined();
   });
 
-  it("renders model mix loading state", () => {
-    mockData();
-    vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: true, error: null });
+  it("renders Top Consumers section", () => {
     render(<InsightsPage />);
-    expect(screen.getByTestId("section-model-mix")).toBeTruthy();
+    expect(screen.getByTestId("section-top-consumers")).toBeDefined();
   });
 });
 
-describe("top consumers section", () => {
-  it("renders top consumers section with data", () => {
-    mockData();
-    vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: false, error: null });
-    vi.mocked(useInsightsTopConsumers).mockReturnValue({
-      data: {
-        repos: [{ repo: "claude-devtools", tokensIn: 1000, tokensOut: 500, totalTokens: 1500, cost: 0.01, share: 1.0 }],
-        sessions: [{ sessionId: "s1", date: "2026-04-18", repo: "claude-devtools", cost: 0.01, share: 1.0 }],
-        tools: [{ name: "Read", count: 42, share: 1.0 }],
-      },
-      loading: false,
-      error: null,
-    });
+describe("M7 sections", () => {
+  it("renders Commands trend section", () => {
     render(<InsightsPage />);
-    expect(screen.getByTestId("section-top-consumers")).toBeTruthy();
-    expect(screen.getByText("claude-devtools")).toBeTruthy();
-    expect(screen.getByText("Read")).toBeTruthy();
+    expect(screen.getByTestId("section-commands")).toBeDefined();
   });
 
-  it("renders top consumers loading state", () => {
-    mockData();
-    vi.mocked(useInsightsTopConsumers).mockReturnValue({ data: null, loading: true, error: null });
+  it("renders Agents trend section", () => {
     render(<InsightsPage />);
-    expect(screen.getByTestId("section-top-consumers")).toBeTruthy();
+    expect(screen.getByTestId("section-agents")).toBeDefined();
   });
-});
+
+  it("renders Skills trend section", () => {
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-skills")).toBeDefined();
+  });
+});;

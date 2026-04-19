@@ -312,91 +312,58 @@ export interface InsightsActivity {
   hourly: InsightsHourlyBucket[];
 }
 
-export interface InsightsModelRow {
-  model: string;      // e.g. "claude-sonnet-4-6"
+// === Insights Breakdown Types ===
+
+export interface InsightsModelEntry {
+  model: string;
   tokensIn: number;
   tokensOut: number;
   cost: number;
   turns: number;
-  share: number;      // fraction 0-1 of total tokens
+  share: number; // 0-100, percentage of total cost
 }
 
-export interface InsightsModelMix {
-  models: InsightsModelRow[];   // sorted by total tokens desc
-  totalTokens: number;
-}
-
-export interface InsightsTopRepoRow {
-  repo: string;         // basename of cwd
-  tokensIn: number;
-  tokensOut: number;
-  totalTokens: number;
+export interface InsightsTopRepo {
+  slug: string;
+  tokens: number;
   cost: number;
-  share: number;        // fraction 0-1 of #1 entry's totalTokens
 }
 
-export interface InsightsTopSessionRow {
-  sessionId: string;
-  date: string;         // "YYYY-MM-DD"
-  repo: string;
+export interface InsightsTopSession {
+  id: string;
+  label: string;
   cost: number;
-  share: number;        // fraction 0-1 of #1 entry's cost
 }
 
-export interface InsightsTopToolRow {
+export interface InsightsTopTool {
   name: string;
-  count: number;
-  share: number;        // fraction 0-1 of #1 entry's count
+  calls: number;
 }
 
-export interface InsightsTopConsumers {
-  repos: InsightsTopRepoRow[];       // top 5
-  sessions: InsightsTopSessionRow[]; // top 5
-  tools: InsightsTopToolRow[];       // top 5
+export interface InsightsBreakdown {
+  models: InsightsModelEntry[];
+  topRepos: InsightsTopRepo[];
+  topSessions: InsightsTopSession[];
+  topTools: InsightsTopTool[];
 }
 
-export type CasTrend = "improving" | "stable" | "regressing";
+// === Insights Trends Types ===
 
-export interface InsightsCommandRow {
-  name: string;    // e.g. "/compact"
-  count: number;
-  share: number;   // fraction 0-1 of #1 entry's count
-  daily: number[]; // call counts per day in time window, oldest first
-  trend: CasTrend;
-  tokensIn: number;
-  tokensOut: number;
-  avgTokensIn: number;
-  avgTokensOut: number;
+export type TrendVerdict = "improving" | "stable" | "regressing";
+
+export interface InsightsTrendEntry {
+  name: string;
+  calls: number;
+  avgIn: number;
+  avgOut: number;
+  weekly: Array<{ in: number; out: number }>;
+  verdict: TrendVerdict;
 }
 
-export interface InsightsAgentRow {
-  type: string;    // subagent_type or description, e.g. "mas:engineer:engineer"
-  count: number;
-  share: number;
-  daily: number[]; // call counts per day in time window, oldest first
-  trend: CasTrend;
-  tokensIn: number;
-  tokensOut: number;
-  avgTokensIn: number;
-  avgTokensOut: number;
-}
-
-export interface InsightsSkillRow {
-  name: string;    // input.skill value, e.g. "verification"
-  count: number;
-  share: number;
-  daily: number[]; // call counts per day in time window, oldest first
-  trend: CasTrend;
-  tokensIn: number;
-  tokensOut: number;
-  avgTokensIn: number;
-  avgTokensOut: number;
-}
-
-export interface InsightsCommandsAgentsSkills {
-  commands: InsightsCommandRow[];  // top 10, sorted by count desc
-  agents: InsightsAgentRow[];      // top 10, sorted by count desc
-  skills: InsightsSkillRow[];      // top 10, sorted by count desc
+export interface InsightsTrends {
+  commands: InsightsTrendEntry[];
+  agents: InsightsTrendEntry[];
+  skills: InsightsTrendEntry[];
 }
 
 export interface PermissionSuggestion {
