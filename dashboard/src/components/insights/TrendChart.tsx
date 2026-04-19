@@ -1,5 +1,9 @@
+import { useMemo } from "react";
+import type { EChartsOption } from "echarts";
+import { EChartsWrapper } from "./EChartsWrapper.js";
+
 interface DailyPoint {
-  date: string; // "YYYY-MM-DD"
+  date: string;
   tokensIn: number;
   tokensOut: number;
 }
@@ -9,152 +13,85 @@ interface TrendChartProps {
   className?: string;
 }
 
-const VB_W = 400;
-const VB_H = 100;
-
-function xPos(i: number, n: number): number {
-  return n <= 1 ? 200 : (i / (n - 1)) * VB_W;
+function getCSSVar(name: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  const val = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  return val || fallback;
 }
 
-function yPos(v: number, maxTotal: number): number {
-  return VB_H - (v / maxTotal) * VB_H;
-}
+export function buildTrendChartOption(daily: DailyPoint[]): EChartsOption {
+  const teal = getCSSVar("--teal", "#4B8A8A");
+  const purple = getCSSVar("--purple", "#8B6BAF");
+  const border = getCSSVar("--border", "#E5E1D8");
+  const text2 = getCSSVar("--text-2", "#8B8780");
 
-function buildAreaPath(
-  topYs: number[],
-  bottomYs: number[],
-  xs: number[]
-): string {
-  const n = xs.length;
-  // Forward along top edge
-  const top = xs
-    .map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${topYs[i].toFixed(1)}`)
-    .join(" ");
-  // Back along bottom edge (reversed)
-  const bottom = [...Array(n)]
-    .map((_, ri) => {
-      const i = n - 1 - ri;
-      return `L${xs[i].toFixed(1)},${bottomYs[i].toFixed(1)}`;
-    })
-    .join(" ");
-  return `${top} ${bottom} Z`;
+  return {
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "cross" },
+    },
+    legend: {
+      show: false,
+    },
+    grid: { left: 0, right: 0, top: 8, bottom: 28, containLabel: true },
+    xAxis: {
+      type: "category",
+      data: daily.map((d) => d.date.slice(5)),
+      axisLine: { lineStyle: { color: border } },
+      axisTick: { show: false },
+      axisLabel: { color: text2, fontSize: 9 },
+    },
+    yAxis: {
+      type: "value",
+      splitLine: { lineStyle: { color: border } },
+      axisLabel: { show: false },
+    },
+    series: [
+      {
+        name: "Tokens In",
+        type: "line",
+        data: daily.map((d) => d.tokensIn),
+        stack: "total",
+        smooth: true,
+        color: teal,
+        areaStyle: { color: teal, opacity: 0.25 },
+        showSymbol: false,
+        lineStyle: { width: 1.5, color: teal },
+      },
+      {
+        name: "Tokens Out",
+        type: "line",
+        data: daily.map((d) => d.tokensOut),
+        stack: "total",
+        smooth: true,
+        color: purple,
+        areaStyle: { color: purple, opacity: 0.25 },
+        showSymbol: false,
+        lineStyle: { width: 1.5, color: purple },
+      },
+    ],
+  };
 }
 
 export function TrendChart({ daily, className }: TrendChartProps): JSX.Element {
+  const option = useMemo(() => buildTrendChartOption(daily), [daily]);
+
   if (daily.length === 0) {
     return (
-      <div className="h-28 flex items-center justify-center text-dt-text2 text-xs font-mono">
+      <div
+        className={`h-28 flex items-center justify-center text-dt-text2 text-xs font-mono ${className ?? ""}`}
+      >
         No data
       </div>
     );
   }
 
-  const n = daily.length;
-  const maxTotal = Math.max(...daily.map((d) => d.tokensIn + d.tokensOut), 1);
-
-  const xs = daily.map((_, i) => xPos(i, n));
-  const yIns = daily.map((d) => yPos(d.tokensIn, maxTotal));
-  const yTotals = daily.map((d) => yPos(d.tokensIn + d.tokensOut, maxTotal));
-  const zeroYs = daily.map(() => VB_H);
-
-  const insAreaPath = buildAreaPath(yIns, zeroYs, xs);
-  const outAreaPath = buildAreaPath(yTotals, yIns, xs);
-
-  const insPolylinePoints = xs.map((x, i) => `${x.toFixed(1)},${yIns[i].toFixed(1)}`).join(" ");
-  const totalPolylinePoints = xs
-    .map((x, i) => `${x.toFixed(1)},${yTotals[i].toFixed(1)}`)
-    .join(" ");
-
-  // Date labels: show at most 7; always include index 0 and index n-1
-  const labelStep = Math.max(1, Math.ceil(n / 7));
-  const indices = [
-    ...new Set(
-      daily.reduce<number[]>((acc, _, i) => {
-        if (i === 0 || i === n - 1 || i % labelStep === 0) acc.push(i);
-        return acc;
-      }, [])
-    ),
-  ].sort((a, b) => a - b);
-
-  const gridYs = [75, 50, 25];
-
   return (
     <div className={`flex flex-col gap-1 ${className ?? ""}`}>
-      <svg
-        viewBox="0 0 400 100"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="Token usage trend chart"
-        className="w-full h-[100px]"
-      >
-        {/* Grid lines */}
-        {gridYs.map((y) => (
-          <line
-            key={y}
-            x1={0}
-            y1={y}
-            x2={400}
-            y2={y}
-            stroke="var(--border)"
-            strokeWidth="0.5"
-          />
-        ))}
-
-        {/* tokensIn filled area (teal, bottom stack) */}
-        <path
-          d={insAreaPath}
-          fill="var(--teal)"
-          fillOpacity="0.25"
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {/* tokensOut filled area (purple, stacked on top) */}
-        <path
-          d={outAreaPath}
-          fill="var(--purple)"
-          fillOpacity="0.25"
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {/* tokensIn stroke line (teal edge) */}
-        <polyline
-          points={insPolylinePoints}
-          fill="none"
-          stroke="var(--teal)"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {/* total stroke line (purple edge) */}
-        <polyline
-          points={totalPolylinePoints}
-          fill="none"
-          stroke="var(--purple)"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-
-      {/* Date labels (HTML, not SVG — avoids text distortion) */}
-      <div className="relative h-4">
-        {indices.map((i) => {
-          const xPct = n <= 1 ? 50 : (i / (n - 1)) * 100;
-          const text = daily[i].date.slice(5);
-          return (
-            <span
-              key={i}
-              className="absolute text-xxs font-mono text-dt-text2"
-              style={{ left: `${xPct}%`, transform: "translateX(-50%)" }}
-            >
-              {text}
-            </span>
-          );
-        })}
-      </div>
+      <EChartsWrapper option={option} style={{ height: 120, width: "100%" }} />
     </div>
   );
 }

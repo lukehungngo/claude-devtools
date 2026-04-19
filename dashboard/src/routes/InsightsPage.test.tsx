@@ -6,6 +6,12 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
 }));
 
+vi.mock("../components/insights/EChartsWrapper.js", () => ({
+  EChartsWrapper: vi.fn(({ className }: { className?: string }) => (
+    <div data-testid="echarts-wrapper" className={className ?? ""} />
+  )),
+}));
+
 vi.mock("../contexts/LayoutContext", () => ({
   useLayoutContext: () => ({ setCurrentMetrics: vi.fn() }),
 }));
