@@ -60,7 +60,7 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
     }
   });
 
-  router.get("/api/insights/model-mix", (req, res) => {
+  router.get("/insights/model-mix", (req, res) => {
     const timeRange = (req.query.timeRange as string) ?? "7d";
     const repo = (req.query.repo as string) ?? "all";
 
@@ -84,7 +84,7 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
     }
   });
 
-  router.get("/api/insights/top-consumers", (req, res) => {
+  router.get("/insights/top-consumers", (req, res) => {
     const timeRange = (req.query.timeRange as string) ?? "7d";
     const repo = (req.query.repo as string) ?? "all";
 

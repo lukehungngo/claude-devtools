@@ -158,37 +158,37 @@ describe("GET /insights/activity", () => {
   });
 });
 
-describe("GET /api/insights/model-mix", () => {
+describe("GET /insights/model-mix", () => {
   it("returns 200 with model mix data", async () => {
     mockedDiscover.mockReturnValue([]);
-    const res = await request(buildApp()).get("/api/insights/model-mix?timeRange=7d&repo=all");
+    const res = await request(buildApp()).get("/insights/model-mix?timeRange=7d&repo=all");
     expect(res.status).toBe(200);
     expect(res.body.models).toBeDefined();
     expect(res.body.totalTokens).toBeDefined();
   });
 
   it("returns 400 for invalid timeRange", async () => {
-    const res = await request(buildApp()).get("/api/insights/model-mix?timeRange=bad");
+    const res = await request(buildApp()).get("/insights/model-mix?timeRange=bad");
     expect(res.status).toBe(400);
   });
 
   it("passes timeRange and repo to computeInsightsModelMix", async () => {
     mockedDiscover.mockReturnValue([]);
-    await request(buildApp()).get("/api/insights/model-mix?timeRange=30d&repo=my-repo");
+    await request(buildApp()).get("/insights/model-mix?timeRange=30d&repo=my-repo");
     expect(mockedModelMix).toHaveBeenCalledWith([], "30d", "my-repo");
   });
 
   it("uses 7d and all as defaults", async () => {
     mockedDiscover.mockReturnValue([]);
-    await request(buildApp()).get("/api/insights/model-mix");
+    await request(buildApp()).get("/insights/model-mix");
     expect(mockedModelMix).toHaveBeenCalledWith(expect.anything(), "7d", "all");
   });
 });
 
-describe("GET /api/insights/top-consumers", () => {
+describe("GET /insights/top-consumers", () => {
   it("returns 200 with top consumers data", async () => {
     mockedDiscover.mockReturnValue([]);
-    const res = await request(buildApp()).get("/api/insights/top-consumers?timeRange=7d&repo=all");
+    const res = await request(buildApp()).get("/insights/top-consumers?timeRange=7d&repo=all");
     expect(res.status).toBe(200);
     expect(res.body.repos).toBeDefined();
     expect(res.body.sessions).toBeDefined();
@@ -196,19 +196,19 @@ describe("GET /api/insights/top-consumers", () => {
   });
 
   it("returns 400 for invalid timeRange", async () => {
-    const res = await request(buildApp()).get("/api/insights/top-consumers?timeRange=xyz");
+    const res = await request(buildApp()).get("/insights/top-consumers?timeRange=xyz");
     expect(res.status).toBe(400);
   });
 
   it("passes timeRange and repo to computeInsightsTopConsumers", async () => {
     mockedDiscover.mockReturnValue([]);
-    await request(buildApp()).get("/api/insights/top-consumers?timeRange=90d&repo=all");
+    await request(buildApp()).get("/insights/top-consumers?timeRange=90d&repo=all");
     expect(mockedTopConsumers).toHaveBeenCalledWith([], "90d", "all");
   });
 
   it("uses 7d and all as defaults", async () => {
     mockedDiscover.mockReturnValue([]);
-    await request(buildApp()).get("/api/insights/top-consumers");
+    await request(buildApp()).get("/insights/top-consumers");
     expect(mockedTopConsumers).toHaveBeenCalledWith(expect.anything(), "7d", "all");
   });
 });
