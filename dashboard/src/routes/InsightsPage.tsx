@@ -243,6 +243,12 @@ function modelColor(model: string): string {
   return "var(--text-2)";
 }
 
+function formatTok(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
 export function InsightsPage(): JSX.Element {
   const { setCurrentMetrics } = useLayoutContext();
   const [timeRange, setTimeRange] = useState<TimeRange>("7d");
@@ -719,11 +725,10 @@ export function InsightsPage(): JSX.Element {
                   {(casData?.commands ?? []).map((item, idx) => (
                     <div
                       key={item.name}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                      style={{ minHeight: 44 }}
+                      className="flex items-start gap-2.5 px-2 py-3 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                     >
                       <div
-                        className="font-mono text-[11px] font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2"
+                        className="font-mono text-[11px] font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
                         style={{ width: 32, height: 20 }}
                       >
                         {idx + 1}
@@ -733,7 +738,7 @@ export function InsightsPage(): JSX.Element {
                           {item.name}
                         </div>
                         <div
-                          className="mt-1 rounded overflow-hidden"
+                          className="mt-1.5 rounded overflow-hidden"
                           style={{ height: 3, background: "var(--border)" }}
                           role="progressbar"
                           aria-valuenow={Math.round(item.share * 100)}
@@ -746,12 +751,17 @@ export function InsightsPage(): JSX.Element {
                             style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
                           />
                         </div>
+                        <div className="mt-1.5 text-[10px] font-mono text-dt-text2">
+                          avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
+                        </div>
                       </div>
                       <div className="text-right flex-shrink-0">
                         <div className="text-sm font-mono font-semibold text-dt-text0 leading-none">
                           {item.count.toLocaleString()}
                         </div>
-                        <div className="text-[10px] font-mono text-dt-text2">calls</div>
+                        <div className="text-[10px] font-mono text-dt-text2 mt-0.5">calls</div>
+                        <div className="text-[10px] font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
+                        <div className="text-[10px] font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
                       </div>
                     </div>
                   ))}
@@ -799,12 +809,11 @@ export function InsightsPage(): JSX.Element {
                     return (
                       <div
                         key={item.type}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                        style={{ minHeight: 44 }}
+                        className="flex items-start gap-2.5 px-2 py-3 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                       >
                         <div
                           aria-hidden="true"
-                          className="font-mono text-[9px] font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0"
+                          className="font-mono text-[9px] font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0 mt-0.5"
                           style={{ width: 32, height: 20, background: badgeColor }}
                         >
                           {abbrev}
@@ -814,7 +823,7 @@ export function InsightsPage(): JSX.Element {
                             {item.type}
                           </div>
                           <div
-                            className="mt-1 rounded overflow-hidden"
+                            className="mt-1.5 rounded overflow-hidden"
                             style={{ height: 3, background: "var(--border)" }}
                             role="progressbar"
                             aria-valuenow={Math.round(item.share * 100)}
@@ -827,12 +836,17 @@ export function InsightsPage(): JSX.Element {
                               style={{ width: `${item.share * 100}%`, background: badgeColor }}
                             />
                           </div>
+                          <div className="mt-1.5 text-[10px] font-mono text-dt-text2">
+                            avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
+                          </div>
                         </div>
                         <div className="text-right flex-shrink-0">
                           <div className="text-sm font-mono font-semibold text-dt-text0 leading-none">
                             {item.count.toLocaleString()}
                           </div>
-                          <div className="text-[10px] font-mono text-dt-text2">runs</div>
+                          <div className="text-[10px] font-mono text-dt-text2 mt-0.5">runs</div>
+                          <div className="text-[10px] font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
+                          <div className="text-[10px] font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
                         </div>
                       </div>
                     );
@@ -878,11 +892,10 @@ export function InsightsPage(): JSX.Element {
                   {(casData?.skills ?? []).map((item, idx) => (
                     <div
                       key={item.name}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                      style={{ minHeight: 44 }}
+                      className="flex items-start gap-2.5 px-2 py-3 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                     >
                       <div
-                        className="font-mono text-[11px] font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2"
+                        className="font-mono text-[11px] font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
                         style={{ width: 32, height: 20 }}
                       >
                         {idx + 1}
@@ -892,7 +905,7 @@ export function InsightsPage(): JSX.Element {
                           {item.name}
                         </div>
                         <div
-                          className="mt-1 rounded overflow-hidden"
+                          className="mt-1.5 rounded overflow-hidden"
                           style={{ height: 3, background: "var(--border)" }}
                           role="progressbar"
                           aria-valuenow={Math.round(item.share * 100)}
@@ -905,12 +918,17 @@ export function InsightsPage(): JSX.Element {
                             style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
                           />
                         </div>
+                        <div className="mt-1.5 text-[10px] font-mono text-dt-text2">
+                          avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
+                        </div>
                       </div>
                       <div className="text-right flex-shrink-0">
                         <div className="text-sm font-mono font-semibold text-dt-text0 leading-none">
                           {item.count.toLocaleString()}
                         </div>
-                        <div className="text-[10px] font-mono text-dt-text2">runs</div>
+                        <div className="text-[10px] font-mono text-dt-text2 mt-0.5">runs</div>
+                        <div className="text-[10px] font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
+                        <div className="text-[10px] font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
                       </div>
                     </div>
                   ))}

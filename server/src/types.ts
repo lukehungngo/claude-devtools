@@ -359,6 +359,10 @@ export interface InsightsCommandRow {
   share: number;   // fraction 0-1 of #1 entry's count
   daily: number[]; // call counts per day in time window, oldest first
   trend: CasTrend;
+  tokensIn: number;
+  tokensOut: number;
+  avgTokensIn: number;
+  avgTokensOut: number;
 }
 
 export interface InsightsAgentRow {
@@ -367,6 +371,10 @@ export interface InsightsAgentRow {
   share: number;
   daily: number[]; // call counts per day in time window, oldest first
   trend: CasTrend;
+  tokensIn: number;
+  tokensOut: number;
+  avgTokensIn: number;
+  avgTokensOut: number;
 }
 
 export interface InsightsSkillRow {
@@ -375,6 +383,10 @@ export interface InsightsSkillRow {
   share: number;
   daily: number[]; // call counts per day in time window, oldest first
   trend: CasTrend;
+  tokensIn: number;
+  tokensOut: number;
+  avgTokensIn: number;
+  avgTokensOut: number;
 }
 
 export interface InsightsCommandsAgentsSkills {

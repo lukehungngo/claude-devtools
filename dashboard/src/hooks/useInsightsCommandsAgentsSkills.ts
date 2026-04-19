@@ -8,6 +8,10 @@ export interface CommandRowClient {
   share: number;
   daily: number[];
   trend: CasTrend;
+  tokensIn: number;
+  tokensOut: number;
+  avgTokensIn: number;
+  avgTokensOut: number;
 }
 
 export interface AgentRowClient {
@@ -16,6 +20,10 @@ export interface AgentRowClient {
   share: number;
   daily: number[];
   trend: CasTrend;
+  tokensIn: number;
+  tokensOut: number;
+  avgTokensIn: number;
+  avgTokensOut: number;
 }
 
 export interface SkillRowClient {
@@ -24,6 +32,10 @@ export interface SkillRowClient {
   share: number;
   daily: number[];
   trend: CasTrend;
+  tokensIn: number;
+  tokensOut: number;
+  avgTokensIn: number;
+  avgTokensOut: number;
 }
 
 export interface CommandsAgentsSkillsClient {

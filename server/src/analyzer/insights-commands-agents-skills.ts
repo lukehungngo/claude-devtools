@@ -15,6 +15,8 @@ const TOP_N = 10;
 
 interface CasItemStats {
   total: number;
+  tokensIn: number;
+  tokensOut: number;
   days: Map<string, number>; // date (YYYY-MM-DD) → count
 }
 
@@ -38,15 +40,23 @@ function incrementItem(map: Map<string, CasItemStats>, key: string, date: string
   if (!existing) {
     const days = new Map<string, number>();
     days.set(date, 1);
-    map.set(key, { total: 1, days });
+    map.set(key, { total: 1, tokensIn: 0, tokensOut: 0, days });
   } else {
     existing.total++;
     existing.days.set(date, (existing.days.get(date) ?? 0) + 1);
   }
 }
 
+function addTokens(map: Map<string, CasItemStats>, key: string, tokIn: number, tokOut: number): void {
+  const existing = map.get(key);
+  if (existing) {
+    existing.tokensIn += tokIn;
+    existing.tokensOut += tokOut;
+  }
+}
+
 function cloneStats(stats: CasItemStats): CasItemStats {
-  return { total: stats.total, days: new Map(stats.days) };
+  return { total: stats.total, tokensIn: stats.tokensIn, tokensOut: stats.tokensOut, days: new Map(stats.days) };
 }
 
 function parseCasForSession(session: SessionInfo): {
@@ -84,6 +94,8 @@ function parseCasForSession(session: SessionInfo): {
   try {
     const { events, newOffset } = parseJsonlIncremental(session.path, fromOffset);
 
+    let pendingCommandKeys: string[] = [];
+
     for (const event of events) {
       const date =
         typeof (event as { timestamp?: unknown }).timestamp === "string"
@@ -91,6 +103,7 @@ function parseCasForSession(session: SessionInfo): {
           : new Date().toISOString().slice(0, 10);
 
       if (event.type === "user") {
+        pendingCommandKeys = [];
         const content = event.message?.content;
         if (!Array.isArray(content)) continue;
         for (const block of content) {
@@ -109,6 +122,7 @@ function parseCasForSession(session: SessionInfo): {
               const slug = masMatch[1].toLowerCase().replace(/\s+/g, "-");
               const name = `/mas:${slug}`;
               incrementItem(commands, name, date);
+              pendingCommandKeys.push(name);
               continue;
             }
 
@@ -116,12 +130,25 @@ function parseCasForSession(session: SessionInfo): {
             if (text.startsWith("/")) {
               const name = text.split(/\s/)[0];
               incrementItem(commands, name, date);
+              pendingCommandKeys.push(name);
             }
           }
         }
       }
 
       if (event.type === "assistant") {
+        const usage = event.message.usage as typeof event.message.usage | undefined;
+        const tokIn = (usage?.input_tokens ?? 0)
+          + (usage?.cache_read_input_tokens ?? 0)
+          + (usage?.cache_creation_input_tokens ?? 0);
+        const tokOut = usage?.output_tokens ?? 0;
+
+        // Attribute this turn's tokens to any commands dispatched in the preceding user event
+        for (const cmd of pendingCommandKeys) {
+          addTokens(commands, cmd, tokIn, tokOut);
+        }
+        pendingCommandKeys = [];
+
         const content = event.message?.content;
         if (!Array.isArray(content)) continue;
         for (const block of content) {
@@ -143,11 +170,13 @@ function parseCasForSession(session: SessionInfo): {
               (input?.description as string | undefined) ??
               "unknown";
             incrementItem(agents, agentType, date);
+            addTokens(agents, agentType, tokIn, tokOut);
           }
 
           if (toolName === "Skill") {
             const skillName = (input?.skill as string | undefined) ?? "unknown";
             incrementItem(skills, skillName, date);
+            addTokens(skills, skillName, tokIn, tokOut);
           }
         }
       }
@@ -205,6 +234,8 @@ function mergeStats(target: Map<string, CasItemStats>, source: Map<string, CasIt
       target.set(k, cloneStats(v));
     } else {
       existing.total += v.total;
+      existing.tokensIn += v.tokensIn;
+      existing.tokensOut += v.tokensOut;
       for (const [d, c] of v.days) {
         existing.days.set(d, (existing.days.get(d) ?? 0) + c);
       }
@@ -215,7 +246,7 @@ function mergeStats(target: Map<string, CasItemStats>, source: Map<string, CasIt
 function buildRankedList<T>(
   totals: Map<string, CasItemStats>,
   days: string[],
-  makeRow: (name: string, count: number, share: number, daily: number[], trend: CasTrend) => T
+  makeRow: (name: string, count: number, share: number, daily: number[], trend: CasTrend, tokensIn: number, tokensOut: number, avgTokensIn: number, avgTokensOut: number) => T
 ): T[] {
   const sorted = [...totals.entries()]
     .sort((a, b) => b[1].total - a[1].total)
@@ -225,12 +256,18 @@ function buildRankedList<T>(
   return sorted.map(([name, stats]) => {
     const daily = days.map((d) => stats.days.get(d) ?? 0);
     const trend = computeTrend(daily);
+    const avgTokensIn = stats.total > 0 ? Math.round(stats.tokensIn / stats.total) : 0;
+    const avgTokensOut = stats.total > 0 ? Math.round(stats.tokensOut / stats.total) : 0;
     return makeRow(
       name,
       stats.total,
       maxCount > 0 ? stats.total / maxCount : 0,
       daily,
-      trend
+      trend,
+      stats.tokensIn,
+      stats.tokensOut,
+      avgTokensIn,
+      avgTokensOut,
     );
   });
 }
@@ -264,17 +301,20 @@ export function computeInsightsCommandsAgentsSkills(
   const commandList: InsightsCommandRow[] = buildRankedList(
     totalCommands,
     days,
-    (name, count, share, daily, trend) => ({ name, count, share, daily, trend })
+    (name, count, share, daily, trend, tokensIn, tokensOut, avgTokensIn, avgTokensOut) =>
+      ({ name, count, share, daily, trend, tokensIn, tokensOut, avgTokensIn, avgTokensOut })
   );
   const agentList: InsightsAgentRow[] = buildRankedList(
     totalAgents,
     days,
-    (type, count, share, daily, trend) => ({ type, count, share, daily, trend })
+    (type, count, share, daily, trend, tokensIn, tokensOut, avgTokensIn, avgTokensOut) =>
+      ({ type, count, share, daily, trend, tokensIn, tokensOut, avgTokensIn, avgTokensOut })
   );
   const skillList: InsightsSkillRow[] = buildRankedList(
     totalSkills,
     days,
-    (name, count, share, daily, trend) => ({ name, count, share, daily, trend })
+    (name, count, share, daily, trend, tokensIn, tokensOut, avgTokensIn, avgTokensOut) =>
+      ({ name, count, share, daily, trend, tokensIn, tokensOut, avgTokensIn, avgTokensOut })
   );
 
   return { commands: commandList, agents: agentList, skills: skillList };
