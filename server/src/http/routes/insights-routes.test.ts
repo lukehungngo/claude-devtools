@@ -23,6 +23,21 @@ vi.mock("../../analyzer/activity-aggregator.js", () => ({
     hourly: [{ hour: 9, tokensAvg: 1500 }],
   })),
 }));
+vi.mock("../../analyzer/insights-model-mix.js", () => ({
+  computeInsightsModelMix: vi.fn(() => ({
+    models: [
+      { model: "claude-sonnet-4-6", tokensIn: 1000, tokensOut: 500, cost: 0.01, turns: 5, share: 0.8 },
+    ],
+    totalTokens: 1500,
+  })),
+}));
+vi.mock("../../analyzer/insights-top-consumers.js", () => ({
+  computeInsightsTopConsumers: vi.fn(() => ({
+    repos: [{ repo: "my-repo", tokensIn: 1000, tokensOut: 500, totalTokens: 1500, cost: 0.01, share: 1.0 }],
+    sessions: [{ sessionId: "s1", date: "2026-04-18", repo: "my-repo", cost: 0.01, share: 1.0 }],
+    tools: [{ name: "Read", count: 10, share: 1.0 }],
+  })),
+}));
 vi.mock("../../logger.js", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -34,10 +49,14 @@ import { createInsightsRoutes } from "./insights-routes.js";
 import { discoverSessions } from "../../parser/session-discovery.js";
 import { computeInsightsAggregate } from "../../analyzer/insights-aggregator.js";
 import { computeInsightsActivity } from "../../analyzer/activity-aggregator.js";
+import { computeInsightsModelMix } from "../../analyzer/insights-model-mix.js";
+import { computeInsightsTopConsumers } from "../../analyzer/insights-top-consumers.js";
 
 const mockedDiscover = vi.mocked(discoverSessions);
 const mockedAggregate = vi.mocked(computeInsightsAggregate);
 const mockedActivity = vi.mocked(computeInsightsActivity);
+const mockedModelMix = vi.mocked(computeInsightsModelMix);
+const mockedTopConsumers = vi.mocked(computeInsightsTopConsumers);
 
 function buildApp() {
   const app = express();
@@ -136,5 +155,60 @@ describe("GET /api/insights/activity", () => {
       );
       expect(res.status).toBe(200);
     }
+  });
+});
+
+describe("GET /api/insights/model-mix", () => {
+  it("returns 200 with model mix data", async () => {
+    mockedDiscover.mockReturnValue([]);
+    const res = await request(buildApp()).get("/api/insights/model-mix?timeRange=7d&repo=all");
+    expect(res.status).toBe(200);
+    expect(res.body.models).toBeDefined();
+    expect(res.body.totalTokens).toBeDefined();
+  });
+
+  it("returns 400 for invalid timeRange", async () => {
+    const res = await request(buildApp()).get("/api/insights/model-mix?timeRange=bad");
+    expect(res.status).toBe(400);
+  });
+
+  it("passes timeRange and repo to computeInsightsModelMix", async () => {
+    mockedDiscover.mockReturnValue([]);
+    await request(buildApp()).get("/api/insights/model-mix?timeRange=30d&repo=my-repo");
+    expect(mockedModelMix).toHaveBeenCalledWith([], "30d", "my-repo");
+  });
+
+  it("uses 7d and all as defaults", async () => {
+    mockedDiscover.mockReturnValue([]);
+    await request(buildApp()).get("/api/insights/model-mix");
+    expect(mockedModelMix).toHaveBeenCalledWith(expect.anything(), "7d", "all");
+  });
+});
+
+describe("GET /api/insights/top-consumers", () => {
+  it("returns 200 with top consumers data", async () => {
+    mockedDiscover.mockReturnValue([]);
+    const res = await request(buildApp()).get("/api/insights/top-consumers?timeRange=7d&repo=all");
+    expect(res.status).toBe(200);
+    expect(res.body.repos).toBeDefined();
+    expect(res.body.sessions).toBeDefined();
+    expect(res.body.tools).toBeDefined();
+  });
+
+  it("returns 400 for invalid timeRange", async () => {
+    const res = await request(buildApp()).get("/api/insights/top-consumers?timeRange=xyz");
+    expect(res.status).toBe(400);
+  });
+
+  it("passes timeRange and repo to computeInsightsTopConsumers", async () => {
+    mockedDiscover.mockReturnValue([]);
+    await request(buildApp()).get("/api/insights/top-consumers?timeRange=90d&repo=all");
+    expect(mockedTopConsumers).toHaveBeenCalledWith([], "90d", "all");
+  });
+
+  it("uses 7d and all as defaults", async () => {
+    mockedDiscover.mockReturnValue([]);
+    await request(buildApp()).get("/api/insights/top-consumers");
+    expect(mockedTopConsumers).toHaveBeenCalledWith(expect.anything(), "7d", "all");
   });
 });
