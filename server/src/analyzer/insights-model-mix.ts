@@ -58,10 +58,12 @@ function computeModelMixForSession(session: SessionInfo): Map<string, ModelStats
       const usage = event.message.usage;
       if (!usage) continue;
 
-      const inTok = usage.input_tokens || 0;
+      const inTok = (usage.input_tokens || 0)
+        + (usage.cache_read_input_tokens || 0)
+        + (usage.cache_creation_input_tokens || 0);
       const outTok = usage.output_tokens || 0;
       const cost = calculateTokenCost(model, {
-        inputTokens: inTok,
+        inputTokens: usage.input_tokens || 0,
         outputTokens: outTok,
         cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
         cacheReadTokens: usage.cache_read_input_tokens ?? 0,

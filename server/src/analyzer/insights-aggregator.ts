@@ -43,7 +43,9 @@ export function computeInsightsSessionData(session: SessionInfo): InsightsSessio
         const usage = event.message.usage;
         const model = event.message.model || "claude-sonnet-4-6";
         if (!usage) continue;
-        const inTok = usage.input_tokens || 0;
+        const inTok = (usage.input_tokens || 0)
+          + (usage.cache_read_input_tokens || 0)
+          + (usage.cache_creation_input_tokens || 0);
         const outTok = usage.output_tokens || 0;
         tokensIn += inTok;
         tokensOut += outTok;
