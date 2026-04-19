@@ -359,7 +359,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
             onStreamingEvent?.(data);
             if (data.type === "result") {
               if (data.is_error || data.error) {
-                const errorMsg = typeof data.error === "string"
+                let errorMsg = typeof data.error === "string"
                   ? data.error
                   : typeof data.result === "string"
                     ? data.result
@@ -368,6 +368,10 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
                       : data.subtype
                         ? String(data.subtype)
                         : "An error occurred";
+                // SDK raises this when messaging a CLI-started session that isn't in activeSessions
+                if (errorMsg.includes("No conversation found with session ID:")) {
+                  errorMsg = "This session was started from the terminal. Use your terminal to continue it.";
+                }
                 setSseError(errorMsg);
                 setSseStatus("error");
               } else {
