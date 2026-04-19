@@ -1,28 +1,19 @@
-import { X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { formatCost, formatTokens, formatDuration } from "../lib/cost";
-import type { SessionMetrics, EffortLevel } from "../lib/types";
+import type { SessionMetrics } from "../lib/types";
 import type { PermissionMode } from "./conversation/permissionModeTypes";
 import { cyclePermissionMode } from "./conversation/PermissionModeBadge";
-import { ControlsZone } from "./controls/ControlsZone";
-import type { ModelOption } from "./controls/ModelSwitcher";
 
 interface Props {
   metrics: SessionMetrics | null;
+  repoName?: string;
+  branch?: string;
   isLive?: boolean;
   hasPermissionPending?: boolean;
   viewingTurnNumber?: number;
   onClearViewingTurn?: () => void;
   permissionMode?: PermissionMode;
   onPermissionModeChange?: (mode: PermissionMode) => void;
-  // P5-01 control props
-  model?: string;
-  availableModels?: ModelOption[];
-  fastMode?: boolean;
-  effort?: EffortLevel;
-  onModelSelect?: (modelId: string) => void;
-  onFastToggle?: () => void;
-  onEffortChange?: (level: EffortLevel) => void;
-  onCompact?: () => void;
 }
 
 const MODE_LABELS: Record<PermissionMode, string> = {
@@ -43,7 +34,7 @@ const MODE_COLORS: Record<PermissionMode, { bg: string; fg: string }> = {
   bypassPermissions: { bg: "color-mix(in srgb, var(--red) 15%, transparent)", fg: "var(--red)" },
 };
 
-export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange, model, availableModels, fastMode, effort, onModelSelect, onFastToggle, onEffortChange, onCompact }: Props) {
+export function TopBar({ metrics, repoName, branch, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange }: Props) {
   const tIn = metrics?.tokens.inputTokens ?? 0;
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
@@ -66,7 +57,9 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
   // injects into JSONL. Server already filters these, but we guard here
   // against stale cached metrics from older server builds.
   const realModels = modelsList.filter((m) => !m.startsWith("<"));
-  const activeModel = model ?? (realModels.length > 0 ? realModels[realModels.length - 1] : null);
+  // session.model is the session's configured model — use it as ground truth.
+  // Fall back to last event model only if session.model is absent.
+  const activeModel = metrics?.session?.model ?? (realModels.length > 0 ? realModels[realModels.length - 1] : null);
   const modelName = activeModel ? formatModelShort(activeModel) : "\u2014";
 
   return (
@@ -74,7 +67,7 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
       className="flex items-center shrink-0"
       style={{
         padding: "0 18px",
-        height: 40,
+        height: "var(--hud-h, 40px)",
         background: "var(--bg-s)",
         borderBottom: "1px solid var(--bd)",
         gap: 14,
@@ -82,6 +75,43 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
         outlineOffset: -2,
       }}
     >
+      {/* Repo@branch crumb */}
+      {(repoName || branch) && (
+        <div
+          className="flex items-center shrink-0"
+          style={{
+            gap: 4, paddingRight: 12,
+            borderRight: "1px solid var(--bd)",
+            fontSize: 12, color: "var(--t2)",
+            letterSpacing: ".1px",
+          }}
+        >
+          {repoName && (
+            <span style={{ color: "var(--t1)", fontWeight: 600 }}>{repoName}</span>
+          )}
+          {branch && (
+            <>
+              <span style={{ color: "var(--t3)", margin: "0 2px" }}>@</span>
+              <span
+                className="flex items-center gap-[3px]"
+                style={{
+                  fontFamily: "var(--font-mono)", fontSize: 11,
+                  color: "var(--acc)", fontWeight: 500,
+                }}
+              >
+                <Pencil
+                  size={11}
+                  aria-hidden="true"
+                  data-testid="branch-edit-icon"
+                  style={{ color: "var(--t3)", display: "inline" }}
+                />
+                {branch}
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Live status */}
       <div
         className="flex items-center gap-[5px] shrink-0"
@@ -98,12 +128,8 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
           }}
         />
         <span
-          className="font-semibold"
-          style={{
-            fontSize: 10,
-            letterSpacing: ".5px",
-            color: statusColor,
-          }}
+          className="t-mono-sm font-semibold"
+          style={{ color: statusColor, letterSpacing: ".5px" }}
         >
           {statusLabel}
         </span>
@@ -139,71 +165,51 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
 
       {metrics ? (
         <>
-          {isLive && onModelSelect && availableModels && onFastToggle && effort && onEffortChange && onCompact ? (
-            <>
-              <ControlsZone
-                currentModel={activeModel}
-                models={availableModels}
-                onModelSelect={onModelSelect}
-                fastMode={fastMode ?? false}
-                onFastToggle={onFastToggle}
-                effort={effort}
-                onEffortChange={onEffortChange}
-                contextPercent={contextPct}
-                onCompact={onCompact}
-                isLive={isLive}
-              />
-            </>
-          ) : (
-            <>
-              <HudMetric label="Model" value={modelName} />
-              <HudSep />
-            </>
-          )}
+          <>
+            <HudMetric label="Model" value={modelName} />
+            <HudSep />
+          </>
           <HudMetric label="Age" value={formatDuration(metrics.duration)} />
           <HudSep />
 
-          {/* Context — only show static when controls are NOT active */}
-          {!(isLive && onModelSelect) && (
-            <>
-              <div className="flex flex-col items-center gap-[2px]">
-                <span
-                  className="uppercase"
-                  style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
-                >
-                  Context
+          <>
+            <div className="flex flex-col items-center gap-[2px]">
+              <span className="t-eyebrow">Context</span>
+              <div className="flex items-center gap-1">
+                <span className="t-metric">
+                  {contextPct}%
                 </span>
-                <div className="flex items-center gap-1">
-                  <span
-                    className="font-mono font-medium"
-                    style={{ fontSize: 12, color: "var(--t1)" }}
-                  >
-                    {contextPct}%
-                  </span>
+                <div
+                  style={{
+                    width: 42,
+                    height: 4,
+                    borderRadius: 2,
+                    background: "var(--bd)",
+                    overflow: "hidden",
+                  }}
+                >
                   <div
                     style={{
-                      width: 42,
-                      height: 4,
+                      height: "100%",
+                      width: `${contextPct}%`,
                       borderRadius: 2,
-                      background: "var(--bd)",
-                      overflow: "hidden",
+                      background: contextColor,
+                      transition: "width .3s, background .3s",
                     }}
-                  >
-                    <div
-                      style={{
-                        height: "100%",
-                        width: `${contextPct}%`,
-                        borderRadius: 2,
-                        background: contextColor,
-                        transition: "width .3s, background .3s",
-                      }}
-                    />
-                  </div>
+                  />
                 </div>
+                {metrics.contextWindowSize > 0 && (
+                  <span
+                    className="t-mono-xs"
+                    style={{ color: "var(--t3)", fontSize: 9 }}
+                  >
+                    of {formatTokens(metrics.contextWindowSize)}
+                  </span>
+                )}
               </div>
-              <HudSep />
-            </>
-          )}
+            </div>
+            <HudSep />
+          </>
 
           <HudMetric label="Cost" value={formatCost(sCost)} valueColor="var(--amb)" />
           <HudSep />
@@ -212,30 +218,14 @@ export function TopBar({ metrics, isLive, hasPermissionPending, viewingTurnNumbe
           {/* Tokens (right-aligned) */}
           <div className="flex gap-2 ml-auto">
             <div className="flex flex-col items-center gap-[2px]">
-              <span
-                className="uppercase"
-                style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
-              >
-                In
-              </span>
-              <span
-                className="font-mono font-medium"
-                style={{ fontSize: 11, color: "var(--teal)" }}
-              >
+              <span className="t-eyebrow">In</span>
+              <span className="t-mono" style={{ color: "var(--teal)" }}>
                 {formatTokens(tIn)}
               </span>
             </div>
             <div className="flex flex-col items-center gap-[2px]">
-              <span
-                className="uppercase"
-                style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
-              >
-                Out
-              </span>
-              <span
-                className="font-mono font-medium"
-                style={{ fontSize: 11, color: "var(--pur)" }}
-              >
+              <span className="t-eyebrow">Out</span>
+              <span className="t-mono" style={{ color: "var(--pur)" }}>
                 {formatTokens(tOut)}
               </span>
             </div>
@@ -262,15 +252,10 @@ function HudMetric({
 }) {
   return (
     <div className="flex flex-col items-center gap-[2px]">
+      <span className="t-eyebrow">{label}</span>
       <span
-        className="uppercase"
-        style={{ fontSize: 8, color: "var(--t3)", letterSpacing: ".4px" }}
-      >
-        {label}
-      </span>
-      <span
-        className="font-mono font-medium"
-        style={{ fontSize: 12, color: valueColor || "var(--t1)" }}
+        className="t-metric"
+        style={valueColor ? { color: valueColor } : undefined}
       >
         {value}
       </span>

@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css"><style>
+body{padding:16px;background:var(--bg);}
+.row{display:flex;gap:8px;}
+.sw{flex:1;border-radius:var(--r-sm);padding:10px;border:1px solid var(--bd);min-height:76px;display:flex;flex-direction:column;gap:4px;justify-content:space-between;}
+.lbl{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;}
+.hex{font-family:var(--font-mono);font-size:10px;color:var(--t2);}
+.chip{font-family:var(--font-mono);font-size:10px;padding:2px 6px;border-radius:var(--r-pill);align-self:flex-start;}
+</style></head><body>
+<div class="row">
+  <div class="sw"><div class="lbl" style="color:var(--grn)">GREEN · pass</div><span class="chip" style="background:var(--grn-bg);color:var(--grn)">passed</span><div class="hex">#3D8A4A</div></div>
+  <div class="sw"><div class="lbl" style="color:var(--amb)">AMBER · wait</div><span class="chip" style="background:var(--amb-bg);color:var(--amb)">waiting</span><div class="hex">#B07D2E</div></div>
+  <div class="sw"><div class="lbl" style="color:var(--red)">RED · fail</div><span class="chip" style="background:var(--red-bg);color:var(--red)">failed</span><div class="hex">#C94040</div></div>
+  <div class="sw"><div class="lbl" style="color:var(--teal)">TEAL · info</div><span class="chip" style="background:var(--teal-bg);color:var(--teal)">tokens in</span><div class="hex">#4B8A8A</div></div>
+  <div class="sw"><div class="lbl" style="color:var(--pur)">PURPLE</div><span class="chip" style="background:var(--pur-bg);color:var(--pur)">tokens out</span><div class="hex">#8B6BAF</div></div>
+  <div class="sw"><div class="lbl" style="color:var(--ci-deny)">DENY · policy</div><span class="chip" style="background:var(--ci-deny-bg);color:var(--ci-deny)">denied</span><div class="hex">#8B2E5E</div></div>
+</div>
+</body></html>

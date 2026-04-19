@@ -308,7 +308,7 @@ export function computeMetrics(
   // Context window — use SDK authoritative value when available, fall back to model-based lookup.
   // For the fallback, prefer the model tied to the latest real assistant event
   // (that's the model currently running and the one whose window applies to lastInputTokens).
-  const primaryModel = lastRealModel ?? Array.from(models)[0] ?? "claude-sonnet-4-6";
+  const primaryModel = sessionInfo.model ?? lastRealModel ?? Array.from(models)[0] ?? "claude-sonnet-4-6";
   const contextWindowSize = sdkContextWindow || getContextWindowSize(primaryModel);
   const contextPercent = contextWindowSize > 0
     ? Math.min(100, Math.round((lastInputTokens / contextWindowSize) * 100))

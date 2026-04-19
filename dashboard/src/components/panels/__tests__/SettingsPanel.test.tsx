@@ -107,8 +107,8 @@ describe("SettingsPanel", () => {
 
   it("renders usage info when available", () => {
     const usage: UsageInfo = {
-      fiveHour: { utilization: 0.62, resetsAt: null },
-      sevenDay: { utilization: 0.38, resetsAt: null },
+      fiveHour: { utilization: 62, resetsAt: null },
+      sevenDay: { utilization: 38, resetsAt: null },
       planName: "Max (5x)",
     };
     render(<SettingsPanel metrics={makeMetrics()} usage={usage} />);

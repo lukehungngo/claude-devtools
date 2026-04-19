@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { RepoGroup } from "../lib/types";
 
 export function useRepos() {
@@ -18,7 +18,7 @@ export function useRepos() {
       .catch(() => setLoading(false));
   }, []);
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     fetch("/api/repos")
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -26,7 +26,7 @@ export function useRepos() {
       })
       .then((data) => setRepos(data.repos || []))
       .catch(() => {});
-  };
+  }, []);
 
   return { repos, loading, refresh };
 }

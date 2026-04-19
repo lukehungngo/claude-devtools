@@ -136,8 +136,8 @@ describe("formatCostCommand", () => {
 describe("formatUsageCommand", () => {
   it("returns utilization info when usage is available", () => {
     const usage: UsageInfo = {
-      fiveHour: { utilization: 0.45, resetsAt: "2026-03-29T15:00:00Z" },
-      sevenDay: { utilization: 0.12, resetsAt: "2026-04-05T00:00:00Z" },
+      fiveHour: { utilization: 45, resetsAt: "2026-03-29T15:00:00Z" },
+      sevenDay: { utilization: 12, resetsAt: "2026-04-05T00:00:00Z" },
       planName: "Pro",
     };
     const output = formatUsageCommand(usage);
@@ -151,8 +151,8 @@ describe("formatUsageCommand", () => {
 
   it("shows reset times", () => {
     const usage: UsageInfo = {
-      fiveHour: { utilization: 0.80, resetsAt: "2026-03-29T15:00:00Z" },
-      sevenDay: { utilization: 0.50, resetsAt: "2026-04-05T00:00:00Z" },
+      fiveHour: { utilization: 80, resetsAt: "2026-03-29T15:00:00Z" },
+      sevenDay: { utilization: 50, resetsAt: "2026-04-05T00:00:00Z" },
       planName: "Max",
     };
     const output = formatUsageCommand(usage);
@@ -180,8 +180,8 @@ describe("formatUsageCommand", () => {
 
   it("handles null plan name", () => {
     const usage: UsageInfo = {
-      fiveHour: { utilization: 0.30, resetsAt: "2026-03-29T15:00:00Z" },
-      sevenDay: { utilization: 0.10, resetsAt: "2026-04-05T00:00:00Z" },
+      fiveHour: { utilization: 30, resetsAt: "2026-03-29T15:00:00Z" },
+      sevenDay: { utilization: 10, resetsAt: "2026-04-05T00:00:00Z" },
       planName: null,
     };
     const output = formatUsageCommand(usage);

@@ -1,9 +1,8 @@
 import { createContext, useContext } from "react";
 import type { MutableRefObject } from "react";
-import type { RepoGroup, PermissionRequest, UsageInfo, CostSummary, SessionEvent, SessionMetrics, AgentDAG, SubagentMeta, EffortLevel } from "../lib/types";
+import type { RepoGroup, PermissionRequest, UsageInfo, CostSummary, SessionEvent, SessionMetrics, AgentDAG, SubagentMeta } from "../lib/types";
 import type { TurnSnapshot } from "../lib/turnSnapshot";
 import type { PermissionMode } from "../components/conversation/permissionModeTypes";
-import type { ModelOption } from "../components/controls/ModelSwitcher";
 
 /** Maps repoSlug -> projectHash */
 export type SlugMap = Map<string, string>;
@@ -20,17 +19,6 @@ export interface QuestionItem {
   status: "pending" | "answered";
   answer?: string;
   timestamp?: string;
-}
-
-export interface SessionControlState {
-  availableModels: ModelOption[];
-  model: string | null;
-  fastMode: boolean;
-  effort: EffortLevel;
-  onModelSelect: (modelId: string) => void;
-  onFastToggle: () => void;
-  onEffortChange: (level: EffortLevel) => void;
-  onCompact: () => void;
 }
 
 export interface LayoutContextValue {
@@ -94,10 +82,6 @@ export interface LayoutContextValue {
   onTurnClickRef: MutableRefObject<((turnIndex: number) => void) | null>;
   /** Registered by BottomPanel to switch active tab programmatically */
   openBottomTabRef: MutableRefObject<((tab: string) => void) | null>;
-
-  // Session control state (Phase 5)
-  sessionControl: SessionControlState | null;
-  setSessionControl: (ctrl: SessionControlState | null) => void;
 }
 
 export const LayoutContext = createContext<LayoutContextValue | null>(null);

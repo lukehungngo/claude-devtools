@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css"><style>
+body{padding:16px;background:var(--bg);}
+.grid{display:flex;flex-wrap:wrap;gap:8px;}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--r-pill);font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;}
+.row2{display:flex;gap:10px;margin-top:14px;align-items:center;}
+.row2 code{font-family:var(--font-mono);font-size:10px;color:var(--t2);}
+</style></head><body>
+<div class="grid">
+  <span class="badge" style="background:var(--ci-pass-bg);color:var(--ci-pass)"><span class="dot pass"></span>Passed</span>
+  <span class="badge" style="background:var(--ci-fail-bg);color:var(--ci-fail)"><span class="dot fail"></span>Failed</span>
+  <span class="badge" style="background:var(--ci-run-bg);color:var(--ci-run)"><span class="dot run"></span>Running</span>
+  <span class="badge" style="background:var(--ci-wait-bg);color:var(--ci-wait)"><span class="dot wait"></span>Waiting</span>
+  <span class="badge" style="background:var(--ci-skip-bg);color:var(--ci-skip)"><span class="dot idle"></span>Skipped</span>
+  <span class="badge" style="background:var(--ci-deny-bg);color:var(--ci-deny)"><span class="dot deny"></span>Denied</span>
+</div>
+<div class="row2"><span class="badge" style="background:var(--ci-pass-bg);color:var(--ci-pass)">#3184</span><code>fix: subagent running after session end</code></div>
+<div class="row2"><span class="badge" style="background:var(--ci-fail-bg);color:var(--ci-fail)">#3183</span><code>refactor: turnSnapshot types · 2 policy denials</code></div>
+</body></html>

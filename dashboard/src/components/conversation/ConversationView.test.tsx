@@ -599,3 +599,48 @@ describe("ConversationView onDecideSession", () => {
     expect(screen.queryByRole("button", { name: /allow.*for.*session/i })).toBeNull();
   });
 });
+
+describe("ConversationView sessionIsRunning uses isActive not isRunning", () => {
+  it("does NOT show indeterminate when isActive=true but isRunning=false (session running long tool)", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent("Run a long command", 0),
+      {
+        type: "assistant",
+        uuid: "asst-no-end-turn",
+        timestamp: "2026-01-01T00:00:01Z",
+        sessionId: "sess-1",
+        agentId: "main",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "tu-bash", name: "Bash", input: { command: "sleep 300" } }],
+          model: "claude-sonnet-4-6",
+          usage: { input_tokens: 10, output_tokens: 5 },
+          stop_reason: "tool_use",
+        },
+      } as unknown as SessionEvent,
+    ];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+
+    const metrics = {
+      session: {
+        id: "sess-1",
+        projectHash: "ph1",
+        path: "/p",
+        startTime: "2026-01-01T00:00:00Z",
+        lastModified: "2026-01-01T00:00:01Z",
+        eventCount: 2,
+        subagentCount: 0,
+        isActive: true,
+        isRunning: false,
+      },
+    } as unknown as import("../../lib/types").SessionMetrics;
+
+    const { container } = render(
+      <ConversationView events={events} turns={turns} metrics={metrics} />
+    );
+
+    const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
+    expect(indicator?.getAttribute("data-status")).not.toBe("indeterminate");
+    expect(container.textContent).not.toContain("Session ended without completion");
+  });
+});

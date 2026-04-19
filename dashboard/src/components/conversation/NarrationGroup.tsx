@@ -25,7 +25,8 @@ export function NarrationGroup({ items }: NarrationGroupProps) {
 
   return (
     <div
-      className="rounded-lg my-1.5 overflow-hidden border border-dt-border bg-dt-bg-s"
+      className="rounded-lg my-1.5 overflow-hidden border border-dt-border"
+      style={{ background: "var(--resp-working-bg, var(--bg-s))" }}
     >
       {/* Header — always visible */}
       <div
@@ -33,15 +34,18 @@ export function NarrationGroup({ items }: NarrationGroupProps) {
         className="flex items-center gap-2 cursor-pointer select-none px-2.5 py-1.5"
       >
         <span
-          className="shrink-0 inline-block transition-transform duration-150 text-dt-text2 w-3 text-center text-[9px]"
+          className="shrink-0 inline-block transition-transform duration-150 t-mono-xs w-3 text-center"
           style={{ transform: expanded ? "rotate(90deg)" : "rotate(0deg)" }}
         >
           &#9656;
         </span>
-        <span className="font-mono font-semibold uppercase tracking-wide text-dt-text2 text-[10px]">
+        <span
+          className="font-mono font-semibold uppercase tracking-wide t-mono-sm"
+          style={{ color: "var(--resp-working)" }}
+        >
           Working
         </span>
-        <span className="font-mono text-dt-text2 text-[10px]">
+        <span className="font-mono text-dt-text2 t-mono-sm">
           {nonEmpty.length > 1
             ? `${nonEmpty.length} steps \u00b7 ${totalChars} chars`
             : `${totalChars} chars`}
@@ -54,9 +58,10 @@ export function NarrationGroup({ items }: NarrationGroupProps) {
           {nonEmpty.map((text, i) => (
             <div
               key={i}
-              className="border-l-2 border-dt-border pl-2 my-1"
+              className="border-l-2 pl-2 my-1"
+              style={{ borderColor: "var(--resp-working)" }}
             >
-              <div className="font-mono leading-relaxed whitespace-pre-wrap break-words text-dt-text2 text-[11px]">
+              <div className="t-mono leading-relaxed whitespace-pre-wrap break-words text-dt-text2">
                 {text}
               </div>
             </div>

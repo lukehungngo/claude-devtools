@@ -34,7 +34,7 @@ interface TurnCardProps {
   onTurnClick?: () => void;
   onToolClick?: (toolName: string) => void;
   tasks?: TaskItem[];
-  /** Server-side session.isRunning (JSONL mtime < 2min). When false, suppresses "Generating..." on stale turns. */
+  /** Server-side session.isActive (12-hour mtime). When false, suppresses "Generating..." on closed/stale turns. */
   sessionIsRunning?: boolean;
 }
 
@@ -110,11 +110,10 @@ function TurnFooter({
   //
   // `sessionIsRunning` resolution, in order of authority:
   //   - For SSE sessions: SDK session_state_changed is authoritative.
-  //   - For JSONL sessions: server uses mtime < 2min heuristic.
-  //   - When the prop is undefined (legacy callers, tests), assume active so
-  //     existing running turns keep pulsing — the dishonesty we're closing
-  //     is the FALSE case, not the undefined case.
-  const sessionIsActive = sessionIsRunning !== false;
+  //   - For JSONL sessions: server uses JSONL terminal signals (isRunning).
+  //   - undefined = safe default "not running". ConversationView passes false
+  //     for all non-last turns; only the last turn receives the real flag.
+  const sessionIsActive = sessionIsRunning === true;
   const status = getAgentStatus("main", turnEvents, sessionIsActive);
   const [elapsed, setElapsed] = useState<number>(0);
 
@@ -131,7 +130,7 @@ function TurnFooter({
     <div
       data-testid="turn-completion-indicator"
       data-status={status}
-      className="flex items-center gap-1.5 font-mono mt-2.5 text-[10px]"
+      className="flex items-center gap-1.5 t-mono-sm mt-2.5"
       style={{ color: "var(--t3)" }}
     >
       {status === "running" && (
@@ -228,7 +227,7 @@ export function TurnCard({
   const mainStatus = getAgentStatus(
     "main",
     turnEvents,
-    sessionIsRunning !== false,
+    sessionIsRunning === true,
   );
   const isRunning = mainStatus === "running";
   const responseContent = extractResponseContent(turnEvents);
@@ -244,120 +243,103 @@ export function TurnCard({
     >
       {/* ── User message (hidden when no prompt) ── */}
       {turn.promptText.trim() && (
-        <div className="flex items-start gap-2.5">
+        <div className="flex justify-end">
           <div
-            className="flex items-center justify-center shrink-0 w-7 h-7 rounded-[7px] text-[11px] font-semibold"
-            style={{ background: "var(--bg-h)", color: "var(--t2)" }}
+            className="t-body"
+            style={{
+              background: "var(--acc-bg)",
+              borderRadius: "var(--r-md) var(--r-md) 4px var(--r-md)",
+              padding: "10px 14px",
+              maxWidth: "78%",
+            }}
           >
-            U
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] font-medium mb-0.5" style={{ color: "var(--t3)" }}>
-              You
-            </div>
-            <div className="text-[13px] leading-[1.65]" style={{ color: "var(--t1)" }}>
-              <CollapsiblePrompt text={turn.promptText} />
-            </div>
+            <CollapsiblePrompt text={turn.promptText} />
           </div>
         </div>
       )}
 
       {/* ── Claude message ── */}
       {(responseContent.length > 0 || turnEvents.length > 0) && (
-        <div className="flex items-start gap-2.5">
-          <div
-            className="flex items-center justify-center shrink-0 w-7 h-7 rounded-[7px] text-[11px] font-semibold"
-            style={{ background: "var(--acc-bg)", color: "var(--acc)" }}
-          >
-            C
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1 text-[10px] font-medium mb-0.5" style={{ color: "var(--t3)" }}>
-              <span>Claude</span>
-              {turn.model && (
-                <>
-                  <span>&middot;</span>
-                  <span data-testid="turn-header-model-badge" className="font-mono">
-                    {formatModelName(turn.model)}
-                  </span>
-                </>
-              )}
+        <div className="flex flex-col min-w-0 gap-1.5">
+          {/* Model badge — preserved for tests; absent when model is falsy */}
+          {turn.model && (
+            <div className="t-mono-xs" style={{ color: "var(--t3)" }}>
+              Claude &middot; <span data-testid="turn-header-model-badge">{formatModelName(turn.model)}</span>
             </div>
+          )}
 
-            {/* Agent pills */}
-            <AgentPills
-              agents={turn.agents}
-              turnEvents={turnEvents}
-              sessionIsRunning={sessionIsRunning}
-              onPillClick={onAgentPillClick}
-            />
+          {/* Agent pills */}
+          <AgentPills
+            agents={turn.agents}
+            turnEvents={turnEvents}
+            sessionIsRunning={sessionIsRunning}
+            onPillClick={onAgentPillClick}
+          />
 
-            {/* Thinking group (collapsed by default) */}
-            <ThinkingGroup items={responseContent.filter((t) => t.item.type === "thinking" && "thinking" in t.item).map((t) => t.item)} />
+          {/* Thinking group (collapsed by default) */}
+          <ThinkingGroup items={responseContent.filter((t) => t.item.type === "thinking" && "thinking" in t.item).map((t) => t.item)} />
 
-            {/* Narration text (collapsed by default) — working notes before tool calls */}
-            <NarrationGroup
-              items={responseContent
-                .filter((t) => t.isNarration && isTextItem(t.item))
-                .map((t) => (t.item as ContentItem & { text: string }).text)}
-            />
+          {/* Narration text (collapsed by default) — working notes before tool calls */}
+          <NarrationGroup
+            items={responseContent
+              .filter((t) => t.isNarration && isTextItem(t.item))
+              .map((t) => (t.item as ContentItem & { text: string }).text)}
+          />
 
-            {/* Tool entries (grouped card) -- click opens bottom panel tool-call tab */}
-            <ToolEntries events={turnEvents} onToolClick={onToolClick} agentSummaries={turn.agents} />
+          {/* Tool entries (grouped card) -- click opens bottom panel tool-call tab */}
+          <ToolEntries events={turnEvents} onToolClick={onToolClick} agentSummaries={turn.agents} />
 
-            {/* Final response text — only non-narration text blocks */}
-            {responseContent
-              .filter((tagged): tagged is TaggedContent & { item: ContentItem & { text: string } } =>
-                !tagged.isNarration && isTextItem(tagged.item))
-              .map((tagged, i) => (
-                <div
-                  key={`text-${i}`}
-                  className={`msg-text text-[13px] leading-[1.65]${i > 0 ? " mt-2.5" : ""}`}
-                  style={{ color: "var(--t1)" }}
-                >
-                  <ResponseBlock text={tagged.item.text} />
-                </div>
-              ))}
-
-            {/* Task progress (only shown on turns that executed task tool calls) */}
-            {tasks && tasks.length > 0 && (
-              <div className="mt-2">
-                <ProgressBar
-                  label="Tasks"
-                  completed={tasks.filter((t) => t.status === "done").length}
-                  total={tasks.length}
-                />
-                <TaskGrid tasks={tasks} />
+          {/* Final response text — only non-narration text blocks */}
+          {responseContent
+            .filter((tagged): tagged is TaggedContent & { item: ContentItem & { text: string } } =>
+              !tagged.isNarration && isTextItem(tagged.item))
+            .map((tagged, i) => (
+              <div
+                key={`text-${i}`}
+                className={`msg-text t-body${i > 0 ? " mt-2.5" : ""}`}
+              >
+                <ResponseBlock text={tagged.item.text} />
               </div>
-            )}
+            ))}
 
-            {/* Cost breakdown */}
-            {turn.cost > 0 && (
-              <CostFooter
-                totalCost={turn.cost}
-                mainCost={turn.cost - agentCost}
-                mainTurns={1}
-                agentCost={agentCost}
-                agentCalls={turn.agents.length}
-                inputTokens={turn.inputTokens}
-                outputTokens={turn.outputTokens}
+          {/* Task progress (only shown on turns that executed task tool calls) */}
+          {tasks && tasks.length > 0 && (
+            <div className="mt-2">
+              <ProgressBar
+                label="Tasks"
+                completed={tasks.filter((t) => t.status === "done").length}
+                total={tasks.length}
               />
-            )}
+              <TaskGrid tasks={tasks} />
+            </div>
+          )}
 
-            {/* Running indicator */}
-            {isRunning && (
-              <div className="flex items-center mt-2 text-[13px] gap-1.5" style={{ color: "var(--t2)" }}>
-                <span
-                  className="shrink-0 inline-block w-1.5 h-1.5 rounded-full"
-                  style={{ background: "var(--amb)", animation: "pulse 1.5s infinite" }}
-                />
-                <span>Working...</span>
-              </div>
-            )}
+          {/* Cost breakdown */}
+          {turn.cost > 0 && (
+            <CostFooter
+              totalCost={turn.cost}
+              mainCost={turn.cost - agentCost}
+              mainTurns={1}
+              agentCost={agentCost}
+              agentCalls={turn.agents.length}
+              inputTokens={turn.inputTokens}
+              outputTokens={turn.outputTokens}
+            />
+          )}
 
-            {/* Completion indicator */}
-            <TurnFooter turn={turn} turnEvents={turnEvents} sessionIsRunning={sessionIsRunning} />
-          </div>
+          {/* Running indicator */}
+          {isRunning && (
+            <div className="flex items-center mt-2 t-body gap-1.5" style={{ color: "var(--t2)" }}>
+              <span
+                className="shrink-0 inline-block w-1.5 h-1.5 rounded-full"
+                style={{ background: "var(--amb)", animation: "pulse 1.5s infinite" }}
+              />
+              <span>Working...</span>
+            </div>
+          )}
+
+          {/* Completion indicator */}
+          <TurnFooter turn={turn} turnEvents={turnEvents} sessionIsRunning={sessionIsRunning} />
         </div>
       )}
     </div>

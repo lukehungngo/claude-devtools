@@ -1,0 +1,1839 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Claude DevTools — Insights</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body { display: flex; flex-direction: column; background: var(--bg); }
+
+  /* ── Titlebar ── */
+  .titlebar {
+    height: var(--titlebar-h);
+    background: var(--bg-s);
+    border-bottom: 1px solid var(--bd);
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 16px; flex-shrink: 0;
+  }
+  .titlebar .brand {
+    font-size: 12px; font-weight: 600; color: var(--acc);
+    letter-spacing: .2px; white-space: nowrap;
+  }
+
+  /* Section switcher pill */
+  .nav-seg {
+    display: flex; align-items: center; gap: 2px;
+    background: var(--bg-e); border: 1px solid var(--bd);
+    border-radius: var(--r-pill); padding: 2px;
+  }
+  .nav-seg .ns-btn {
+    padding: 3px 10px; border-radius: var(--r-pill);
+    font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+    color: var(--t3); background: transparent; border: none;
+    cursor: pointer; letter-spacing: .2px;
+    transition: background .12s, color .12s;
+  }
+  .nav-seg .ns-btn:hover { color: var(--t1); background: var(--bg-h); }
+  .nav-seg .ns-btn.active {
+    background: var(--bg-s); color: var(--acc);
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+
+  .titlebar .tb-sep { width: 1px; height: 18px; background: var(--bd); margin: 0 4px; }
+
+  .titlebar .tb-conn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 9px; border-radius: var(--r);
+    background: transparent; border: 1px solid var(--bd);
+    cursor: pointer; height: 24px;
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--t2); transition: background .12s;
+  }
+  .titlebar .tb-conn:hover { background: var(--bg-e); }
+  .titlebar .tb-conn .cdot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--grn);
+    box-shadow: 0 0 0 2px var(--grn-bg);
+    animation: tbcpulse 2.2s ease-in-out infinite;
+  }
+  @keyframes tbcpulse {
+    0%,100% { box-shadow: 0 0 0 2px var(--grn-bg); }
+    50%      { box-shadow: 0 0 0 4px rgba(61,138,74,.14); }
+  }
+  .titlebar .tb-conn .clbl { color: var(--t1); font-weight: 600; }
+  .titlebar .tb-conn .clat { color: var(--t3); }
+
+  .titlebar .tb-spacer { flex: 1; }
+  .titlebar .theme {
+    width: 26px; height: 26px; border-radius: 6px;
+    border: 1px solid var(--bd); background: transparent;
+    color: var(--t3); display: flex; align-items: center;
+    justify-content: center; font-size: 12px; cursor: pointer;
+    transition: background .12s;
+  }
+  .titlebar .theme:hover { background: var(--bg-e); color: var(--t1); }
+  .titlebar .avatar-btn {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid var(--bd);
+    background: linear-gradient(135deg, var(--acc), var(--pur));
+    color: #fff; font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; position: relative; margin-left: 4px;
+  }
+  .titlebar .avatar-btn::after {
+    content: ''; position: absolute; top: -2px; right: -2px;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--grn); border: 1.5px solid var(--bg-s);
+  }
+
+  /* ── Scrollable body ── */
+  .insights-body {
+    flex: 1; overflow-y: auto;
+    padding: 24px 0 56px;
+  }
+  .col {
+    max-width: 1320px; margin: 0 auto;
+    padding: 0 28px;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+
+  /* ── Shared card ── */
+  .card {
+    background: var(--bg-e);
+    border: 1px solid var(--bd);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-sm);
+  }
+  .card-head {
+    padding: 14px 18px 0;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .card-title {
+    font-size: 13px; font-weight: 600; color: var(--t1);
+    letter-spacing: -.01em;
+  }
+  .card-meta {
+    font-family: var(--font-mono); font-size: 10px; color: var(--t3);
+    margin-left: auto;
+  }
+  .card-legend {
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--font-mono); font-size: 9px; color: var(--t3);
+    margin-left: auto;
+  }
+  .card-legend .lg-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .card-legend .lg-item { display: flex; align-items: center; gap: 5px; }
+
+  /* ── Scope bar ── */
+  .scope-bar {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; padding: 4px 0;
+  }
+  .scope-bar .sh {
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .scope-bar h1 {
+    margin: 0; font-size: 22px; font-weight: 600; color: var(--t1);
+    letter-spacing: -.01em; line-height: 1.2;
+  }
+  .scope-bar .sub {
+    font-size: 12px; color: var(--t3); font-family: var(--font-sans);
+  }
+  .scope-bar .segs {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding-top: 4px;
+  }
+
+  /* Segmented pill control */
+  .seg {
+    display: flex; align-items: center; gap: 2px;
+    background: var(--bg-e); border: 1px solid var(--bd);
+    border-radius: var(--r-pill); padding: 2px;
+    box-shadow: var(--shadow-xs);
+  }
+  .seg .s-btn {
+    padding: 4px 11px; border-radius: var(--r-pill);
+    font-family: var(--font-mono); font-size: 10px; font-weight: 500;
+    color: var(--t3); background: transparent; border: none;
+    cursor: pointer; letter-spacing: .15px;
+    transition: background .12s, color .12s, box-shadow .12s;
+    white-space: nowrap;
+  }
+  .seg .s-btn:hover { color: var(--t1); }
+  .seg .s-btn.active {
+    background: var(--bg-s); color: var(--acc);
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+
+  /* ── Headline stats ── */
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    gap: 12px;
+  }
+  .stat-tile {
+    background: var(--bg-e); border: 1px solid var(--bd);
+    border-radius: var(--r-md); box-shadow: var(--shadow-sm);
+    padding: 14px 16px; display: flex; flex-direction: column;
+    gap: 4px; position: relative; overflow: hidden;
+  }
+  .stat-tile.big { padding: 16px 18px; }
+  .stat-tile .lbl {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+    letter-spacing: .6px; text-transform: uppercase; color: var(--t3);
+  }
+  .stat-tile .val {
+    font-family: var(--font-mono); font-size: 26px; line-height: 1;
+    font-weight: 500; color: var(--t1);
+    font-feature-settings: "tnum", "zero";
+    letter-spacing: -.02em;
+  }
+  .stat-tile.big .val { font-size: 32px; }
+  .stat-tile .delta {
+    font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 2px;
+    padding: 2px 6px; border-radius: var(--r-xs);
+    width: fit-content; margin-top: 2px;
+  }
+  .stat-tile .delta.up   { color: var(--red); background: var(--red-bg); }
+  .stat-tile .delta.down { color: var(--grn); background: var(--grn-bg); }
+  .stat-tile .delta.flat { color: var(--t3); background: var(--bg-s); }
+
+  /* Sparkline positioned right on big tiles */
+  .stat-tile .spark {
+    position: absolute; right: 10px; bottom: 12px;
+    opacity: .8;
+  }
+
+  /* ── Secondary stats ── */
+  .stats-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* ── Token trend chart ── */
+  .trend-card { padding: 18px 20px 16px; }
+  .trend-chart-wrap {
+    margin-top: 12px; position: relative;
+  }
+  .trend-svg { display: block; width: 100%; }
+
+  /* ── When you work ── */
+  .when-card { padding: 0; overflow: hidden; }
+  .when-inner {
+    display: grid; grid-template-columns: 1fr 1px 1fr;
+    gap: 0;
+  }
+  .when-col { padding: 18px 20px 16px; }
+  .when-divider { background: var(--bd); }
+  .when-col .wc-title {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+    letter-spacing: .8px; text-transform: uppercase; color: var(--t3);
+    margin-bottom: 14px;
+  }
+
+  /* Heatmap */
+  .heatmap-wrap {
+    display: flex; gap: 0;
+  }
+  .hm-ylabels {
+    display: flex; flex-direction: column; justify-content: space-between;
+    width: 44px; padding-right: 8px; flex-shrink: 0;
+    padding-top: 2px; padding-bottom: 22px;
+  }
+  .hm-ylabels span {
+    font-family: var(--font-mono); font-size: 9px; color: var(--t3);
+    line-height: 1; height: 14px; display: flex; align-items: center;
+    justify-content: flex-end;
+  }
+  .hm-body { flex: 1; }
+  .hm-grid {
+    display: grid; grid-template-columns: repeat(24, 1fr);
+    gap: 2px;
+  }
+  .hm-cell {
+    aspect-ratio: 1; border-radius: 2px;
+    background: var(--bg-s);
+    transition: transform .12s;
+    cursor: default;
+  }
+  .hm-cell:hover { transform: scale(1.3); z-index: 2; position: relative; }
+  .hm-cell.h0 { background: var(--bg-s); }
+  .hm-cell.h1 { background: var(--acc-bg); }
+  .hm-cell.h2 { background: var(--acc-bg-strong); }
+  .hm-cell.h3 { background: rgba(194,89,46,.35); }
+  .hm-cell.h4 { background: var(--acc); }
+  .hm-cell.peak {
+    outline: 2px solid var(--acc); outline-offset: 1px;
+    transform: scale(1.3); z-index: 2; position: relative;
+  }
+  .hm-xlabels {
+    display: grid; grid-template-columns: repeat(24, 1fr);
+    gap: 2px; margin-top: 5px;
+  }
+  .hm-xlabels span {
+    font-family: var(--font-mono); font-size: 8px; color: var(--t3);
+    text-align: center; visibility: hidden;
+  }
+  .hm-xlabels span.show { visibility: visible; }
+  .hm-legend {
+    display: flex; align-items: center; gap: 5px;
+    margin-top: 8px;
+    font-family: var(--font-mono); font-size: 9px; color: var(--t3);
+  }
+  .hm-legend .lswatch {
+    width: 10px; height: 10px; border-radius: 2px;
+  }
+  .hm-legend .peak-note {
+    margin-left: auto; font-size: 9px; color: var(--t2);
+  }
+
+  /* Hourly bars */
+  .hourly-wrap { position: relative; }
+  .hourly-svg { display: block; width: 100%; }
+  .hourly-obs {
+    font-family: var(--font-mono); font-size: 10px; color: var(--t2);
+    margin-top: 10px; line-height: 1.5;
+  }
+  .hourly-obs strong { color: var(--acc); }
+
+  /* ── Model mix ── */
+  .model-mix-card { padding: 18px 20px 16px; }
+
+  /* Stacked proportion bar */
+  .prop-bar {
+    height: 28px; border-radius: var(--r-pill);
+    display: flex; overflow: hidden;
+    margin: 14px 0 16px;
+    box-shadow: var(--shadow-xs);
+  }
+  .prop-bar .pb-seg {
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+    color: #fff; white-space: nowrap; overflow: hidden;
+    transition: flex .3s ease;
+    min-width: 0;
+  }
+  .pb-seg.sonnet  { background: var(--acc); }
+  .pb-seg.opus    { background: var(--pur); }
+  .pb-seg.haiku   { background: var(--teal); }
+  .pb-seg.other   { background: var(--t3); }
+  .pb-seg span { padding: 0 8px; overflow: hidden; text-overflow: clip; }
+
+  /* Model row cards */
+  .model-rows { display: flex; flex-direction: column; gap: 8px; }
+  .model-row {
+    display: grid; grid-template-columns: 180px 1fr 1fr 140px;
+    gap: 0; align-items: center;
+    background: var(--bg); border: 1px solid var(--bd);
+    border-radius: var(--r); padding: 14px 16px;
+    transition: background .12s;
+  }
+  .model-row:hover { background: var(--bg-h); }
+  .model-row .mr-id {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .model-row .mr-swatch {
+    width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+  }
+  .model-row .mr-info {}
+  .model-row .mr-name {
+    font-size: 13px; font-weight: 600; color: var(--t1); line-height: 1.2;
+  }
+  .model-row .mr-share {
+    font-family: var(--font-mono); font-size: 10px; color: var(--t3);
+    margin-top: 2px;
+  }
+  .model-row .mr-stat {
+    display: flex; flex-direction: column; gap: 2px; padding: 0 12px;
+  }
+  .model-row .mr-stat .ms-lbl {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+    letter-spacing: .5px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .model-row .mr-stat .ms-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .model-row .mr-stat .ms-val {
+    font-family: var(--font-mono); font-size: 24px; font-weight: 500;
+    color: var(--t1); line-height: 1;
+    font-feature-settings: "tnum","zero";
+    letter-spacing: -.02em;
+  }
+  .model-row .mr-cost {
+    text-align: right;
+  }
+  .model-row .mr-cost .mc-val {
+    font-size: 14px; font-weight: 600; color: var(--t1);
+    font-feature-settings: "tnum";
+  }
+  .model-row .mr-cost .mc-lbl {
+    font-family: var(--font-mono); font-size: 9px; color: var(--t3);
+    margin-top: 2px; letter-spacing: .3px;
+  }
+
+  /* ── Top consumers — 3-col grid ── */
+  .top-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+  }
+
+  /* Rank list */
+  .rank-card { padding: 16px 18px; }
+  .rank-card .rc-title {
+    font-size: 13px; font-weight: 600; color: var(--t1); margin-bottom: 12px;
+  }
+  .rank-list { display: flex; flex-direction: column; gap: 6px; }
+  .rank-item {
+    display: grid; grid-template-columns: 26px 1fr 80px;
+    gap: 8px; align-items: center;
+    padding: 7px 8px; border-radius: var(--r-sm);
+    cursor: pointer; transition: background .12s;
+  }
+  .rank-item:hover { background: var(--bg-s); }
+  .rank-item .ri-num {
+    width: 22px; height: 22px; border-radius: 5px;
+    background: var(--bg-s); border: 1px solid var(--bd);
+    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    color: var(--t2); display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .rank-item .ri-mid { min-width: 0; }
+  .rank-item .ri-name {
+    font-size: 12px; font-weight: 600; color: var(--t1);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    line-height: 1.2;
+  }
+  .rank-item .ri-bar-wrap {
+    height: 3px; background: var(--bg-s); border-radius: 2px;
+    margin-top: 4px; overflow: hidden;
+  }
+  .rank-item .ri-bar { height: 100%; border-radius: 2px; }
+  .rank-item .ri-val {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+    color: var(--t1); text-align: right; line-height: 1.2;
+    font-feature-settings: "tnum";
+  }
+  .rank-item .ri-unit {
+    font-family: var(--font-mono); font-size: 9px; color: var(--t3);
+    text-align: right; display: block;
+  }
+
+  /* ── Commands / Agents / Skills ── */
+  .cmd-card { padding: 0; overflow: hidden; }
+  .cmd-inner {
+    display: grid; grid-template-columns: 1fr 1px 1.2fr;
+    gap: 0;
+  }
+  .cmd-col { padding: 18px 20px 16px; }
+  .cmd-divider { background: var(--bd); }
+  .cmd-col .cc-head {
+    display: flex; align-items: baseline; gap: 8px;
+    margin-bottom: 10px;
+  }
+  .cmd-col .cc-title {
+    font-size: 13px; font-weight: 600; color: var(--t1);
+  }
+  .cmd-col .cc-legend {
+    font-family: var(--font-mono); font-size: 9px; color: var(--t3);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .cmd-col .cc-meta { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--t3); }
+
+  /* Rank list in cmd card (slightly different) */
+  .cmd-rank { display: flex; flex-direction: column; gap: 4px; }
+  .cmd-rank-item {
+    display: grid; grid-template-columns: 26px 1fr 90px;
+    gap: 8px; align-items: center;
+    padding: 6px 8px; border-radius: var(--r-sm);
+    cursor: pointer; transition: background .12s;
+  }
+  .cmd-rank-item:hover { background: var(--bg-s); }
+  .cmd-rank-item .cr-num {
+    width: 22px; height: 22px; border-radius: 5px;
+    background: var(--bg-s); border: 1px solid var(--bd);
+    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    color: var(--t2); display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .cmd-rank-item .cr-mid { min-width: 0; }
+  .cmd-rank-item .cr-name {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--t1);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cmd-rank-item .cr-slug {
+    font-family: var(--font-mono); font-size: 9px; color: var(--t3);
+  }
+  .cmd-rank-item .cr-bar-wrap {
+    height: 3px; background: var(--bg-s); border-radius: 2px;
+    margin-top: 3px; overflow: hidden;
+  }
+  .cmd-rank-item .cr-bar { height: 100%; border-radius: 2px; background: var(--acc); }
+  .cmd-rank-item .cr-stat {
+    font-family: var(--font-mono); font-size: 10px; color: var(--t3);
+    text-align: right; white-space: nowrap;
+  }
+  .cmd-rank-item .cr-stat strong {
+    color: var(--t1); font-weight: 600;
+  }
+
+  /* Trend rows */
+  .trend-list { display: flex; flex-direction: column; gap: 4px; }
+  .skill-row {
+    display: grid; grid-template-columns: 120px 1fr 120px 100px;
+    gap: 8px; align-items: center;
+    padding: 7px 8px; border-radius: var(--r-sm);
+    cursor: pointer; transition: background .12s;
+  }
+  .skill-row:hover { background: var(--bg-s); }
+  .skill-row .sr-id {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .skill-row .sr-badge {
+    padding: 2px 5px; border-radius: var(--r-xs);
+    font-family: var(--font-mono); font-size: 8px; font-weight: 700;
+    letter-spacing: .3px; background: var(--bg-s);
+    border: 1px solid var(--bd); color: var(--t2);
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .skill-row .sr-name {
+    font-size: 12px; font-weight: 600; color: var(--t1);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .skill-row .sr-spark { flex: 1; min-width: 0; }
+
+  .skill-row .sr-stats {
+    font-family: var(--font-mono); font-size: 10px; line-height: 1.6;
+    text-align: right;
+  }
+  .skill-row .sr-stats .in  { color: var(--teal); }
+  .skill-row .sr-stats .out { color: var(--pur); }
+
+  .skill-row .sr-verdict {
+    display: flex; justify-content: flex-end;
+  }
+  .verdict {
+    padding: 3px 8px; border-radius: var(--r-xs);
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+    letter-spacing: .4px; white-space: nowrap;
+  }
+  .verdict.improving { color: var(--grn); background: var(--grn-bg); }
+  .verdict.stable    { color: var(--t3); background: var(--bg-s); }
+  .verdict.regressing{ color: var(--red); background: var(--red-bg); }
+
+  /* Agent badge colored by span */
+  .sr-badge.pm  { background: var(--span-pm);  color: var(--span-pm-t);  border-color: transparent; }
+  .sr-badge.swe { background: var(--span-swe); color: var(--span-swe-t); border-color: transparent; }
+  .sr-badge.qa  { background: var(--span-qa);  color: var(--span-qa-t);  border-color: transparent; }
+  .sr-badge.bug { background: var(--span-bug); color: var(--span-bug-t); border-color: transparent; }
+  .sr-badge.rev { background: var(--span-rev); color: var(--span-rev-t); border-color: transparent; }
+  .sr-badge.doc { background: var(--span-doc); color: var(--span-doc-t); border-color: transparent; }
+
+  /* Skills icon ▤ */
+  .sr-badge.skill { background: var(--acc-bg); color: var(--acc); border-color: transparent; }
+
+  /* ── Efficiency hints ── */
+  .hints-card { padding: 18px 20px 16px; }
+  .hints-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+    margin-top: 14px;
+  }
+  .hint {
+    display: flex; gap: 10px;
+    background: var(--bg); border: 1px solid var(--bd);
+    border-radius: var(--r); padding: 12px 14px;
+  }
+  .hint .hint-icon {
+    width: 28px; height: 28px; border-radius: var(--r-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; flex-shrink: 0;
+  }
+  .hint .hint-icon.warn { background: var(--amb-bg); }
+  .hint .hint-icon.good { background: var(--grn-bg); }
+  .hint .hint-icon.info { background: var(--acc-bg); }
+  .hint .hint-body {}
+  .hint .hint-title {
+    font-size: 11px; font-weight: 700; color: var(--t1); margin-bottom: 3px;
+  }
+  .hint .hint-copy {
+    font-family: var(--font-sans); font-size: 11px; color: var(--t2);
+    line-height: 1.5;
+  }
+  .hint .hint-copy strong {
+    font-family: var(--font-mono); color: var(--acc); font-weight: 600;
+  }
+
+  /* ── Theme script styles ── */
+  [data-theme="dark"] .titlebar .theme::before { content: '☀'; }
+  [data-theme="light"] .titlebar .theme::before { content: '◑'; }
+</style>
+</head>
+<body data-theme="light">
+
+<!-- ── Titlebar ── -->
+<div class="titlebar">
+  <span class="brand">Claude DevTools</span>
+
+  <div class="nav-seg">
+    <button class="ns-btn" onclick="window.location='dashboard.html'">Session</button>
+    <button class="ns-btn active">Insights</button>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <div class="tb-conn">
+    <span class="cdot"></span>
+    <span class="clbl">claude-devtools</span>
+    <span class="clat">· master</span>
+  </div>
+
+  <div class="tb-spacer"></div>
+
+  <button class="theme" onclick="toggleTheme()" title="Toggle theme"></button>
+  <div class="avatar-btn">LH</div>
+</div>
+
+<!-- ── Insights body ── -->
+<div class="insights-body">
+  <div class="col">
+
+    <!-- Row 1: Scope bar -->
+    <div class="scope-bar">
+      <div class="sh">
+        <h1>Insights</h1>
+        <span class="sub">Aggregate usage across your repos and sessions</span>
+      </div>
+      <div class="segs">
+        <div class="seg">
+          <button class="s-btn active">All repos</button>
+          <button class="s-btn">claude-devtools</button>
+          <button class="s-btn">dashboard</button>
+          <button class="s-btn">agent-sdk</button>
+        </div>
+        <div class="seg">
+          <button class="s-btn">24h</button>
+          <button class="s-btn active">7d</button>
+          <button class="s-btn">30d</button>
+          <button class="s-btn">90d</button>
+          <button class="s-btn">All</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Headline stats -->
+    <div class="stats">
+
+      <!-- Tokens in — big tile, teal sparkline -->
+      <div class="stat-tile big">
+        <div class="lbl">Tokens in</div>
+        <div class="val">2.14M</div>
+        <div class="delta up">▲ +14%</div>
+        <svg class="spark" width="72" height="36" viewBox="0 0 72 36" fill="none">
+          <defs>
+            <linearGradient id="teal-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--teal)" stop-opacity=".25"/>
+              <stop offset="100%" stop-color="var(--teal)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M 2,30 8,28 16,24 24,26 32,20 42,16 52,13 62,10 70,7" stroke="var(--teal)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M 2,30 8,28 16,24 24,26 32,20 42,16 52,13 62,10 70,7 L 70,36 L 2,36 Z" fill="url(#teal-grad)"/>
+        </svg>
+      </div>
+
+      <!-- Tokens out — big tile, purple sparkline -->
+      <div class="stat-tile big">
+        <div class="lbl">Tokens out</div>
+        <div class="val">18.6M</div>
+        <div class="delta up">▲ +22%</div>
+        <svg class="spark" width="72" height="36" viewBox="0 0 72 36" fill="none">
+          <defs>
+            <linearGradient id="pur-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--pur)" stop-opacity=".25"/>
+              <stop offset="100%" stop-color="var(--pur)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M 2,32 8,28 16,25 24,22 32,17 42,12 52,9 62,5 70,3" stroke="var(--pur)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M 2,32 8,28 16,25 24,22 32,17 42,12 52,9 62,5 70,3 L 70,36 L 2,36 Z" fill="url(#pur-grad)"/>
+        </svg>
+      </div>
+
+      <!-- Total cost -->
+      <div class="stat-tile">
+        <div class="lbl">Total cost</div>
+        <div class="val">$248.12</div>
+        <div class="delta up">▲ +18%</div>
+      </div>
+
+      <!-- Sessions -->
+      <div class="stat-tile">
+        <div class="lbl">Sessions</div>
+        <div class="val">47</div>
+        <div class="delta flat">→ flat</div>
+      </div>
+
+      <!-- Turns -->
+      <div class="stat-tile">
+        <div class="lbl">Turns</div>
+        <div class="val">1,248</div>
+        <div class="delta up">▲ +9%</div>
+      </div>
+
+    </div>
+
+    <!-- Row 3: Secondary stats -->
+    <div class="stats-2">
+
+      <div class="stat-tile">
+        <div class="lbl">Avg cost / turn</div>
+        <div class="val" style="font-size:26px">$0.199</div>
+        <div class="delta up">▲ +8%</div>
+      </div>
+
+      <div class="stat-tile">
+        <div class="lbl">Avg tokens / turn</div>
+        <div class="val" style="font-size:26px">16.6K</div>
+        <div class="delta down">▼ −3%</div>
+      </div>
+
+      <div class="stat-tile">
+        <div class="lbl">Active days</div>
+        <div class="val" style="font-size:26px">7 / 7</div>
+        <div class="delta flat">→ unchanged</div>
+      </div>
+
+      <div class="stat-tile">
+        <div class="lbl">Peak hour</div>
+        <div class="val" style="font-size:26px">11 PM</div>
+        <div class="delta flat" style="font-size:10px;letter-spacing:0">your 🦉 hour</div>
+      </div>
+
+    </div>
+
+    <!-- Row 4: Token trend (full-width) -->
+    <div class="card trend-card">
+      <div class="card-head">
+        <span class="card-title">Token trend</span>
+        <div class="card-legend">
+          <span class="lg-item"><span class="lg-dot" style="background:var(--teal)"></span>Tokens in</span>
+          <span class="lg-item"><span class="lg-dot" style="background:var(--pur)"></span>Tokens out</span>
+        </div>
+        <span class="card-meta">Hourly · last 7 days</span>
+      </div>
+      <div class="trend-chart-wrap">
+        <svg class="trend-svg" viewBox="0 0 1280 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="teal-area" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--teal)" stop-opacity=".30"/>
+              <stop offset="100%" stop-color="var(--teal)" stop-opacity=".04"/>
+            </linearGradient>
+            <linearGradient id="pur-area" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--pur)" stop-opacity=".28"/>
+              <stop offset="100%" stop-color="var(--pur)" stop-opacity=".04"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Y-axis labels -->
+          <text x="36" y="18" font-family="JetBrains Mono,monospace" font-size="11" fill="var(--t3)" text-anchor="end">4M</text>
+          <text x="36" y="76" font-family="JetBrains Mono,monospace" font-size="11" fill="var(--t3)" text-anchor="end">3M</text>
+          <text x="36" y="133" font-family="JetBrains Mono,monospace" font-size="11" fill="var(--t3)" text-anchor="end">2M</text>
+          <text x="36" y="190" font-family="JetBrains Mono,monospace" font-size="11" fill="var(--t3)" text-anchor="end">1M</text>
+
+          <!-- Horizontal dashed grid lines -->
+          <line x1="44" y1="14"  x2="1270" y2="14"  stroke="var(--bd)" stroke-dasharray="4 6" stroke-width="1"/>
+          <line x1="44" y1="72"  x2="1270" y2="72"  stroke="var(--bd)" stroke-dasharray="4 6" stroke-width="1"/>
+          <line x1="44" y1="130" x2="1270" y2="130" stroke="var(--bd)" stroke-dasharray="4 6" stroke-width="1"/>
+          <line x1="44" y1="188" x2="1270" y2="188" stroke="var(--bd)" stroke-dasharray="4 6" stroke-width="1"/>
+
+          <!-- Teal area (tokens in, bottom stacked area) -->
+          <!-- Mapping: 0 → y=245, 4M → y=14. Scale: 231px/4M -->
+          <!-- Daily data (Tokens in): Mon=280K→229, Tue=310K→227, Wed=320K→227, Thu=350K→224, Fri=400K→222, Sat=480K→217, Sun=380K→223 -->
+          <path d="M 44,245 L 44,229 230,227 430,227 630,224 830,222 1030,217 1230,223 L 1270,223 L 1270,245 Z"
+                fill="url(#teal-area)"/>
+          <polyline points="44,229 230,227 430,227 630,224 830,222 1030,217 1230,223 1270,223"
+                    stroke="var(--teal)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <!-- Purple area (tokens out, stacked on top of teal) -->
+          <!-- Daily data (Tokens out): Mon=1800K, Tue=2100K, Wed=2400K, Thu=2800K, Fri=3100K, Sat=3500K, Sun=2900K -->
+          <!-- Heights from 0: 1800K/4000K*231=104px, 2100K=121px, 2400K=138px, 2800K=162px, 3100K=179px, 3500K=202px, 2900K=168px -->
+          <!-- Top y = 245 - in_h - out_h: Mon=245-16-104=125, Tue=245-18-121=106, Wed=245-18-138=89, Thu=245-21-162=62, Fri=245-23-179=43, Sat=245-28-202=15, Sun=245-22-168=55 -->
+          <path d="M 44,229 230,227 430,227 630,224 830,222 1030,217 1230,223 1270,223
+                   L 1270,55 1230,55 1030,15 830,43 630,62 430,89 230,106 44,125 Z"
+                fill="url(#pur-area)"/>
+          <polyline points="44,125 230,106 430,89 630,62 830,43 1030,15 1230,55 1270,55"
+                    stroke="var(--pur)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <!-- X-axis day labels -->
+          <text x="44"   y="258" font-family="JetBrains Mono,monospace" font-size="10" fill="var(--t3)" text-anchor="middle">Mon</text>
+          <text x="230"  y="258" font-family="JetBrains Mono,monospace" font-size="10" fill="var(--t3)" text-anchor="middle">Tue</text>
+          <text x="430"  y="258" font-family="JetBrains Mono,monospace" font-size="10" fill="var(--t3)" text-anchor="middle">Wed</text>
+          <text x="630"  y="258" font-family="JetBrains Mono,monospace" font-size="10" fill="var(--t3)" text-anchor="middle">Thu</text>
+          <text x="830"  y="258" font-family="JetBrains Mono,monospace" font-size="10" fill="var(--t3)" text-anchor="middle">Fri</text>
+          <text x="1030" y="258" font-family="JetBrains Mono,monospace" font-size="10" fill="var(--t3)" text-anchor="middle">Sat</text>
+          <text x="1230" y="258" font-family="JetBrains Mono,monospace" font-size="10" fill="var(--t3)" text-anchor="middle">Sun</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Row 5: When you work -->
+    <div class="card when-card">
+      <div class="when-inner">
+
+        <!-- Left: Heatmap -->
+        <div class="when-col">
+          <div class="wc-title">Weekday × hour</div>
+          <div class="heatmap-wrap">
+            <div class="hm-ylabels">
+              <span>Fri</span>
+              <span>Sat</span>
+              <span>Sun</span>
+              <span>Mon</span>
+              <span>Tue</span>
+              <span>Wed</span>
+              <span>Today</span>
+            </div>
+            <div class="hm-body">
+              <div class="hm-grid" id="hm-grid">
+                <!-- Generated by script below -->
+              </div>
+              <div class="hm-xlabels">
+                <span class="show">12AM</span>
+                <span></span><span></span>
+                <span class="show">3AM</span>
+                <span></span><span></span>
+                <span class="show">6AM</span>
+                <span></span><span></span>
+                <span class="show">9AM</span>
+                <span></span><span></span>
+                <span class="show">12PM</span>
+                <span></span><span></span>
+                <span class="show">3PM</span>
+                <span></span><span></span>
+                <span class="show">6PM</span>
+                <span></span><span></span>
+                <span class="show">9PM</span>
+                <span></span><span></span>
+                <span class="show">12AM</span>
+                <span></span><span></span>
+              </div>
+              <div class="hm-legend">
+                <span>Less</span>
+                <span class="lswatch h0"></span>
+                <span class="lswatch h1"></span>
+                <span class="lswatch h2"></span>
+                <span class="lswatch h3"></span>
+                <span class="lswatch h4"></span>
+                <span>More</span>
+                <span class="peak-note">Peak: Tue 11 PM (1.8× avg)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="when-divider"></div>
+
+        <!-- Right: Hourly bars -->
+        <div class="when-col">
+          <div class="wc-title">Hour of day · avg tokens, all time</div>
+          <div class="hourly-wrap">
+            <svg class="hourly-svg" viewBox="0 0 560 120" xmlns="http://www.w3.org/2000/svg">
+              <!-- 24 bars, each 18px wide with 5px gap → (18+5)×24 - 5 = 547px -->
+              <!-- Peak bar at hour 23 (index 23) -->
+              <!-- Heights scaled 0-100 with peak hour = 100 -->
+              <!-- Data: roughly follows a pattern of late-night heavy usage -->
+              <g id="hourly-bars"></g>
+              <!-- X labels at 0, 6, 12, 18, 23 -->
+              <text x="7"   y="118" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--t3)" text-anchor="middle">12AM</text>
+              <text x="145" y="118" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--t3)" text-anchor="middle">6AM</text>
+              <text x="283" y="118" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--t3)" text-anchor="middle">12PM</text>
+              <text x="421" y="118" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--t3)" text-anchor="middle">6PM</text>
+              <text x="536" y="118" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--t3)" text-anchor="middle">12AM</text>
+            </svg>
+          </div>
+          <div class="hourly-obs">
+            You do <strong>63%</strong> of your token work between <strong>9 PM</strong> and <strong>2 AM</strong>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Row 6: Model mix -->
+    <div class="card model-mix-card">
+      <div class="card-head">
+        <span class="card-title">Model mix</span>
+        <span class="card-meta">Share of total tokens · 20.7M</span>
+      </div>
+
+      <div class="prop-bar">
+        <div class="pb-seg sonnet" style="flex:62"><span>sonnet-4-6 · 62%</span></div>
+        <div class="pb-seg opus"   style="flex:21"><span>opus-4 · 21%</span></div>
+        <div class="pb-seg haiku"  style="flex:12"><span>haiku-4-5 · 12%</span></div>
+        <div class="pb-seg other"  style="flex:5"><span></span></div>
+      </div>
+
+      <div class="model-rows">
+
+        <div class="model-row">
+          <div class="mr-id">
+            <div class="mr-swatch" style="background:var(--acc)"></div>
+            <div class="mr-info">
+              <div class="mr-name">claude-sonnet-4-6</div>
+              <div class="mr-share">62% of total · 782 turns</div>
+            </div>
+          </div>
+          <div class="mr-stat">
+            <div class="ms-lbl"><span class="ms-dot" style="background:var(--teal)"></span><span style="color:var(--teal)">TOKENS IN</span></div>
+            <div class="ms-val">1.32M</div>
+          </div>
+          <div class="mr-stat">
+            <div class="ms-lbl"><span class="ms-dot" style="background:var(--pur)"></span><span style="color:var(--pur)">TOKENS OUT</span></div>
+            <div class="ms-val">11.5M</div>
+          </div>
+          <div class="mr-cost">
+            <div class="mc-val">$154.28</div>
+            <div class="mc-lbl">total spend</div>
+          </div>
+        </div>
+
+        <div class="model-row">
+          <div class="mr-id">
+            <div class="mr-swatch" style="background:var(--pur)"></div>
+            <div class="mr-info">
+              <div class="mr-name">claude-opus-4</div>
+              <div class="mr-share">21% of total · 184 turns</div>
+            </div>
+          </div>
+          <div class="mr-stat">
+            <div class="ms-lbl"><span class="ms-dot" style="background:var(--teal)"></span><span style="color:var(--teal)">TOKENS IN</span></div>
+            <div class="ms-val">466K</div>
+          </div>
+          <div class="mr-stat">
+            <div class="ms-lbl"><span class="ms-dot" style="background:var(--pur)"></span><span style="color:var(--pur)">TOKENS OUT</span></div>
+            <div class="ms-val">3.96M</div>
+          </div>
+          <div class="mr-cost">
+            <div class="mc-val">$73.41</div>
+            <div class="mc-lbl">total spend</div>
+          </div>
+        </div>
+
+        <div class="model-row">
+          <div class="mr-id">
+            <div class="mr-swatch" style="background:var(--teal)"></div>
+            <div class="mr-info">
+              <div class="mr-name">claude-haiku-4-5</div>
+              <div class="mr-share">12% of total · 248 turns</div>
+            </div>
+          </div>
+          <div class="mr-stat">
+            <div class="ms-lbl"><span class="ms-dot" style="background:var(--teal)"></span><span style="color:var(--teal)">TOKENS IN</span></div>
+            <div class="ms-val">276K</div>
+          </div>
+          <div class="mr-stat">
+            <div class="ms-lbl"><span class="ms-dot" style="background:var(--pur)"></span><span style="color:var(--pur)">TOKENS OUT</span></div>
+            <div class="ms-val">2.18M</div>
+          </div>
+          <div class="mr-cost">
+            <div class="mc-val">$17.64</div>
+            <div class="mc-lbl">total spend</div>
+          </div>
+        </div>
+
+        <div class="model-row">
+          <div class="mr-id">
+            <div class="mr-swatch" style="background:var(--t3)"></div>
+            <div class="mr-info">
+              <div class="mr-name">other</div>
+              <div class="mr-share">5% of total · 34 turns</div>
+            </div>
+          </div>
+          <div class="mr-stat">
+            <div class="ms-lbl"><span class="ms-dot" style="background:var(--teal)"></span><span style="color:var(--teal)">TOKENS IN</span></div>
+            <div class="ms-val">80K</div>
+          </div>
+          <div class="mr-stat">
+            <div class="ms-lbl"><span class="ms-dot" style="background:var(--pur)"></span><span style="color:var(--pur)">TOKENS OUT</span></div>
+            <div class="ms-val">968K</div>
+          </div>
+          <div class="mr-cost">
+            <div class="mc-val">$2.79</div>
+            <div class="mc-lbl">total spend</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Row 7: Top consumers -->
+    <div class="top-grid">
+
+      <!-- Top repos -->
+      <div class="card rank-card">
+        <div class="rc-title">Top repos <span style="font-family:var(--font-mono);font-size:10px;color:var(--t3);font-weight:400">by token spend</span></div>
+        <div class="rank-list">
+          <div class="rank-item">
+            <div class="ri-num">1</div>
+            <div class="ri-mid">
+              <div class="ri-name">claude-devtools</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:100%;background:var(--pur)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">12.4M</div>
+              <span class="ri-unit">tokens</span>
+            </div>
+          </div>
+          <div class="rank-item">
+            <div class="ri-num">2</div>
+            <div class="ri-mid">
+              <div class="ri-name">dashboard</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:48%;background:var(--pur)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">5.9M</div>
+              <span class="ri-unit">tokens</span>
+            </div>
+          </div>
+          <div class="rank-item">
+            <div class="ri-num">3</div>
+            <div class="ri-mid">
+              <div class="ri-name">agent-sdk</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:18%;background:var(--pur)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">2.2M</div>
+              <span class="ri-unit">tokens</span>
+            </div>
+          </div>
+          <div class="rank-item">
+            <div class="ri-num">4</div>
+            <div class="ri-mid">
+              <div class="ri-name">playground</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:2%;background:var(--pur)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">0.2M</div>
+              <span class="ri-unit">tokens</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top sessions -->
+      <div class="card rank-card">
+        <div class="rc-title">Top sessions <span style="font-family:var(--font-mono);font-size:10px;color:var(--t3);font-weight:400">by cost</span></div>
+        <div class="rank-list">
+          <div class="rank-item">
+            <div class="ri-num">1</div>
+            <div class="ri-mid">
+              <div class="ri-name">T26 — 2026-04-18</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:100%;background:var(--acc)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">$2.59</div>
+              <span class="ri-unit">spend</span>
+            </div>
+          </div>
+          <div class="rank-item">
+            <div class="ri-num">2</div>
+            <div class="ri-mid">
+              <div class="ri-name">T18 — 2026-04-16</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:44%;background:var(--acc)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">$1.14</div>
+              <span class="ri-unit">spend</span>
+            </div>
+          </div>
+          <div class="rank-item">
+            <div class="ri-num">3</div>
+            <div class="ri-mid">
+              <div class="ri-name">T14 — 2026-04-14</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:36%;background:var(--acc)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">$0.94</div>
+              <span class="ri-unit">spend</span>
+            </div>
+          </div>
+          <div class="rank-item">
+            <div class="ri-num">4</div>
+            <div class="ri-mid">
+              <div class="ri-name">T11 — 2026-04-12</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:13%;background:var(--acc)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">$0.34</div>
+              <span class="ri-unit">spend</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top tool calls -->
+      <div class="card rank-card">
+        <div class="rc-title">Top tool calls <span style="font-family:var(--font-mono);font-size:10px;color:var(--t3);font-weight:400">by count</span></div>
+        <div class="rank-list">
+          <div class="rank-item">
+            <div class="ri-num">1</div>
+            <div class="ri-mid">
+              <div class="ri-name">Read</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:100%;background:var(--teal)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">3,482</div>
+              <span class="ri-unit">calls</span>
+            </div>
+          </div>
+          <div class="rank-item">
+            <div class="ri-num">2</div>
+            <div class="ri-mid">
+              <div class="ri-name">Bash</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:58%;background:var(--teal)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">2,014</div>
+              <span class="ri-unit">calls</span>
+            </div>
+          </div>
+          <div class="rank-item">
+            <div class="ri-num">3</div>
+            <div class="ri-mid">
+              <div class="ri-name">Grep</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:34%;background:var(--teal)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">1,192</div>
+              <span class="ri-unit">calls</span>
+            </div>
+          </div>
+          <div class="rank-item">
+            <div class="ri-num">4</div>
+            <div class="ri-mid">
+              <div class="ri-name">Write</div>
+              <div class="ri-bar-wrap"><div class="ri-bar" style="width:12%;background:var(--teal)"></div></div>
+            </div>
+            <div>
+              <div class="ri-val">428</div>
+              <span class="ri-unit">calls</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Row 8: Commands -->
+    <div class="card cmd-card">
+      <div class="cmd-inner">
+        <div class="cmd-col">
+          <div class="cc-head">
+            <span class="cc-title">Commands</span>
+            <span class="cc-meta">Last 7 days</span>
+          </div>
+          <div class="cmd-rank">
+            <div class="cmd-rank-item">
+              <div class="cr-num">1</div>
+              <div class="cr-mid">
+                <div class="cr-name">/compact</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:100%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>284</strong> calls · avg 2.1K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num">2</div>
+              <div class="cr-mid">
+                <div class="cr-name">/clear</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:74%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>210</strong> calls · avg 0.2K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num">3</div>
+              <div class="cr-mid">
+                <div class="cr-name">/model</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:38%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>108</strong> calls · avg 0.1K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num">4</div>
+              <div class="cr-mid">
+                <div class="cr-name">/cost</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:26%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>74</strong> calls · avg 0.4K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num">5</div>
+              <div class="cr-mid">
+                <div class="cr-name">/review</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:18%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>51</strong> calls · avg 4.8K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num">6</div>
+              <div class="cr-mid">
+                <div class="cr-name">/commit</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:12%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>34</strong> calls · avg 3.2K</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cmd-divider"></div>
+
+        <div class="cmd-col">
+          <div class="cc-head">
+            <div class="cc-legend">
+              <span style="color:var(--teal)">— Tokens in / call</span>
+              <span style="color:var(--pur)">— Tokens out / call</span>
+            </div>
+          </div>
+          <div class="trend-list">
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge">/ct</span>
+                <span class="sr-name">/compact</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,20 28,18 56,15 84,12 112,10 140,9 160,8" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,24 28,22 56,20 84,17 112,14 140,13 160,12" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">2.1K +4%</div>
+                <div class="out">8.4K +7%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict improving">▼ IMPROVING</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge">/cl</span>
+                <span class="sr-name">/clear</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,14 28,15 56,13 84,14 112,13 140,14 160,14" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,20 28,21 56,19 84,20 112,20 140,19 160,20" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">0.2K →</div>
+                <div class="out">0.8K →</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict stable">→ STABLE</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge">/mo</span>
+                <span class="sr-name">/model</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,18 28,17 56,16 84,15 112,13 140,11 160,10" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,22 28,22 56,21 84,20 112,18 140,16 160,15" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">0.1K −2%</div>
+                <div class="out">0.4K −3%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict improving">▼ IMPROVING</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge">/co</span>
+                <span class="sr-name">/cost</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,14 28,14 56,15 84,14 112,15 140,14 160,14" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,20 28,20 56,21 84,20 112,21 140,20 160,20" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">0.4K →</div>
+                <div class="out">1.2K →</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict stable">→ STABLE</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge">/rv</span>
+                <span class="sr-name">/review</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,10 28,12 56,14 84,16 112,18 140,20 160,22" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,6 28,8 56,11 84,14 112,17 140,20 160,22" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">4.8K +18%</div>
+                <div class="out">22K +24%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict regressing">▲ REGRESSING</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge">/cm</span>
+                <span class="sr-name">/commit</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,16 28,15 56,14 84,14 112,13 140,12 160,11" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,22 28,21 56,20 84,20 112,19 140,18 160,17" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">3.2K −5%</div>
+                <div class="out">14K −3%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict improving">▼ IMPROVING</span></div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 9: Agents -->
+    <div class="card cmd-card">
+      <div class="cmd-inner">
+        <div class="cmd-col">
+          <div class="cc-head">
+            <span class="cc-title">Agents</span>
+            <span class="cc-meta">Last 7 days</span>
+          </div>
+          <div class="cmd-rank">
+            <div class="cmd-rank-item">
+              <div class="cr-num" style="background:var(--span-swe);color:var(--span-swe-t);border-color:transparent">SWE</div>
+              <div class="cr-mid">
+                <div class="cr-name">software-engineer</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:100%;background:var(--span-swe-t)"></div></div>
+              </div>
+              <div class="cr-stat"><strong>312</strong> runs · avg 18K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num" style="background:var(--span-pm);color:var(--span-pm-t);border-color:transparent">PM</div>
+              <div class="cr-mid">
+                <div class="cr-name">product-manager</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:62%;background:var(--span-pm-t)"></div></div>
+              </div>
+              <div class="cr-stat"><strong>194</strong> runs · avg 12K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num" style="background:var(--span-qa);color:var(--span-qa-t);border-color:transparent">QA</div>
+              <div class="cr-mid">
+                <div class="cr-name">qa-agent</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:44%;background:var(--span-qa-t)"></div></div>
+              </div>
+              <div class="cr-stat"><strong>138</strong> runs · avg 9K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num" style="background:var(--span-bug);color:var(--span-bug-t);border-color:transparent">BUG</div>
+              <div class="cr-mid">
+                <div class="cr-name">bug-hunter</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:28%;background:var(--span-bug-t)"></div></div>
+              </div>
+              <div class="cr-stat"><strong>88</strong> runs · avg 22K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num" style="background:var(--span-rev);color:var(--span-rev-t);border-color:transparent">REV</div>
+              <div class="cr-mid">
+                <div class="cr-name">reviewer</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:18%;background:var(--span-rev-t)"></div></div>
+              </div>
+              <div class="cr-stat"><strong>56</strong> runs · avg 14K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num" style="background:var(--span-doc);color:var(--span-doc-t);border-color:transparent">DOC</div>
+              <div class="cr-mid">
+                <div class="cr-name">doc-writer</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:12%;background:var(--span-doc-t)"></div></div>
+              </div>
+              <div class="cr-stat"><strong>38</strong> runs · avg 11K</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cmd-divider"></div>
+
+        <div class="cmd-col">
+          <div class="cc-head">
+            <div class="cc-legend">
+              <span style="color:var(--teal)">— Tokens in / run</span>
+              <span style="color:var(--pur)">— Tokens out / run</span>
+            </div>
+          </div>
+          <div class="trend-list">
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge swe">SWE</span>
+                <span class="sr-name">software-engineer</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,20 28,18 56,15 84,12 112,10 140,8 160,7" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,22 28,20 56,17 84,14 112,11 140,9 160,8" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">18K −8%</div>
+                <div class="out">72K −11%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict improving">▼ IMPROVING</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge pm">PM</span>
+                <span class="sr-name">product-manager</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,14 28,14 56,15 84,14 112,15 140,14 160,14" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,20 28,20 56,21 84,20 112,21 140,20 160,20" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">12K →</div>
+                <div class="out">48K →</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict stable">→ STABLE</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge qa">QA</span>
+                <span class="sr-name">qa-agent</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,18 28,17 56,16 84,14 112,12 140,10 160,8" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,22 28,21 56,19 84,17 112,14 140,11 160,9" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">9K +14%</div>
+                <div class="out">38K +19%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict regressing">▲ REGRESSING</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge bug">BUG</span>
+                <span class="sr-name">bug-hunter</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,22 28,20 56,17 84,14 112,11 140,9 160,7" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,24 28,22 56,19 84,16 112,12 140,9 160,7" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">22K −12%</div>
+                <div class="out">94K −15%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict improving">▼ IMPROVING</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge rev">REV</span>
+                <span class="sr-name">reviewer</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,14 28,14 56,15 84,14 112,13 140,14 160,14" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,20 28,20 56,21 84,20 112,19 140,20 160,20" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">14K +1%</div>
+                <div class="out">58K +2%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict stable">→ STABLE</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge doc">DOC</span>
+                <span class="sr-name">doc-writer</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,18 28,17 56,16 84,15 112,13 140,11 160,9" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,22 28,20 56,18 84,16 112,14 140,11 160,9" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">11K +21%</div>
+                <div class="out">44K +28%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict regressing">▲ REGRESSING</span></div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 10: Skills -->
+    <div class="card cmd-card">
+      <div class="cmd-inner">
+        <div class="cmd-col">
+          <div class="cc-head">
+            <span class="cc-title">Skills</span>
+            <span class="cc-meta">Last 7 days</span>
+          </div>
+          <div class="cmd-rank">
+            <div class="cmd-rank-item">
+              <div class="cr-num">1</div>
+              <div class="cr-mid">
+                <div class="cr-name">read_pdf</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:100%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>148</strong> runs · avg 6.2K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num">2</div>
+              <div class="cr-mid">
+                <div class="cr-name">make_a_deck</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:74%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>110</strong> runs · avg 14K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num">3</div>
+              <div class="cr-mid">
+                <div class="cr-name">frontend_design</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:58%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>86</strong> runs · avg 9K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num">4</div>
+              <div class="cr-mid">
+                <div class="cr-name">save_as_pdf</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:36%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>53</strong> runs · avg 4K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num">5</div>
+              <div class="cr-mid">
+                <div class="cr-name">export_pptx</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:22%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>32</strong> runs · avg 7K</div>
+            </div>
+            <div class="cmd-rank-item">
+              <div class="cr-num">6</div>
+              <div class="cr-mid">
+                <div class="cr-name">handoff_claude_code</div>
+                <div class="cr-bar-wrap"><div class="cr-bar" style="width:12%"></div></div>
+              </div>
+              <div class="cr-stat"><strong>18</strong> runs · avg 18K</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cmd-divider"></div>
+
+        <div class="cmd-col">
+          <div class="cc-head">
+            <div class="cc-legend">
+              <span style="color:var(--teal)">— Tokens in / run</span>
+              <span style="color:var(--pur)">— Tokens out / run</span>
+            </div>
+          </div>
+          <div class="trend-list">
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge skill">▤</span>
+                <span class="sr-name">read_pdf</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,20 28,18 56,16 84,13 112,11 140,9 160,8" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,23 28,21 56,19 84,16 112,13 140,11 160,10" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">6.2K −6%</div>
+                <div class="out">24K −9%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict improving">▼ IMPROVING</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge skill">▤</span>
+                <span class="sr-name">make_a_deck</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,12 28,13 56,15 84,17 112,19 140,21 160,22" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,10 28,11 56,13 84,16 112,18 140,20 160,22" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">14K +16%</div>
+                <div class="out">58K +22%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict regressing">▲ REGRESSING</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge skill">▤</span>
+                <span class="sr-name">frontend_design</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,18 28,17 56,16 84,13 112,11 140,9 160,8" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,22 28,21 56,19 84,16 112,13 140,11 160,9" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">9K −5%</div>
+                <div class="out">36K −8%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict improving">▼ IMPROVING</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge skill">▤</span>
+                <span class="sr-name">save_as_pdf</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,14 28,14 56,15 84,14 112,14 140,15 160,14" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,20 28,20 56,21 84,20 112,21 140,20 160,20" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">4K →</div>
+                <div class="out">16K →</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict stable">→ STABLE</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge skill">▤</span>
+                <span class="sr-name">export_pptx</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,20 28,18 56,16 84,14 112,12 140,10 160,8" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,22 28,20 56,18 84,16 112,13 140,11 160,9" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">7K −4%</div>
+                <div class="out">28K −6%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict improving">▼ IMPROVING</span></div>
+            </div>
+
+            <div class="skill-row">
+              <div class="sr-id">
+                <span class="sr-badge skill">▤</span>
+                <span class="sr-name">handoff_claude_code</span>
+              </div>
+              <div class="sr-spark">
+                <svg viewBox="0 0 160 28" fill="none" style="width:100%;height:28px">
+                  <polyline points="0,16 28,15 56,14 84,13 112,11 140,9 160,8" stroke="var(--teal)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  <polyline points="0,20 28,18 56,17 84,15 112,13 140,11 160,9" stroke="var(--pur)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2"/>
+                </svg>
+              </div>
+              <div class="sr-stats">
+                <div class="in">18K +32%</div>
+                <div class="out">74K +38%</div>
+              </div>
+              <div class="sr-verdict"><span class="verdict regressing">▲ REGRESSING</span></div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 11: Efficiency hints -->
+    <div class="card hints-card">
+      <div class="card-head">
+        <span class="card-title">Efficiency hints</span>
+        <span class="card-meta">Based on the last 7 days</span>
+      </div>
+      <div class="hints-grid">
+
+        <div class="hint">
+          <div class="hint-icon warn">⚡</div>
+          <div class="hint-body">
+            <div class="hint-title">Long-context dominance</div>
+            <div class="hint-copy"><strong>38%</strong> of your turns start with a context window above <strong>80K tokens</strong>. Consider /compact earlier to reduce per-turn costs.</div>
+          </div>
+        </div>
+
+        <div class="hint">
+          <div class="hint-icon warn">📖</div>
+          <div class="hint-body">
+            <div class="hint-title">Read tool overuse</div>
+            <div class="hint-copy">Read accounts for <strong>46%</strong> of all tool calls. Grep + Glob often retrieve the same info with <strong>3×</strong> fewer tokens in.</div>
+          </div>
+        </div>
+
+        <div class="hint">
+          <div class="hint-icon good">💰</div>
+          <div class="hint-body">
+            <div class="hint-title">Haiku savings available</div>
+            <div class="hint-copy">Routing <strong>doc-writer</strong> and <strong>save_as_pdf</strong> to Haiku could save an estimated <strong>$22/week</strong> with no quality impact.</div>
+          </div>
+        </div>
+
+        <div class="hint">
+          <div class="hint-icon warn">🔍</div>
+          <div class="hint-body">
+            <div class="hint-title">Opus spend concentration</div>
+            <div class="hint-copy">Opus consumed <strong>$73</strong> this week — <strong>21%</strong> of spend but only 15% of turns. Most Opus calls are in /review and bug-hunter.</div>
+          </div>
+        </div>
+
+        <div class="hint">
+          <div class="hint-icon good">📉</div>
+          <div class="hint-body">
+            <div class="hint-title">Tightening averages</div>
+            <div class="hint-copy">Avg tokens/turn fell <strong>3%</strong> vs last week. SWE and BUG agents improved the most — likely from prompt refinements on Tue/Wed.</div>
+          </div>
+        </div>
+
+        <div class="hint">
+          <div class="hint-icon info">📚</div>
+          <div class="hint-body">
+            <div class="hint-title">Harry Potter benchmark</div>
+            <div class="hint-copy">This week you wrote the equivalent of <strong>2.1× Harry Potter and the Deathly Hallows</strong> in output tokens. Dumbledore would be proud.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /col -->
+</div><!-- /insights-body -->
+
+<script>
+// Theme toggle
+function toggleTheme() {
+  const body = document.body;
+  body.dataset.theme = body.dataset.theme === 'dark' ? 'light' : 'dark';
+}
+
+// Segmented pill interactivity
+document.querySelectorAll('.seg').forEach(seg => {
+  seg.querySelectorAll('.s-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      seg.querySelectorAll('.s-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+});
+document.querySelectorAll('.nav-seg').forEach(seg => {
+  seg.querySelectorAll('.ns-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      seg.querySelectorAll('.ns-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+});
+
+// Generate heatmap cells (7 rows × 24 cols)
+(function buildHeatmap() {
+  const grid = document.getElementById('hm-grid');
+  if (!grid) return;
+
+  // Activity pattern: low morning, picks up afternoon, heavy 9pm-2am
+  // Format: [day][hour] → intensity 0-4
+  const pattern = [
+    // Fri
+    [0,0,0,0,0,0,1,1,2,2,2,2,1,1,2,2,2,3,3,4,4,4,3,2],
+    // Sat
+    [0,0,0,0,0,0,0,1,1,1,2,2,2,2,3,3,3,3,4,4,4,3,2,1],
+    // Sun
+    [0,0,0,0,0,0,0,0,1,1,1,2,2,2,2,3,3,3,4,4,4,3,2,1],
+    // Mon
+    [0,0,0,0,0,0,1,1,2,2,3,3,2,2,3,3,3,4,4,4,3,3,2,1],
+    // Tue  (peak at 23)
+    [0,0,0,0,0,0,1,1,2,2,2,3,2,2,3,3,3,4,4,4,'peak',4,3,2],
+    // Wed
+    [0,0,0,0,0,0,1,1,2,2,2,2,2,2,3,3,3,3,4,4,4,3,2,1],
+    // Today (Thu)
+    [0,0,0,0,0,0,1,1,2,2,3,3,2,2,3,3,3,4,4,3,2,1,0,0],
+  ];
+
+  const html = [];
+  for (let d = 0; d < 7; d++) {
+    for (let h = 0; h < 24; h++) {
+      const v = pattern[d][h];
+      if (v === 'peak') {
+        html.push('<div class="hm-cell peak"></div>');
+      } else {
+        html.push(`<div class="hm-cell h${v}"></div>`);
+      }
+    }
+  }
+  grid.innerHTML = html.join('');
+})();
+
+// Generate hourly bars
+(function buildHourlyBars() {
+  const g = document.getElementById('hourly-bars');
+  if (!g) return;
+
+  // Token activity by hour (0-23), normalized to 0-100
+  // Heavy evening / late-night
+  const weights = [
+    5,3,4,3,2,2,3,8,14,18,20,18,
+    15,14,16,18,20,22,26,32,42,58,80,100
+  ];
+
+  const svgW = 560, svgH = 108;
+  const barW = 18, gap = 5;
+  const totalW = (barW + gap) * 24 - gap;
+  const startX = (svgW - totalW) / 2;
+  const maxH = 92;
+
+  const parts = [];
+  for (let i = 0; i < 24; i++) {
+    const h = Math.round((weights[i] / 100) * maxH);
+    const x = startX + i * (barW + gap);
+    const y = svgH - h;
+    const isPeak = i >= 21;
+    const fill = isPeak ? 'var(--acc)' : 'var(--acc-bg)';
+    const stroke = isPeak ? 'none' : 'none';
+    parts.push(`<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="3" fill="${fill}"/>`);
+  }
+  g.innerHTML = parts.join('');
+})();
+</script>
+
+</body>
+</html>

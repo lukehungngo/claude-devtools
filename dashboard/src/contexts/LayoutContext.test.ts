@@ -55,8 +55,6 @@ function createMockContextValue(overrides?: Partial<LayoutContextValue>): Layout
     onClearViewingTurnRef: { current: null },
     onTurnClickRef: { current: null },
     openBottomTabRef: { current: null },
-    sessionControl: null,
-    setSessionControl: () => {},
     ...overrides,
   };
 }

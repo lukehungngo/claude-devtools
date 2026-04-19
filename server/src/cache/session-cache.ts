@@ -29,7 +29,19 @@ const BACKWARD_SCAN_CAP = 256 * 1024;
 const AVG_BYTES_PER_EVENT = 500;
 
 const ACTIVE_THRESHOLD_MS = 12 * 60 * 60 * 1000; // 12 hours
-export const RUNNING_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+export const RUNNING_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes — kept for external callers (session-routes, discovery-routes)
+
+/**
+ * Bytes to read from the tail of the file when scanning for terminal signals.
+ * 2 KB is enough for ~20 JSONL event lines at typical sizes.
+ */
+const TERMINAL_SCAN_BYTES = 2048;
+
+/**
+ * If a session file was modified within this window AND has no terminal signal,
+ * we consider it actively running.
+ */
+const ACTIVE_WRITE_WINDOW_MS = 30_000; // 30 seconds
 
 interface CacheEntry {
   info: SessionInfo;
@@ -61,10 +73,11 @@ export class SessionCache {
     const cached = this.cache.get(filePath);
 
     if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
-      // Recalculate volatile fields (isActive, isRunning depend on current time)
+      // Recalculate isActive — it depends on current time relative to last write.
+      // isRunning is NOT recalculated here: it was determined from JSONL terminal
+      // signals when the file was parsed and is stable until the file changes.
       const ageMs = Date.now() - stat.mtime.getTime();
       cached.info.isActive = ageMs < ACTIVE_THRESHOLD_MS;
-      cached.info.isRunning = ageMs < RUNNING_THRESHOLD_MS;
       return cached.info;
     }
 
@@ -181,6 +194,15 @@ export class SessionCache {
     }
 
     const ageMs = Date.now() - stat.mtime.getTime();
+    const hasTerminalSignal = this.hasTerminalSignal(filePath, stat.size);
+
+    // Derive isRunning from JSONL content, not mtime:
+    //   - Terminal signal found → session ended definitively.
+    //   - No terminal signal + file written within 30s → actively being written.
+    //   - No terminal signal + stale file → session abandoned without end signal.
+    const isRunning = hasTerminalSignal
+      ? false
+      : ageMs < ACTIVE_WRITE_WINDOW_MS;
 
     return {
       id: sessionId,
@@ -195,7 +217,7 @@ export class SessionCache {
       permissionMode,
       model,
       isActive: ageMs < ACTIVE_THRESHOLD_MS,
-      isRunning: ageMs < RUNNING_THRESHOLD_MS,
+      isRunning,
       sessionName,
     };
   }
@@ -281,4 +303,62 @@ export class SessionCache {
       closeSync(fd);
     }
   }
+
+  /**
+   * Read the last TERMINAL_SCAN_BYTES of the file and check whether any
+   * parsed JSONL line contains a terminal signal:
+   *   - type === "assistant" AND message.stop_reason === "end_turn"
+   *   - type === "system"    AND subtype === "turn_duration"
+   *
+   * Uses a single openSync/readSync call (cheap tail read) — never re-reads
+   * the full file. Consistent with architecture invariant #2.
+   */
+  private hasTerminalSignal(filePath: string, fileSize: number): boolean {
+    if (fileSize === 0) return false;
+
+    const readSize = Math.min(TERMINAL_SCAN_BYTES, fileSize);
+    const offset = fileSize - readSize;
+    const fd = openSync(filePath, "r");
+    try {
+      const buf = Buffer.alloc(readSize);
+      readSync(fd, buf, 0, readSize, offset);
+      const text = buf.toString("utf-8");
+      const lines = text.split("\n");
+
+      // If we started mid-file, the first element may be a partial line — skip it.
+      const startIdx = offset > 0 ? 1 : 0;
+
+      for (let i = startIdx; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        try {
+          const evt = JSON.parse(line) as Record<string, unknown>;
+          if (isTerminalEvent(evt)) return true;
+        } catch {
+          // skip malformed lines (invariant #3)
+        }
+      }
+    } catch (err) {
+      parserLog.warn({ filePath, error: String(err) }, "SessionCache: failed to read terminal scan");
+    } finally {
+      closeSync(fd);
+    }
+    return false;
+  }
+}
+
+/**
+ * Returns true if the event is a known terminal signal for a Claude session.
+ */
+function isTerminalEvent(evt: Record<string, unknown>): boolean {
+  if (evt["type"] === "assistant") {
+    const msg = evt["message"];
+    if (msg && typeof msg === "object" && (msg as Record<string, unknown>)["stop_reason"] === "end_turn") {
+      return true;
+    }
+  }
+  if (evt["type"] === "system" && evt["subtype"] === "turn_duration") {
+    return true;
+  }
+  return false;
 }

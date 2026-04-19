@@ -5,7 +5,7 @@ import { getEventsForTurn } from "../lib/turnSnapshot";
 import { getAgentStatus } from "../lib/agentStatus";
 import type { AgentStatus } from "../lib/agentStatus";
 import type { SessionEvent } from "../lib/types";
-import { formatCost, formatDuration, formatTokens } from "../lib/cost";
+import { formatCost, formatDuration } from "../lib/cost";
 
 // ─── Props ──────────────────────────────────────────────────────────
 
@@ -18,15 +18,17 @@ export interface TurnHistoryPanelProps {
    */
   allEvents?: SessionEvent[];
   /**
-   * Server-side session.isRunning. When explicitly `false`, turns without a
-   * terminal signal render as `indeterminate` (grey static dot, honest truth
-   * about closed sessions) rather than "running" (pulsing forever). When
-   * undefined, we assume active to preserve legacy behavior for callers that
-   * don't thread it through yet.
+   * Server-side session.isActive. When explicitly `true`, turns without a
+   * terminal signal render as `running` (green pulsing dot). When `false` or
+   * `undefined`, turns without a terminal signal render as `indeterminate`
+   * (grey static dot, honest truth about closed or unknown sessions).
    *
-   * PREFERRED SOURCE: `metrics.session.isRunning` from the current session's
+   * `undefined` is the safe default — unknown liveness must not be treated as
+   * "running" to avoid perpetually pulsing dots on historical sessions.
+   *
+   * PREFERRED SOURCE: `metrics.session.isActive` from the current session's
    * metrics — this is per-session authoritative (SDK session_state_changed
-   * for SSE, mtime heuristic for JSONL). Do NOT wire this from raw WebSocket
+   * for SSE, 12-hour mtime for JSONL). Do NOT wire this from raw WebSocket
    * connectivity (`isLive`): that flag is true for the whole UI while the WS
    * is connected, including when viewing historical closed sessions, and
    * would defeat the point of the indeterminate state.
@@ -50,6 +52,22 @@ export function relativeTime(isoTimestamp: string): string {
   if (mins < 60) return `${mins}m`;
   const hours = Math.floor(diffMs / 3_600_000);
   return `${hours}h`;
+}
+
+// ─── Sparkline helper ───────────────────────────────────────────────
+
+function sparkHeights(turn: TurnSnapshot): string[] {
+  const inNorm = Math.min(1, (turn.inputTokens || 0) / 50000);
+  const outNorm = Math.min(1, (turn.outputTokens || 0) / 5000);
+  const dur = turn.durationMs != null ? Math.min(1, turn.durationMs / 60000) : 0.3;
+  return [
+    `${Math.round(inNorm * 55 + 20)}%`,
+    `${Math.round(dur * 75 + 15)}%`,
+    `${Math.round(outNorm * 65 + 15)}%`,
+    `${Math.round(inNorm * 40 + 25)}%`,
+    `${Math.round(outNorm * 80 + 10)}%`,
+    `${Math.round(dur * 45 + 25)}%`,
+  ];
 }
 
 // ─── Turn Item (memoized) ───────────────────────────────────────────
@@ -128,31 +146,45 @@ const TurnItem = memo(function TurnItem({ turn, status, index, isActive, onClick
       </div>
 
       {/* Row 2 */}
-      <div className="flex items-center gap-[3px]">
+      <div className="flex items-center gap-[4px]">
         {hasMultipleAgents && (
-          <div data-testid="agent-dots" className="flex gap-[2px]">
-            {turn.agents.map((agent) => (
-              <span
-                key={agent.agentId}
-                className="w-[14px] h-[14px] rounded-[3px] text-[7px] font-semibold flex items-center justify-center"
-                style={{
-                  background: `var(--span-${agent.agentType.toLowerCase().slice(0, 3)}, var(--bg-h))`,
-                  color: `var(--span-${agent.agentType.toLowerCase().slice(0, 3)}-t, var(--t1))`,
-                }}
-                title={agent.displayName}
-              >
-                {agent.displayName.slice(0, 2)}
-              </span>
-            ))}
+          <div data-testid="agent-dots" className="flex gap-[3px] items-center flex-wrap">
+            {turn.agents.map((agent) => {
+              const typeKey = agent.agentType.toLowerCase().slice(0, 3);
+              return (
+                <span
+                  key={agent.agentId}
+                  className="pill"
+                  style={{
+                    background: `var(--span-${typeKey}, var(--bg-h))`,
+                    color: `var(--span-${typeKey}-t, var(--t1))`,
+                  }}
+                  title={agent.displayName}
+                >
+                  {typeKey}
+                </span>
+              );
+            })}
           </div>
         )}
-        <div className="ml-auto flex gap-[6px] text-[9px] font-mono text-dt-text2">
-          <span className="text-dt-yellow">{formatCost(turn.cost)}</span>
-          {(turn.inputTokens > 0 || turn.outputTokens > 0) && (
-            <span className="text-dt-text3">
-              {formatTokens(turn.inputTokens)}/{formatTokens(turn.outputTokens)}
-            </span>
-          )}
+        {/* Sparkline */}
+        <div
+          className="flex items-end"
+          style={{ flex: 1, height: 10, gap: 1.5, minWidth: 0 }}
+          aria-hidden="true"
+        >
+          {sparkHeights(turn).map((h, i) => (
+            <span
+              key={i}
+              style={{
+                flex: 1, height: h, minHeight: 2,
+                background: "var(--spark-base)", borderRadius: 1,
+              }}
+            />
+          ))}
+        </div>
+        <div className="flex gap-[5px] text-[9px] font-mono shrink-0" style={{ color: "var(--t3)" }}>
+          <span style={{ color: "var(--amb)" }}>{formatCost(turn.cost)}</span>
           {turn.durationMs !== null && (
             <span>{formatDuration(turn.durationMs)}</span>
           )}
@@ -193,9 +225,9 @@ function TurnHistoryPanelInner({
     }
   }, [activeTurnIndex]);
 
-  // Treat undefined as active (legacy caller preservation). When the value
-  // is explicitly `false`, closed-session turns render as `indeterminate`.
-  const sessionIsActive = sessionIsRunning !== false;
+  // Safe default: undefined means "not running". Only explicit `true` activates
+  // the running state. This prevents historical sessions from pulsing forever.
+  const sessionIsActive = sessionIsRunning === true;
 
   return (
     <div
@@ -234,8 +266,11 @@ function TurnHistoryPanelInner({
             const turn = turns[ri];
             // Compute the 3-state status once in the parent; TurnItem memoizes
             // on the scalar `status` value rather than recomputing per render.
+            // Only the last turn needs the session liveness flag — if a successor
+            // turn exists, this turn is definitively over regardless of its signals.
             const turnEvents = getEventsForTurn(turn, allEvents);
-            const status = getAgentStatus("main", turnEvents, sessionIsActive);
+            const isLastTurn = ri === turns.length - 1;
+            const status = getAgentStatus("main", turnEvents, sessionIsActive && isLastTurn);
             return (
               <TurnItem
                 key={turn.turnNumber}

@@ -225,20 +225,36 @@ describe("TurnHistoryPanel", () => {
     expect(container.querySelector(".text-dt-text2")).not.toBeNull();
   });
 
-  it("running turn shows pulsing dot", () => {
-    // A turn whose main-agent events do NOT signal completion shows as running.
-    // With no allEvents supplied (or empty), `getEventsForTurn` returns [];
-    // the predicate has no terminal signals, so main is considered running.
+  it("running turn shows pulsing dot when sessionIsRunning=true", () => {
+    // A turn whose main-agent events do NOT signal completion shows as running
+    // when the session is explicitly active.
     const runningTurn = makeTurn({
       turnNumber: 1,
       durationMs: null,
     });
     const { container } = render(
-      <TurnHistoryPanel {...defaultProps} turns={[runningTurn]} />,
+      <TurnHistoryPanel {...defaultProps} turns={[runningTurn]} sessionIsRunning={true} />,
     );
 
     const dot = container.querySelector("[data-testid='running-dot']");
     expect(dot).not.toBeNull();
+  });
+
+  it("T-HIST-UNDEF: sessionIsRunning=undefined → indeterminate dot, not running (safe default)", () => {
+    // When sessionIsRunning is not provided (undefined), the session is treated
+    // as closed — unknown liveness must default to "not running" for honesty.
+    // Before this fix: undefined !== false → sessionIsActive=true → pulsing forever.
+    // After this fix:  undefined === true is false → sessionIsActive=false → grey dot.
+    const turn = makeTurn({ turnNumber: 1, durationMs: null });
+    const { container } = render(
+      <TurnHistoryPanel {...defaultProps} turns={[turn]} />,
+    );
+
+    const item = container.querySelector("[data-testid='turn-item-0']")!;
+    expect(item.getAttribute("data-status")).toBe("indeterminate");
+    expect(container.querySelector("[data-testid='running-dot']")).toBeNull();
+    const indet = container.querySelector("[data-testid='indeterminate-dot']");
+    expect(indet).not.toBeNull();
   });
 
   // ─── Three-state honesty (remediation R2/R3) ─────────────────────
@@ -285,4 +301,7 @@ describe("TurnHistoryPanel", () => {
       container.querySelector("[data-testid='running-dot']"),
     ).not.toBeNull();
   });
+
+  // Note: the AppLayout wiring bug (passing session.isRunning instead of session.isActive)
+  // is reproduced and tested in src/__tests__/applayout-sessionisrunning-wiring.test.tsx.
 });

@@ -43,6 +43,7 @@ export function ToolResultBlock({ content, isError, toolName }: ToolResultBlockP
   return (
     <div
       className={`border-l-2 ${borderColor} ml-5 my-0.5`}
+      style={{ background: isError ? "var(--red-bg, var(--bg-s))" : "var(--resp-tool-bg, var(--bg-s))" }}
       data-testid={`tool-result-${toolName}`}
     >
       <pre className="font-mono text-xs bg-dt-bg3 rounded-md p-2 overflow-x-auto text-dt-text1 whitespace-pre-wrap break-words m-0">

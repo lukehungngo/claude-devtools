@@ -34,6 +34,8 @@ cd server && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit  # type che
 - **Gap matrix:** `docs/spec/gap-matrix.md`
 - **Lessons learned:** `docs/lessons_learned/`
 - **OKR & progress:** `docs/plans/v3-okr-tiers.md`
+- **Claude Code source of truth:** https://github.com/anthropics/claude-code — canonical reference for JSONL event schemas, CLI behavior, and session format
+- **Anthropic SDK source of truth:** https://github.com/anthropics/anthropic-sdk-typescript — canonical reference for SDK types, streaming API, and tool use contracts
 
 ## Project Type
 

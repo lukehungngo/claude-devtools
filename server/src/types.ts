@@ -268,6 +268,100 @@ export interface CostSummary {
   tokenOut7d: number;
 }
 
+// === Insights Aggregate Types ===
+
+export type InsightsTimeRange = "24h" | "7d" | "30d" | "90d" | "all";
+
+export interface InsightsDailyBucket {
+  date: string; // "YYYY-MM-DD" UTC
+  tokensIn: number;
+  tokensOut: number;
+  cost: number;
+}
+
+export interface InsightsAggregate {
+  tokensIn: number;
+  tokensOut: number;
+  cost: number;
+  sessions: number;
+  turns: number;
+  avgCostPerTurn: number;
+  avgTokensPerTurn: number;
+  activeDays: number;
+  peakHour: number; // 0-23 UTC hour with highest combined token activity
+  daily: InsightsDailyBucket[];
+}
+
+export interface InsightsHeatmapCell {
+  day: number;    // 0=Mon … 6=Sun (UTC weekday, Mon-indexed)
+  hour: number;   // 0-23 UTC hour
+  intensity: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface InsightsHourlyBucket {
+  hour: number;       // 0-23 UTC hour
+  tokensAvg: number;  // average (tokensIn + tokensOut) across sessions starting in this hour
+}
+
+export interface InsightsActivity {
+  heatmap: InsightsHeatmapCell[];
+  hourly: InsightsHourlyBucket[];
+}
+
+// === Insights Breakdown Types ===
+
+export interface InsightsModelEntry {
+  model: string;
+  tokensIn: number;
+  tokensOut: number;
+  cost: number;
+  turns: number;
+  share: number; // 0-100, percentage of total cost
+}
+
+export interface InsightsTopRepo {
+  slug: string;
+  tokens: number;
+  cost: number;
+}
+
+export interface InsightsTopSession {
+  id: string;
+  label: string;
+  cost: number;
+}
+
+export interface InsightsTopTool {
+  name: string;
+  calls: number;
+}
+
+export interface InsightsBreakdown {
+  models: InsightsModelEntry[];
+  topRepos: InsightsTopRepo[];
+  topSessions: InsightsTopSession[];
+  topTools: InsightsTopTool[];
+}
+
+// === Insights Trends Types ===
+
+export type TrendVerdict = "improving" | "stable" | "regressing";
+
+export interface InsightsTrendEntry {
+  name: string;
+  calls: number;
+  avgIn: number;
+  avgOut: number;
+  weekly: Array<{ in: number; out: number }>;
+  verdict: TrendVerdict;
+}
+
+export interface InsightsTrends {
+  commands: InsightsTrendEntry[];
+  agents: InsightsTrendEntry[];
+  skills: InsightsTrendEntry[];
+}
+
 export interface PermissionSuggestion {
   type: string;
   rules?: Array<{ toolName: string; ruleContent?: string }>;

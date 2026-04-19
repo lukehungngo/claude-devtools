@@ -1,0 +1,356 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<title>Response blocks · component spec</title>
+<style>
+  body { padding: 24px 28px 48px; background: var(--bg); }
+  h1 { font-family: var(--font-sans); font-size: 18px; font-weight: 600; color: var(--t1); margin: 0 0 4px; letter-spacing: -0.01em; }
+  .subtitle { font-family: var(--font-sans); font-size: 12px; color: var(--t3); margin-bottom: 28px; }
+  h2 { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--t2); margin: 0 0 2px; }
+  .sec-desc { font-family: var(--font-sans); font-size: 12px; color: var(--t3); margin: 0 0 14px; }
+
+  /* Section layout */
+  .section { margin-bottom: 40px; padding-bottom: 32px; border-bottom: 1px dashed var(--bd); }
+  .section:last-child { border-bottom: none; }
+  .head-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; }
+  .head-row h2 { margin: 0; }
+  .head-row .swatch {
+    width: 10px; height: 10px; border-radius: 2px;
+    display: inline-block; flex-shrink: 0;
+  }
+  .state-lbl {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: .5px;
+    text-transform: uppercase; color: var(--t3); margin: 14px 0 6px;
+  }
+
+  /* Spec grid */
+  .spec-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    max-width: 1000px;
+  }
+  .spec-grid.one { grid-template-columns: 1fr; }
+
+  /* ── Shared rblock styles (mirrored from dashboard) ── */
+  .rblock {
+    border-left: 3px solid var(--bd);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    background: transparent;
+    overflow: hidden;
+  }
+  .rblock + .rblock { margin-top: 2px; }
+  .rblock > summary {
+    list-style: none; cursor: pointer;
+    display: flex; gap: 10px; align-items: center;
+    padding: 7px 10px 7px 12px;
+    user-select: none;
+  }
+  .rblock > summary::-webkit-details-marker { display: none; }
+  .rblock > summary::before {
+    content: '▸'; color: var(--t3); font-size: 9px;
+    transition: transform .12s ease; flex-shrink: 0; width: 9px;
+  }
+  .rblock[open] > summary::before { transform: rotate(90deg); }
+  .rblock .ic {
+    width: 20px; height: 20px; border-radius: var(--r-xs);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .rblock .lbl {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+    letter-spacing: .6px; text-transform: uppercase;
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+    flex: 1; min-width: 0;
+  }
+  .rblock .lbl .muted {
+    color: var(--t3); font-weight: 500; letter-spacing: .3px; text-transform: none;
+  }
+  .rblock .lbl .peek {
+    color: var(--t2); font-weight: 400; font-family: var(--font-sans);
+    font-size: 12px; letter-spacing: 0; text-transform: none;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1; min-width: 0;
+  }
+  .rblock[open] .lbl .peek { display: none; }
+  .rblock .body { padding: 0 12px 10px 41px; }
+  .rblock .txt { font-size: 13px; line-height: 1.6; color: var(--t1); }
+  .rblock .txt code, .rblock .txt .t-code {
+    font-family: var(--font-mono); font-size: 11px;
+    background: var(--bg-s); padding: 1px 5px; border-radius: var(--r-xs);
+    border: 1px solid var(--bd); color: var(--t1);
+  }
+  .rblock pre {
+    margin: 6px 0 0; font-family: var(--font-mono); font-size: 11px;
+    line-height: 17px; color: var(--t1);
+    background: var(--bg-s); border: 1px solid var(--bd);
+    border-radius: var(--r-sm); padding: 8px 10px; overflow: auto;
+  }
+  .rblock pre .add { color: var(--grn); }
+  .rblock pre .del { color: var(--red); }
+  .rblock.no-body > summary { cursor: default; }
+  .rblock.no-body > summary::before { visibility: hidden; }
+
+  /* Type tints */
+  .rblock.working  { border-left-color: var(--resp-working);  background: var(--resp-working-bg); }
+  .rblock.code     { border-left-color: var(--resp-code);     background: var(--resp-code-bg); }
+  .rblock.tool     { border-left-color: var(--resp-tool);     background: var(--resp-tool-bg); }
+  .rblock.dispatch { border-left-color: var(--resp-dispatch); background: var(--resp-dispatch-bg); }
+  .rblock.final    { border-left-color: var(--resp-final);    background: var(--resp-final-bg); }
+
+  .rblock.working .ic  { background: var(--resp-working-bg);  color: var(--resp-working); }
+  .rblock.code .ic     { background: var(--resp-code-bg);     color: var(--resp-code); }
+  .rblock.tool .ic     { background: var(--resp-tool-bg);     color: var(--resp-tool); }
+  .rblock.dispatch .ic { background: var(--resp-dispatch-bg); color: var(--resp-dispatch); }
+  .rblock.final .ic    { background: var(--resp-final-bg);    color: var(--resp-final); }
+
+  .rblock.working .lbl  { color: var(--resp-working); }
+  .rblock.code .lbl     { color: var(--resp-code); }
+  .rblock.tool .lbl     { color: var(--resp-tool); }
+  .rblock.dispatch .lbl { color: var(--resp-dispatch); }
+  .rblock.final .lbl    { color: var(--resp-final); }
+
+  /* Annotation */
+  .note {
+    font-family: var(--font-mono); font-size: 10px; color: var(--t3);
+    line-height: 1.5; margin-top: 8px;
+  }
+  .note b { color: var(--t1); font-weight: 600; }
+  .tok {
+    display: inline-block; font-family: var(--font-mono); font-size: 9px;
+    background: var(--bg-s); color: var(--t2); padding: 1px 5px;
+    border: 1px solid var(--bd); border-radius: var(--r-xs);
+    margin-right: 4px;
+  }
+</style>
+</head>
+<body>
+
+  <h1>Response blocks</h1>
+  <div class="subtitle">Reusable observation primitives for agent traces. Shown in the <b>Agent Log</b> view and within Reply bodies. <b>Not</b> shown in the default Conversation view (aggregated there).</div>
+
+  <!-- Tool -->
+  <div class="section">
+    <div class="head-row">
+      <span class="swatch" style="background:var(--resp-tool)"></span>
+      <h2>Tool</h2>
+    </div>
+    <p class="sec-desc">A single tool invocation. Summary row shows tool · args · duration · status. Body shows the result.</p>
+
+    <div class="state-lbl">Collapsed (default) · with peek preview</div>
+    <div class="spec-grid one">
+      <details class="rblock tool">
+        <summary>
+          <div class="ic">⚙</div>
+          <div class="lbl">Tool · <span class="muted">Grep · "deriveStatus" · 0.3s</span><span class="peek">3 matches across 2 files</span></div>
+        </summary>
+        <div class="body"><div class="txt">2 matches in <span class="t-code">dag-builder.ts</span> · 1 in <span class="t-code">dag-builder.test.ts</span></div></div>
+      </details>
+    </div>
+
+    <div class="state-lbl">Open · with diff output</div>
+    <div class="spec-grid one">
+      <details class="rblock tool" open>
+        <summary>
+          <div class="ic">⚙</div>
+          <div class="lbl">Tool · <span class="muted">Bash · pnpm test analyzer · 1.2s ✓</span></div>
+        </summary>
+        <div class="body">
+          <div class="txt">PASS — 47 tests, 5 new (deriveStatus · session closed)</div>
+<pre> PASS  server/src/analyzer/dag-builder.test.ts
+  deriveStatus
+    ✓ session running · subagent → active  (2ms)
+    ✓ session closed · subagent → completed  (1ms)
+  47 passed · 5 new · 1.2s</pre>
+        </div>
+      </details>
+    </div>
+
+    <div class="state-lbl">Variants · tool subtypes</div>
+    <div class="spec-grid">
+      <details class="rblock tool"><summary><div class="ic">R</div><div class="lbl">Read · <span class="muted">agentStatus.ts · 87 lines</span><span class="peek">Loaded · 87 lines</span></div></summary></details>
+      <details class="rblock tool"><summary><div class="ic">W</div><div class="lbl">Write · <span class="muted">dag-builder.ts · +14 −6</span><span class="peek">Patched · 2 hunks</span></div></summary></details>
+      <details class="rblock tool"><summary><div class="ic">G</div><div class="lbl">Grep · <span class="muted">"deriveStatus" · 0.3s</span><span class="peek">3 matches</span></div></summary></details>
+      <details class="rblock tool"><summary><div class="ic">$</div><div class="lbl">Bash · <span class="muted">pnpm test · 1.2s ✓</span><span class="peek">PASS · 47 tests</span></div></summary></details>
+    </div>
+
+    <div class="note">
+      <span class="tok">icon</span> subtype initial (R / W / G / $) — fallback <b>⚙</b> <br>
+      <span class="tok">peek</span> single-line summary; hidden when open <br>
+      <span class="tok">status</span> append <b>✓</b> / <b>✗</b> / timing in <span class="t-code">.muted</span>
+    </div>
+  </div>
+
+  <!-- Working -->
+  <div class="section">
+    <div class="head-row">
+      <span class="swatch" style="background:var(--resp-working)"></span>
+      <h2>Working</h2>
+    </div>
+    <p class="sec-desc">Non-visible internal progress. Used for drafting, planning, re-reading. Usually no body — it's a <i>marker</i> that time passed.</p>
+
+    <div class="state-lbl">No-body variant (most common)</div>
+    <div class="spec-grid one">
+      <details class="rblock working no-body">
+        <summary>
+          <div class="ic">⋯</div>
+          <div class="lbl">Working <span class="muted">· drafted plan · 481 chars</span></div>
+        </summary>
+      </details>
+    </div>
+
+    <div class="state-lbl">Expandable variant · with draft preview</div>
+    <div class="spec-grid one">
+      <details class="rblock working" open>
+        <summary>
+          <div class="ic">⋯</div>
+          <div class="lbl">Working <span class="muted">· composing reply · 4 edits · 23s</span></div>
+        </summary>
+        <div class="body">
+          <div class="txt">Drafted root-cause explanation. Revised twice to swap analogy → concrete call graph. Added ask-for-confirmation question at end.</div>
+        </div>
+      </details>
+    </div>
+
+    <div class="note">
+      <span class="tok">ic</span> <b>⋯</b> (horizontal ellipsis) <br>
+      <span class="tok">default</span> no body · cursor stays default · caret hidden <br>
+      <span class="tok">use when</span> model is working but not producing a tool-visible artifact
+    </div>
+  </div>
+
+  <!-- Agent Dispatch -->
+  <div class="section">
+    <div class="head-row">
+      <span class="swatch" style="background:var(--resp-dispatch)"></span>
+      <h2>Agent Dispatch</h2>
+    </div>
+    <p class="sec-desc">A subagent was spawned. Summary = handle + duration + exit. Body = scope, tasks returned, cost.</p>
+
+    <div class="state-lbl">Running state (pulsing bar on timeline)</div>
+    <div class="spec-grid one">
+      <details class="rblock dispatch">
+        <summary>
+          <div class="ic">▶</div>
+          <div class="lbl">Agent dispatch <span class="muted">· engineer:fix-subagent · running…</span><span class="peek">2 tasks in flight</span></div>
+        </summary>
+      </details>
+    </div>
+
+    <div class="state-lbl">Completed · expanded</div>
+    <div class="spec-grid one">
+      <details class="rblock dispatch" open>
+        <summary>
+          <div class="ic">▶</div>
+          <div class="lbl">Agent dispatch <span class="muted">· engineer:fix-subagent · 1m 47s ✓</span></div>
+        </summary>
+        <div class="body">
+          <div class="txt">
+            Scope: <span class="t-code">server/src/analyzer/</span><br>
+            Model: <span class="t-code">sonnet-4-6</span> · Cost <span class="t-code">$1.95</span> · In/Out <span class="t-code">67K/8K</span><br>
+            Returned: patch to <span class="t-code">dag-builder.ts</span> (+14 −6) · 5 new tests · all passing
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="state-lbl">Failed · expanded</div>
+    <div class="spec-grid one">
+      <details class="rblock dispatch" open>
+        <summary>
+          <div class="ic">▶</div>
+          <div class="lbl">Agent dispatch <span class="muted">· reviewer:security-audit · 47s · <span style="color:var(--red)">✗ failed</span></span></div>
+        </summary>
+        <div class="body">
+          <div class="txt">Reviewer exited with error: <span class="t-code">tool timeout</span> on <span class="t-code">npm audit</span>. Main retried 1x, then surfaced to user.</div>
+        </div>
+      </details>
+    </div>
+
+    <div class="note">
+      <span class="tok">ic</span> <b>▶</b> — implies a branch into a sub-session <br>
+      <span class="tok">running</span> add <i>running…</i> in muted; timeline bar pulses <br>
+      <span class="tok">click</span> focusing expands the sub-session's <b>Agent Log</b> tab scoped to this dispatch
+    </div>
+  </div>
+
+  <!-- Code -->
+  <div class="section">
+    <div class="head-row">
+      <span class="swatch" style="background:var(--resp-code)"></span>
+      <h2>Code</h2>
+    </div>
+    <p class="sec-desc">A code patch was produced. Summary = path + line delta. Body = unified diff.</p>
+
+    <div class="state-lbl">Open · diff output</div>
+    <div class="spec-grid one">
+      <details class="rblock code" open>
+        <summary>
+          <div class="ic">&lt;/&gt;</div>
+          <div class="lbl">Code · <span class="muted">dag-builder.ts · +14 −6</span></div>
+        </summary>
+        <div class="body">
+<pre><span class="del">- return isAgentCompleted(agent) ? "completed" : "active";</span>
+<span class="add">+ const status = getAgentStatus(agent, sessionIsRunning);</span>
+<span class="add">+ return status === "indeterminate" ? "completed" : status;</span></pre>
+        </div>
+      </details>
+    </div>
+
+    <div class="state-lbl">Collapsed · new file</div>
+    <div class="spec-grid one">
+      <details class="rblock code">
+        <summary>
+          <div class="ic">&lt;/&gt;</div>
+          <div class="lbl">Code · <span class="muted">dag-builder.test.ts · new file · 68 lines</span><span class="peek">5 new tests for session-closed branch</span></div>
+        </summary>
+      </details>
+    </div>
+
+    <div class="note">
+      <span class="tok">ic</span> <b>&lt;/&gt;</b> <br>
+      <span class="tok">summary</span> <i>path · +N −M</i> or <i>new file · N lines</i> <br>
+      <span class="tok">body</span> unified diff with <b>add</b>/<b>del</b> color
+    </div>
+  </div>
+
+  <!-- Final -->
+  <div class="section">
+    <div class="head-row">
+      <span class="swatch" style="background:var(--resp-final)"></span>
+      <h2>Final</h2>
+    </div>
+    <p class="sec-desc">Terminal marker for a turn. Summary only — no body. Sits at the bottom of the agent timeline.</p>
+
+    <div class="state-lbl">Success</div>
+    <div class="spec-grid one">
+      <details class="rblock final no-body">
+        <summary>
+          <div class="ic">✓</div>
+          <div class="lbl">Final <span class="muted">· 3m 4s · $2.59 · 0 new files · all tests passing</span></div>
+        </summary>
+      </details>
+    </div>
+
+    <div class="state-lbl">Failed / aborted</div>
+    <div class="spec-grid one">
+      <details class="rblock final no-body" style="border-left-color:var(--red); background:var(--red-bg)">
+        <summary>
+          <div class="ic" style="background:var(--red-bg);color:var(--red)">✗</div>
+          <div class="lbl" style="color:var(--red)">Final <span class="muted">· aborted by user · 47s · $0.12</span></div>
+        </summary>
+      </details>
+    </div>
+
+    <div class="note">
+      <span class="tok">ic</span> <b>✓</b> (success) / <b>✗</b> (fail / abort) <br>
+      <span class="tok">summary</span> total time · cost · artifacts · test state <br>
+      <span class="tok">position</span> always last block of its session
+    </div>
+  </div>
+
+</body>
+</html>

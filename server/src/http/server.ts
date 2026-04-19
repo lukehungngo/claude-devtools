@@ -68,6 +68,16 @@ export function startHttpServer(port: number = 3142): Promise<{
         state.clients.delete(ws);
         wsLog.info({ clientCount: state.clients.size }, "ws client disconnected");
       });
+
+      // Application-level ping/pong for client-side latency measurement
+      ws.on("message", (data: unknown) => {
+        try {
+          const msg = JSON.parse(String(data)) as { type: string; ts?: number };
+          if (msg.type === "ping" && typeof msg.ts === "number") {
+            ws.send(JSON.stringify({ type: "pong", ts: msg.ts }));
+          }
+        } catch { /* ignore malformed */ }
+      });
     });
 
     // API routes (pass state for WebSocket broadcasting)

@@ -24,8 +24,17 @@ const sessionRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/SessionPage"), "SessionPage"),
 });
 
+const insightsRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/insights",
+  component: lazyRouteComponent(
+    () => import("./routes/InsightsPage"),
+    "InsightsPage"
+  ),
+});
+
 const routeTree = rootRoute.addChildren([
-  layoutRoute.addChildren([indexRoute, sessionRoute]),
+  layoutRoute.addChildren([indexRoute, sessionRoute, insightsRoute]),
 ]);
 
 export const router = createRouter({ routeTree });

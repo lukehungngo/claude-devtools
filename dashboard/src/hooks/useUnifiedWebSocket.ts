@@ -69,6 +69,7 @@ export interface UnifiedWebSocketHandlers {
 
 export interface UnifiedWebSocketState {
   isConnected: boolean;
+  wsLatency: number | null;
   error: string | null;
 }
 
@@ -109,6 +110,21 @@ export function dispatchWsMessage(
 }
 
 /**
+ * Checks if a raw WS message is a pong response.
+ * Returns round-trip latency in ms, or null if not a pong.
+ * Exported for testing.
+ */
+export function parsePongLatency(data: string, now: number): number | null {
+  try {
+    const msg = JSON.parse(data) as { type: string; ts?: number };
+    if (msg.type === "pong" && typeof msg.ts === "number") {
+      return now - msg.ts;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+/**
  * Single multiplexed WebSocket hook with exponential backoff reconnect.
  * Replaces separate WS connections for events, sessions, and permissions.
  */
@@ -116,11 +132,13 @@ export function useUnifiedWebSocket(
   handlers: UnifiedWebSocketHandlers
 ): UnifiedWebSocketState {
   const [isConnected, setIsConnected] = useState(false);
+  const [wsLatency, setWsLatency] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectDelay = useRef(1000);
   const unmountedRef = useRef(false);
   const handlersRef = useRef(handlers);
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Keep handlers ref current without re-creating effect
   useEffect(() => {
@@ -140,12 +158,22 @@ export function useUnifiedWebSocket(
       ws.onopen = () => {
         setIsConnected(true);
         setError(null);
-        reconnectDelay.current = 1000; // Reset backoff on success
+        reconnectDelay.current = 1000;
+        ws.send(JSON.stringify({ type: "ping", ts: Date.now() }));
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping", ts: Date.now() }));
+          }
+        }, 15_000);
       };
 
       ws.onclose = () => {
         setIsConnected(false);
         wsRef.current = null;
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+          pingIntervalRef.current = null;
+        }
         if (unmountedRef.current) return;
 
         // Exponential backoff reconnect: 1s -> 2s -> 4s -> ... -> 30s max
@@ -159,7 +187,13 @@ export function useUnifiedWebSocket(
       };
 
       ws.onmessage = (event: MessageEvent) => {
-        dispatchWsMessage(event.data as string, handlersRef.current);
+        const data = event.data as string;
+        const latency = parsePongLatency(data, Date.now());
+        if (latency !== null) {
+          setWsLatency(latency);
+          return;
+        }
+        dispatchWsMessage(data, handlersRef.current);
       };
     }
 
@@ -167,10 +201,14 @@ export function useUnifiedWebSocket(
 
     return () => {
       unmountedRef.current = true;
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = null;
+      }
       wsRef.current?.close();
       wsRef.current = null;
     };
   }, []); // Single connection for app lifetime
 
-  return { isConnected, error };
+  return { isConnected, wsLatency, error };
 }

@@ -156,4 +156,87 @@ describe("TopBar", () => {
       expect(outerDiv.style.outline).not.toBe("2px solid var(--red)");
     });
   });
+
+  describe("context window size suffix", () => {
+    it("shows context percent", () => {
+      const metricsWithPct = { ...STUB_METRICS, contextPercent: 67, contextWindowSize: 200000 } as unknown as SessionMetrics;
+      renderTopBar({ metrics: metricsWithPct });
+      expect(screen.getByText("67%")).toBeDefined();
+    });
+
+    it("shows 'of 200K' suffix for 200k context window", () => {
+      const metricsWithSize = { ...STUB_METRICS, contextPercent: 67, contextWindowSize: 200000 } as unknown as SessionMetrics;
+      renderTopBar({ metrics: metricsWithSize });
+      expect(screen.getByText(/of 200K/)).toBeDefined();
+    });
+
+    it("shows 'of 1M' for 1M context window", () => {
+      const metricsWithLargeWindow = { ...STUB_METRICS, contextPercent: 10, contextWindowSize: 1000000 } as unknown as SessionMetrics;
+      renderTopBar({ metrics: metricsWithLargeWindow });
+      expect(screen.getByText(/of 1M/)).toBeDefined();
+    });
+
+    it("does not show suffix when contextWindowSize is 0", () => {
+      const metricsNoSize = { ...STUB_METRICS, contextPercent: 30, contextWindowSize: 0 } as unknown as SessionMetrics;
+      renderTopBar({ metrics: metricsNoSize });
+      expect(screen.queryByText(/of 0/)).toBeNull();
+    });
+  });
+
+  describe("HUD read-only — model always shown", () => {
+    it("renders Model HudMetric even when isLive=true", () => {
+      // Invariant: TopBar is a read-only HUD. Model must always display as static text.
+      // Bug (now fixed): when isLive=true the ControlsZone replaced HudMetric("Model"),
+      // hiding the "Model" label entirely.
+      renderTopBar({ metrics: STUB_METRICS, isLive: true });
+      expect(screen.getByText("Model")).toBeDefined();
+      expect(screen.getByText(/Sonnet/)).toBeDefined();
+    });
+
+    it("renders Context even when isLive=true", () => {
+      // Bug (now fixed): !(isLive && onModelSelect) guard hid Context while live.
+      const metricsWithPct = { ...STUB_METRICS, contextPercent: 45, contextWindowSize: 200000 } as unknown as SessionMetrics;
+      renderTopBar({ metrics: metricsWithPct, isLive: true });
+      expect(screen.getByText("Context")).toBeDefined();
+      expect(screen.getByText("45%")).toBeDefined();
+    });
+  });
+
+  describe("YOLO badge", () => {
+    it("renders YOLO badge for bypassPermissions mode", () => {
+      render(
+        <TopBar
+          metrics={null}
+          permissionMode="bypassPermissions"
+          onPermissionModeChange={() => {}}
+        />
+      );
+      expect(screen.getByText("YOLO")).toBeDefined();
+    });
+  });
+
+  describe("branch crumb Pencil icon", () => {
+    it("renders a Pencil icon before the branch name when branch is provided", () => {
+      const { container } = render(
+        <TopBar
+          metrics={null}
+          repoName="my-repo"
+          branch="main"
+        />
+      );
+      const pencilIcon = container.querySelector('[data-testid="branch-edit-icon"]');
+      expect(pencilIcon).not.toBeNull();
+    });
+
+    it("does not render Pencil icon when branch is not provided", () => {
+      const { container } = render(
+        <TopBar
+          metrics={null}
+          repoName="my-repo"
+        />
+      );
+      const pencilIcon = container.querySelector('[data-testid="branch-edit-icon"]');
+      expect(pencilIcon).toBeNull();
+    });
+  });
 });

@@ -1,10 +1,11 @@
 import { useRef, useCallback, useState, useEffect, useMemo, lazy, Suspense } from "react";
-import { Outlet, useNavigate } from "@tanstack/react-router";
+import { Outlet, useNavigate, useLocation } from "@tanstack/react-router";
 import { Layout } from "../components/Layout";
 import { Titlebar } from "../components/Titlebar";
 import { RepoList } from "../components/RepoList";
 import { TopBar } from "../components/TopBar";
 import { TurnHistoryPanel } from "../components/TurnHistoryPanel";
+import { ProfileDrawer } from "../components/ProfileDrawer";
 
 const BottomPanel = lazy(() =>
   import("../components/bottom-panel/BottomPanel").then(m => ({ default: m.BottomPanel }))
@@ -16,7 +17,7 @@ import { useUsage } from "../hooks/useUsage";
 import { useCosts } from "../hooks/useCosts";
 import { LayoutContext } from "../contexts/LayoutContext";
 import { buildSlugMap, buildProjectHashToSlugMap } from "../lib/repoSlug";
-import type { SessionWsHandlers, QuestionItem, SessionControlState } from "../contexts/LayoutContext";
+import type { SessionWsHandlers, QuestionItem } from "../contexts/LayoutContext";
 import type { SessionMetrics, SessionEvent, AgentDAG, SubagentMeta } from "../lib/types";
 import type { PermissionMode } from "../components/conversation/permissionModeTypes";
 import type { TurnSnapshot } from "../lib/turnSnapshot";
@@ -24,12 +25,17 @@ import type { TurnSnapshot } from "../lib/turnSnapshot";
 
 export function AppLayout() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const isInsights = pathname === "/insights";
   const { repos, loading: reposLoading, refresh: refreshRepos } = useRepos();
   const { permissions, decide, decideSession, handlePermissionRequest, handlePermissionResolved } = usePermissions();
   const { usage } = useUsage();
   const { costs } = useCosts();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const [activeSessionId, setActiveSessionIdRaw] = useState<string | null>(() => {
     try {
       return localStorage.getItem("activeSessionId");
@@ -100,9 +106,6 @@ export function AppLayout() {
   const onClearViewingTurnRef = useRef<(() => void) | null>(null);
   const onTurnClickRef = useRef<((turnIndex: number) => void) | null>(null);
   const openBottomTabRef = useRef<((tab: string) => void) | null>(null);
-
-  // Session control state (Phase 5) — set by SessionPage, consumed by TopBar
-  const [sessionControl, setSessionControl] = useState<SessionControlState | null>(null);
 
   const handleTurnSelect = useCallback((turnIndex: number) => {
     onTurnClickRef.current?.(turnIndex);
@@ -177,7 +180,7 @@ export function AppLayout() {
   }, []);
 
   // WebSocket: delegates new-events to session-scoped handler
-  const { isConnected: isLive } = useUnifiedWebSocket({
+  const { isConnected: isLive, wsLatency } = useUnifiedWebSocket({
     onNewEvents: (sessionId, filePath, events) => {
       sessionHandlersRef.current?.onNewEvents(sessionId, filePath, events);
     },
@@ -281,23 +284,25 @@ export function AppLayout() {
     onClearViewingTurnRef,
     onTurnClickRef,
     openBottomTabRef,
-    sessionControl,
-    setSessionControl,
   };
 
   return (
     <LayoutContext.Provider value={contextValue}>
       <Layout
-        sidebarCollapsed={sidebarCollapsed}
-        onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+        sidebarCollapsed={isInsights ? false : sidebarCollapsed}
+        onToggleSidebar={isInsights ? undefined : () => setSidebarCollapsed((prev) => !prev)}
         titlebar={
           <Titlebar
-            repoName={currentRepo?.repoName}
-            branch={currentMetrics?.session.gitBranch ?? currentRepo?.gitBranch}
+            isConnected={isLive}
+            wsLatency={wsLatency}
+            usage={usage}
+            onOpenDrawer={openDrawer}
           />
         }
-        topBar={
+        topBar={isInsights ? null : (
           <TopBar
+            repoName={currentRepo?.repoName}
+            branch={currentMetrics?.session.gitBranch ?? currentRepo?.gitBranch}
             metrics={currentMetrics}
             isLive={isLive}
             hasPermissionPending={permissions.some(p => p.status === "pending")}
@@ -305,17 +310,9 @@ export function AppLayout() {
             onClearViewingTurn={handleClearViewingTurn}
             permissionMode={permissionMode}
             onPermissionModeChange={setPermissionMode}
-            model={sessionControl?.model ?? undefined}
-            availableModels={sessionControl?.availableModels}
-            fastMode={sessionControl?.fastMode}
-            effort={sessionControl?.effort}
-            onModelSelect={sessionControl?.onModelSelect}
-            onFastToggle={sessionControl?.onFastToggle}
-            onEffortChange={sessionControl?.onEffortChange}
-            onCompact={sessionControl?.onCompact}
           />
-        }
-        sidebar={
+        )}
+        sidebar={isInsights ? null : (
           <RepoList
             repos={repos}
             loading={reposLoading}
@@ -345,36 +342,34 @@ export function AppLayout() {
                 console.error("Failed to resume session:", err);
               }
             }}
-            usage={usage}
-            isConnected={isLive}
+            onToggleTurnHistory={toggleTurnHistory}
           />
-        }
-        turnHistory={
+        )}
+        turnHistory={isInsights ? null : (
           <TurnHistoryPanel
             turns={currentTurns}
             allEvents={currentEvents}
-            // Authoritative per-session running flag. Matches the source used
-            // by ConversationView: server's SessionInfo.isRunning (SDK
-            // session_state_changed for live, mtime < 2min for JSONL). When
-            // explicitly `false`, closed-session turns render as
-            // `indeterminate` (grey static dot) rather than pulsing forever.
-            // Falls back to undefined when no session is selected; the panel
-            // treats undefined as "active" to preserve legacy behavior.
-            sessionIsRunning={currentMetrics?.session?.isRunning}
+            // Authoritative per-session liveness flag. Matches the source used
+            // by ConversationView: isActive (12-hour mtime) for JSONL sessions,
+            // SDK session_state_changed for live SSE sessions. When explicitly
+            // `false`, closed-session turns render as `indeterminate` (grey
+            // static dot) rather than pulsing forever. Falls back to undefined
+            // when no session is selected; the panel treats undefined as
+            // "active" to preserve legacy behavior.
+            sessionIsRunning={currentMetrics?.session?.isActive}
             activeTurnIndex={currentActiveTurnIndex}
             onSelectTurn={handleTurnSelect}
             isOpen={turnHistoryOpen}
             onToggle={toggleTurnHistory}
           />
-        }
+        )}
         center={<Outlet />}
-        bottomPanel={
+        bottomPanel={isInsights ? null : (
           <Suspense fallback={null}>
             <BottomPanel
               metrics={currentMetrics}
               turns={currentTurns}
               events={currentEvents}
-
               dag={currentDag}
               activeTurnIndex={currentActiveTurnIndex}
               selectedAgent={currentSelectedAgent}
@@ -387,7 +382,14 @@ export function AppLayout() {
               openBottomTabRef={openBottomTabRef}
             />
           </Suspense>
-        }
+        )}
+      />
+      <ProfileDrawer
+        isOpen={drawerOpen}
+        onClose={closeDrawer}
+        isConnected={isLive}
+        wsLatency={wsLatency}
+        usage={usage}
       />
     </LayoutContext.Provider>
   );
