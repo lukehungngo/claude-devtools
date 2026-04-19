@@ -728,13 +728,13 @@ export function InsightsPage(): JSX.Element {
                       className="flex items-start gap-2.5 px-2 py-3 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                     >
                       <div
-                        className="font-mono text-[11px] font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
+                        className="font-mono text-xs font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
                         style={{ width: 32, height: 20 }}
                       >
                         {idx + 1}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-mono font-semibold text-dt-text0 truncate" title={item.name}>
+                        <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.name}>
                           {item.name}
                         </div>
                         <div
@@ -751,17 +751,17 @@ export function InsightsPage(): JSX.Element {
                             style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
                           />
                         </div>
-                        <div className="mt-1.5 text-[10px] font-mono text-dt-text2">
+                        <div className="mt-1.5 text-xs font-mono text-dt-text2">
                           avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <div className="text-sm font-mono font-semibold text-dt-text0 leading-none">
+                        <div className="text-base font-mono font-semibold text-dt-text0 leading-none">
                           {item.count.toLocaleString()}
                         </div>
-                        <div className="text-[10px] font-mono text-dt-text2 mt-0.5">calls</div>
-                        <div className="text-[10px] font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
-                        <div className="text-[10px] font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
+                        <div className="text-xs font-mono text-dt-text2 mt-0.5">calls</div>
+                        <div className="text-xs font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
+                        <div className="text-xs font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
                       </div>
                     </div>
                   ))}
@@ -813,13 +813,13 @@ export function InsightsPage(): JSX.Element {
                       >
                         <div
                           aria-hidden="true"
-                          className="font-mono text-[9px] font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0 mt-0.5"
+                          className="font-mono text-[11px] font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0 mt-0.5"
                           style={{ width: 32, height: 20, background: badgeColor }}
                         >
                           {abbrev}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-mono font-semibold text-dt-text0 truncate" title={item.type}>
+                          <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.type}>
                             {item.type}
                           </div>
                           <div
@@ -836,17 +836,17 @@ export function InsightsPage(): JSX.Element {
                               style={{ width: `${item.share * 100}%`, background: badgeColor }}
                             />
                           </div>
-                          <div className="mt-1.5 text-[10px] font-mono text-dt-text2">
+                          <div className="mt-1.5 text-xs font-mono text-dt-text2">
                             avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <div className="text-sm font-mono font-semibold text-dt-text0 leading-none">
+                          <div className="text-base font-mono font-semibold text-dt-text0 leading-none">
                             {item.count.toLocaleString()}
                           </div>
-                          <div className="text-[10px] font-mono text-dt-text2 mt-0.5">runs</div>
-                          <div className="text-[10px] font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
-                          <div className="text-[10px] font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
+                          <div className="text-xs font-mono text-dt-text2 mt-0.5">runs</div>
+                          <div className="text-xs font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
+                          <div className="text-xs font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
                         </div>
                       </div>
                     );
@@ -895,13 +895,13 @@ export function InsightsPage(): JSX.Element {
                       className="flex items-start gap-2.5 px-2 py-3 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                     >
                       <div
-                        className="font-mono text-[11px] font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
+                        className="font-mono text-xs font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
                         style={{ width: 32, height: 20 }}
                       >
                         {idx + 1}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-mono font-semibold text-dt-text0 truncate" title={item.name}>
+                        <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.name}>
                           {item.name}
                         </div>
                         <div
@@ -918,17 +918,17 @@ export function InsightsPage(): JSX.Element {
                             style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
                           />
                         </div>
-                        <div className="mt-1.5 text-[10px] font-mono text-dt-text2">
+                        <div className="mt-1.5 text-xs font-mono text-dt-text2">
                           avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <div className="text-sm font-mono font-semibold text-dt-text0 leading-none">
+                        <div className="text-base font-mono font-semibold text-dt-text0 leading-none">
                           {item.count.toLocaleString()}
                         </div>
-                        <div className="text-[10px] font-mono text-dt-text2 mt-0.5">runs</div>
-                        <div className="text-[10px] font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
-                        <div className="text-[10px] font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
+                        <div className="text-xs font-mono text-dt-text2 mt-0.5">runs</div>
+                        <div className="text-xs font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
+                        <div className="text-xs font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
                       </div>
                     </div>
                   ))}
