@@ -40,9 +40,9 @@ vi.mock("../../analyzer/insights-top-consumers.js", () => ({
 }));
 vi.mock("../../analyzer/insights-commands-agents-skills.js", () => ({
   computeInsightsCommandsAgentsSkills: vi.fn(() => ({
-    commands: [{ name: "/compact", count: 5, share: 1.0 }],
-    agents: [{ type: "mas:engineer:engineer", count: 3, share: 1.0 }],
-    skills: [{ name: "verification", count: 2, share: 1.0 }],
+    commands: [{ name: "/compact", count: 5, share: 1.0, daily: [0, 1, 2, 1, 0, 1, 0], trend: "stable" as const }],
+    agents: [{ type: "mas:engineer:engineer", count: 3, share: 1.0, daily: [0, 0, 1, 0, 0, 1, 1], trend: "regressing" as const }],
+    skills: [{ name: "verification", count: 2, share: 1.0, daily: [1, 1, 0, 0, 0, 0, 0], trend: "improving" as const }],
   })),
 }));
 vi.mock("../../logger.js", () => ({

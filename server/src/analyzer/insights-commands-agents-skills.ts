@@ -6,18 +6,24 @@ import type {
   InsightsAgentRow,
   InsightsSkillRow,
   InsightsTimeRange,
+  CasTrend,
 } from "../types.js";
 import { parseJsonlIncremental } from "../parser/jsonl-reader.js";
 import { getTimeRangeCutoff } from "./insights-aggregator.js";
 
 const TOP_N = 10;
 
+interface CasItemStats {
+  total: number;
+  days: Map<string, number>; // date (YYYY-MM-DD) → count
+}
+
 interface CasSessionCache {
   fileSize: number;
   offset: number;
-  commands: Map<string, number>;
-  agents: Map<string, number>;
-  skills: Map<string, number>;
+  commands: Map<string, CasItemStats>;
+  agents: Map<string, CasItemStats>;
+  skills: Map<string, CasItemStats>;
 }
 
 const casCache = new Map<string, CasSessionCache>();
@@ -27,16 +33,36 @@ export function resetCasForTesting(): void {
   casCache.clear();
 }
 
+function incrementItem(map: Map<string, CasItemStats>, key: string, date: string): void {
+  const existing = map.get(key);
+  if (!existing) {
+    const days = new Map<string, number>();
+    days.set(date, 1);
+    map.set(key, { total: 1, days });
+  } else {
+    existing.total++;
+    existing.days.set(date, (existing.days.get(date) ?? 0) + 1);
+  }
+}
+
+function cloneStats(stats: CasItemStats): CasItemStats {
+  return { total: stats.total, days: new Map(stats.days) };
+}
+
 function parseCasForSession(session: SessionInfo): {
-  commands: Map<string, number>;
-  agents: Map<string, number>;
-  skills: Map<string, number>;
+  commands: Map<string, CasItemStats>;
+  agents: Map<string, CasItemStats>;
+  skills: Map<string, CasItemStats>;
 } {
   let stat: ReturnType<typeof statSync>;
   try {
     stat = statSync(session.path);
   } catch {
-    return { commands: new Map(), agents: new Map(), skills: new Map() };
+    return {
+      commands: new Map(),
+      agents: new Map(),
+      skills: new Map(),
+    };
   }
 
   const cached = casCache.get(session.id);
@@ -45,14 +71,25 @@ function parseCasForSession(session: SessionInfo): {
   }
 
   const fromOffset = cached?.offset ?? 0;
-  const commands: Map<string, number> = new Map(cached?.commands ?? []);
-  const agents: Map<string, number> = new Map(cached?.agents ?? []);
-  const skills: Map<string, number> = new Map(cached?.skills ?? []);
+  const commands: Map<string, CasItemStats> = new Map(
+    cached ? [...cached.commands.entries()].map(([k, v]) => [k, cloneStats(v)]) : []
+  );
+  const agents: Map<string, CasItemStats> = new Map(
+    cached ? [...cached.agents.entries()].map(([k, v]) => [k, cloneStats(v)]) : []
+  );
+  const skills: Map<string, CasItemStats> = new Map(
+    cached ? [...cached.skills.entries()].map(([k, v]) => [k, cloneStats(v)]) : []
+  );
 
   try {
     const { events, newOffset } = parseJsonlIncremental(session.path, fromOffset);
 
     for (const event of events) {
+      const date =
+        typeof (event as { timestamp?: unknown }).timestamp === "string"
+          ? ((event as { timestamp: string }).timestamp).slice(0, 10)
+          : new Date().toISOString().slice(0, 10);
+
       if (event.type === "user") {
         const content = event.message?.content;
         if (!Array.isArray(content)) continue;
@@ -71,14 +108,14 @@ function parseCasForSession(session: SessionInfo): {
             if (masMatch) {
               const slug = masMatch[1].toLowerCase().replace(/\s+/g, "-");
               const name = `/mas:${slug}`;
-              commands.set(name, (commands.get(name) ?? 0) + 1);
+              incrementItem(commands, name, date);
               continue;
             }
 
             // Legacy raw-command detection: text starting with "/" (e.g. /compact, /model)
             if (text.startsWith("/")) {
               const name = text.split(/\s/)[0];
-              commands.set(name, (commands.get(name) ?? 0) + 1);
+              incrementItem(commands, name, date);
             }
           }
         }
@@ -105,12 +142,12 @@ function parseCasForSession(session: SessionInfo): {
               (input?.subagent_type as string | undefined) ??
               (input?.description as string | undefined) ??
               "unknown";
-            agents.set(agentType, (agents.get(agentType) ?? 0) + 1);
+            incrementItem(agents, agentType, date);
           }
 
           if (toolName === "Skill") {
             const skillName = (input?.skill as string | undefined) ?? "unknown";
-            skills.set(skillName, (skills.get(skillName) ?? 0) + 1);
+            incrementItem(skills, skillName, date);
           }
         }
       }
@@ -130,19 +167,72 @@ function parseCasForSession(session: SessionInfo): {
   return { commands, agents, skills };
 }
 
-function buildRankedList<T extends { count: number }>(
-  totals: Map<string, number>,
-  makeRow: (name: string, count: number, share: number) => T
+function getDaysInRange(timeRange: InsightsTimeRange): string[] {
+  const n =
+    timeRange === "24h" ? 1
+    : timeRange === "7d" ? 7
+    : timeRange === "30d" ? 30
+    : timeRange === "90d" ? 90
+    : 365; // "all"
+  const days: string[] = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setUTCDate(d.getUTCDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days;
+}
+
+function computeTrend(daily: number[]): CasTrend {
+  if (daily.length < 2) return "stable";
+  const half = Math.floor(daily.length / 2);
+  const firstHalf = daily.slice(0, half);
+  const secondHalf = daily.slice(half);
+  const firstAvg = firstHalf.reduce((s, v) => s + v, 0) / firstHalf.length;
+  const secondAvg = secondHalf.reduce((s, v) => s + v, 0) / secondHalf.length;
+  if (firstAvg === 0) return secondAvg > 0 ? "regressing" : "stable";
+  const ratio = secondAvg / firstAvg;
+  if (ratio > 1.2) return "regressing";
+  if (ratio < 0.8) return "improving";
+  return "stable";
+}
+
+function mergeStats(target: Map<string, CasItemStats>, source: Map<string, CasItemStats>): void {
+  for (const [k, v] of source) {
+    const existing = target.get(k);
+    if (!existing) {
+      target.set(k, cloneStats(v));
+    } else {
+      existing.total += v.total;
+      for (const [d, c] of v.days) {
+        existing.days.set(d, (existing.days.get(d) ?? 0) + c);
+      }
+    }
+  }
+}
+
+function buildRankedList<T>(
+  totals: Map<string, CasItemStats>,
+  days: string[],
+  makeRow: (name: string, count: number, share: number, daily: number[], trend: CasTrend) => T
 ): T[] {
   const sorted = [...totals.entries()]
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => b[1].total - a[1].total)
     .slice(0, TOP_N);
 
-  const maxCount = sorted[0]?.count ?? 0;
-  return sorted.map(({ name, count }) =>
-    makeRow(name, count, maxCount > 0 ? count / maxCount : 0)
-  );
+  const maxCount = sorted[0]?.[1].total ?? 0;
+  return sorted.map(([name, stats]) => {
+    const daily = days.map((d) => stats.days.get(d) ?? 0);
+    const trend = computeTrend(daily);
+    return makeRow(
+      name,
+      stats.total,
+      maxCount > 0 ? stats.total / maxCount : 0,
+      daily,
+      trend
+    );
+  });
 }
 
 export function computeInsightsCommandsAgentsSkills(
@@ -151,6 +241,7 @@ export function computeInsightsCommandsAgentsSkills(
   repo: string
 ): InsightsCommandsAgentsSkills {
   const fromMs = getTimeRangeCutoff(timeRange);
+  const days = getDaysInRange(timeRange);
 
   const filtered = sessions.filter((s) => {
     const t = new Date(s.lastModified).getTime();
@@ -159,28 +250,31 @@ export function computeInsightsCommandsAgentsSkills(
     return true;
   });
 
-  const totalCommands = new Map<string, number>();
-  const totalAgents = new Map<string, number>();
-  const totalSkills = new Map<string, number>();
+  const totalCommands = new Map<string, CasItemStats>();
+  const totalAgents = new Map<string, CasItemStats>();
+  const totalSkills = new Map<string, CasItemStats>();
 
   for (const session of filtered) {
     const { commands, agents, skills } = parseCasForSession(session);
-    for (const [k, v] of commands) totalCommands.set(k, (totalCommands.get(k) ?? 0) + v);
-    for (const [k, v] of agents) totalAgents.set(k, (totalAgents.get(k) ?? 0) + v);
-    for (const [k, v] of skills) totalSkills.set(k, (totalSkills.get(k) ?? 0) + v);
+    mergeStats(totalCommands, commands);
+    mergeStats(totalAgents, agents);
+    mergeStats(totalSkills, skills);
   }
 
   const commandList: InsightsCommandRow[] = buildRankedList(
     totalCommands,
-    (name, count, share) => ({ name, count, share })
+    days,
+    (name, count, share, daily, trend) => ({ name, count, share, daily, trend })
   );
   const agentList: InsightsAgentRow[] = buildRankedList(
     totalAgents,
-    (type, count, share) => ({ type, count, share })
+    days,
+    (type, count, share, daily, trend) => ({ type, count, share, daily, trend })
   );
   const skillList: InsightsSkillRow[] = buildRankedList(
     totalSkills,
-    (name, count, share) => ({ name, count, share })
+    days,
+    (name, count, share, daily, trend) => ({ name, count, share, daily, trend })
   );
 
   return { commands: commandList, agents: agentList, skills: skillList };

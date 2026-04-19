@@ -324,4 +324,59 @@ describe("computeInsightsCommandsAgentsSkills", () => {
     const result = computeInsightsCommandsAgentsSkills([session], "all", "all");
     expect(result.commands).toHaveLength(0);
   });
+
+  it("returns daily array with length matching timeRange days", () => {
+    const session = makeSession("s1");
+    mockedParse.mockReturnValue({
+      events: [makeAssistantToolEvent("Agent", { subagent_type: "mas:engineer:engineer" })],
+      newOffset: 100,
+    });
+
+    const result = computeInsightsCommandsAgentsSkills([session], "7d", "all");
+    expect(result.agents[0].daily).toHaveLength(7);
+  });
+
+  it("returns trend=regressing when second-half usage exceeds first-half by >20%", () => {
+    const session = makeSession("s1");
+    const today = new Date();
+    // 0 events in days 7-4 ago, 5 events each in days 3-1 ago (recent)
+    const events = [0, 1, 2].flatMap((daysAgo) => {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() - daysAgo);
+      const dateStr = d.toISOString().slice(0, 10);
+      return Array.from({ length: 5 }, () => {
+        const e = makeAssistantToolEvent("Agent", { subagent_type: "eng" });
+        (e as unknown as Record<string, unknown>).timestamp = `${dateStr}T10:00:00Z`;
+        return e;
+      });
+    });
+
+    mockedParse.mockReturnValue({ events, newOffset: 100 });
+    const result = computeInsightsCommandsAgentsSkills([session], "7d", "all");
+    // daily = [0, 0, 0, 0, 5, 5, 5]
+    // first half (3): avg=0, second half (4): avg=3.75 → firstAvg=0, secondAvg>0 → "regressing"
+    expect(result.agents[0].trend).toBe("regressing");
+  });
+
+  it("returns trend=improving when second-half usage is much lower than first-half", () => {
+    const session = makeSession("s1");
+    const today = new Date();
+    // 5 events each in days 6, 5, 4 ago, 0 in recent days
+    const events = [4, 5, 6].flatMap((daysAgo) => {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() - daysAgo);
+      const dateStr = d.toISOString().slice(0, 10);
+      return Array.from({ length: 5 }, () => {
+        const e = makeAssistantToolEvent("Agent", { subagent_type: "eng" });
+        (e as unknown as Record<string, unknown>).timestamp = `${dateStr}T10:00:00Z`;
+        return e;
+      });
+    });
+
+    mockedParse.mockReturnValue({ events, newOffset: 100 });
+    const result = computeInsightsCommandsAgentsSkills([session], "7d", "all");
+    // daily = [5, 5, 5, 0, 0, 0, 0]
+    // first half (3): avg=5, second half (4): avg=0 → ratio=0 < 0.8 → "improving"
+    expect(result.agents[0].trend).toBe("improving");
+  });
 });

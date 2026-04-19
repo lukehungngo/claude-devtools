@@ -351,22 +351,30 @@ export interface InsightsTopConsumers {
   tools: InsightsTopToolRow[];       // top 5
 }
 
+export type CasTrend = "improving" | "stable" | "regressing";
+
 export interface InsightsCommandRow {
   name: string;    // e.g. "/compact"
   count: number;
   share: number;   // fraction 0-1 of #1 entry's count
+  daily: number[]; // call counts per day in time window, oldest first
+  trend: CasTrend;
 }
 
 export interface InsightsAgentRow {
   type: string;    // subagent_type or description, e.g. "mas:engineer:engineer"
   count: number;
   share: number;
+  daily: number[]; // call counts per day in time window, oldest first
+  trend: CasTrend;
 }
 
 export interface InsightsSkillRow {
   name: string;    // input.skill value, e.g. "verification"
   count: number;
   share: number;
+  daily: number[]; // call counts per day in time window, oldest first
+  trend: CasTrend;
 }
 
 export interface InsightsCommandsAgentsSkills {
