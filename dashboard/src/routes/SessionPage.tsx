@@ -8,7 +8,7 @@ import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental, getEventsForTurn
 import { isAgentCompleted } from "../lib/agentStatus";
 import { ConversationView } from "../components/conversation/ConversationView";
 import { RawLogView } from "../components/conversation/RawLogView";
-import { Menu } from "lucide-react";
+import { Menu, RefreshCw } from "lucide-react";
 import { AgentLogTab } from "../components/bottom-panel/AgentLogTab";
 import { PanelModal } from "../components/PanelModal";
 import { computeLiveMetrics } from "../lib/cost";
@@ -391,14 +391,28 @@ export function SessionPage() {
             {{ conversation: "Conversation", "raw-log": "Raw Log", "agent-log": "Agent Log" }[tab]}
           </button>
         ))}
-        {(mainTab === "raw-log" || mainTab === "agent-log") && selectedTurnIndex != null && (
-          <div className="ml-auto flex items-center gap-[3px] text-[10px] text-dt-text3 pr-2">
-            Scoped to{" "}
-            <span className="font-mono text-[10px] font-semibold text-dt-accent bg-dt-accent-bg px-[5px] py-[1px] rounded-[3px]">
-              T{turns[selectedTurnIndex]?.turnNumber}
-            </span>
-          </div>
-        )}
+        {/* Trailing controls: reload button + optional scope label */}
+        <div className="ml-auto flex items-center gap-1 pr-1">
+          <button
+            data-testid="session-reload-btn"
+            onClick={refreshMetrics}
+            disabled={metricsLoading}
+            title="Reload session"
+            aria-label="Reload session"
+            aria-busy={metricsLoading}
+            className="flex items-center justify-center text-dt-text3 hover:text-dt-text1 disabled:opacity-40 bg-transparent border-none cursor-pointer p-1.5 rounded"
+          >
+            <RefreshCw size={13} className={metricsLoading ? "animate-spin" : ""} />
+          </button>
+          {(mainTab === "raw-log" || mainTab === "agent-log") && selectedTurnIndex != null && (
+            <div className="flex items-center gap-[3px] text-[10px] text-dt-text3 pr-1">
+              Scoped to{" "}
+              <span className="font-mono text-[10px] font-semibold text-dt-accent bg-dt-accent-bg px-[5px] py-[1px] rounded-[3px]">
+                T{turns[selectedTurnIndex]?.turnNumber}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tab content */}
