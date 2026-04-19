@@ -2,13 +2,19 @@ import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import type { EChartsOption } from "echarts";
 
-// ResizeObserver is not available in jsdom — provide a no-op stub
-beforeAll(() => {
-  globalThis.ResizeObserver = class ResizeObserver {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+// Capture the ResizeObserver callback so tests can fire it manually
+let capturedResizeCallback: ResizeObserverCallback | null = null;
+const MockResizeObserver = vi.fn().mockImplementation((cb: ResizeObserverCallback) => {
+  capturedResizeCallback = cb;
+  return {
+    observe: vi.fn(),
+    disconnect: vi.fn(),
   };
+});
+
+// ResizeObserver is not available in jsdom — install the capturing mock
+beforeAll(() => {
+  globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
 });
 
 const { mockSetOption, mockResize, mockDispose, mockInit } = vi.hoisted(() => {
@@ -36,6 +42,7 @@ import { EChartsWrapper } from "./EChartsWrapper";
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  capturedResizeCallback = null;
 });
 
 const OPTION: EChartsOption = { series: [{ type: "line", data: [1, 2, 3] }] };
@@ -74,5 +81,12 @@ describe("EChartsWrapper", () => {
     const div = container.firstElementChild as HTMLElement;
     expect(div.tagName).toBe("DIV");
     expect(div.className).toContain("my-chart");
+  });
+
+  it("calls chart.resize when ResizeObserver fires", () => {
+    render(<EChartsWrapper option={OPTION} />);
+    // justification: capturedResizeCallback is set in the MockResizeObserver above; safe to assert non-null after render
+    capturedResizeCallback!([{} as ResizeObserverEntry], {} as ResizeObserver);
+    expect(mockResize).toHaveBeenCalledTimes(1);
   });
 });
