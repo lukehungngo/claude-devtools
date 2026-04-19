@@ -721,11 +721,11 @@ export function InsightsPage(): JSX.Element {
             ) : (
               <div className="flex gap-4">
                 {/* Left panel: ranked list */}
-                <div className="flex flex-col gap-1.5" style={{ width: "40%", flexShrink: 0 }}>
+                <div className="flex flex-col gap-1.5" style={{ width: "50%", flexShrink: 0 }}>
                   {(casData?.commands ?? []).map((item, idx) => (
                     <div
                       key={item.name}
-                      className="flex items-start gap-2.5 px-2 py-3 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                      className="flex items-start gap-2.5 px-2 py-2.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                     >
                       <div
                         className="font-mono text-xs font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
@@ -733,35 +733,43 @@ export function InsightsPage(): JSX.Element {
                       >
                         {idx + 1}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.name}>
-                          {item.name}
+                      <div className="flex-1 min-w-0 min-h-0">
+                        {/* Line 1: name + count */}
+                        <div className="flex items-baseline justify-between gap-2">
+                          <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.name}>
+                            {item.name}
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <span className="text-base font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
+                            <span className="text-xs font-mono text-dt-text2 ml-1">calls</span>
+                          </div>
                         </div>
-                        <div
-                          className="mt-1.5 rounded overflow-hidden"
-                          style={{ height: 3, background: "var(--border)" }}
-                          role="progressbar"
-                          aria-valuenow={Math.round(item.share * 100)}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-label={`${item.name} — ${Math.round(item.share * 100)}% share of invocations`}
-                        >
-                          <div
-                            className="h-full rounded"
-                            style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
-                          />
+                        {/* Line 2: progress bar + avg tokens | total tokens */}
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div
+                              className="rounded overflow-hidden"
+                              style={{ height: 3, background: "var(--border)" }}
+                              role="progressbar"
+                              aria-valuenow={Math.round(item.share * 100)}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label={`${item.name} — ${Math.round(item.share * 100)}% share of invocations`}
+                            >
+                              <div
+                                className="h-full rounded"
+                                style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
+                              />
+                            </div>
+                            <div className="mt-1 text-xs font-mono text-dt-text2">
+                              avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0 text-xs font-mono text-dt-text2">
+                            <div>{formatTok(item.tokensIn)} in</div>
+                            <div>{formatTok(item.tokensOut)} out</div>
+                          </div>
                         </div>
-                        <div className="mt-1.5 text-xs font-mono text-dt-text2">
-                          avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-base font-mono font-semibold text-dt-text0 leading-none">
-                          {item.count.toLocaleString()}
-                        </div>
-                        <div className="text-xs font-mono text-dt-text2 mt-0.5">calls</div>
-                        <div className="text-xs font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
-                        <div className="text-xs font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
                       </div>
                     </div>
                   ))}
@@ -802,51 +810,57 @@ export function InsightsPage(): JSX.Element {
             ) : (
               <div className="flex gap-4">
                 {/* Left panel: ranked list */}
-                <div className="flex flex-col gap-1.5" style={{ width: "40%", flexShrink: 0 }}>
+                <div className="flex flex-col gap-1.5" style={{ width: "50%", flexShrink: 0 }}>
                   {(casData?.agents ?? []).map((item, idx) => {
                     const badgeColor = BADGE_PALETTE[idx % BADGE_PALETTE.length];
                     const abbrev = abbreviateName(item.type);
                     return (
                       <div
                         key={item.type}
-                        className="flex items-start gap-2.5 px-2 py-3 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                        className="flex items-start gap-2.5 px-2 py-2.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                       >
                         <div
                           aria-hidden="true"
                           className="font-mono text-[11px] font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0 mt-0.5"
-                          style={{ width: 32, height: 20, background: badgeColor }}
+                          style={{ width: 32, height: 22, background: badgeColor }}
                         >
                           {abbrev}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.type}>
-                            {item.type}
+                        <div className="flex-1 min-w-0 min-h-0">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.type}>
+                              {item.type}
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <span className="text-base font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
+                              <span className="text-xs font-mono text-dt-text2 ml-1">runs</span>
+                            </div>
                           </div>
-                          <div
-                            className="mt-1.5 rounded overflow-hidden"
-                            style={{ height: 3, background: "var(--border)" }}
-                            role="progressbar"
-                            aria-valuenow={Math.round(item.share * 100)}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-label={`${item.type} — ${Math.round(item.share * 100)}% share of dispatches`}
-                          >
-                            <div
-                              className="h-full rounded"
-                              style={{ width: `${item.share * 100}%`, background: badgeColor }}
-                            />
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div
+                                className="rounded overflow-hidden"
+                                style={{ height: 3, background: "var(--border)" }}
+                                role="progressbar"
+                                aria-valuenow={Math.round(item.share * 100)}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-label={`${item.type} — ${Math.round(item.share * 100)}% share of dispatches`}
+                              >
+                                <div
+                                  className="h-full rounded"
+                                  style={{ width: `${item.share * 100}%`, background: badgeColor }}
+                                />
+                              </div>
+                              <div className="mt-1 text-xs font-mono text-dt-text2">
+                                avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0 text-xs font-mono text-dt-text2">
+                              <div>{formatTok(item.tokensIn)} in</div>
+                              <div>{formatTok(item.tokensOut)} out</div>
+                            </div>
                           </div>
-                          <div className="mt-1.5 text-xs font-mono text-dt-text2">
-                            avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
-                          </div>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-base font-mono font-semibold text-dt-text0 leading-none">
-                            {item.count.toLocaleString()}
-                          </div>
-                          <div className="text-xs font-mono text-dt-text2 mt-0.5">runs</div>
-                          <div className="text-xs font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
-                          <div className="text-xs font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
                         </div>
                       </div>
                     );
@@ -888,11 +902,11 @@ export function InsightsPage(): JSX.Element {
             ) : (
               <div className="flex gap-4">
                 {/* Left panel: ranked list */}
-                <div className="flex flex-col gap-1.5" style={{ width: "40%", flexShrink: 0 }}>
+                <div className="flex flex-col gap-1.5" style={{ width: "50%", flexShrink: 0 }}>
                   {(casData?.skills ?? []).map((item, idx) => (
                     <div
                       key={item.name}
-                      className="flex items-start gap-2.5 px-2 py-3 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                      className="flex items-start gap-2.5 px-2 py-2.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                     >
                       <div
                         className="font-mono text-xs font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
@@ -900,35 +914,41 @@ export function InsightsPage(): JSX.Element {
                       >
                         {idx + 1}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.name}>
-                          {item.name}
+                      <div className="flex-1 min-w-0 min-h-0">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.name}>
+                            {item.name}
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <span className="text-base font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
+                            <span className="text-xs font-mono text-dt-text2 ml-1">runs</span>
+                          </div>
                         </div>
-                        <div
-                          className="mt-1.5 rounded overflow-hidden"
-                          style={{ height: 3, background: "var(--border)" }}
-                          role="progressbar"
-                          aria-valuenow={Math.round(item.share * 100)}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-label={`${item.name} — ${Math.round(item.share * 100)}% share of invocations`}
-                        >
-                          <div
-                            className="h-full rounded"
-                            style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
-                          />
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div
+                              className="rounded overflow-hidden"
+                              style={{ height: 3, background: "var(--border)" }}
+                              role="progressbar"
+                              aria-valuenow={Math.round(item.share * 100)}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label={`${item.name} — ${Math.round(item.share * 100)}% share of invocations`}
+                            >
+                              <div
+                                className="h-full rounded"
+                                style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
+                              />
+                            </div>
+                            <div className="mt-1 text-xs font-mono text-dt-text2">
+                              avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0 text-xs font-mono text-dt-text2">
+                            <div>{formatTok(item.tokensIn)} in</div>
+                            <div>{formatTok(item.tokensOut)} out</div>
+                          </div>
                         </div>
-                        <div className="mt-1.5 text-xs font-mono text-dt-text2">
-                          avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-base font-mono font-semibold text-dt-text0 leading-none">
-                          {item.count.toLocaleString()}
-                        </div>
-                        <div className="text-xs font-mono text-dt-text2 mt-0.5">runs</div>
-                        <div className="text-xs font-mono text-dt-text2 mt-1.5">{formatTok(item.tokensIn)} in</div>
-                        <div className="text-xs font-mono text-dt-text2">{formatTok(item.tokensOut)} out</div>
                       </div>
                     </div>
                   ))}
