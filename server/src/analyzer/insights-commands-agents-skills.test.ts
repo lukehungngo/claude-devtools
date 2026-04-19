@@ -278,4 +278,50 @@ describe("computeInsightsCommandsAgentsSkills", () => {
     const result = computeInsightsCommandsAgentsSkills([s1, s2], "all", "all");
     expect(result.commands[0].count).toBe(2);
   });
+
+  it("detects MAS commands from heading-format user messages", () => {
+    const session = makeSession("s1");
+    mockedParse.mockReturnValue({
+      events: [
+        makeUserEvent("# Brainstorm (MAS)\n\nFirst principles decomposition for: something"),
+        makeUserEvent("# Brainstorm (MAS)\n\nFirst principles decomposition for: another"),
+        makeUserEvent("# Development Loop (MAS)\n\nExecute the full mandatory workflow for: feat"),
+      ],
+      newOffset: 100,
+    });
+
+    const result = computeInsightsCommandsAgentsSkills([session], "all", "all");
+    const brainstorm = result.commands.find((c) => c.name === "/mas:brainstorm");
+    expect(brainstorm?.count).toBe(2);
+    const devloop = result.commands.find((c) => c.name === "/mas:development-loop");
+    expect(devloop?.count).toBe(1);
+  });
+
+  it("does not detect skill result messages as commands", () => {
+    const session = makeSession("s1");
+    mockedParse.mockReturnValue({
+      events: [
+        makeUserEvent("Base directory for this skill: /Users/soh/.claude/skills/verification\n\n# Verification Before Completion\n\n..."),
+        makeUserEvent("Base directory for this skill: /Users/soh/.claude/plugins/cache/superpowers/skills/writing-plans\n\n# Writing Plans\n\n..."),
+      ],
+      newOffset: 100,
+    });
+
+    const result = computeInsightsCommandsAgentsSkills([session], "all", "all");
+    expect(result.commands).toHaveLength(0);
+  });
+
+  it("does not detect plain headings without (MAS) marker as commands", () => {
+    const session = makeSession("s1");
+    mockedParse.mockReturnValue({
+      events: [
+        makeUserEvent("# Writing Plans\n\nSome content here"),
+        makeUserEvent("# Some Random Heading\n\nMore content"),
+      ],
+      newOffset: 100,
+    });
+
+    const result = computeInsightsCommandsAgentsSkills([session], "all", "all");
+    expect(result.commands).toHaveLength(0);
+  });
 });
