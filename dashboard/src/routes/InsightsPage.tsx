@@ -697,7 +697,7 @@ export function InsightsPage(): JSX.Element {
         </div>
 
         {/* Commands, Agents, Skills + Efficiency Hints coming soon */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="flex flex-col gap-3">
           {/* Commands card */}
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-commands">
             <div className="text-lg font-semibold text-dt-text0 mb-3">
@@ -713,18 +713,64 @@ export function InsightsPage(): JSX.Element {
             ) : (casData?.commands ?? []).length === 0 ? (
               <div className="text-sm text-dt-text2 py-4 text-center">No slash commands found</div>
             ) : (
-              <div className="flex flex-col gap-1.5">
-                {(casData?.commands ?? []).map((item, idx) => (
-                  <CASRow
-                    key={item.name}
-                    name={item.name}
-                    daily={item.daily}
-                    count={item.count}
-                    trend={item.trend}
-                    badgeIndex={idx}
-                    sparklineColor="teal"
-                  />
-                ))}
+              <div className="flex gap-4">
+                {/* Left panel: ranked list */}
+                <div className="flex flex-col gap-1.5" style={{ width: "40%", flexShrink: 0 }}>
+                  {(casData?.commands ?? []).map((item, idx) => (
+                    <div
+                      key={item.name}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                      style={{ minHeight: 44 }}
+                    >
+                      <div
+                        className="font-mono text-[11px] font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2"
+                        style={{ width: 32, height: 20 }}
+                      >
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-mono font-semibold text-dt-text0 truncate" title={item.name}>
+                          {item.name}
+                        </div>
+                        <div
+                          className="mt-1 rounded overflow-hidden"
+                          style={{ height: 3, background: "var(--border)" }}
+                          role="progressbar"
+                          aria-valuenow={Math.round(item.share * 100)}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={`${item.name} — ${Math.round(item.share * 100)}% share of invocations`}
+                        >
+                          <div
+                            className="h-full rounded"
+                            style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-sm font-mono font-semibold text-dt-text0 leading-none">
+                          {item.count.toLocaleString()}
+                        </div>
+                        <div className="text-[10px] font-mono text-dt-text2">calls</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Right panel: CASRow cards */}
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                  {(casData?.commands ?? []).map((item, idx) => (
+                    <CASRow
+                      key={item.name}
+                      name={item.name}
+                      daily={item.daily}
+                      count={item.count}
+                      trend={item.trend}
+                      badgeIndex={idx}
+                      sparklineColor="teal"
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -826,18 +872,64 @@ export function InsightsPage(): JSX.Element {
             ) : (casData?.skills ?? []).length === 0 ? (
               <div className="text-sm text-dt-text2 py-4 text-center">No skill invocations found</div>
             ) : (
-              <div className="flex flex-col gap-1.5">
-                {(casData?.skills ?? []).map((item, idx) => (
-                  <CASRow
-                    key={item.name}
-                    name={item.name}
-                    daily={item.daily}
-                    count={item.count}
-                    trend={item.trend}
-                    badgeIndex={idx}
-                    sparklineColor="teal"
-                  />
-                ))}
+              <div className="flex gap-4">
+                {/* Left panel: ranked list */}
+                <div className="flex flex-col gap-1.5" style={{ width: "40%", flexShrink: 0 }}>
+                  {(casData?.skills ?? []).map((item, idx) => (
+                    <div
+                      key={item.name}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                      style={{ minHeight: 44 }}
+                    >
+                      <div
+                        className="font-mono text-[11px] font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2"
+                        style={{ width: 32, height: 20 }}
+                      >
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-mono font-semibold text-dt-text0 truncate" title={item.name}>
+                          {item.name}
+                        </div>
+                        <div
+                          className="mt-1 rounded overflow-hidden"
+                          style={{ height: 3, background: "var(--border)" }}
+                          role="progressbar"
+                          aria-valuenow={Math.round(item.share * 100)}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={`${item.name} — ${Math.round(item.share * 100)}% share of invocations`}
+                        >
+                          <div
+                            className="h-full rounded"
+                            style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-sm font-mono font-semibold text-dt-text0 leading-none">
+                          {item.count.toLocaleString()}
+                        </div>
+                        <div className="text-[10px] font-mono text-dt-text2">runs</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Right panel: CASRow cards */}
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                  {(casData?.skills ?? []).map((item, idx) => (
+                    <CASRow
+                      key={item.name}
+                      name={item.name}
+                      daily={item.daily}
+                      count={item.count}
+                      trend={item.trend}
+                      badgeIndex={idx}
+                      sparklineColor="teal"
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
