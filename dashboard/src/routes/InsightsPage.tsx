@@ -8,6 +8,7 @@ import { useInsightsActivity } from "../hooks/useInsightsActivity.js";
 import { HeatmapGrid } from "../components/insights/HeatmapGrid.js";
 import { HourlyBars } from "../components/insights/HourlyBars.js";
 import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
+import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -274,6 +275,7 @@ export function InsightsPage(): JSX.Element {
   const { data, delta, loading, error } = useInsightsAggregate(timeRange, repo);
   const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo);
   const { data: modelMixData, loading: modelMixLoading } = useInsightsModelMix(timeRange, repo);
+  const { data: topConsumersData, loading: topConsumersLoading } = useInsightsTopConsumers(timeRange, repo);
 
   useEffect(() => {
     setCurrentMetrics(null);
@@ -574,6 +576,135 @@ export function InsightsPage(): JSX.Element {
               </div>
             </>
           )}
+        </div>
+
+        {/* Top Consumers section */}
+        <div data-testid="section-top-consumers" className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Top repos card */}
+          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
+            <div className="text-lg font-semibold text-dt-text0 mb-3">
+              Top repos{" "}
+              <span className="text-xs font-mono text-dt-text2 font-normal">by token spend</span>
+            </div>
+            {topConsumersLoading ? (
+              <div className="flex flex-col gap-2">
+                {([0, 1, 2] as const).map((i) => (
+                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {(topConsumersData?.repos ?? []).map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                    style={{ gridTemplateColumns: "26px 1fr 80px" }}
+                  >
+                    <div
+                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
+                      style={{ width: 22, height: 22 }}
+                    >
+                      {idx + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-md font-semibold text-dt-text0 truncate">{item.repo}</div>
+                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
+                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--purple)" }} />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{formatTokens(item.totalTokens)}</div>
+                      <span className="text-xs font-mono text-dt-text2">tokens</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Top sessions card */}
+          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
+            <div className="text-lg font-semibold text-dt-text0 mb-3">
+              Top sessions{" "}
+              <span className="text-xs font-mono text-dt-text2 font-normal">by cost</span>
+            </div>
+            {topConsumersLoading ? (
+              <div className="flex flex-col gap-2">
+                {([0, 1, 2] as const).map((i) => (
+                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {(topConsumersData?.sessions ?? []).map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                    style={{ gridTemplateColumns: "26px 1fr 80px" }}
+                  >
+                    <div
+                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
+                      style={{ width: 22, height: 22 }}
+                    >
+                      {idx + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-md font-semibold text-dt-text0 truncate">{`${item.repo} · ${item.date}`}</div>
+                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
+                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--accent)" }} />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{formatCost(item.cost)}</div>
+                      <span className="text-xs font-mono text-dt-text2">spend</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Top tool calls card */}
+          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
+            <div className="text-lg font-semibold text-dt-text0 mb-3">
+              Top tool calls{" "}
+              <span className="text-xs font-mono text-dt-text2 font-normal">by count</span>
+            </div>
+            {topConsumersLoading ? (
+              <div className="flex flex-col gap-2">
+                {([0, 1, 2] as const).map((i) => (
+                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {(topConsumersData?.tools ?? []).map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                    style={{ gridTemplateColumns: "26px 1fr 80px" }}
+                  >
+                    <div
+                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
+                      style={{ width: 22, height: 22 }}
+                    >
+                      {idx + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-md font-semibold text-dt-text0 truncate">{item.name}</div>
+                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
+                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--teal)" }} />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{item.count.toLocaleString()}</div>
+                      <span className="text-xs font-mono text-dt-text2">calls</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Placeholder sections for future milestones */}

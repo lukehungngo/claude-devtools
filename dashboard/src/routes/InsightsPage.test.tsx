@@ -22,9 +22,14 @@ vi.mock("../hooks/useInsightsModelMix", () => ({
   useInsightsModelMix: vi.fn(),
 }));
 
+vi.mock("../hooks/useInsightsTopConsumers", () => ({
+  useInsightsTopConsumers: vi.fn(),
+}));
+
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { useInsightsActivity } from "../hooks/useInsightsActivity";
 import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
+import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
 
 function mockLoading() {
   vi.mocked(useInsightsAggregate).mockReturnValue({
@@ -87,6 +92,7 @@ beforeEach(() => {
   mockLoading();
   mockActivityLoading();
   vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: false, error: null });
+  vi.mocked(useInsightsTopConsumers).mockReturnValue({ data: null, loading: false, error: null });
 });
 
 afterEach(() => {
@@ -302,5 +308,32 @@ describe("model mix section", () => {
     vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: true, error: null });
     render(<InsightsPage />);
     expect(screen.getByTestId("section-model-mix")).toBeTruthy();
+  });
+});
+
+describe("top consumers section", () => {
+  it("renders top consumers section with data", () => {
+    mockData();
+    vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: false, error: null });
+    vi.mocked(useInsightsTopConsumers).mockReturnValue({
+      data: {
+        repos: [{ repo: "claude-devtools", tokensIn: 1000, tokensOut: 500, totalTokens: 1500, cost: 0.01, share: 1.0 }],
+        sessions: [{ sessionId: "s1", date: "2026-04-18", repo: "claude-devtools", cost: 0.01, share: 1.0 }],
+        tools: [{ name: "Read", count: 42, share: 1.0 }],
+      },
+      loading: false,
+      error: null,
+    });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-top-consumers")).toBeTruthy();
+    expect(screen.getByText("claude-devtools")).toBeTruthy();
+    expect(screen.getByText("Read")).toBeTruthy();
+  });
+
+  it("renders top consumers loading state", () => {
+    mockData();
+    vi.mocked(useInsightsTopConsumers).mockReturnValue({ data: null, loading: true, error: null });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-top-consumers")).toBeTruthy();
   });
 });
