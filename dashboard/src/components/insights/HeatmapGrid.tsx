@@ -1,6 +1,6 @@
 import type { InsightsHeatmapCell } from "../../lib/types.js";
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today"];
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // Intensity → background CSS value
 function intensityBg(intensity: 0 | 1 | 2 | 3 | 4): string {
