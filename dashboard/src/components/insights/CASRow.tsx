@@ -76,7 +76,7 @@ export function CASRow({
     >
       {/* Badge */}
       <div
-        className="font-mono text-[11px] font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0"
+        className="font-mono text-sm font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0"
         style={{ width: 32, height: 22, background: badgeColor }}
       >
         {abbreviateName(name)}
@@ -101,7 +101,7 @@ export function CASRow({
 
       {/* Trend pill */}
       <div
-        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-dt-xs text-xs font-mono font-semibold ${tc.classes}`}
+        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-dt-xs text-sm font-mono font-semibold ${tc.classes}`}
       >
         <span>{tc.symbol}</span>
         <span>{tc.label}</span>

@@ -82,7 +82,7 @@ export function TrendChart({ daily, className }: TrendChartProps): JSX.Element {
   if (daily.length === 0) {
     return (
       <div
-        className={`h-28 flex items-center justify-center text-dt-text2 text-xs font-mono ${className ?? ""}`}
+        className={`h-28 flex items-center justify-center text-dt-text2 text-sm font-mono ${className ?? ""}`}
       >
         No data
       </div>

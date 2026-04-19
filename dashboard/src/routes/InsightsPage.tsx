@@ -57,7 +57,7 @@ function SegPill({ options, value, onChange, testId }: SegPillProps): JSX.Elemen
             aria-pressed={isActive}
             onClick={() => onChange(opt.value)}
             className={[
-              "px-2.5 py-0.5 rounded-full font-mono text-xs font-semibold transition-all",
+              "px-2.5 py-0.5 rounded-full font-mono text-sm font-semibold transition-all",
               isActive
                 ? "bg-dt-bg1 text-dt-accent"
                 : "text-dt-text2 hover:text-dt-text1",
@@ -79,7 +79,7 @@ interface DeltaChipProps {
 function DeltaChip({ value, testId }: DeltaChipProps): JSX.Element {
   if (value === null) {
     return (
-      <span data-testid={testId} className="text-dt-text2 text-xs font-mono">
+      <span data-testid={testId} className="text-dt-text2 text-sm font-mono">
         —
       </span>
     );
@@ -90,7 +90,7 @@ function DeltaChip({ value, testId }: DeltaChipProps): JSX.Element {
     return (
       <span
         data-testid={testId}
-        className="text-xs font-mono font-semibold px-1.5 py-0.5 rounded-dt-xs text-dt-text2 bg-dt-bg2"
+        className="text-sm font-mono font-semibold px-1.5 py-0.5 rounded-dt-xs text-dt-text2 bg-dt-bg2"
       >
         → {pct}%
       </span>
@@ -101,7 +101,7 @@ function DeltaChip({ value, testId }: DeltaChipProps): JSX.Element {
     <span
       data-testid={testId}
       className={[
-        "text-xs font-mono font-semibold px-1.5 py-0.5 rounded-dt-xs",
+        "text-sm font-mono font-semibold px-1.5 py-0.5 rounded-dt-xs",
         isUp
           ? "text-dt-red bg-dt-red/10"
           : "text-dt-green bg-dt-green/10",
@@ -137,7 +137,7 @@ function HeadlineTile({
       className="bg-dt-bg1 border border-dt-border rounded-dt relative overflow-hidden"
       style={{ padding: "16px 18px" }}
     >
-      <span className="text-xs font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
+      <span className="text-sm font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
         {label}
       </span>
       <div
@@ -185,7 +185,7 @@ function StatTile({
       className="bg-dt-bg1 border border-dt-border rounded-dt"
       style={{ padding: "14px 16px" }}
     >
-      <span className="text-xs font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
+      <span className="text-sm font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
         {label}
       </span>
       <div
@@ -218,7 +218,7 @@ function SecondaryTile({ label, value, delta, deltaTestId, testId }: SecondaryTi
       className="bg-dt-bg1 border border-dt-border rounded-dt"
       style={{ padding: "14px 16px" }}
     >
-      <span className="text-xs font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
+      <span className="text-sm font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
         {label}
       </span>
       <div
@@ -406,17 +406,17 @@ export function InsightsPage(): JSX.Element {
                     className="inline-block rounded-full bg-dt-teal"
                     style={{ width: 8, height: 8 }}
                   />
-                  <span className="text-xs font-mono text-dt-text2">Tokens in</span>
+                  <span className="text-sm font-mono text-dt-text2">Tokens in</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span
                     className="inline-block rounded-full bg-dt-purple"
                     style={{ width: 8, height: 8 }}
                   />
-                  <span className="text-xs font-mono text-dt-text2">Tokens out</span>
+                  <span className="text-sm font-mono text-dt-text2">Tokens out</span>
                 </span>
               </div>
-              <span className="text-xs font-mono text-dt-text2 ml-3">Hourly · last 7 days</span>
+              <span className="text-sm font-mono text-dt-text2 ml-3">Hourly · last 7 days</span>
             </div>
             <div className="mt-3">
               <TrendChart daily={data.daily} />
@@ -431,21 +431,21 @@ export function InsightsPage(): JSX.Element {
             style={{ padding: "14px 20px 0" }}
           >
             <h2 className="text-lg font-semibold text-dt-text0">When you work</h2>
-            <span className="text-xs font-mono text-dt-text2">Last 7 days · by hour &amp; day</span>
+            <span className="text-sm font-mono text-dt-text2">Last 7 days · by hour &amp; day</span>
           </div>
           {activityLoading || !activityData ? (
             <div className="m-5 h-36 bg-dt-bg2 rounded animate-pulse" />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1px 1fr" }}>
               <div style={{ padding: "14px 20px 16px" }}>
-                <span className="text-xs font-mono font-bold uppercase tracking-[0.8px] text-dt-text2 block mb-3.5">
+                <span className="text-sm font-mono font-bold uppercase tracking-[0.8px] text-dt-text2 block mb-3.5">
                   Weekday × Hour
                 </span>
                 <HeatmapGrid heatmap={activityData.heatmap} />
               </div>
               <div className="bg-dt-border" />
               <div style={{ padding: "14px 20px 16px" }}>
-                <span className="text-xs font-mono font-bold uppercase tracking-[0.8px] text-dt-text2 block mb-3.5">
+                <span className="text-sm font-mono font-bold uppercase tracking-[0.8px] text-dt-text2 block mb-3.5">
                   Hour of Day · Avg Tokens, All Time
                 </span>
                 <HourlyBars hourly={activityData.hourly} />
@@ -465,7 +465,7 @@ export function InsightsPage(): JSX.Element {
               Model mix
             </span>
             {modelMixData && (
-              <span className="text-xs font-mono text-dt-text2 ml-auto">
+              <span className="text-sm font-mono text-dt-text2 ml-auto">
                 Share of total tokens · {formatTokens(modelMixData.totalTokens)}
               </span>
             )}
@@ -497,7 +497,7 @@ export function InsightsPage(): JSX.Element {
                     {m.share > 0.08 && (
                       <span
                         className="font-mono font-semibold text-white"
-                        style={{ fontSize: 10, padding: "0 8px", overflow: "hidden" }}
+                        style={{ fontSize: 12, padding: "0 8px", overflow: "hidden" }}
                       >
                         {m.model.replace("claude-", "")} · {(m.share * 100).toFixed(0)}%
                       </span>
@@ -521,14 +521,14 @@ export function InsightsPage(): JSX.Element {
                       />
                       <div>
                         <div className="text-lg font-semibold text-dt-text0">{m.model}</div>
-                        <div className="text-xs font-mono text-dt-text2 mt-0.5">
+                        <div className="text-sm font-mono text-dt-text2 mt-0.5">
                           {(m.share * 100).toFixed(0)}% of total · {m.turns} turns
                         </div>
                       </div>
                     </div>
                     <div className="flex flex-col gap-0.5 px-3">
                       <div
-                        className="text-xs font-mono font-bold uppercase flex items-center gap-1"
+                        className="text-sm font-mono font-bold uppercase flex items-center gap-1"
                         style={{ letterSpacing: "0.5px", color: "var(--teal)" }}
                       >
                         <span
@@ -546,7 +546,7 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="flex flex-col gap-0.5 px-3">
                       <div
-                        className="text-xs font-mono font-bold uppercase flex items-center gap-1"
+                        className="text-sm font-mono font-bold uppercase flex items-center gap-1"
                         style={{ letterSpacing: "0.5px", color: "var(--purple)" }}
                       >
                         <span
@@ -564,7 +564,7 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="text-right">
                       <div className="text-xl font-semibold text-dt-text0">{formatCost(m.cost)}</div>
-                      <div className="text-xs font-mono text-dt-text2 mt-0.5">total spend</div>
+                      <div className="text-sm font-mono text-dt-text2 mt-0.5">total spend</div>
                     </div>
                   </div>
                 ))}
@@ -579,7 +579,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Top repos{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by token spend</span>
+              <span className="text-sm font-mono text-dt-text2 font-normal">by token spend</span>
             </div>
             {topConsumersLoading ? (
               <div className="flex flex-col gap-2">
@@ -609,7 +609,7 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="text-right">
                       <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{formatTokens(item.totalTokens)}</div>
-                      <span className="text-xs font-mono text-dt-text2">tokens</span>
+                      <span className="text-sm font-mono text-dt-text2">tokens</span>
                     </div>
                   </div>
                 ))}
@@ -621,7 +621,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Top sessions{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by cost</span>
+              <span className="text-sm font-mono text-dt-text2 font-normal">by cost</span>
             </div>
             {topConsumersLoading ? (
               <div className="flex flex-col gap-2">
@@ -651,7 +651,7 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="text-right">
                       <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{formatCost(item.cost)}</div>
-                      <span className="text-xs font-mono text-dt-text2">spend</span>
+                      <span className="text-sm font-mono text-dt-text2">spend</span>
                     </div>
                   </div>
                 ))}
@@ -663,7 +663,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Top tool calls{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by count</span>
+              <span className="text-sm font-mono text-dt-text2 font-normal">by count</span>
             </div>
             {topConsumersLoading ? (
               <div className="flex flex-col gap-2">
@@ -693,7 +693,7 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="text-right">
                       <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{item.count.toLocaleString()}</div>
-                      <span className="text-xs font-mono text-dt-text2">calls</span>
+                      <span className="text-sm font-mono text-dt-text2">calls</span>
                     </div>
                   </div>
                 ))}
@@ -708,7 +708,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-commands">
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Commands{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by invocations</span>
+              <span className="text-sm font-mono text-dt-text2 font-normal">by invocations</span>
             </div>
             {casLoading ? (
               <div className="flex flex-col gap-2">
@@ -728,7 +728,7 @@ export function InsightsPage(): JSX.Element {
                       className="flex items-start gap-2.5 px-2 py-2.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                     >
                       <div
-                        className="font-mono text-xs font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
+                        className="font-mono text-sm font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
                         style={{ width: 32, height: 20 }}
                       >
                         {idx + 1}
@@ -741,7 +741,7 @@ export function InsightsPage(): JSX.Element {
                           </div>
                           <div className="text-right flex-shrink-0">
                             <span className="text-base font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
-                            <span className="text-xs font-mono text-dt-text2 ml-1">calls</span>
+                            <span className="text-sm font-mono text-dt-text2 ml-1">calls</span>
                           </div>
                         </div>
                         {/* Line 2: progress bar + avg tokens | total tokens */}
@@ -761,11 +761,11 @@ export function InsightsPage(): JSX.Element {
                                 style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
                               />
                             </div>
-                            <div className="mt-1 text-xs font-mono text-dt-text2">
+                            <div className="mt-1 text-sm font-mono text-dt-text2">
                               avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
                             </div>
                           </div>
-                          <div className="text-right flex-shrink-0 text-xs font-mono text-dt-text2">
+                          <div className="text-right flex-shrink-0 text-sm font-mono text-dt-text2">
                             <div>{formatTok(item.tokensIn)} in</div>
                             <div>{formatTok(item.tokensOut)} out</div>
                           </div>
@@ -797,7 +797,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-agents">
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Agents{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by dispatches</span>
+              <span className="text-sm font-mono text-dt-text2 font-normal">by dispatches</span>
             </div>
             {casLoading ? (
               <div className="flex flex-col gap-2">
@@ -821,7 +821,7 @@ export function InsightsPage(): JSX.Element {
                       >
                         <div
                           aria-hidden="true"
-                          className="font-mono text-[11px] font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0 mt-0.5"
+                          className="font-mono text-sm font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0 mt-0.5"
                           style={{ width: 32, height: 22, background: badgeColor }}
                         >
                           {abbrev}
@@ -833,7 +833,7 @@ export function InsightsPage(): JSX.Element {
                             </div>
                             <div className="text-right flex-shrink-0">
                               <span className="text-base font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
-                              <span className="text-xs font-mono text-dt-text2 ml-1">runs</span>
+                              <span className="text-sm font-mono text-dt-text2 ml-1">runs</span>
                             </div>
                           </div>
                           <div className="mt-1.5 flex items-center gap-2">
@@ -852,11 +852,11 @@ export function InsightsPage(): JSX.Element {
                                   style={{ width: `${item.share * 100}%`, background: badgeColor }}
                                 />
                               </div>
-                              <div className="mt-1 text-xs font-mono text-dt-text2">
+                              <div className="mt-1 text-sm font-mono text-dt-text2">
                                 avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
                               </div>
                             </div>
-                            <div className="text-right flex-shrink-0 text-xs font-mono text-dt-text2">
+                            <div className="text-right flex-shrink-0 text-sm font-mono text-dt-text2">
                               <div>{formatTok(item.tokensIn)} in</div>
                               <div>{formatTok(item.tokensOut)} out</div>
                             </div>
@@ -889,7 +889,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-skills">
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Skills{" "}
-              <span className="text-xs font-mono text-dt-text2 font-normal">by invocations</span>
+              <span className="text-sm font-mono text-dt-text2 font-normal">by invocations</span>
             </div>
             {casLoading ? (
               <div className="flex flex-col gap-2">
@@ -909,7 +909,7 @@ export function InsightsPage(): JSX.Element {
                       className="flex items-start gap-2.5 px-2 py-2.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                     >
                       <div
-                        className="font-mono text-xs font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
+                        className="font-mono text-sm font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
                         style={{ width: 32, height: 20 }}
                       >
                         {idx + 1}
@@ -921,7 +921,7 @@ export function InsightsPage(): JSX.Element {
                           </div>
                           <div className="text-right flex-shrink-0">
                             <span className="text-base font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
-                            <span className="text-xs font-mono text-dt-text2 ml-1">runs</span>
+                            <span className="text-sm font-mono text-dt-text2 ml-1">runs</span>
                           </div>
                         </div>
                         <div className="mt-1.5 flex items-center gap-2">
@@ -940,11 +940,11 @@ export function InsightsPage(): JSX.Element {
                                 style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
                               />
                             </div>
-                            <div className="mt-1 text-xs font-mono text-dt-text2">
+                            <div className="mt-1 text-sm font-mono text-dt-text2">
                               avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
                             </div>
                           </div>
-                          <div className="text-right flex-shrink-0 text-xs font-mono text-dt-text2">
+                          <div className="text-right flex-shrink-0 text-sm font-mono text-dt-text2">
                             <div>{formatTok(item.tokensIn)} in</div>
                             <div>{formatTok(item.tokensOut)} out</div>
                           </div>
