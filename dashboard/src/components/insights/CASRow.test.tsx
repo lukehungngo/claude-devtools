@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { CASRow } from "./CASRow";
+import { abbreviateName, BADGE_PALETTE } from "./CASRow";
 
 afterEach(() => cleanup());
 
@@ -60,5 +61,24 @@ describe("CASRow", () => {
   it("abbreviateName: plain name", () => {
     render(<CASRow {...baseProps} name="verification" />);
     expect(screen.getByText("VER")).toBeTruthy();
+  });
+});
+
+describe("CASRow exports", () => {
+  it("BADGE_PALETTE has 8 colors", () => {
+    expect(BADGE_PALETTE).toHaveLength(8);
+    expect(BADGE_PALETTE[0]).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+
+  it("abbreviateName: colon-delimited returns last segment uppercased 3 chars", () => {
+    expect(abbreviateName("mas:engineer:engineer")).toBe("ENG");
+  });
+
+  it("abbreviateName: slash-prefixed returns first 3 chars uppercase", () => {
+    expect(abbreviateName("/compact")).toBe("COM");
+  });
+
+  it("abbreviateName: plain name pads with ? if shorter than 3 chars", () => {
+    expect(abbreviateName("ab")).toBe("AB?");
   });
 });

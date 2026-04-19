@@ -11,7 +11,7 @@ export interface CASRowProps {
   sparklineColor?: "teal" | "purple";
 }
 
-const BADGE_PALETTE = [
+export const BADGE_PALETTE = [
   "#6366f1",
   "#f59e0b",
   "#10b981",
@@ -40,7 +40,7 @@ const TREND_CONFIG: Record<CASRowTrend, { symbol: string; label: string; classes
   },
 };
 
-function hashCode(s: string): number {
+function _hashCode(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) {
     h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
@@ -48,10 +48,7 @@ function hashCode(s: string): number {
   return Math.abs(h);
 }
 
-// Suppress unused warning — hashCode is available for future use
-void hashCode;
-
-function abbreviateName(name: string): string {
+export function abbreviateName(name: string): string {
   let base: string;
   const colonIdx = name.lastIndexOf(":");
   if (colonIdx !== -1) {
