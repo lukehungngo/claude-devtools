@@ -78,7 +78,8 @@ function computeDelta(current: number, prev: number): number | null {
 
 export function useInsightsAggregate(
   timeRange: string,
-  repo: string
+  repo: string,
+  refreshCount = 0
 ): UseInsightsResult {
   const [data, setData] = useState<InsightsAggregateClient | null>(null);
   const [delta, setDelta] = useState<DeltaData | null>(null);
@@ -135,7 +136,7 @@ export function useInsightsAggregate(
     return () => {
       cancelled = true;
     };
-  }, [timeRange, repo]);
+  }, [timeRange, repo, refreshCount]);
 
   return { data, delta, loading, error };
 }
