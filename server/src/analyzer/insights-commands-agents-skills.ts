@@ -63,7 +63,20 @@ function parseCasForSession(session: SessionInfo): {
             (block as { type?: unknown }).type === "text"
           ) {
             const text = ((block as { text?: unknown }).text ?? "") as string;
-            if (typeof text === "string" && text.startsWith("/")) {
+            if (typeof text !== "string") continue;
+
+            // MAS command heuristic: user messages starting with "# X (MAS)\n"
+            // are expanded skill invocations — extract command name from heading.
+            const masMatch = text.match(/^# (.+?) \(MAS\)\n/);
+            if (masMatch) {
+              const slug = masMatch[1].toLowerCase().replace(/\s+/g, "-");
+              const name = `/mas:${slug}`;
+              commands.set(name, (commands.get(name) ?? 0) + 1);
+              continue;
+            }
+
+            // Legacy raw-command detection: text starting with "/" (e.g. /compact, /model)
+            if (text.startsWith("/")) {
               const name = text.split(/\s/)[0];
               commands.set(name, (commands.get(name) ?? 0) + 1);
             }
@@ -87,7 +100,7 @@ function parseCasForSession(session: SessionInfo): {
             | Record<string, unknown>
             | undefined;
 
-          if (toolName === "Task") {
+          if (toolName === "Agent") {
             const agentType =
               (input?.subagent_type as string | undefined) ??
               (input?.description as string | undefined) ??
