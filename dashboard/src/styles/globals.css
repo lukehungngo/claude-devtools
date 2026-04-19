@@ -1044,7 +1044,7 @@
 
 .trace-ticks span {
   flex: 1;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--t3);
   font-family: var(--font);
   margin-left: 10px;
