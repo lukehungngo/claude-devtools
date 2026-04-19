@@ -18,8 +18,13 @@ vi.mock("../hooks/useInsightsActivity", () => ({
   useInsightsActivity: vi.fn(),
 }));
 
+vi.mock("../hooks/useInsightsModelMix", () => ({
+  useInsightsModelMix: vi.fn(),
+}));
+
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { useInsightsActivity } from "../hooks/useInsightsActivity";
+import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
 
 function mockLoading() {
   vi.mocked(useInsightsAggregate).mockReturnValue({
@@ -81,6 +86,7 @@ function mockActivityLoading() {
 beforeEach(() => {
   mockLoading();
   mockActivityLoading();
+  vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: false, error: null });
 });
 
 afterEach(() => {
@@ -268,5 +274,33 @@ describe("activity section", () => {
     render(<InsightsPage />);
     const section = document.querySelector("[data-testid='section-activity']");
     expect(section).toBeTruthy();
+  });
+});
+
+describe("model mix section", () => {
+  it("renders model mix section with data", () => {
+    mockData();
+    vi.mocked(useInsightsModelMix).mockReturnValue({
+      data: {
+        models: [
+          { model: "claude-sonnet-4-6", tokensIn: 1000, tokensOut: 500, cost: 0.01, turns: 5, share: 0.8 },
+          { model: "claude-haiku-4-5", tokensIn: 200, tokensOut: 100, cost: 0.001, turns: 2, share: 0.2 },
+        ],
+        totalTokens: 1800,
+      },
+      loading: false,
+      error: null,
+    });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-model-mix")).toBeTruthy();
+    expect(screen.getByText("Model mix")).toBeTruthy();
+    expect(screen.getByText("claude-sonnet-4-6")).toBeTruthy();
+  });
+
+  it("renders model mix loading state", () => {
+    mockData();
+    vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: true, error: null });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-model-mix")).toBeTruthy();
   });
 });

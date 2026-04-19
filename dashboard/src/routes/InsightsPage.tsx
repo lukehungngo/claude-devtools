@@ -7,6 +7,7 @@ import { TrendChart } from "../components/insights/TrendChart";
 import { useInsightsActivity } from "../hooks/useInsightsActivity.js";
 import { HeatmapGrid } from "../components/insights/HeatmapGrid.js";
 import { HourlyBars } from "../components/insights/HourlyBars.js";
+import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -259,12 +260,20 @@ function SecondaryTile({ label, value, delta, deltaTestId, testId }: SecondaryTi
   );
 }
 
+function modelColor(model: string): string {
+  if (model.includes("sonnet")) return "var(--accent)";
+  if (model.includes("opus")) return "var(--purple)";
+  if (model.includes("haiku")) return "var(--teal)";
+  return "var(--text-2)";
+}
+
 export function InsightsPage(): JSX.Element {
   const { setCurrentMetrics } = useLayoutContext();
   const [timeRange, setTimeRange] = useState<TimeRange>("7d");
   const [repo, setRepo] = useState("all");
   const { data, delta, loading, error } = useInsightsAggregate(timeRange, repo);
   const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo);
+  const { data: modelMixData, loading: modelMixLoading } = useInsightsModelMix(timeRange, repo);
 
   useEffect(() => {
     setCurrentMetrics(null);
@@ -447,6 +456,125 @@ export function InsightsPage(): JSX.Element {
             </div>
           )}
         </section>
+
+        {/* Model Mix section */}
+        <div
+          data-testid="section-model-mix"
+          className="bg-dt-bg1 border border-dt-border rounded-dt"
+          style={{ padding: "18px 20px 16px" }}
+        >
+          <div className="flex items-center gap-2.5 mb-3.5">
+            <span className="text-lg font-semibold text-dt-text0" style={{ letterSpacing: "-0.01em" }}>
+              Model mix
+            </span>
+            {modelMixData && (
+              <span className="text-xs font-mono text-dt-text2 ml-auto">
+                Share of total tokens · {formatTokens(modelMixData.totalTokens)}
+              </span>
+            )}
+          </div>
+
+          {modelMixLoading || !modelMixData ? (
+            <div className="h-7 rounded-full bg-dt-bg2 animate-pulse mb-4" />
+          ) : (
+            <>
+              {/* Stacked proportion bar */}
+              <div
+                className="flex overflow-hidden mb-4"
+                style={{ height: 28, borderRadius: 999, boxShadow: "var(--shadow-xs)" }}
+              >
+                {modelMixData.models.map((m) => (
+                  <div
+                    key={m.model}
+                    title={`${m.model} · ${(m.share * 100).toFixed(0)}%`}
+                    style={{
+                      flex: m.share,
+                      background: modelColor(m.model),
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      overflow: "hidden",
+                      minWidth: 0,
+                    }}
+                  >
+                    {m.share > 0.08 && (
+                      <span
+                        className="font-mono font-semibold text-white"
+                        style={{ fontSize: 10, padding: "0 8px", overflow: "hidden" }}
+                      >
+                        {m.model.replace("claude-", "")} · {(m.share * 100).toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Model rows */}
+              <div className="flex flex-col gap-2">
+                {modelMixData.models.map((m) => (
+                  <div
+                    key={m.model}
+                    className="grid items-center bg-dt-bg0 border border-dt-border rounded-dt"
+                    style={{ gridTemplateColumns: "180px 1fr 1fr 140px", padding: "14px 16px" }}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className="rounded flex-shrink-0"
+                        style={{ width: 14, height: 14, background: modelColor(m.model) }}
+                      />
+                      <div>
+                        <div className="text-lg font-semibold text-dt-text0">{m.model}</div>
+                        <div className="text-xs font-mono text-dt-text2 mt-0.5">
+                          {(m.share * 100).toFixed(0)}% of total · {m.turns} turns
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-0.5 px-3">
+                      <div
+                        className="text-xs font-mono font-bold uppercase flex items-center gap-1"
+                        style={{ letterSpacing: "0.5px", color: "var(--teal)" }}
+                      >
+                        <span
+                          className="inline-block rounded-full"
+                          style={{ width: 6, height: 6, background: "var(--teal)" }}
+                        />
+                        TOKENS IN
+                      </div>
+                      <div
+                        className="font-mono font-medium text-dt-text0"
+                        style={{ fontSize: 24, letterSpacing: "-0.02em", lineHeight: 1 }}
+                      >
+                        {formatTokens(m.tokensIn)}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-0.5 px-3">
+                      <div
+                        className="text-xs font-mono font-bold uppercase flex items-center gap-1"
+                        style={{ letterSpacing: "0.5px", color: "var(--purple)" }}
+                      >
+                        <span
+                          className="inline-block rounded-full"
+                          style={{ width: 6, height: 6, background: "var(--purple)" }}
+                        />
+                        TOKENS OUT
+                      </div>
+                      <div
+                        className="font-mono font-medium text-dt-text0"
+                        style={{ fontSize: 24, letterSpacing: "-0.02em", lineHeight: 1 }}
+                      >
+                        {formatTokens(m.tokensOut)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xl font-semibold text-dt-text0">{formatCost(m.cost)}</div>
+                      <div className="text-xs font-mono text-dt-text2 mt-0.5">total spend</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Placeholder sections for future milestones */}
         {PLACEHOLDER_SECTIONS.map((title) => (
