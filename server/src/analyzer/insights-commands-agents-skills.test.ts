@@ -120,13 +120,13 @@ describe("computeInsightsCommandsAgentsSkills", () => {
     expect(result.commands).toHaveLength(0);
   });
 
-  it("counts Task tool_use as agent dispatches", () => {
+  it("counts Agent tool_use as agent dispatches", () => {
     const session = makeSession("s1");
     mockedParse.mockReturnValue({
       events: [
-        makeAssistantToolEvent("Task", { subagent_type: "mas:engineer:engineer" }),
-        makeAssistantToolEvent("Task", { subagent_type: "mas:engineer:engineer" }),
-        makeAssistantToolEvent("Task", { subagent_type: "mas:reviewer:reviewer" }),
+        makeAssistantToolEvent("Agent", { subagent_type: "mas:engineer:engineer" }),
+        makeAssistantToolEvent("Agent", { subagent_type: "mas:engineer:engineer" }),
+        makeAssistantToolEvent("Agent", { subagent_type: "mas:reviewer:reviewer" }),
         makeAssistantToolEvent("Read", {}),
       ],
       newOffset: 100,
@@ -144,7 +144,7 @@ describe("computeInsightsCommandsAgentsSkills", () => {
     const session = makeSession("s1");
     mockedParse.mockReturnValue({
       events: [
-        makeAssistantToolEvent("Task", { description: "run the build" }),
+        makeAssistantToolEvent("Agent", { description: "run the build" }),
       ],
       newOffset: 100,
     });
@@ -157,7 +157,7 @@ describe("computeInsightsCommandsAgentsSkills", () => {
     const session = makeSession("s1");
     mockedParse.mockReturnValue({
       events: [
-        makeAssistantToolEvent("Task", {}),
+        makeAssistantToolEvent("Agent", {}),
       ],
       newOffset: 100,
     });

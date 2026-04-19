@@ -87,7 +87,7 @@ function parseCasForSession(session: SessionInfo): {
             | Record<string, unknown>
             | undefined;
 
-          if (toolName === "Task") {
+          if (toolName === "Agent") {
             const agentType =
               (input?.subagent_type as string | undefined) ??
               (input?.description as string | undefined) ??
