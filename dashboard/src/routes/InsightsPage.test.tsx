@@ -18,8 +18,18 @@ vi.mock("../hooks/useInsightsActivity", () => ({
   useInsightsActivity: vi.fn(),
 }));
 
+vi.mock("../hooks/useInsightsModelMix", () => ({
+  useInsightsModelMix: vi.fn(),
+}));
+
+vi.mock("../hooks/useInsightsTopConsumers", () => ({
+  useInsightsTopConsumers: vi.fn(),
+}));
+
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { useInsightsActivity } from "../hooks/useInsightsActivity";
+import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
+import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
 
 function mockLoading() {
   vi.mocked(useInsightsAggregate).mockReturnValue({
@@ -81,6 +91,8 @@ function mockActivityLoading() {
 beforeEach(() => {
   mockLoading();
   mockActivityLoading();
+  vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: false, error: null });
+  vi.mocked(useInsightsTopConsumers).mockReturnValue({ data: null, loading: false, error: null });
 });
 
 afterEach(() => {
@@ -136,11 +148,50 @@ describe("InsightsPage", () => {
     expect(screen.getByTestId("delta-tokensOut").textContent).toContain("-5.0%");
   });
 
+  it("renders flat delta as arrow-right with gray chip", () => {
+    vi.mocked(useInsightsAggregate).mockReturnValue({
+      data: {
+        tokensIn: 120_000,
+        tokensOut: 45_000,
+        cost: 1.23,
+        sessions: 8,
+        turns: 42,
+        avgCostPerTurn: 0.029,
+        avgTokensPerTurn: 3928,
+        activeDays: 5,
+        peakHour: 15,
+        daily: [],
+      },
+      delta: { tokensIn: 0.002, tokensOut: 0.0, cost: -0.001 },
+      loading: false,
+      error: null,
+    });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("delta-tokensIn").textContent).toContain("→");
+    expect(screen.getByTestId("delta-tokensOut").textContent).toContain("→");
+    expect(screen.getByTestId("delta-cost").textContent).toContain("→");
+  });
+
+  it("renders subtitle below h1", () => {
+    render(<InsightsPage />);
+    expect(screen.getByText("Aggregate usage across your repos and sessions")).toBeTruthy();
+  });
+
+  it("renders 5 stat tiles in data loaded state", () => {
+    mockData();
+    render(<InsightsPage />);
+    expect(screen.getByTestId("tile-tokensIn")).toBeTruthy();
+    expect(screen.getByTestId("tile-tokensOut")).toBeTruthy();
+    expect(screen.getByTestId("tile-cost")).toBeTruthy();
+    expect(screen.getByTestId("tile-sessions")).toBeTruthy();
+    expect(screen.getByTestId("tile-turns")).toBeTruthy();
+  });
+
   it("renders placeholder section cards for future milestones", () => {
     mockData();
     render(<InsightsPage />);
     const cards = screen.getAllByTestId(/^section-card-/);
-    expect(cards.length).toBeGreaterThanOrEqual(6);
+    expect(cards.length).toBeGreaterThanOrEqual(4);
   });
 
   it("shows error banner with role=alert when fetch fails", () => {
@@ -229,5 +280,60 @@ describe("activity section", () => {
     render(<InsightsPage />);
     const section = document.querySelector("[data-testid='section-activity']");
     expect(section).toBeTruthy();
+  });
+});
+
+describe("model mix section", () => {
+  it("renders model mix section with data", () => {
+    mockData();
+    vi.mocked(useInsightsModelMix).mockReturnValue({
+      data: {
+        models: [
+          { model: "claude-sonnet-4-6", tokensIn: 1000, tokensOut: 500, cost: 0.01, turns: 5, share: 0.8 },
+          { model: "claude-haiku-4-5", tokensIn: 200, tokensOut: 100, cost: 0.001, turns: 2, share: 0.2 },
+        ],
+        totalTokens: 1800,
+      },
+      loading: false,
+      error: null,
+    });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-model-mix")).toBeTruthy();
+    expect(screen.getByText("Model mix")).toBeTruthy();
+    expect(screen.getByText("claude-sonnet-4-6")).toBeTruthy();
+  });
+
+  it("renders model mix loading state", () => {
+    mockData();
+    vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: true, error: null });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-model-mix")).toBeTruthy();
+  });
+});
+
+describe("top consumers section", () => {
+  it("renders top consumers section with data", () => {
+    mockData();
+    vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: false, error: null });
+    vi.mocked(useInsightsTopConsumers).mockReturnValue({
+      data: {
+        repos: [{ repo: "claude-devtools", tokensIn: 1000, tokensOut: 500, totalTokens: 1500, cost: 0.01, share: 1.0 }],
+        sessions: [{ sessionId: "s1", date: "2026-04-18", repo: "claude-devtools", cost: 0.01, share: 1.0 }],
+        tools: [{ name: "Read", count: 42, share: 1.0 }],
+      },
+      loading: false,
+      error: null,
+    });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-top-consumers")).toBeTruthy();
+    expect(screen.getByText("claude-devtools")).toBeTruthy();
+    expect(screen.getByText("Read")).toBeTruthy();
+  });
+
+  it("renders top consumers loading state", () => {
+    mockData();
+    vi.mocked(useInsightsTopConsumers).mockReturnValue({ data: null, loading: true, error: null });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("section-top-consumers")).toBeTruthy();
   });
 });

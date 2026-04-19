@@ -308,6 +308,49 @@ export interface InsightsActivity {
   hourly: InsightsHourlyBucket[];
 }
 
+export interface InsightsModelRow {
+  model: string;      // e.g. "claude-sonnet-4-6"
+  tokensIn: number;
+  tokensOut: number;
+  cost: number;
+  turns: number;
+  share: number;      // fraction 0-1 of total tokens
+}
+
+export interface InsightsModelMix {
+  models: InsightsModelRow[];   // sorted by total tokens desc
+  totalTokens: number;
+}
+
+export interface InsightsTopRepoRow {
+  repo: string;         // basename of cwd
+  tokensIn: number;
+  tokensOut: number;
+  totalTokens: number;
+  cost: number;
+  share: number;        // fraction 0-1 of #1 entry's totalTokens
+}
+
+export interface InsightsTopSessionRow {
+  sessionId: string;
+  date: string;         // "YYYY-MM-DD"
+  repo: string;
+  cost: number;
+  share: number;        // fraction 0-1 of #1 entry's cost
+}
+
+export interface InsightsTopToolRow {
+  name: string;
+  count: number;
+  share: number;        // fraction 0-1 of #1 entry's count
+}
+
+export interface InsightsTopConsumers {
+  repos: InsightsTopRepoRow[];       // top 5
+  sessions: InsightsTopSessionRow[]; // top 5
+  tools: InsightsTopToolRow[];       // top 5
+}
+
 export interface PermissionSuggestion {
   type: string;
   rules?: Array<{ toolName: string; ruleContent?: string }>;

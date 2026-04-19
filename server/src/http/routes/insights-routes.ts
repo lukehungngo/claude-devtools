@@ -2,6 +2,8 @@ import { Router } from "express";
 import { discoverSessions } from "../../parser/session-discovery.js";
 import { computeInsightsAggregate } from "../../analyzer/insights-aggregator.js";
 import { computeInsightsActivity } from "../../analyzer/activity-aggregator.js";
+import { computeInsightsModelMix } from "../../analyzer/insights-model-mix.js";
+import { computeInsightsTopConsumers } from "../../analyzer/insights-top-consumers.js";
 import type { InsightsTimeRange } from "../../types.js";
 import type { RouteContext } from "./route-context.js";
 
@@ -55,6 +57,54 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
       res.json(activity);
     } catch {
       res.status(500).json({ error: "Failed to compute insights activity" });
+    }
+  });
+
+  router.get("/api/insights/model-mix", (req, res) => {
+    const timeRange = (req.query.timeRange as string) ?? "7d";
+    const repo = (req.query.repo as string) ?? "all";
+
+    if (!VALID_TIME_RANGES.has(timeRange)) {
+      res.status(400).json({
+        error: `Invalid timeRange. Must be one of: ${[...VALID_TIME_RANGES].join(", ")}`,
+      });
+      return;
+    }
+
+    try {
+      const sessions = discoverSessions();
+      const modelMix = computeInsightsModelMix(
+        sessions,
+        timeRange as InsightsTimeRange,
+        repo
+      );
+      res.json(modelMix);
+    } catch {
+      res.status(500).json({ error: "Failed to compute model mix" });
+    }
+  });
+
+  router.get("/api/insights/top-consumers", (req, res) => {
+    const timeRange = (req.query.timeRange as string) ?? "7d";
+    const repo = (req.query.repo as string) ?? "all";
+
+    if (!VALID_TIME_RANGES.has(timeRange)) {
+      res.status(400).json({
+        error: `Invalid timeRange. Must be one of: ${[...VALID_TIME_RANGES].join(", ")}`,
+      });
+      return;
+    }
+
+    try {
+      const sessions = discoverSessions();
+      const topConsumers = computeInsightsTopConsumers(
+        sessions,
+        timeRange as InsightsTimeRange,
+        repo
+      );
+      res.json(topConsumers);
+    } catch {
+      res.status(500).json({ error: "Failed to compute top consumers" });
     }
   });
 
