@@ -1,94 +1,93 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import type { InsightsHeatmapCell } from "../../lib/types.js";
-
-vi.mock("./EChartsWrapper.js", () => ({
-  EChartsWrapper: vi.fn(({ className }: { className?: string }) => (
-    <div data-testid="echarts-wrapper" className={className ?? ""} />
-  )),
-}));
-
-import { HeatmapGrid, buildHeatmapOption } from "./HeatmapGrid";
+import { HeatmapGrid, findPeakCell, fmtHeatmapHour } from "./HeatmapGrid.js";
 
 afterEach(cleanup);
 
-function makeFullGrid(override?: Partial<InsightsHeatmapCell>): InsightsHeatmapCell[] {
+function makeGrid(overrides: Partial<InsightsHeatmapCell>[] = []): InsightsHeatmapCell[] {
   const cells: InsightsHeatmapCell[] = [];
   for (let d = 0; d < 7; d++) {
     for (let h = 0; h < 24; h++) {
       cells.push({ day: d, hour: h, intensity: 0 });
     }
   }
-  if (override) {
-    const idx = cells.findIndex(
-      (c) => c.day === override.day && c.hour === override.hour
-    );
-    if (idx >= 0) Object.assign(cells[idx], override);
+  for (const o of overrides) {
+    const idx = cells.findIndex(c => c.day === o.day && c.hour === o.hour);
+    if (idx >= 0) Object.assign(cells[idx], o);
   }
   return cells;
 }
 
-describe("buildHeatmapOption", () => {
-  it("returns option with series type heatmap", () => {
-    const option = buildHeatmapOption(makeFullGrid());
-    const series = option.series as Array<{ type: string }>;
-    expect(series[0].type).toBe("heatmap");
+describe("findPeakCell", () => {
+  it("returns null for all-zero grid", () => {
+    expect(findPeakCell(makeGrid())).toBeNull();
   });
 
-  it("series data has 168 points for full 7x24 grid", () => {
-    const option = buildHeatmapOption(makeFullGrid());
-    const series = option.series as Array<{ data: unknown[] }>;
-    expect(series[0].data).toHaveLength(168);
+  it("returns cell with highest intensity", () => {
+    const cells = makeGrid([{ day: 2, hour: 14, intensity: 4 }]);
+    const peak = findPeakCell(cells);
+    expect(peak).not.toBeNull();
+    expect(peak!.day).toBe(2);
+    expect(peak!.hour).toBe(14);
   });
+});
 
-  it("each data point is [hour, day, intensity]", () => {
-    const cells = makeFullGrid({ day: 2, hour: 15, intensity: 4 });
-    const option = buildHeatmapOption(cells);
-    const series = option.series as Array<{ data: Array<[number, number, number]> }>;
-    const targetPoint = series[0].data.find(
-      ([h, d]) => h === 15 && d === 2
-    );
-    expect(targetPoint).toBeDefined();
-    expect(targetPoint![2]).toBe(4);
+describe("fmtHeatmapHour", () => {
+  it("formats midnight as 12AM", () => {
+    expect(fmtHeatmapHour(0)).toBe("12AM");
   });
-
-  it("yAxis.data contains 7 day labels", () => {
-    const option = buildHeatmapOption(makeFullGrid());
-    const yAxis = option.yAxis as { data: string[] };
-    expect(yAxis.data).toHaveLength(7);
-    expect(yAxis.data).toContain("Mon");
-    expect(yAxis.data).toContain("Sun");
+  it("formats noon as 12PM", () => {
+    expect(fmtHeatmapHour(12)).toBe("12PM");
   });
-
-  it("xAxis.data contains 24 hour labels", () => {
-    const option = buildHeatmapOption(makeFullGrid());
-    const xAxis = option.xAxis as { data: number[] };
-    expect(xAxis.data).toHaveLength(24);
+  it("formats 3am correctly", () => {
+    expect(fmtHeatmapHour(3)).toBe("3AM");
   });
-
-  it("visualMap min/max is 0/4 matching intensity range", () => {
-    const option = buildHeatmapOption(makeFullGrid());
-    const vm = option.visualMap as { min: number; max: number };
-    expect(vm.min).toBe(0);
-    expect(vm.max).toBe(4);
+  it("formats 9pm correctly", () => {
+    expect(fmtHeatmapHour(21)).toBe("9PM");
   });
 });
 
 describe("HeatmapGrid component", () => {
-  it("renders EChartsWrapper with heatmap data", () => {
-    render(<HeatmapGrid heatmap={makeFullGrid()} />);
-    expect(screen.getByTestId("echarts-wrapper")).toBeTruthy();
+  it("renders 168 cells for 7×24 grid", () => {
+    const { container } = render(<HeatmapGrid heatmap={makeGrid()} />);
+    const cells = container.querySelectorAll("[data-testid='hm-cell']");
+    expect(cells).toHaveLength(168);
   });
 
-  it("renders without crash when heatmap is empty", () => {
-    render(<HeatmapGrid heatmap={[]} />);
-    expect(screen.getByTestId("echarts-wrapper")).toBeTruthy();
+  it("renders 7 day labels", () => {
+    render(<HeatmapGrid heatmap={makeGrid()} />);
+    const labels = screen.getAllByTestId("hm-day-label");
+    expect(labels).toHaveLength(7);
+  });
+
+  it("renders 24 hour label slots", () => {
+    const { container } = render(<HeatmapGrid heatmap={makeGrid()} />);
+    const slots = container.querySelectorAll("[data-testid='hm-hour-label']");
+    expect(slots).toHaveLength(24);
+  });
+
+  it("peak cell has outline style", () => {
+    const cells = makeGrid([{ day: 1, hour: 23, intensity: 4 }]);
+    const { container } = render(<HeatmapGrid heatmap={cells} />);
+    const peakCell = container.querySelector("[data-testid='hm-cell-peak']");
+    expect(peakCell).not.toBeNull();
+    expect(peakCell!.getAttribute("style")).toMatch(/outline/);
+  });
+
+  it("renders legend swatches", () => {
+    const { container } = render(<HeatmapGrid heatmap={makeGrid()} />);
+    const swatches = container.querySelectorAll("[data-testid='hm-swatch']");
+    expect(swatches).toHaveLength(5);
   });
 
   it("applies className to outer container", () => {
-    const { container } = render(
-      <HeatmapGrid heatmap={makeFullGrid()} className="my-grid" />
-    );
+    const { container } = render(<HeatmapGrid heatmap={makeGrid()} className="my-grid" />);
     expect(container.firstElementChild!.getAttribute("class")).toContain("my-grid");
+  });
+
+  it("renders without crash when heatmap is empty", () => {
+    const { container } = render(<HeatmapGrid heatmap={[]} />);
+    expect(container.firstElementChild).not.toBeNull();
   });
 });

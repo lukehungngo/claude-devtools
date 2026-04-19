@@ -426,27 +426,20 @@ export function InsightsPage(): JSX.Element {
 
         {/* When you work — heatmap + hourly with divider */}
         <section data-testid="section-activity" className="bg-dt-bg1 border border-dt-border rounded-dt overflow-hidden">
-          <div
-            className="flex items-center justify-between"
-            style={{ padding: "14px 20px 0" }}
-          >
-            <h2 className="text-lg font-semibold text-dt-text0">When you work</h2>
-            <span className="text-xs font-mono text-dt-text2">Last 7 days · by hour &amp; day</span>
-          </div>
           {activityLoading || !activityData ? (
             <div className="m-5 h-36 bg-dt-bg2 rounded animate-pulse" />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1px 1fr" }}>
-              <div style={{ padding: "14px 20px 16px" }}>
-                <span className="text-xs font-mono font-bold uppercase tracking-[0.8px] text-dt-text2 block mb-3.5">
-                  Weekday × Hour
+              <div style={{ padding: "18px 20px 16px" }}>
+                <span className="font-mono font-bold uppercase text-dt-text2 block mb-2.5" style={{ fontSize: 9, letterSpacing: "0.8px" }}>
+                  Weekday × hour
                 </span>
                 <HeatmapGrid heatmap={activityData.heatmap} />
               </div>
               <div className="bg-dt-border" />
-              <div style={{ padding: "14px 20px 16px" }}>
-                <span className="text-xs font-mono font-bold uppercase tracking-[0.8px] text-dt-text2 block mb-3.5">
-                  Hour of Day · Avg Tokens, All Time
+              <div style={{ padding: "18px 20px 16px" }}>
+                <span className="font-mono font-bold uppercase text-dt-text2 block mb-2.5" style={{ fontSize: 9, letterSpacing: "0.8px" }}>
+                  Hour of day · avg tokens, all time
                 </span>
                 <HourlyBars hourly={activityData.hourly} />
               </div>

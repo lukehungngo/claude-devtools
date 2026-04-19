@@ -1,22 +1,23 @@
-import { useMemo } from "react";
-import type { EChartsOption } from "echarts";
 import type { InsightsHourlyBucket } from "../../lib/types.js";
-import { EChartsWrapper } from "./EChartsWrapper.js";
 
-interface HourlyBarsProps {
-  hourly: InsightsHourlyBucket[];
-  className?: string;
-}
+// SVG geometry (matches design viewBox 0 0 560 120)
+const SVG_W = 560;
+const SVG_H = 108;
+const BAR_W = 18;
+const BAR_GAP = 5;
+const MAX_BAR_H = 92;
+const TOTAL_W = (BAR_W + BAR_GAP) * 24 - BAR_GAP; // 547
+const START_X = (SVG_W - TOTAL_W) / 2; // 6.5
 
-function getCSSVar(name: string, fallback: string): string {
-  if (typeof window === "undefined") return fallback;
-  const val = getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
-  return val || fallback;
-}
+const X_LABEL_HOURS: Record<number, string> = {
+  0: "12AM",
+  6: "6AM",
+  12: "12PM",
+  18: "6PM",
+  23: "12AM",
+};
 
-function findPeakBlock(
+export function findPeakBlock(
   hourly: InsightsHourlyBucket[]
 ): { start: number; pct: number } | null {
   const total = hourly.reduce((s, h) => s + h.tokensAvg, 0);
@@ -33,78 +34,101 @@ function findPeakBlock(
   return { start: bestStart, pct: Math.round((bestSum / total) * 100) };
 }
 
-function fmtHour(h: number): string {
-  return `${String(h).padStart(2, "0")}:00`;
+export function fmtObsHour(hour: number): string {
+  if (hour === 0 || hour === 24) return "12 AM";
+  if (hour === 12) return "12 PM";
+  return hour < 12 ? `${hour} AM` : `${hour - 12} PM`;
 }
 
-export function buildHourlyBarsOption(
-  hourly: InsightsHourlyBucket[]
-): EChartsOption {
-  const teal = getCSSVar("--teal", "#4B8A8A");
-  const accent = getCSSVar("--accent", "#C2592E");
-  const text2 = getCSSVar("--text-2", "#8B8780");
+interface HourlyBarsProps {
+  hourly: InsightsHourlyBucket[];
+  className?: string;
+}
 
+export function HourlyBars({ hourly, className }: HourlyBarsProps): JSX.Element {
   const peak = findPeakBlock(hourly);
-  const peakHour =
-    peak !== null
-      ? hourly
-          .slice(peak.start, peak.start + 4)
-          .reduce(
-            (best, h) => (h.tokensAvg > best.tokensAvg ? h : best),
-            hourly[peak.start]
-          ).hour
-      : -1;
 
-  return {
-    backgroundColor: "transparent",
-    tooltip: {
-      trigger: "axis",
-    },
-    grid: { left: 0, right: 0, top: 4, bottom: 20, containLabel: false },
-    xAxis: {
-      type: "category",
-      data: hourly.map((h) => h.hour),
-      axisLabel: { color: text2, fontSize: 8, interval: 5 },
-      axisTick: { show: false },
-      axisLine: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      show: false,
-    },
-    series: [
-      {
-        type: "bar",
-        data: hourly.map((h) => ({
-          value: h.tokensAvg,
-          itemStyle: {
-            color: h.hour === peakHour && peak !== null ? accent : teal,
-            opacity: h.hour === peakHour && peak !== null ? 1 : 0.5,
-            borderRadius: [1, 1, 0, 0],
-          },
-        })),
-      },
-    ],
-  };
-}
+  const maxAvg = hourly.reduce((m, h) => Math.max(m, h.tokensAvg), 0);
 
-export function HourlyBars({
-  hourly,
-  className,
-}: HourlyBarsProps): JSX.Element {
-  const peak = useMemo(() => findPeakBlock(hourly), [hourly]);
-  const option = useMemo(() => buildHourlyBarsOption(hourly), [hourly]);
+  // Peak hour range: hours [peak.start, peak.start+3]
+  const isPeakHour = (h: number): boolean =>
+    peak !== null && h >= peak.start && h < peak.start + 4;
 
   const observation =
     peak !== null
-      ? `You do ${peak.pct}% of your work between ${fmtHour(peak.start)} and ${fmtHour(peak.start + 4)}`
+      ? `You do ${peak.pct}% of your token work between ${fmtObsHour(peak.start)} and ${fmtObsHour(peak.start + 4)}`
       : "No activity recorded in this period";
 
   return (
-    <div className={`flex flex-col gap-2 ${className ?? ""}`}>
-      <EChartsWrapper option={option} style={{ height: 80, width: "100%" }} />
-      <p data-testid="hourly-observation" className="text-xs text-dt-text2">
-        {observation}
+    <div className={`flex flex-col ${className ?? ""}`}>
+      <div className="relative">
+        <svg
+          viewBox={`0 0 ${SVG_W} 120`}
+          xmlns="http://www.w3.org/2000/svg"
+          style={{ display: "block", width: "100%" }}
+        >
+          {hourly.map((bucket, i) => {
+            const barH =
+              maxAvg > 0 ? Math.round((bucket.tokensAvg / maxAvg) * MAX_BAR_H) : 0;
+            const x = START_X + i * (BAR_W + BAR_GAP);
+            const y = SVG_H - barH;
+            const fill = isPeakHour(bucket.hour)
+              ? "var(--accent)"
+              : "color-mix(in srgb, var(--accent) 25%, var(--bg-2))";
+            return (
+              <rect
+                key={bucket.hour}
+                data-testid="hb-bar"
+                x={x}
+                y={y}
+                width={BAR_W}
+                height={Math.max(barH, 1)}
+                rx={3}
+                fill={fill}
+              />
+            );
+          })}
+          {/* X-axis labels */}
+          {Object.entries(X_LABEL_HOURS).map(([hourStr, label]) => {
+            const h = Number(hourStr);
+            const x = START_X + h * (BAR_W + BAR_GAP) + BAR_W / 2;
+            return (
+              <text
+                key={label + h}
+                x={x}
+                y={118}
+                fontFamily="var(--font)"
+                fontSize={9}
+                fill="var(--text-2)"
+                textAnchor="middle"
+              >
+                {label}
+              </text>
+            );
+          })}
+        </svg>
+      </div>
+      <p
+        data-testid="hourly-observation"
+        className="font-mono text-sm text-dt-text1 mt-2.5"
+        style={{ lineHeight: 1.5 }}
+      >
+        {peak !== null ? (
+          <>
+            You do{" "}
+            <strong className="text-dt-accent font-semibold">{peak.pct}%</strong>
+            {" "}of your token work between{" "}
+            <strong className="text-dt-accent font-semibold">
+              {fmtObsHour(peak.start)}
+            </strong>
+            {" "}and{" "}
+            <strong className="text-dt-accent font-semibold">
+              {fmtObsHour(peak.start + 4)}
+            </strong>
+          </>
+        ) : (
+          observation
+        )}
       </p>
     </div>
   );
