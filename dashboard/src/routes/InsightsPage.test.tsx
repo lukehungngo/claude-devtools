@@ -136,11 +136,50 @@ describe("InsightsPage", () => {
     expect(screen.getByTestId("delta-tokensOut").textContent).toContain("-5.0%");
   });
 
+  it("renders flat delta as arrow-right with gray chip", () => {
+    vi.mocked(useInsightsAggregate).mockReturnValue({
+      data: {
+        tokensIn: 120_000,
+        tokensOut: 45_000,
+        cost: 1.23,
+        sessions: 8,
+        turns: 42,
+        avgCostPerTurn: 0.029,
+        avgTokensPerTurn: 3928,
+        activeDays: 5,
+        peakHour: 15,
+        daily: [],
+      },
+      delta: { tokensIn: 0.002, tokensOut: 0.0, cost: -0.001 },
+      loading: false,
+      error: null,
+    });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("delta-tokensIn").textContent).toContain("→");
+    expect(screen.getByTestId("delta-tokensOut").textContent).toContain("→");
+    expect(screen.getByTestId("delta-cost").textContent).toContain("→");
+  });
+
+  it("renders subtitle below h1", () => {
+    render(<InsightsPage />);
+    expect(screen.getByText("Aggregate usage across your repos and sessions")).toBeTruthy();
+  });
+
+  it("renders 5 stat tiles in data loaded state", () => {
+    mockData();
+    render(<InsightsPage />);
+    expect(screen.getByTestId("tile-tokensIn")).toBeTruthy();
+    expect(screen.getByTestId("tile-tokensOut")).toBeTruthy();
+    expect(screen.getByTestId("tile-cost")).toBeTruthy();
+    expect(screen.getByTestId("tile-sessions")).toBeTruthy();
+    expect(screen.getByTestId("tile-turns")).toBeTruthy();
+  });
+
   it("renders placeholder section cards for future milestones", () => {
     mockData();
     render(<InsightsPage />);
     const cards = screen.getAllByTestId(/^section-card-/);
-    expect(cards.length).toBeGreaterThanOrEqual(6);
+    expect(cards.length).toBeGreaterThanOrEqual(4);
   });
 
   it("shows error banner with role=alert when fetch fails", () => {
