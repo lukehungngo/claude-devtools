@@ -220,9 +220,9 @@ describe("InsightsPage", () => {
   it("passes updated timeRange to hook when scope bar changes", () => {
     mockLoading();
     render(<InsightsPage />);
-    expect(useInsightsAggregate).toHaveBeenCalledWith("7d", "all");
+    expect(useInsightsAggregate).toHaveBeenCalledWith("7d", "all", 0);
     fireEvent.click(screen.getByTestId("time-range-30d"));
-    expect(useInsightsAggregate).toHaveBeenCalledWith("30d", "all");
+    expect(useInsightsAggregate).toHaveBeenCalledWith("30d", "all", 0);
   });
 
   it("renders TrendChart section card when data has daily entries", () => {
@@ -276,6 +276,28 @@ describe("InsightsPage", () => {
     expect(tokensInTile.querySelector("svg")).not.toBeNull();
     const tokensOutTile = screen.getByTestId("tile-tokensOut");
     expect(tokensOutTile.querySelector("svg")).not.toBeNull();
+  });
+
+  it("renders a reload button", () => {
+    mockData();
+    mockActivityData();
+    render(<InsightsPage />);
+    const btn = screen.getByTestId("insights-reload-btn");
+    expect(btn).toBeTruthy();
+  });
+
+  it("reload button calls all hooks with refreshCount=1 after click", async () => {
+    mockData();
+    mockActivityData();
+    render(<InsightsPage />);
+    const btn = screen.getByTestId("insights-reload-btn");
+    fireEvent.click(btn);
+    // After click, hooks are called with refreshCount=1
+    expect(vi.mocked(useInsightsAggregate)).toHaveBeenLastCalledWith("7d", "all", 1);
+    expect(vi.mocked(useInsightsActivity)).toHaveBeenLastCalledWith("7d", "all", 1);
+    expect(vi.mocked(useInsightsModelMix)).toHaveBeenLastCalledWith("7d", "all", 1);
+    expect(vi.mocked(useInsightsTopConsumers)).toHaveBeenLastCalledWith("7d", "all", 1);
+    expect(vi.mocked(useInsightsCommandsAgentsSkills)).toHaveBeenLastCalledWith("7d", "all", 1);
   });
 });
 

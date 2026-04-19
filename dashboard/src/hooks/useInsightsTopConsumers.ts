@@ -37,7 +37,8 @@ export interface UseInsightsTopConsumersResult {
 
 export function useInsightsTopConsumers(
   timeRange: string,
-  repo: string
+  repo: string,
+  refreshCount = 0
 ): UseInsightsTopConsumersResult {
   const [data, setData] = useState<TopConsumersClient | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,7 +72,7 @@ export function useInsightsTopConsumers(
     return () => {
       cancelled = true;
     };
-  }, [timeRange, repo]);
+  }, [timeRange, repo, refreshCount]);
 
   return { data, loading, error };
 }

@@ -32,7 +32,8 @@ export interface UseInsightsCommandsAgentsSkillsResult {
 
 export function useInsightsCommandsAgentsSkills(
   timeRange: string,
-  repo: string
+  repo: string,
+  refreshCount = 0
 ): UseInsightsCommandsAgentsSkillsResult {
   const [data, setData] = useState<CommandsAgentsSkillsClient | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,7 +67,7 @@ export function useInsightsCommandsAgentsSkills(
     return () => {
       cancelled = true;
     };
-  }, [timeRange, repo]);
+  }, [timeRange, repo, refreshCount]);
 
   return { data, loading, error };
 }

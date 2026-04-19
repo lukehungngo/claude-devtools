@@ -9,7 +9,8 @@ export interface UseInsightsActivityResult {
 
 export function useInsightsActivity(
   timeRange: string,
-  repo: string
+  repo: string,
+  refreshCount = 0
 ): UseInsightsActivityResult {
   const [data, setData] = useState<InsightsActivity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,7 +42,7 @@ export function useInsightsActivity(
     return () => {
       cancelled = true;
     };
-  }, [timeRange, repo]);
+  }, [timeRange, repo, refreshCount]);
 
   return { data, loading, error };
 }

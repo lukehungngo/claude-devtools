@@ -122,6 +122,19 @@ describe("useInsightsAggregate", () => {
     expect(result.current.data).toBeNull();
   });
 
+  it("refetches when refreshCount changes", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve(makeAggregate()) });
+    const { result, rerender } = renderHook(
+      ({ rc }: { rc: number }) => useInsightsAggregate("7d", "all", rc),
+      { initialProps: { rc: 0 } }
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    fetchMock.mockClear();
+    rerender({ rc: 1 });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
   it("refetches when timeRange changes", async () => {
     fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve(makeAggregate()) });
     const { result, rerender } = renderHook(

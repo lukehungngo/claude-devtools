@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { RefreshCw } from "lucide-react";
 import { useLayoutContext } from "../contexts/LayoutContext";
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { formatCost, formatTokens } from "../lib/cost";
@@ -245,12 +246,14 @@ export function InsightsPage(): JSX.Element {
   const { setCurrentMetrics } = useLayoutContext();
   const [timeRange, setTimeRange] = useState<TimeRange>("7d");
   const [repo, setRepo] = useState("all");
-  const { data, delta, loading, error } = useInsightsAggregate(timeRange, repo);
-  const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo);
-  const { data: modelMixData, loading: modelMixLoading } = useInsightsModelMix(timeRange, repo);
-  const { data: topConsumersData, loading: topConsumersLoading } = useInsightsTopConsumers(timeRange, repo);
+  const [refreshCount, setRefreshCount] = useState(0);
+  const { data, delta, loading, error } = useInsightsAggregate(timeRange, repo, refreshCount);
+  const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo, refreshCount);
+  const { data: modelMixData, loading: modelMixLoading } = useInsightsModelMix(timeRange, repo, refreshCount);
+  const { data: topConsumersData, loading: topConsumersLoading } = useInsightsTopConsumers(timeRange, repo, refreshCount);
   const { data: casData, loading: casLoading } =
-    useInsightsCommandsAgentsSkills(timeRange, repo);
+    useInsightsCommandsAgentsSkills(timeRange, repo, refreshCount);
+  const anyLoading = loading || activityLoading || modelMixLoading || topConsumersLoading || casLoading;
 
   useEffect(() => {
     setCurrentMetrics(null);
@@ -277,6 +280,16 @@ export function InsightsPage(): JSX.Element {
               onChange={(v) => setTimeRange(v as TimeRange)}
               testId="time-range-pill"
             />
+            <button
+              data-testid="insights-reload-btn"
+              onClick={() => setRefreshCount((c) => c + 1)}
+              disabled={anyLoading}
+              title="Reload insights"
+              aria-label="Reload insights"
+              className="flex items-center justify-center text-dt-text3 hover:text-dt-text1 disabled:opacity-40 bg-transparent border-none cursor-pointer p-1 rounded"
+            >
+              <RefreshCw size={13} className={anyLoading ? "animate-spin" : ""} />
+            </button>
           </div>
         </div>
 

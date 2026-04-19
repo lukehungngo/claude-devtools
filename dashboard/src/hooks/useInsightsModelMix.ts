@@ -22,7 +22,8 @@ export interface UseInsightsModelMixResult {
 
 export function useInsightsModelMix(
   timeRange: string,
-  repo: string
+  repo: string,
+  refreshCount = 0
 ): UseInsightsModelMixResult {
   const [data, setData] = useState<ModelMixClient | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,7 +55,7 @@ export function useInsightsModelMix(
     return () => {
       cancelled = true;
     };
-  }, [timeRange, repo]);
+  }, [timeRange, repo, refreshCount]);
 
   return { data, loading, error };
 }
