@@ -38,6 +38,13 @@ vi.mock("../../analyzer/insights-top-consumers.js", () => ({
     tools: [{ name: "Read", count: 10, share: 1.0 }],
   })),
 }));
+vi.mock("../../analyzer/insights-commands-agents-skills.js", () => ({
+  computeInsightsCommandsAgentsSkills: vi.fn(() => ({
+    commands: [{ name: "/compact", count: 5, share: 1.0 }],
+    agents: [{ type: "mas:engineer:engineer", count: 3, share: 1.0 }],
+    skills: [{ name: "verification", count: 2, share: 1.0 }],
+  })),
+}));
 vi.mock("../../logger.js", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -51,12 +58,14 @@ import { computeInsightsAggregate } from "../../analyzer/insights-aggregator.js"
 import { computeInsightsActivity } from "../../analyzer/activity-aggregator.js";
 import { computeInsightsModelMix } from "../../analyzer/insights-model-mix.js";
 import { computeInsightsTopConsumers } from "../../analyzer/insights-top-consumers.js";
+import { computeInsightsCommandsAgentsSkills } from "../../analyzer/insights-commands-agents-skills.js";
 
 const mockedDiscover = vi.mocked(discoverSessions);
 const mockedAggregate = vi.mocked(computeInsightsAggregate);
 const mockedActivity = vi.mocked(computeInsightsActivity);
 const mockedModelMix = vi.mocked(computeInsightsModelMix);
 const mockedTopConsumers = vi.mocked(computeInsightsTopConsumers);
+const mockedCas = vi.mocked(computeInsightsCommandsAgentsSkills);
 
 function buildApp() {
   const app = express();
@@ -210,5 +219,33 @@ describe("GET /insights/top-consumers", () => {
     mockedDiscover.mockReturnValue([]);
     await request(buildApp()).get("/insights/top-consumers");
     expect(mockedTopConsumers).toHaveBeenCalledWith(expect.anything(), "7d", "all");
+  });
+});
+
+describe("GET /insights/commands-agents-skills", () => {
+  it("returns 200 with commands, agents, skills", async () => {
+    mockedDiscover.mockReturnValue([]);
+    const res = await request(buildApp()).get("/insights/commands-agents-skills?timeRange=7d&repo=all");
+    expect(res.status).toBe(200);
+    expect(res.body.commands).toBeDefined();
+    expect(res.body.agents).toBeDefined();
+    expect(res.body.skills).toBeDefined();
+  });
+
+  it("returns 400 for invalid timeRange", async () => {
+    const res = await request(buildApp()).get("/insights/commands-agents-skills?timeRange=bad");
+    expect(res.status).toBe(400);
+  });
+
+  it("passes timeRange and repo to computeInsightsCommandsAgentsSkills", async () => {
+    mockedDiscover.mockReturnValue([]);
+    await request(buildApp()).get("/insights/commands-agents-skills?timeRange=30d&repo=my-repo");
+    expect(mockedCas).toHaveBeenCalledWith([], "30d", "my-repo");
+  });
+
+  it("uses 7d and all as defaults", async () => {
+    mockedDiscover.mockReturnValue([]);
+    await request(buildApp()).get("/insights/commands-agents-skills");
+    expect(mockedCas).toHaveBeenCalledWith(expect.anything(), "7d", "all");
   });
 });

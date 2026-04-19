@@ -1,0 +1,72 @@
+import { useState, useEffect } from "react";
+
+export interface CommandRowClient {
+  name: string;
+  count: number;
+  share: number;
+}
+
+export interface AgentRowClient {
+  type: string;
+  count: number;
+  share: number;
+}
+
+export interface SkillRowClient {
+  name: string;
+  count: number;
+  share: number;
+}
+
+export interface CommandsAgentsSkillsClient {
+  commands: CommandRowClient[];
+  agents: AgentRowClient[];
+  skills: SkillRowClient[];
+}
+
+export interface UseInsightsCommandsAgentsSkillsResult {
+  data: CommandsAgentsSkillsClient | null;
+  loading: boolean;
+  error: string | null;
+}
+
+export function useInsightsCommandsAgentsSkills(
+  timeRange: string,
+  repo: string
+): UseInsightsCommandsAgentsSkillsResult {
+  const [data, setData] = useState<CommandsAgentsSkillsClient | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    fetch(`/api/insights/commands-agents-skills?timeRange=${timeRange}&repo=${repo}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<CommandsAgentsSkillsClient>;
+      })
+      .then((d) => {
+        if (!cancelled) {
+          setData(d);
+          setLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load commands/agents/skills"
+          );
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [timeRange, repo]);
+
+  return { data, loading, error };
+}

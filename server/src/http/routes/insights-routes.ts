@@ -4,6 +4,7 @@ import { computeInsightsAggregate } from "../../analyzer/insights-aggregator.js"
 import { computeInsightsActivity } from "../../analyzer/activity-aggregator.js";
 import { computeInsightsModelMix } from "../../analyzer/insights-model-mix.js";
 import { computeInsightsTopConsumers } from "../../analyzer/insights-top-consumers.js";
+import { computeInsightsCommandsAgentsSkills } from "../../analyzer/insights-commands-agents-skills.js";
 import type { InsightsTimeRange } from "../../types.js";
 import type { RouteContext } from "./route-context.js";
 
@@ -105,6 +106,30 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
       res.json(topConsumers);
     } catch {
       res.status(500).json({ error: "Failed to compute top consumers" });
+    }
+  });
+
+  router.get("/insights/commands-agents-skills", (req, res) => {
+    const timeRange = (req.query.timeRange as string) ?? "7d";
+    const repo = (req.query.repo as string) ?? "all";
+
+    if (!VALID_TIME_RANGES.has(timeRange)) {
+      res.status(400).json({
+        error: `Invalid timeRange. Must be one of: ${[...VALID_TIME_RANGES].join(", ")}`,
+      });
+      return;
+    }
+
+    try {
+      const sessions = discoverSessions();
+      const data = computeInsightsCommandsAgentsSkills(
+        sessions,
+        timeRange as InsightsTimeRange,
+        repo
+      );
+      res.json(data);
+    } catch {
+      res.status(500).json({ error: "Failed to compute commands/agents/skills" });
     }
   });
 

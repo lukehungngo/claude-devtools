@@ -26,10 +26,15 @@ vi.mock("../hooks/useInsightsTopConsumers", () => ({
   useInsightsTopConsumers: vi.fn(),
 }));
 
+vi.mock("../hooks/useInsightsCommandsAgentsSkills", () => ({
+  useInsightsCommandsAgentsSkills: vi.fn(),
+}));
+
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { useInsightsActivity } from "../hooks/useInsightsActivity";
 import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
 import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
+import { useInsightsCommandsAgentsSkills } from "../hooks/useInsightsCommandsAgentsSkills";
 
 function mockLoading() {
   vi.mocked(useInsightsAggregate).mockReturnValue({
@@ -93,6 +98,7 @@ beforeEach(() => {
   mockActivityLoading();
   vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: false, error: null });
   vi.mocked(useInsightsTopConsumers).mockReturnValue({ data: null, loading: false, error: null });
+  vi.mocked(useInsightsCommandsAgentsSkills).mockReturnValue({ data: null, loading: false, error: null });
 });
 
 afterEach(() => {
@@ -187,11 +193,13 @@ describe("InsightsPage", () => {
     expect(screen.getByTestId("tile-turns")).toBeTruthy();
   });
 
-  it("renders placeholder section cards for future milestones", () => {
+  it("renders commands, agents, skills, and efficiency hints sections", () => {
     mockData();
     render(<InsightsPage />);
-    const cards = screen.getAllByTestId(/^section-card-/);
-    expect(cards.length).toBeGreaterThanOrEqual(4);
+    expect(screen.getByTestId("section-commands")).toBeTruthy();
+    expect(screen.getByTestId("section-agents")).toBeTruthy();
+    expect(screen.getByTestId("section-skills")).toBeTruthy();
+    expect(screen.getByTestId("section-efficiency-hints")).toBeTruthy();
   });
 
   it("shows error banner with role=alert when fetch fails", () => {

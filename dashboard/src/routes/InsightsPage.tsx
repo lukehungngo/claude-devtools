@@ -9,6 +9,7 @@ import { HeatmapGrid } from "../components/insights/HeatmapGrid.js";
 import { HourlyBars } from "../components/insights/HourlyBars.js";
 import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
 import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
+import { useInsightsCommandsAgentsSkills } from "../hooks/useInsightsCommandsAgentsSkills";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -21,13 +22,6 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
 ];
 
 const REPO_OPTIONS = [{ value: "all", label: "All repos" }];
-
-const PLACEHOLDER_SECTIONS = [
-  "Commands",
-  "Agents",
-  "Skills",
-  "Efficiency Hints",
-];
 
 function formatHour(h: number): string {
   if (h === 0) return "12am";
@@ -71,27 +65,6 @@ function SegPill({ options, value, onChange, testId }: SegPillProps): JSX.Elemen
           </button>
         );
       })}
-    </div>
-  );
-}
-
-interface PlaceholderCardProps {
-  title: string;
-  testId: string;
-}
-
-function PlaceholderCard({ title, testId }: PlaceholderCardProps): JSX.Element {
-  return (
-    <div
-      data-testid={testId}
-      className="bg-dt-bg1 border border-dt-border rounded-dt p-5 flex flex-col gap-3"
-    >
-      <div className="text-md font-semibold text-dt-text2 font-mono tracking-wide">
-        {title}
-      </div>
-      <div className="h-2.5 rounded bg-dt-bg2 w-4/5" />
-      <div className="h-2.5 rounded bg-dt-bg2 w-3/5" />
-      <div className="h-2.5 rounded bg-dt-bg2 w-2/5" />
     </div>
   );
 }
@@ -276,6 +249,8 @@ export function InsightsPage(): JSX.Element {
   const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo);
   const { data: modelMixData, loading: modelMixLoading } = useInsightsModelMix(timeRange, repo);
   const { data: topConsumersData, loading: topConsumersLoading } = useInsightsTopConsumers(timeRange, repo);
+  const { data: casData, loading: casLoading } =
+    useInsightsCommandsAgentsSkills(timeRange, repo);
 
   useEffect(() => {
     setCurrentMetrics(null);
@@ -707,14 +682,146 @@ export function InsightsPage(): JSX.Element {
           </div>
         </div>
 
-        {/* Placeholder sections for future milestones */}
-        {PLACEHOLDER_SECTIONS.map((title) => (
-          <PlaceholderCard
-            key={title}
-            title={title}
-            testId={`section-card-${title.toLowerCase().replace(/\s+/g, "-")}`}
-          />
-        ))}
+        {/* Commands, Agents, Skills + Efficiency Hints coming soon */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          {/* Commands card */}
+          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-commands">
+            <div className="text-lg font-semibold text-dt-text0 mb-3">
+              Commands{" "}
+              <span className="text-xs font-mono text-dt-text2 font-normal">by invocations</span>
+            </div>
+            {casLoading ? (
+              <div className="flex flex-col gap-2">
+                {([0, 1, 2] as const).map((i) => (
+                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : (casData?.commands ?? []).length === 0 ? (
+              <div className="text-sm text-dt-text2 py-4 text-center">No slash commands found</div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {(casData?.commands ?? []).map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                    style={{ gridTemplateColumns: "26px 1fr 60px" }}
+                  >
+                    <div
+                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
+                      style={{ width: 22, height: 22 }}
+                    >
+                      {idx + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-md font-semibold text-dt-text0 truncate font-mono">{item.name}</div>
+                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
+                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--accent)" }} />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{item.count.toLocaleString()}</div>
+                      <span className="text-xs font-mono text-dt-text2">uses</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Agents card */}
+          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-agents">
+            <div className="text-lg font-semibold text-dt-text0 mb-3">
+              Agents{" "}
+              <span className="text-xs font-mono text-dt-text2 font-normal">by dispatches</span>
+            </div>
+            {casLoading ? (
+              <div className="flex flex-col gap-2">
+                {([0, 1, 2] as const).map((i) => (
+                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : (casData?.agents ?? []).length === 0 ? (
+              <div className="text-sm text-dt-text2 py-4 text-center">No agent dispatches found</div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {(casData?.agents ?? []).map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                    style={{ gridTemplateColumns: "26px 1fr 60px" }}
+                  >
+                    <div
+                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
+                      style={{ width: 22, height: 22 }}
+                    >
+                      {idx + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-md font-semibold text-dt-text0 truncate font-mono">{item.type}</div>
+                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
+                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--purple)" }} />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{item.count.toLocaleString()}</div>
+                      <span className="text-xs font-mono text-dt-text2">runs</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Skills card */}
+          <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-skills">
+            <div className="text-lg font-semibold text-dt-text0 mb-3">
+              Skills{" "}
+              <span className="text-xs font-mono text-dt-text2 font-normal">by invocations</span>
+            </div>
+            {casLoading ? (
+              <div className="flex flex-col gap-2">
+                {([0, 1, 2] as const).map((i) => (
+                  <div key={i} className="h-8 bg-dt-bg2 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : (casData?.skills ?? []).length === 0 ? (
+              <div className="text-sm text-dt-text2 py-4 text-center">No skill invocations found</div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {(casData?.skills ?? []).map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                    style={{ gridTemplateColumns: "26px 1fr 60px" }}
+                  >
+                    <div
+                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
+                      style={{ width: 22, height: 22 }}
+                    >
+                      {idx + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-md font-semibold text-dt-text0 truncate font-mono">{item.name}</div>
+                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
+                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--teal)" }} />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{item.count.toLocaleString()}</div>
+                      <span className="text-xs font-mono text-dt-text2">uses</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Efficiency Hints — coming soon */}
+        <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-efficiency-hints">
+          <div className="text-lg font-semibold text-dt-text0 mb-1">Efficiency Hints</div>
+          <div className="text-sm text-dt-text2">Coming soon — pattern-based usage recommendations.</div>
+        </div>
       </div>
     </div>
   );
