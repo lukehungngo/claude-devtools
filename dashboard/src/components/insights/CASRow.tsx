@@ -76,15 +76,15 @@ export function CASRow({
     >
       {/* Badge */}
       <div
-        className="font-mono text-[9px] font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0"
-        style={{ width: 32, height: 20, background: badgeColor }}
+        className="font-mono text-[11px] font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0"
+        style={{ width: 32, height: 22, background: badgeColor }}
       >
         {abbreviateName(name)}
       </div>
 
       {/* Name */}
       <div className="min-w-0" title={name}>
-        <div className="text-sm font-semibold text-dt-text0 font-mono truncate">{name}</div>
+        <div className="text-base font-semibold text-dt-text0 font-mono truncate">{name}</div>
       </div>
 
       {/* Sparkline */}
@@ -94,14 +94,14 @@ export function CASRow({
 
       {/* Count */}
       <div className="text-right">
-        <div className="text-sm font-mono font-semibold text-dt-text0 leading-none">
+        <div className="text-base font-mono font-semibold text-dt-text0 leading-none">
           {count.toLocaleString()}
         </div>
       </div>
 
       {/* Trend pill */}
       <div
-        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-dt-xs text-[10px] font-mono font-semibold ${tc.classes}`}
+        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-dt-xs text-xs font-mono font-semibold ${tc.classes}`}
       >
         <span>{tc.symbol}</span>
         <span>{tc.label}</span>
