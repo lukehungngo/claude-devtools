@@ -1,7 +1,14 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { HeatmapGrid } from "./HeatmapGrid.js";
 import type { InsightsHeatmapCell } from "../../lib/types.js";
+
+vi.mock("./EChartsWrapper.js", () => ({
+  EChartsWrapper: vi.fn(({ className }: { className?: string }) => (
+    <div data-testid="echarts-wrapper" className={className ?? ""} />
+  )),
+}));
+
+import { HeatmapGrid, buildHeatmapOption } from "./HeatmapGrid";
 
 afterEach(cleanup);
 
@@ -21,36 +28,67 @@ function makeFullGrid(override?: Partial<InsightsHeatmapCell>): InsightsHeatmapC
   return cells;
 }
 
-describe("HeatmapGrid", () => {
-  it("renders 168 cells (7 days × 24 hours)", () => {
-    const { container } = render(<HeatmapGrid heatmap={makeFullGrid()} />);
-    const cells = container.querySelectorAll("[data-testid^='heatmap-cell-']");
-    expect(cells).toHaveLength(168);
+describe("buildHeatmapOption", () => {
+  it("returns option with series type heatmap", () => {
+    const option = buildHeatmapOption(makeFullGrid());
+    const series = option.series as Array<{ type: string }>;
+    expect(series[0].type).toBe("heatmap");
   });
 
-  it("renders cell with correct data-testid format", () => {
-    const { container } = render(<HeatmapGrid heatmap={makeFullGrid()} />);
-    expect(container.querySelector("[data-testid='heatmap-cell-0-0']")).not.toBeNull();
-    expect(container.querySelector("[data-testid='heatmap-cell-6-23']")).not.toBeNull();
+  it("series data has 168 points for full 7x24 grid", () => {
+    const option = buildHeatmapOption(makeFullGrid());
+    const series = option.series as Array<{ data: unknown[] }>;
+    expect(series[0].data).toHaveLength(168);
   });
 
-  it("applies intensity-4 class for max intensity cell", () => {
+  it("each data point is [hour, day, intensity]", () => {
     const cells = makeFullGrid({ day: 2, hour: 15, intensity: 4 });
-    const { container } = render(<HeatmapGrid heatmap={cells} />);
-    const cell = container.querySelector("[data-testid='heatmap-cell-2-15']");
-    expect(cell?.className).toContain("intensity-4");
+    const option = buildHeatmapOption(cells);
+    const series = option.series as Array<{ data: Array<[number, number, number]> }>;
+    const targetPoint = series[0].data.find(
+      ([h, d]) => h === 15 && d === 2
+    );
+    expect(targetPoint).toBeDefined();
+    expect(targetPoint![2]).toBe(4);
   });
 
-  it("applies intensity-0 class for zero intensity cell", () => {
-    const { container } = render(<HeatmapGrid heatmap={makeFullGrid()} />);
-    const cell = container.querySelector("[data-testid='heatmap-cell-0-0']");
-    expect(cell?.className).toContain("intensity-0");
+  it("yAxis.data contains 7 day labels", () => {
+    const option = buildHeatmapOption(makeFullGrid());
+    const yAxis = option.yAxis as { data: string[] };
+    expect(yAxis.data).toHaveLength(7);
+    expect(yAxis.data).toContain("Mon");
+    expect(yAxis.data).toContain("Sun");
   });
 
-  it("renders 7 day labels", () => {
+  it("xAxis.data contains 24 hour labels", () => {
+    const option = buildHeatmapOption(makeFullGrid());
+    const xAxis = option.xAxis as { data: number[] };
+    expect(xAxis.data).toHaveLength(24);
+  });
+
+  it("visualMap min/max is 0/4 matching intensity range", () => {
+    const option = buildHeatmapOption(makeFullGrid());
+    const vm = option.visualMap as { min: number; max: number };
+    expect(vm.min).toBe(0);
+    expect(vm.max).toBe(4);
+  });
+});
+
+describe("HeatmapGrid component", () => {
+  it("renders EChartsWrapper with heatmap data", () => {
     render(<HeatmapGrid heatmap={makeFullGrid()} />);
-    for (const label of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) {
-      expect(screen.getByText(label)).toBeTruthy();
-    }
+    expect(screen.getByTestId("echarts-wrapper")).toBeTruthy();
+  });
+
+  it("renders without crash when heatmap is empty", () => {
+    render(<HeatmapGrid heatmap={[]} />);
+    expect(screen.getByTestId("echarts-wrapper")).toBeTruthy();
+  });
+
+  it("applies className to outer container", () => {
+    const { container } = render(
+      <HeatmapGrid heatmap={makeFullGrid()} className="my-grid" />
+    );
+    expect(container.firstElementChild!.getAttribute("class")).toContain("my-grid");
   });
 });
