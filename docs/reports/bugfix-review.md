@@ -1,38 +1,40 @@
 ---
-task_id: TASK-dag-refresh-timeout
-title: "DAG refresh setTimeout fallback for subagent dispatch"
-verdict: APPROVED_WITH_CHANGES
+task_id: TASK-token-cache-split
+title: "Token cache accounting fix — double-counting in insights aggregators"
+verdict: APPROVED
 depth: standard
 model: "claude-sonnet-4-6"
 findings:
   p0: 0
   p1: 0
   p2: 0
-  p3: 2
+  p3: 0
 business_alignment: PASS
 build_status: PASS
-reviewed_at: "2026-04-18T19:07:48Z"
-commit: "bc7f1c829273005399f8008c39caadcbd9119d60"
+reviewed_at: "2026-04-19T19:46:33Z"
+commit: "b12bff897ee5f33e92953ff27d7d5e1bbcb45429"
 ---
 
-## Review: TASK-dag-refresh-timeout — DAG refresh setTimeout fallback for subagent dispatch
+## Review: TASK-token-cache-split — Token cache accounting fix
 
 ### Business Alignment
 
-- [PASS] Root cause correctly identified — `useEffect([liveEvents])` never re-fires when main agent goes quiet, so the pending DAG refresh was silently dropped
-- [PASS] Fix adds `setTimeout` for remaining throttle window, making refresh timer-driven rather than event-driven
-- [PASS] Timer is cancelled on session navigation (session-reset `useEffect` calls `clearTimeout`)
-- [PASS] Duplicate timer stacking prevented by `if (pendingDagTimerRef.current === null)` guard
+- [PASS] P1 from previous review is resolved — `insights-aggregator.ts` no longer passes `inTok` (bare+cacheRead+cacheWrite) as `inputTokens` to `calculateTokenCost()`. It now passes `bareIn` (bare input tokens only), eliminating the double-charge.
+- [PASS] `insights-model-mix.ts` received the same correction — `inputTokens: usage.input_tokens || 0` (bare only) passed to cost calculator, while `inTok` (sum of all) is used for the display metric only.
+- [PASS] `tokensIn` display field correctly reflects total tokens processed (bare + cache_read + cache_creation) in both files — matches the established convention from `computeMetrics()`.
+- [PASS] No architecture invariants violated — server-side metrics, incremental JSONL parsing, fail-safe error handling all preserved.
 
 ### Build Status
 
 PASS
 
-- Dashboard TypeScript: 0 errors (`npx tsc --noEmit`)
-- Dashboard tests: 1336 passed, 1 failed (TurnCard.test.tsx:109 — pre-existing, unrelated to this fix)
-- New regression test: 8/8 pass in `sessionPage.dagRefresh.test.ts`
-- ESLint: 5 warnings (all pre-existing unused-vars, confirmed by stash comparison — 0 new warnings introduced)
-- Server TypeScript: fails with missing devDependencies (node_modules not installed in worktree) — pre-existing worktree environment issue, not caused by this fix
+- Server TypeScript: 0 errors (`server/node_modules/.bin/tsc --noEmit`)
+- Dashboard TypeScript: 0 errors (`dashboard/node_modules/.bin/tsc --noEmit`)
+- Server tests: 607 passed, 31 failed — all 31 failures are pre-existing (debug-db.test.ts, routes-debug.test.ts, routes-lifecycle-storage.test.ts; confirmed by stash comparison against parent commit which shows same 31 failures)
+- Dashboard tests: 1387 passed, 1 failed — TurnCard.test.tsx failure is pre-existing (confirmed by stash comparison)
+- ESLint: binary not present in worktree node_modules (pre-existing worktree environment issue). Diff is 7 lines across 2 server files; no ESLint-relevant patterns introduced (no `any`, no `console.log`, no `==`, no non-null assertions)
+- Insights-specific tests: 23/23 passed (`insights-aggregator.test.ts` + `insights-model-mix.test.ts`)
+- Net new passing tests: +3 server tests compared to parent commit (607 vs 604 before fix)
 
 ### P0 — Blockers
 
@@ -40,7 +42,7 @@ None.
 
 ### P1 — Must Fix
 
-None.
+None. The previous review's P1 (double-counting of cache tokens in cost calculation) is resolved.
 
 ### P2 — Should Fix
 
@@ -48,18 +50,12 @@ None.
 
 ### P3 — Optional
 
-**`dashboard/src/routes/SessionPage.tsx:227` vs `dashboard/src/__tests__/sessionPage.dagRefresh.test.ts:6` — Knowledge duplication on throttle constant**
-
-`DAG_REFRESH_THROTTLE_MS = 5000` in the component is not exported. The test defines its own `const THROTTLE_MS = 5000` as a hardcoded magic number. These two are currently in sync, but if the throttle changes the test will silently diverge. Consider exporting `DAG_REFRESH_THROTTLE_MS` from `SessionPage.tsx` and importing it in the test.
-
-**`dashboard/src/__tests__/sessionPage.dagRefresh.test.ts` — Test documents the contract but does not exercise the `setTimeout` path directly**
-
-The new "dead-man switch" test correctly documents that `shouldRefreshDag` returns false when throttled, and that the component must schedule a timer. However, the timer-scheduling logic in the `useEffect` itself is untested. A React Testing Library test with fake timers (e.g. `vi.useFakeTimers()` + `vi.advanceTimersByTime(3000)`) would directly verify that `refreshMetrics` is called after the throttle window even when no further events arrive. This is a gap in component-level coverage, not a blocker.
+None.
 
 ### Verdict
 
-APPROVED WITH CHANGES
+APPROVED
 
 ### Summary
 
-The fix correctly addresses the root cause: it adds `pendingDagTimerRef` to schedule a `setTimeout` for the remaining throttle window when an Agent dispatch arrives while throttled. The timer is properly cancelled on session change via `clearTimeout`. The `refreshMetrics` stale-closure concern is safe because `clearTimeout` fires before the old `refresh` function could be called for a different session, and the DAG refresh `useEffect` has `refreshMetrics` in its dependency array so re-scheduling only happens with the current session's `refresh`. The two P3 findings (constant duplication, missing timer integration test) are minor and do not block the fix. The TurnCard.test.tsx:109 pre-existing failure is unrelated to this change.
+The fix correctly addresses the P1 double-counting bug in both `insights-aggregator.ts` and `insights-model-mix.ts`. Both files now split `usage.input_tokens` (bare) from cache tokens — using the bare value for cost calculation via `calculateTokenCost()` and the summed total for the display `tokensIn` metric. TypeScript is clean, all 23 insights-specific tests pass, and no pre-existing test failures were introduced or unmasked by the change.

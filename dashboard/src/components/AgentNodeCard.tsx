@@ -60,7 +60,12 @@ export const AgentNodeCard = memo(function AgentNodeCard({ data }: NodeProps) {
           {duration !== null && (
             <div>Duration: {formatDuration(duration)}</div>
           )}
-          <div>In: {formatTokens(node.tokenUsage.inputTokens)} / Out: {formatTokens(node.tokenUsage.outputTokens)}</div>
+          <div>
+            In: {formatTokens(node.tokenUsage.inputTokens)}
+            {node.tokenUsage.cacheReadTokens > 0 && ` / CR: ${formatTokens(node.tokenUsage.cacheReadTokens)}`}
+            {node.tokenUsage.cacheWriteTokens > 0 && ` / CW: ${formatTokens(node.tokenUsage.cacheWriteTokens)}`}
+            {" / Out: "}{formatTokens(node.tokenUsage.outputTokens)}
+          </div>
           <div>Cost: {formatCost(node.tokenUsage.totalCost)}</div>
           <div>Tools: {node.toolCalls}{node.mcpToolCalls > 0 ? ` (${node.mcpToolCalls} MCP)` : ""}</div>
           <div>Status: {node.status}</div>

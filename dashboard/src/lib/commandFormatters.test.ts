@@ -397,6 +397,10 @@ describe("formatAnalyticsCommand", () => {
       tokenOut24h: 100000,
       tokenIn7d: 2000000,
       tokenOut7d: 400000,
+      cacheRead24h: 0,
+      cacheWrite24h: 0,
+      cacheRead7d: 0,
+      cacheWrite7d: 0,
     };
     const result = formatAnalyticsCommand(costs);
 
@@ -419,6 +423,10 @@ describe("formatAnalyticsCommand", () => {
       tokenOut24h: 0,
       tokenIn7d: 1000000,
       tokenOut7d: 200000,
+      cacheRead24h: 0,
+      cacheWrite24h: 0,
+      cacheRead7d: 0,
+      cacheWrite7d: 0,
     };
     const result = formatAnalyticsCommand(costs);
 

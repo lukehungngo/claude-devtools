@@ -35,7 +35,9 @@ const MODE_COLORS: Record<PermissionMode, { bg: string; fg: string }> = {
 };
 
 export function TopBar({ metrics, repoName, branch, isLive, hasPermissionPending, viewingTurnNumber, onClearViewingTurn, permissionMode = "default", onPermissionModeChange }: Props) {
-  const tIn = metrics?.tokens.inputTokens ?? 0;
+  const tIn = (metrics?.tokens.inputTokens ?? 0) +
+    (metrics?.tokens.cacheReadTokens ?? 0) +
+    (metrics?.tokens.cacheWriteTokens ?? 0);
   const tOut = metrics?.tokens.outputTokens ?? 0;
   const sCost = metrics?.tokens.totalCost ?? 0;
   const agentCount = metrics?.totalAgents ?? 0;

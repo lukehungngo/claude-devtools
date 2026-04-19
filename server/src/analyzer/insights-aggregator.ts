@@ -43,17 +43,18 @@ export function computeInsightsSessionData(session: SessionInfo): InsightsSessio
         const usage = event.message.usage;
         const model = event.message.model || "claude-sonnet-4-6";
         if (!usage) continue;
-        const inTok = (usage.input_tokens || 0)
-          + (usage.cache_read_input_tokens || 0)
-          + (usage.cache_creation_input_tokens || 0);
+        const bareIn = usage.input_tokens || 0;
+        const cr = usage.cache_read_input_tokens || 0;
+        const cw = usage.cache_creation_input_tokens || 0;
+        const inTok = bareIn + cr + cw;
         const outTok = usage.output_tokens || 0;
         tokensIn += inTok;
         tokensOut += outTok;
         cost += calculateTokenCost(model, {
-          inputTokens: inTok,
+          inputTokens: bareIn,
           outputTokens: outTok,
-          cacheWriteTokens: usage.cache_creation_input_tokens || 0,
-          cacheReadTokens: usage.cache_read_input_tokens || 0,
+          cacheWriteTokens: cw,
+          cacheReadTokens: cr,
         });
       } else if (event.type === "user" && event.userType === "external") {
         turns++;

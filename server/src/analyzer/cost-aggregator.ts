@@ -11,6 +11,8 @@ interface SessionCostData {
   cost: number;
   tokenIn: number;
   tokenOut: number;
+  cacheRead: number;
+  cacheWrite: number;
 }
 
 const sessionCostCache = new Map<string, SessionCostData>();
@@ -20,7 +22,7 @@ function computeSessionCost(session: SessionInfo): SessionCostData {
   try {
     stat = statSync(session.path);
   } catch {
-    return { fileSize: 0, offset: 0, cost: 0, tokenIn: 0, tokenOut: 0 };
+    return { fileSize: 0, offset: 0, cost: 0, tokenIn: 0, tokenOut: 0, cacheRead: 0, cacheWrite: 0 };
   }
 
   const cached = sessionCostCache.get(session.id);
@@ -35,6 +37,8 @@ function computeSessionCost(session: SessionInfo): SessionCostData {
   let totalCost = cached ? cached.cost : 0;
   let tokenIn = cached ? cached.tokenIn : 0;
   let tokenOut = cached ? cached.tokenOut : 0;
+  let cacheRead = cached ? cached.cacheRead : 0;
+  let cacheWrite = cached ? cached.cacheWrite : 0;
 
   try {
     const { events, newOffset } = parseJsonlIncremental(session.path, fromOffset);
@@ -44,16 +48,22 @@ function computeSessionCost(session: SessionInfo): SessionCostData {
       const model = event.message.model || "claude-sonnet-4-6";
       if (!usage) continue;
 
-      const inTok = usage.input_tokens || 0;
+      const bareIn = usage.input_tokens || 0;
       const outTok = usage.output_tokens || 0;
-      tokenIn += inTok;
+      const cr = usage.cache_read_input_tokens || 0;
+      const cw = usage.cache_creation_input_tokens || 0;
+
+      // tokenIn tracks total tokens consumed (bare + cache read + cache write)
+      tokenIn += bareIn + cr + cw;
       tokenOut += outTok;
+      cacheRead += cr;
+      cacheWrite += cw;
 
       totalCost += calculateTokenCost(model, {
-        inputTokens: inTok,
+        inputTokens: bareIn,
         outputTokens: outTok,
-        cacheWriteTokens: usage.cache_creation_input_tokens || 0,
-        cacheReadTokens: usage.cache_read_input_tokens || 0,
+        cacheWriteTokens: cw,
+        cacheReadTokens: cr,
       });
     }
 
@@ -63,13 +73,20 @@ function computeSessionCost(session: SessionInfo): SessionCostData {
       cost: totalCost,
       tokenIn,
       tokenOut,
+      cacheRead,
+      cacheWrite,
     };
     sessionCostCache.set(session.id, data);
     return data;
   } catch {
     // skip unreadable sessions
-    return { fileSize: 0, offset: 0, cost: totalCost, tokenIn, tokenOut };
+    return { fileSize: 0, offset: 0, cost: totalCost, tokenIn, tokenOut, cacheRead, cacheWrite };
   }
+}
+
+/** Exported only for test isolation — do not call in production code. */
+export function _resetCostCacheForTesting(): void {
+  sessionCostCache.clear();
 }
 
 export function aggregateCosts(sessions: SessionInfo[]): CostSummary {
@@ -85,6 +102,10 @@ export function aggregateCosts(sessions: SessionInfo[]): CostSummary {
   let tokenOut24h = 0;
   let tokenIn7d = 0;
   let tokenOut7d = 0;
+  let cacheRead24h = 0;
+  let cacheWrite24h = 0;
+  let cacheRead7d = 0;
+  let cacheWrite7d = 0;
 
   for (const session of sessions) {
     const age = now - new Date(session.lastModified).getTime();
@@ -94,12 +115,16 @@ export function aggregateCosts(sessions: SessionInfo[]): CostSummary {
       cost7d += data.cost;
       tokenIn7d += data.tokenIn;
       tokenOut7d += data.tokenOut;
+      cacheRead7d += data.cacheRead;
+      cacheWrite7d += data.cacheWrite;
       sessionCount7d++;
 
       if (age <= ms24h) {
         cost24h += data.cost;
         tokenIn24h += data.tokenIn;
         tokenOut24h += data.tokenOut;
+        cacheRead24h += data.cacheRead;
+        cacheWrite24h += data.cacheWrite;
         sessionCount24h++;
       }
     }
@@ -114,5 +139,9 @@ export function aggregateCosts(sessions: SessionInfo[]): CostSummary {
     tokenOut24h,
     tokenIn7d,
     tokenOut7d,
+    cacheRead24h,
+    cacheWrite24h,
+    cacheRead7d,
+    cacheWrite7d,
   };
 }

@@ -10,6 +10,12 @@ const mockCostsResponse = {
     sessionCount7d: 20,
     tokenIn24h: 100000,
     tokenOut24h: 50000,
+    tokenIn7d: 500000,
+    tokenOut7d: 200000,
+    cacheRead24h: 0,
+    cacheWrite24h: 0,
+    cacheRead7d: 0,
+    cacheWrite7d: 0,
   },
 };
 

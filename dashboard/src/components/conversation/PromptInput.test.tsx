@@ -1490,6 +1490,10 @@ describe("PromptInput", () => {
         tokenOut24h: 100000,
         tokenIn7d: 2000000,
         tokenOut7d: 400000,
+        cacheRead24h: 0,
+        cacheWrite24h: 0,
+        cacheRead7d: 0,
+        cacheWrite7d: 0,
       };
 
       const { container } = render(<PromptInput costs={costs} />);

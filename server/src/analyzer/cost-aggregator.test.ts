@@ -15,7 +15,7 @@ vi.mock("node:fs", async (importOriginal) => {
   };
 });
 
-import { aggregateCosts } from "./cost-aggregator.js";
+import { aggregateCosts, _resetCostCacheForTesting } from "./cost-aggregator.js";
 import { parseJsonlIncremental } from "../parser/jsonl-reader.js";
 import { statSync } from "node:fs";
 
@@ -57,6 +57,36 @@ function makeAssistantEvents(inputTokens: number, outputTokens: number) {
           output_tokens: outputTokens,
           cache_creation_input_tokens: 0,
           cache_read_input_tokens: 0,
+        },
+      },
+    },
+  ];
+}
+
+function makeAssistantEventsWithCache(
+  inputTokens: number,
+  outputTokens: number,
+  cacheCreation: number,
+  cacheRead: number
+) {
+  return [
+    {
+      type: "assistant" as const,
+      uuid: "a2",
+      timestamp: "2026-03-23T10:00:00Z",
+      sessionId: "s2",
+      message: {
+        role: "assistant" as const,
+        content: [{ type: "text" as const, text: "cached" }],
+        model: "claude-sonnet-4-6",
+        id: "msg-2",
+        type: "message" as const,
+        stop_reason: "end_turn" as const,
+        usage: {
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          cache_creation_input_tokens: cacheCreation,
+          cache_read_input_tokens: cacheRead,
         },
       },
     },
@@ -182,5 +212,69 @@ describe("aggregateCosts", () => {
     // Should be in 7d but not 24h
     expect(result.sessionCount24h).toBe(0);
     expect(result.sessionCount7d).toBe(1);
+  });
+
+  // REPRODUCTION TEST for bug: tokenIn24h excluded cache_read and cache_creation tokens
+  it("tokenIn24h includes bare input + cache_read + cache_creation tokens", () => {
+    _resetCostCacheForTesting();
+    const now = new Date();
+    const session = makeSessionInfo(now);
+    // 5000 bare input + 200000 cache_read + 50000 cache_creation = 255000 total
+    mockedParseJsonlIncremental.mockReturnValue({
+      events: makeAssistantEventsWithCache(5000, 1000, 50000, 200000) as unknown as SessionEvent[],
+      newOffset: 500,
+    });
+
+    const result = aggregateCosts([session]);
+
+    // Before fix: result.tokenIn24h === 5000 (only bare input_tokens)
+    // After fix:  result.tokenIn24h === 255000 (bare + cache_read + cache_creation)
+    expect(result.tokenIn24h).toBe(255000);
+    expect(result.tokenIn7d).toBe(255000);
+  });
+
+  it("cacheRead24h and cacheWrite24h are tracked separately", () => {
+    _resetCostCacheForTesting();
+    const now = new Date();
+    const session = makeSessionInfo(now);
+    mockedParseJsonlIncremental.mockReturnValue({
+      events: makeAssistantEventsWithCache(5000, 1000, 50000, 200000) as unknown as SessionEvent[],
+      newOffset: 500,
+    });
+
+    const result = aggregateCosts([session]);
+
+    expect(result.cacheRead24h).toBe(200000);
+    expect(result.cacheWrite24h).toBe(50000);
+    expect(result.cacheRead7d).toBe(200000);
+    expect(result.cacheWrite7d).toBe(50000);
+  });
+
+  it("cost is not double-counted: cache tokens are not re-billed at bare input rate", () => {
+    _resetCostCacheForTesting();
+    const now = new Date();
+    const noCacheSession = makeSessionInfo(now, { path: "/tmp/no-cache.jsonl" });
+    const withCacheSession = makeSessionInfo(now, { path: "/tmp/with-cache.jsonl" });
+
+    // Session 1: 255000 bare tokens, no cache
+    // Session 2: 5000 bare + 50000 cache_creation + 200000 cache_read
+    // The cache session should cost LESS than an equivalent bare session because
+    // cache reads are cheaper than bare input tokens.
+    mockedParseJsonlIncremental
+      .mockReturnValueOnce({
+        events: makeAssistantEvents(255000, 1000) as unknown as SessionEvent[],
+        newOffset: 500,
+      })
+      .mockReturnValueOnce({
+        events: makeAssistantEventsWithCache(5000, 1000, 50000, 200000) as unknown as SessionEvent[],
+        newOffset: 500,
+      });
+
+    const noCacheResult = aggregateCosts([noCacheSession]);
+    _resetCostCacheForTesting();
+    const withCacheResult = aggregateCosts([withCacheSession]);
+
+    // With caching, cost must be strictly less (cache reads are discounted)
+    expect(withCacheResult.cost24h).toBeLessThan(noCacheResult.cost24h);
   });
 });

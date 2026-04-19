@@ -266,6 +266,10 @@ export interface CostSummary {
   tokenOut24h: number;
   tokenIn7d: number;
   tokenOut7d: number;
+  cacheRead24h: number;
+  cacheWrite24h: number;
+  cacheRead7d: number;
+  cacheWrite7d: number;
 }
 
 // === Insights Aggregate Types ===
