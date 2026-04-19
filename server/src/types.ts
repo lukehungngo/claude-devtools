@@ -351,6 +351,30 @@ export interface InsightsTopConsumers {
   tools: InsightsTopToolRow[];       // top 5
 }
 
+export interface InsightsCommandRow {
+  name: string;    // e.g. "/compact"
+  count: number;
+  share: number;   // fraction 0-1 of #1 entry's count
+}
+
+export interface InsightsAgentRow {
+  type: string;    // subagent_type or description, e.g. "mas:engineer:engineer"
+  count: number;
+  share: number;
+}
+
+export interface InsightsSkillRow {
+  name: string;    // input.skill value, e.g. "verification"
+  count: number;
+  share: number;
+}
+
+export interface InsightsCommandsAgentsSkills {
+  commands: InsightsCommandRow[];  // top 10, sorted by count desc
+  agents: InsightsAgentRow[];      // top 10, sorted by count desc
+  skills: InsightsSkillRow[];      // top 10, sorted by count desc
+}
+
 export interface PermissionSuggestion {
   type: string;
   rules?: Array<{ toolName: string; ruleContent?: string }>;
