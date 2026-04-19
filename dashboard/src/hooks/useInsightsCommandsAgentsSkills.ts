@@ -1,21 +1,29 @@
 import { useState, useEffect } from "react";
 
+export type CasTrend = "improving" | "stable" | "regressing";
+
 export interface CommandRowClient {
   name: string;
   count: number;
   share: number;
+  daily: number[];
+  trend: CasTrend;
 }
 
 export interface AgentRowClient {
   type: string;
   count: number;
   share: number;
+  daily: number[];
+  trend: CasTrend;
 }
 
 export interface SkillRowClient {
   name: string;
   count: number;
   share: number;
+  daily: number[];
+  trend: CasTrend;
 }
 
 export interface CommandsAgentsSkillsClient {

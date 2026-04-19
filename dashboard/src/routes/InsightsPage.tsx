@@ -11,6 +11,7 @@ import { HourlyBars } from "../components/insights/HourlyBars.js";
 import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
 import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
 import { useInsightsCommandsAgentsSkills } from "../hooks/useInsightsCommandsAgentsSkills";
+import { CASRow } from "../components/insights/CASRow";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -714,28 +715,15 @@ export function InsightsPage(): JSX.Element {
             ) : (
               <div className="flex flex-col gap-1.5">
                 {(casData?.commands ?? []).map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                    style={{ gridTemplateColumns: "26px 1fr 60px" }}
-                  >
-                    <div
-                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
-                      style={{ width: 22, height: 22 }}
-                    >
-                      {idx + 1}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-md font-semibold text-dt-text0 truncate font-mono">{item.name}</div>
-                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
-                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--accent)" }} />
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{item.count.toLocaleString()}</div>
-                      <span className="text-xs font-mono text-dt-text2">uses</span>
-                    </div>
-                  </div>
+                  <CASRow
+                    key={item.name}
+                    name={item.name}
+                    daily={item.daily}
+                    count={item.count}
+                    trend={item.trend}
+                    badgeIndex={idx}
+                    sparklineColor="teal"
+                  />
                 ))}
               </div>
             )}
@@ -758,28 +746,15 @@ export function InsightsPage(): JSX.Element {
             ) : (
               <div className="flex flex-col gap-1.5">
                 {(casData?.agents ?? []).map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                    style={{ gridTemplateColumns: "26px 1fr 60px" }}
-                  >
-                    <div
-                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
-                      style={{ width: 22, height: 22 }}
-                    >
-                      {idx + 1}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-md font-semibold text-dt-text0 truncate font-mono">{item.type}</div>
-                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
-                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--purple)" }} />
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{item.count.toLocaleString()}</div>
-                      <span className="text-xs font-mono text-dt-text2">runs</span>
-                    </div>
-                  </div>
+                  <CASRow
+                    key={item.type}
+                    name={item.type}
+                    daily={item.daily}
+                    count={item.count}
+                    trend={item.trend}
+                    badgeIndex={idx}
+                    sparklineColor="purple"
+                  />
                 ))}
               </div>
             )}
@@ -802,28 +777,15 @@ export function InsightsPage(): JSX.Element {
             ) : (
               <div className="flex flex-col gap-1.5">
                 {(casData?.skills ?? []).map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="grid items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
-                    style={{ gridTemplateColumns: "26px 1fr 60px" }}
-                  >
-                    <div
-                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
-                      style={{ width: 22, height: 22 }}
-                    >
-                      {idx + 1}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-md font-semibold text-dt-text0 truncate font-mono">{item.name}</div>
-                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
-                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--teal)" }} />
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{item.count.toLocaleString()}</div>
-                      <span className="text-xs font-mono text-dt-text2">uses</span>
-                    </div>
-                  </div>
+                  <CASRow
+                    key={item.name}
+                    name={item.name}
+                    daily={item.daily}
+                    count={item.count}
+                    trend={item.trend}
+                    badgeIndex={idx}
+                    sparklineColor="teal"
+                  />
                 ))}
               </div>
             )}
