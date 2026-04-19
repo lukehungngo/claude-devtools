@@ -1,4 +1,4 @@
-import { use } from "echarts/core";
+import { use as registerEcharts } from "echarts/core";
 import { LineChart, BarChart, HeatmapChart } from "echarts/charts";
 import {
   GridComponent,
@@ -9,7 +9,7 @@ import {
 } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 
-use([
+registerEcharts([
   LineChart,
   BarChart,
   HeatmapChart,
