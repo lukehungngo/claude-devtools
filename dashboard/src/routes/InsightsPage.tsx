@@ -11,7 +11,7 @@ import { HourlyBars } from "../components/insights/HourlyBars.js";
 import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
 import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
 import { useInsightsCommandsAgentsSkills } from "../hooks/useInsightsCommandsAgentsSkills";
-import { CASRow } from "../components/insights/CASRow";
+import { CASRow, BADGE_PALETTE, abbreviateName } from "../components/insights/CASRow";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -744,18 +744,69 @@ export function InsightsPage(): JSX.Element {
             ) : (casData?.agents ?? []).length === 0 ? (
               <div className="text-sm text-dt-text2 py-4 text-center">No agent dispatches found</div>
             ) : (
-              <div className="flex flex-col gap-1.5">
-                {(casData?.agents ?? []).map((item, idx) => (
-                  <CASRow
-                    key={item.type}
-                    name={item.type}
-                    daily={item.daily}
-                    count={item.count}
-                    trend={item.trend}
-                    badgeIndex={idx}
-                    sparklineColor="purple"
-                  />
-                ))}
+              <div className="flex gap-4">
+                {/* Left panel: ranked list */}
+                <div className="flex flex-col gap-1.5" style={{ width: "40%", flexShrink: 0 }}>
+                  {(casData?.agents ?? []).map((item, idx) => {
+                    const badgeColor = BADGE_PALETTE[idx % BADGE_PALETTE.length];
+                    const abbrev = abbreviateName(item.type);
+                    return (
+                      <div
+                        key={item.type}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
+                        style={{ minHeight: 44 }}
+                      >
+                        <div
+                          aria-hidden="true"
+                          className="font-mono text-[9px] font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0"
+                          style={{ width: 32, height: 20, background: badgeColor }}
+                        >
+                          {abbrev}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-mono font-semibold text-dt-text0 truncate" title={item.type}>
+                            {item.type}
+                          </div>
+                          <div
+                            className="mt-1 rounded overflow-hidden"
+                            style={{ height: 3, background: "var(--border)" }}
+                            role="progressbar"
+                            aria-valuenow={Math.round(item.share * 100)}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label={`${item.type} — ${Math.round(item.share * 100)}% share of dispatches`}
+                          >
+                            <div
+                              className="h-full rounded"
+                              style={{ width: `${item.share * 100}%`, background: badgeColor }}
+                            />
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-sm font-mono font-semibold text-dt-text0 leading-none">
+                            {item.count.toLocaleString()}
+                          </div>
+                          <div className="text-[10px] font-mono text-dt-text2">runs</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Right panel: CASRow cards */}
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                  {(casData?.agents ?? []).map((item, idx) => (
+                    <CASRow
+                      key={item.type}
+                      name={item.type}
+                      daily={item.daily}
+                      count={item.count}
+                      trend={item.trend}
+                      badgeIndex={idx}
+                      sparklineColor="purple"
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
