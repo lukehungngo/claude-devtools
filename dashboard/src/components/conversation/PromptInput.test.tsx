@@ -1638,6 +1638,53 @@ describe("PromptInput", () => {
     });
   });
 
+  describe("SDK error translation", () => {
+    it("translates SDK 'No conversation found' error to user-friendly message", async () => {
+      vi.useRealTimers();
+
+      const sdkError = "No conversation found with session ID: abc123-def456";
+      const resultEvent = JSON.stringify({
+        type: "result",
+        is_error: true,
+        errors: [sdkError],
+      });
+
+      const encoder = new TextEncoder();
+      const sseData = `data: ${resultEvent}\n\n`;
+      let readCount = 0;
+      const mockReader = {
+        read: vi.fn().mockImplementation(() => {
+          readCount++;
+          if (readCount === 1) {
+            return Promise.resolve({ done: false, value: encoder.encode(sseData) });
+          }
+          return Promise.resolve({ done: true, value: undefined });
+        }),
+      };
+
+      fetchMock.mockResolvedValue({
+        ok: true,
+        body: { getReader: () => mockReader },
+      });
+
+      const { container } = render(
+        <PromptInput activeSessionId="test-session" sessionCwd="/tmp" />
+      );
+      const textarea = container.querySelector("textarea")!;
+
+      fireEvent.change(textarea, { target: { value: "hello" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      const banner = container.querySelector('[data-testid="sse-error-banner"]');
+      expect(banner).not.toBeNull();
+      expect(banner!.textContent).toContain("started from the terminal");
+      expect(banner!.textContent).not.toContain("No conversation found");
+    });
+  });
+
   describe("/permissions command", () => {
     it("fetches permissions info and shows mode and allowances", async () => {
       fetchMock.mockResolvedValueOnce({
