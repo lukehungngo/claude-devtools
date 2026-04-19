@@ -1,6 +1,6 @@
+import { useState } from "react";
 import type { InsightsHourlyBucket } from "../../lib/types.js";
 
-// SVG geometry (matches design viewBox 0 0 560 120)
 const SVG_W = 560;
 const SVG_H = 108;
 const BAR_W = 18;
@@ -16,6 +16,11 @@ const X_LABEL_HOURS: Record<number, string> = {
   18: "6PM",
   23: "12AM",
 };
+
+function fmtTok(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(Math.round(n));
+}
 
 export function findPeakBlock(
   hourly: InsightsHourlyBucket[]
@@ -40,17 +45,23 @@ export function fmtObsHour(hour: number): string {
   return hour < 12 ? `${hour} AM` : `${hour - 12} PM`;
 }
 
+interface TooltipState {
+  x: number;
+  y: number;
+  text: string;
+}
+
 interface HourlyBarsProps {
   hourly: InsightsHourlyBucket[];
   className?: string;
 }
 
 export function HourlyBars({ hourly, className }: HourlyBarsProps): JSX.Element {
-  const peak = findPeakBlock(hourly);
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
+  const peak = findPeakBlock(hourly);
   const maxAvg = hourly.reduce((m, h) => Math.max(m, h.tokensAvg), 0);
 
-  // Peak hour range: hours [peak.start, peak.start+3]
   const isPeakHour = (h: number): boolean =>
     peak !== null && h >= peak.start && h < peak.start + 4;
 
@@ -66,6 +77,7 @@ export function HourlyBars({ hourly, className }: HourlyBarsProps): JSX.Element 
           viewBox={`0 0 ${SVG_W} 120`}
           xmlns="http://www.w3.org/2000/svg"
           style={{ display: "block", width: "100%" }}
+          onMouseLeave={() => setTooltip(null)}
         >
           {hourly.map((bucket, i) => {
             const barH =
@@ -85,6 +97,18 @@ export function HourlyBars({ hourly, className }: HourlyBarsProps): JSX.Element 
                 height={Math.max(barH, 1)}
                 rx={3}
                 fill={fill}
+                style={{ cursor: "default" }}
+                onMouseEnter={(e) =>
+                  setTooltip({
+                    x: e.clientX,
+                    y: e.clientY,
+                    text: `${fmtObsHour(bucket.hour)} · avg ${fmtTok(bucket.tokensAvg)} tokens`,
+                  })
+                }
+                onMouseMove={(e) =>
+                  setTooltip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : null))
+                }
+                onMouseLeave={() => setTooltip(null)}
               />
             );
           })}
@@ -130,6 +154,22 @@ export function HourlyBars({ hourly, className }: HourlyBarsProps): JSX.Element 
           observation
         )}
       </p>
+
+      {/* Floating tooltip */}
+      {tooltip && (
+        <div
+          style={{
+            position: "fixed",
+            left: tooltip.x + 12,
+            top: tooltip.y - 32,
+            zIndex: 9999,
+            pointerEvents: "none",
+          }}
+          className="bg-dt-bg3 border border-dt-border rounded px-2 py-1 text-xs font-mono text-dt-text0 whitespace-nowrap shadow-sm"
+        >
+          {tooltip.text}
+        </div>
+      )}
     </div>
   );
 }

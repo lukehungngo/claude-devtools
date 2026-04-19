@@ -1,8 +1,8 @@
+import { useState } from "react";
 import type { InsightsHeatmapCell } from "../../lib/types.js";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// Intensity → background CSS value
 function intensityBg(intensity: 0 | 1 | 2 | 3 | 4): string {
   switch (intensity) {
     case 0: return "var(--bg-2)";
@@ -10,6 +10,16 @@ function intensityBg(intensity: 0 | 1 | 2 | 3 | 4): string {
     case 2: return "color-mix(in srgb, var(--accent) 32%, var(--bg-2))";
     case 3: return "color-mix(in srgb, var(--accent) 55%, var(--bg-2))";
     case 4: return "var(--accent)";
+  }
+}
+
+function intensityLabel(intensity: 0 | 1 | 2 | 3 | 4): string {
+  switch (intensity) {
+    case 0: return "No activity";
+    case 1: return "Low";
+    case 2: return "Medium";
+    case 3: return "High";
+    case 4: return "Peak";
   }
 }
 
@@ -33,15 +43,22 @@ function peakLabel(peak: InsightsHeatmapCell): string {
   return `Peak: ${DAY_LABELS[peak.day] ?? "?"} ${fmtHeatmapHour(peak.hour)}`;
 }
 
+interface TooltipState {
+  x: number;
+  y: number;
+  text: string;
+}
+
 interface HeatmapGridProps {
   heatmap: InsightsHeatmapCell[];
   className?: string;
 }
 
 export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Element {
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+
   const peak = findPeakCell(heatmap);
 
-  // Build a lookup: "day-hour" → cell
   const cellMap = new Map<string, InsightsHeatmapCell>();
   for (const c of heatmap) {
     cellMap.set(`${c.day}-${c.hour}`, c);
@@ -88,7 +105,6 @@ export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Eleme
                   <div
                     key={`${d}-${h}`}
                     data-testid={isPeak ? "hm-cell-peak" : "hm-cell"}
-                    title={`${DAY_LABELS[d]} ${fmtHeatmapHour(h)}`}
                     className="cursor-default transition-transform hover:scale-125 hover:relative hover:z-10"
                     style={{
                       aspectRatio: "1",
@@ -104,6 +120,17 @@ export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Eleme
                           }
                         : {}),
                     }}
+                    onMouseEnter={(e) =>
+                      setTooltip({
+                        x: e.clientX,
+                        y: e.clientY,
+                        text: `${DAY_LABELS[d]} ${fmtHeatmapHour(h)} · ${intensityLabel(intensity)}`,
+                      })
+                    }
+                    onMouseMove={(e) =>
+                      setTooltip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : null))
+                    }
+                    onMouseLeave={() => setTooltip(null)}
                   />
                 );
               })
@@ -153,6 +180,22 @@ export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Eleme
           </div>
         </div>
       </div>
+
+      {/* Floating tooltip */}
+      {tooltip && (
+        <div
+          style={{
+            position: "fixed",
+            left: tooltip.x + 12,
+            top: tooltip.y - 32,
+            zIndex: 9999,
+            pointerEvents: "none",
+          }}
+          className="bg-dt-bg3 border border-dt-border rounded px-2 py-1 text-xs font-mono text-dt-text0 whitespace-nowrap shadow-sm"
+        >
+          {tooltip.text}
+        </div>
+      )}
     </div>
   );
 }
