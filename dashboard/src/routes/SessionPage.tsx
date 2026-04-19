@@ -375,7 +375,7 @@ export function SessionPage() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tab bar */}
       <div className="flex items-center shrink-0 border-b border-dt-border bg-dt-bg">
-        {(["conversation", "raw-log", "agent-log"] as const).map((tab) => (
+        {(["conversation", "agent-log", "raw-log"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setMainTab(tab)}

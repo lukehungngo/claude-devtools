@@ -13,7 +13,10 @@ export function backfillDebugDb(db: DebugDB): void {
   const sessions = discoverSessions();
   const toBackfill = sessions.filter((s) => !existing.has(s.id));
 
-  if (toBackfill.length === 0) return;
+  if (toBackfill.length === 0) {
+    console.log(`[debug-db] All ${sessions.length} sessions already in DB, nothing to backfill.`);
+    return;
+  }
 
   logger.info({ count: toBackfill.length }, "debug-db: backfilling sessions");
 

@@ -50,9 +50,9 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("GET /api/insights/aggregate", () => {
+describe("GET /insights/aggregate", () => {
   it("returns 200 with aggregate data", async () => {
-    const res = await request(buildApp()).get("/api/insights/aggregate");
+    const res = await request(buildApp()).get("/insights/aggregate");
     expect(res.status).toBe(200);
     expect(res.body.tokensIn).toBe(1000);
     expect(res.body.sessions).toBe(3);
@@ -61,7 +61,7 @@ describe("GET /api/insights/aggregate", () => {
 
   it("passes timeRange and repo to computeInsightsAggregate", async () => {
     await request(buildApp()).get(
-      "/api/insights/aggregate?timeRange=30d&repo=/home/user/project"
+      "/insights/aggregate?timeRange=30d&repo=/home/user/project"
     );
     expect(mockedAggregate).toHaveBeenCalledWith(
       expect.anything(),
@@ -71,36 +71,36 @@ describe("GET /api/insights/aggregate", () => {
   });
 
   it("uses 7d and all as defaults", async () => {
-    await request(buildApp()).get("/api/insights/aggregate");
+    await request(buildApp()).get("/insights/aggregate");
     expect(mockedAggregate).toHaveBeenCalledWith(expect.anything(), "7d", "all");
   });
 
   it("returns 400 for invalid timeRange", async () => {
     const res = await request(buildApp()).get(
-      "/api/insights/aggregate?timeRange=invalid"
+      "/insights/aggregate?timeRange=invalid"
     );
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/timeRange/);
   });
 
   it("calls discoverSessions()", async () => {
-    await request(buildApp()).get("/api/insights/aggregate");
+    await request(buildApp()).get("/insights/aggregate");
     expect(mockedDiscover).toHaveBeenCalledTimes(1);
   });
 
   it("accepts all valid timeRange values", async () => {
     for (const tr of ["24h", "7d", "30d", "90d", "all"]) {
       const res = await request(buildApp()).get(
-        `/api/insights/aggregate?timeRange=${tr}`
+        `/insights/aggregate?timeRange=${tr}`
       );
       expect(res.status).toBe(200);
     }
   });
 });
 
-describe("GET /api/insights/activity", () => {
+describe("GET /insights/activity", () => {
   it("returns 200 with heatmap and hourly data", async () => {
-    const res = await request(buildApp()).get("/api/insights/activity");
+    const res = await request(buildApp()).get("/insights/activity");
     expect(res.status).toBe(200);
     expect(res.body.heatmap).toBeDefined();
     expect(res.body.hourly).toBeDefined();
@@ -108,7 +108,7 @@ describe("GET /api/insights/activity", () => {
 
   it("passes timeRange and repo to computeInsightsActivity", async () => {
     await request(buildApp()).get(
-      "/api/insights/activity?timeRange=30d&repo=/home/user/project"
+      "/insights/activity?timeRange=30d&repo=/home/user/project"
     );
     expect(mockedActivity).toHaveBeenCalledWith(
       expect.anything(),
@@ -118,13 +118,13 @@ describe("GET /api/insights/activity", () => {
   });
 
   it("uses 7d and all as defaults", async () => {
-    await request(buildApp()).get("/api/insights/activity");
+    await request(buildApp()).get("/insights/activity");
     expect(mockedActivity).toHaveBeenCalledWith(expect.anything(), "7d", "all");
   });
 
   it("returns 400 for invalid timeRange", async () => {
     const res = await request(buildApp()).get(
-      "/api/insights/activity?timeRange=invalid"
+      "/insights/activity?timeRange=invalid"
     );
     expect(res.status).toBe(400);
   });
@@ -132,7 +132,7 @@ describe("GET /api/insights/activity", () => {
   it("accepts all valid timeRange values", async () => {
     for (const tr of ["24h", "7d", "30d", "90d", "all"]) {
       const res = await request(buildApp()).get(
-        `/api/insights/activity?timeRange=${tr}`
+        `/insights/activity?timeRange=${tr}`
       );
       expect(res.status).toBe(200);
     }

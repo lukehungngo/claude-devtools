@@ -19,10 +19,10 @@ const TYPE_COLORS: Record<string, string> = {
 function formatTimestamp(ts: string): string {
   try {
     const d = new Date(ts);
-    const h = String(d.getUTCHours()).padStart(2, "0");
-    const m = String(d.getUTCMinutes()).padStart(2, "0");
-    const s = String(d.getUTCSeconds()).padStart(2, "0");
-    const ms = String(d.getUTCMilliseconds()).padStart(3, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    const s = String(d.getSeconds()).padStart(2, "0");
+    const ms = String(d.getMilliseconds()).padStart(3, "0");
     return `${h}:${m}:${s}.${ms}`;
   } catch {
     return ts;

@@ -52,19 +52,29 @@ describe("RawLogView", () => {
   });
 
   it("renders events for a selected turn", () => {
-    const events = [
-      makeEvent("e1", "2026-01-01T00:00:00.123Z"),
-      makeEvent("e2", "2026-01-01T00:00:01.456Z"),
-    ];
+    const ts1 = "2026-01-01T00:00:00.123Z";
+    const ts2 = "2026-01-01T00:00:01.456Z";
+
+    function localTimeStr(ts: string): string {
+      const d = new Date(ts);
+      return (
+        `${String(d.getHours()).padStart(2, "0")}:` +
+        `${String(d.getMinutes()).padStart(2, "0")}:` +
+        `${String(d.getSeconds()).padStart(2, "0")}.` +
+        String(d.getMilliseconds()).padStart(3, "0")
+      );
+    }
+
+    const events = [makeEvent("e1", ts1), makeEvent("e2", ts2)];
     const turn = makeTurn({ startIndex: 0, endIndex: 2 });
 
     render(
       <RawLogView turns={[turn]} allEvents={events} activeTurnIndex={0} />,
     );
 
-    // Should render timestamps for both events
-    expect(screen.getByText("00:00:00.123")).toBeTruthy();
-    expect(screen.getByText("00:00:01.456")).toBeTruthy();
+    // Timestamps rendered in local time (not UTC)
+    expect(screen.getByText(localTimeStr(ts1))).toBeTruthy();
+    expect(screen.getByText(localTimeStr(ts2))).toBeTruthy();
 
     // Should render event type badges
     const badges = screen.getAllByText("assistant");

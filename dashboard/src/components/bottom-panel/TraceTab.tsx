@@ -2,7 +2,7 @@ import { memo, useMemo, useRef, useState, useCallback } from "react";
 import type { AgentDAG, AgentNode } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { filterDagForTurn } from "../../lib/filterDagForTurn";
-import { formatCost, formatDuration } from "../../lib/cost";
+import { formatCost, formatDuration, formatTokens } from "../../lib/cost";
 import { formatModelName } from "../../lib/formatModelName";
 
 /** Height of the tab bar in pixels */
@@ -17,7 +17,8 @@ const NAME_COL_WIDTH = 60;
 const MODEL_COL_WIDTH = 88;
 const DURATION_COL_WIDTH = 72;
 const COST_COL_WIDTH = 64;
-const DATA_COLS_WIDTH = NAME_COL_WIDTH + MODEL_COL_WIDTH + DURATION_COL_WIDTH + COST_COL_WIDTH;
+const TOKENS_COL_WIDTH = 88;
+const DATA_COLS_WIDTH = NAME_COL_WIDTH + MODEL_COL_WIDTH + DURATION_COL_WIDTH + COST_COL_WIDTH + TOKENS_COL_WIDTH;
 
 export interface TraceTabProps {
   dag: AgentDAG | null;
@@ -356,6 +357,7 @@ interface TraceRowComponentProps {
   modelWidth: number;
   durationWidth: number;
   costWidth: number;
+  tokensWidth: number;
 }
 
 const TraceRowComponent = memo(function TraceRowComponent({
@@ -367,6 +369,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
   modelWidth,
   durationWidth,
   costWidth,
+  tokensWidth,
 }: TraceRowComponentProps) {
   const { node, depth, isToolCall, icon, color, bar, durationMs, totalCost } = row;
 
@@ -405,6 +408,11 @@ const TraceRowComponent = memo(function TraceRowComponent({
       </div>
       <div className="trace-col-duration" style={{ width: durationWidth }}>{isActive ? "running" : durationStr}</div>
       <div className="trace-col-cost" style={{ width: costWidth }}>{costStr}</div>
+      <div className="trace-col-tokens" style={{ width: tokensWidth }}>
+        {node.tokenUsage.inputTokens > 0 || node.tokenUsage.outputTokens > 0
+          ? `${formatTokens(node.tokenUsage.inputTokens)} / ${formatTokens(node.tokenUsage.outputTokens)}`
+          : "—"}
+      </div>
       <div className="trace-track">
         <div
           className="trace-bar"
@@ -442,6 +450,7 @@ function TraceTabInner({
   const [modelWidth, setModelWidth] = useState(MODEL_COL_WIDTH);
   const [durationWidth, setDurationWidth] = useState(DURATION_COL_WIDTH);
   const [costWidth, setCostWidth] = useState(COST_COL_WIDTH);
+  const [tokensWidth, setTokensWidth] = useState(TOKENS_COL_WIDTH);
   const [showAllDepths, setShowAllDepths] = useState(false);
   const dragRef = useRef<{ startX: number; startWidth: number; setter: (w: number) => void } | null>(null);
 
@@ -525,8 +534,12 @@ function TraceTabInner({
     (e: React.MouseEvent) => makeResizeHandler(costWidth, setCostWidth)(e),
     [costWidth, makeResizeHandler],
   );
+  const handleTokensResize = useCallback(
+    (e: React.MouseEvent) => makeResizeHandler(tokensWidth, setTokensWidth)(e),
+    [tokensWidth, makeResizeHandler],
+  );
 
-  const dataCols = nameWidth + modelWidth + durationWidth + costWidth;
+  const dataCols = nameWidth + modelWidth + durationWidth + costWidth + tokensWidth;
 
   if (isEmpty || !timeline) {
     return (
@@ -564,6 +577,7 @@ function TraceTabInner({
         <div className="trace-col-model trace-col-header" style={{ width: modelWidth }}>Model</div>
         <div className="trace-col-duration trace-col-header" style={{ width: durationWidth }}>Duration</div>
         <div className="trace-col-cost trace-col-header" style={{ width: costWidth }}>Cost</div>
+        <div className="trace-col-tokens trace-col-header" style={{ width: tokensWidth }}>Token In/Out</div>
         <div className="trace-ticks">
           {timeline.ticks.map((tick, i) => (
             <span key={i}>{tick}</span>
@@ -571,6 +585,8 @@ function TraceTabInner({
         </div>
       </div>
       <div className="trace-body">
+        {/* Bold divider between data columns and timeline bar */}
+        <div className="trace-divider" style={{ left: labelWidth + dataCols }} />
         {/* Vertical grid lines */}
         <div className="trace-grid" style={{ left: labelWidth + dataCols }}>
           {timeline.ticks.map((_, i) => (
@@ -600,8 +616,13 @@ function TraceTabInner({
         />
         <div
           className="trace-resize-handle"
-          style={{ left: labelWidth + dataCols - 2 }}
+          style={{ left: labelWidth + nameWidth + modelWidth + durationWidth + costWidth - 2 }}
           onMouseDown={handleCostResize}
+        />
+        <div
+          className="trace-resize-handle"
+          style={{ left: labelWidth + nameWidth + modelWidth + durationWidth + costWidth + tokensWidth - 2 }}
+          onMouseDown={handleTokensResize}
         />
         {/* Agent rows */}
         {groups.map((group, gi) => {
@@ -627,6 +648,7 @@ function TraceTabInner({
                     modelWidth={modelWidth}
                     durationWidth={durationWidth}
                     costWidth={costWidth}
+                    tokensWidth={tokensWidth}
                   />
                 ))}
               </div>
@@ -643,6 +665,7 @@ function TraceTabInner({
               modelWidth={modelWidth}
               durationWidth={durationWidth}
               costWidth={costWidth}
+              tokensWidth={tokensWidth}
             />
           ));
         })}

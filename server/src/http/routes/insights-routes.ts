@@ -10,7 +10,7 @@ const VALID_TIME_RANGES = new Set<string>(["24h", "7d", "30d", "90d", "all"]);
 export function createInsightsRoutes(_ctx: RouteContext): Router {
   const router = Router();
 
-  router.get("/api/insights/aggregate", (req, res) => {
+  router.get("/insights/aggregate", (req, res) => {
     const timeRange = (req.query.timeRange as string) ?? "7d";
     const repo = (req.query.repo as string) ?? "all";
 
@@ -34,7 +34,7 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
     }
   });
 
-  router.get("/api/insights/activity", (req, res) => {
+  router.get("/insights/activity", (req, res) => {
     const timeRange = (req.query.timeRange as string) ?? "7d";
     const repo = (req.query.repo as string) ?? "all";
 

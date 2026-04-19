@@ -28,6 +28,11 @@ cd server && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit  # type che
 9. **Data integrity** — numbers must be correct. Token counts, costs, status must match JSONL source. Wrong data is worse than no data.
 10. **Smooth UI/UX** — 60fps scrolling, instant feedback, no jank. Virtualized lists, batched updates, stable refs. Visual quality is not optional.
 
+## Business Logic Invariants
+
+1. **NO GUESS WORK** - use anthropic sdk, claude code github and ground truth from JSONL
+2. **Educated GUESS** must be approved and reasonable
+
 ## Key References
 
 - **Domain knowledge & SDK reference:** `docs/spec/` (read before new features)
