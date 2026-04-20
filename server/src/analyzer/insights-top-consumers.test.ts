@@ -206,7 +206,7 @@ describe("computeInsightsTopConsumers", () => {
     expect(edit?.share).toBeCloseTo(0.5, 3);
   });
 
-  it("limits results to top 5", () => {
+  it("returns all repos (no cap), limits sessions to top 5", () => {
     const sessions = Array.from({ length: 10 }, (_, i) =>
       makeSession(`s${i}`, `/repo-${i}`)
     );
@@ -221,7 +221,7 @@ describe("computeInsightsTopConsumers", () => {
     }));
 
     const result = computeInsightsTopConsumers(sessions, "all", "all");
-    expect(result.repos.length).toBeLessThanOrEqual(5);
+    expect(result.repos.length).toBe(10); // all repos returned, no cap
     expect(result.sessions.length).toBeLessThanOrEqual(5);
   });
 

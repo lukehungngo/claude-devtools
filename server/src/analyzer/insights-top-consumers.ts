@@ -156,8 +156,7 @@ export function computeInsightsTopConsumers(
       cost: v.cost,
       share: 0,
     }))
-    .sort((a, b) => b.totalTokens - a.totalTokens)
-    .slice(0, TOP_N);
+    .sort((a, b) => b.totalTokens - a.totalTokens);
 
   const maxRepoTokens = sortedRepos[0]?.totalTokens ?? 0;
   const repos: InsightsTopRepoRow[] = sortedRepos.map((r) => ({
