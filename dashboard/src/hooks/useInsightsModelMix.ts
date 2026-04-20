@@ -34,7 +34,8 @@ export function useInsightsModelMix(
     setLoading(true);
     setError(null);
 
-    fetch(`/api/insights/model-mix?timeRange=${timeRange}&repo=${repo}`)
+    const tz = new Date().getTimezoneOffset();
+    fetch(`/api/insights/model-mix?timeRange=${timeRange}&repo=${repo}&tz=${tz}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<ModelMixClient>;

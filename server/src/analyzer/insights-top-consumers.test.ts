@@ -273,4 +273,39 @@ describe("computeInsightsTopConsumers", () => {
     expect(result.sessions).toHaveLength(1);
     expect(result.sessions[0].sessionId).toBe("r1-s1");
   });
+
+  describe("timezone offset (tzOffset)", () => {
+    it("tzOffset=0 produces the same date string as no-arg call", () => {
+      const session = makeSession("s1", "/repo", "2026-04-13T23:30:00Z");
+      mockedSessionData.mockReturnValue({
+        fileSize: 100, offset: 100, tokensIn: 100, tokensOut: 50,
+        cacheReadTokens: 0, cost: 0.01, turns: 1,
+      });
+      const resultDefault = computeInsightsTopConsumers([session], "all", "all");
+      const resultZero = computeInsightsTopConsumers([session], "all", "all", 0);
+      expect(resultZero.sessions[0].date).toBe(resultDefault.sessions[0].date);
+    });
+
+    it("shifts session date to local date when tzOffset crosses midnight", () => {
+      // Session at 2026-04-13T23:30:00Z. In UTC+7 (tzOffset=-420), local date is 2026-04-14
+      const session = makeSession("s1", "/repo", "2026-04-13T23:30:00Z");
+      mockedSessionData.mockReturnValue({
+        fileSize: 100, offset: 100, tokensIn: 100, tokensOut: 50,
+        cacheReadTokens: 0, cost: 0.01, turns: 1,
+      });
+      const result = computeInsightsTopConsumers([session], "all", "all", -420);
+      expect(result.sessions[0].date).toBe("2026-04-14");
+    });
+
+    it("does not shift date when tzOffset=0 for a midnight-boundary session", () => {
+      // Session at 2026-04-13T23:30:00Z. With tzOffset=0, local date is still 2026-04-13
+      const session = makeSession("s1", "/repo", "2026-04-13T23:30:00Z");
+      mockedSessionData.mockReturnValue({
+        fileSize: 100, offset: 100, tokensIn: 100, tokensOut: 50,
+        cacheReadTokens: 0, cost: 0.01, turns: 1,
+      });
+      const result = computeInsightsTopConsumers([session], "all", "all", 0);
+      expect(result.sessions[0].date).toBe("2026-04-13");
+    });
+  });
 });

@@ -64,7 +64,8 @@ export function useInsightsCommandsAgentsSkills(
     setLoading(true);
     setError(null);
 
-    fetch(`/api/insights/commands-agents-skills?timeRange=${timeRange}&repo=${repo}`)
+    const tz = new Date().getTimezoneOffset();
+    fetch(`/api/insights/commands-agents-skills?timeRange=${timeRange}&repo=${repo}&tz=${tz}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<CommandsAgentsSkillsClient>;

@@ -16,6 +16,9 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
   router.get("/insights/aggregate", (req, res) => {
     const timeRange = (req.query.timeRange as string) ?? "7d";
     const repo = (req.query.repo as string) ?? "all";
+    const tzRaw = typeof req.query.tz === "string" ? req.query.tz : "0";
+    const tzParsed = parseInt(tzRaw, 10);
+    const tzOffset = isNaN(tzParsed) ? 0 : tzParsed;
 
     if (!VALID_TIME_RANGES.has(timeRange)) {
       res.status(400).json({
@@ -29,7 +32,8 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
       const aggregate = computeInsightsAggregate(
         sessions,
         timeRange as InsightsTimeRange,
-        repo
+        repo,
+        tzOffset
       );
       res.json(aggregate);
     } catch {
@@ -40,6 +44,9 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
   router.get("/insights/activity", (req, res) => {
     const timeRange = (req.query.timeRange as string) ?? "7d";
     const repo = (req.query.repo as string) ?? "all";
+    const tzRaw = typeof req.query.tz === "string" ? req.query.tz : "0";
+    const tzParsed = parseInt(tzRaw, 10);
+    const tzOffset = isNaN(tzParsed) ? 0 : tzParsed;
 
     if (!VALID_TIME_RANGES.has(timeRange)) {
       res.status(400).json({
@@ -53,7 +60,8 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
       const activity = computeInsightsActivity(
         sessions,
         timeRange as InsightsTimeRange,
-        repo
+        repo,
+        tzOffset
       );
       res.json(activity);
     } catch {
@@ -64,6 +72,10 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
   router.get("/insights/model-mix", (req, res) => {
     const timeRange = (req.query.timeRange as string) ?? "7d";
     const repo = (req.query.repo as string) ?? "all";
+    const tzRaw = typeof req.query.tz === "string" ? req.query.tz : "0";
+    // model-mix has no date bucketing so tzOffset is parsed but not forwarded
+    const tzParsed = parseInt(tzRaw, 10);
+    const _tzOffset = isNaN(tzParsed) ? 0 : tzParsed;
 
     if (!VALID_TIME_RANGES.has(timeRange)) {
       res.status(400).json({
@@ -88,6 +100,9 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
   router.get("/insights/top-consumers", (req, res) => {
     const timeRange = (req.query.timeRange as string) ?? "7d";
     const repo = (req.query.repo as string) ?? "all";
+    const tzRaw = typeof req.query.tz === "string" ? req.query.tz : "0";
+    const tzParsed = parseInt(tzRaw, 10);
+    const tzOffset = isNaN(tzParsed) ? 0 : tzParsed;
 
     if (!VALID_TIME_RANGES.has(timeRange)) {
       res.status(400).json({
@@ -101,7 +116,8 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
       const topConsumers = computeInsightsTopConsumers(
         sessions,
         timeRange as InsightsTimeRange,
-        repo
+        repo,
+        tzOffset
       );
       res.json(topConsumers);
     } catch {
@@ -112,6 +128,10 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
   router.get("/insights/commands-agents-skills", (req, res) => {
     const timeRange = (req.query.timeRange as string) ?? "7d";
     const repo = (req.query.repo as string) ?? "all";
+    const tzRaw = typeof req.query.tz === "string" ? req.query.tz : "0";
+    // tz parsed at route level for consistency; CAS aggregator date bucketing is out of scope for this task
+    const tzParsed = parseInt(tzRaw, 10);
+    const _tzOffset = isNaN(tzParsed) ? 0 : tzParsed;
 
     if (!VALID_TIME_RANGES.has(timeRange)) {
       res.status(400).json({

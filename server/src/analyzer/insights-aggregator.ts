@@ -88,10 +88,21 @@ export function getTimeRangeCutoff(timeRange: InsightsTimeRange): number {
   }
 }
 
+/**
+ * Converts a UTC timestamp to a local Date by shifting by tzOffset minutes.
+ * tzOffset follows JS convention: getTimezoneOffset() returns minutes WEST of UTC.
+ * Vietnam UTC+7 → -420. Use local.getUTCHours() and local.toISOString().slice(0,10)
+ * after this to get local hour/date.
+ */
+function toLocalDate(utcMs: number, tzOffset: number): Date {
+  return new Date(utcMs - tzOffset * 60_000);
+}
+
 export function computeInsightsAggregate(
   sessions: SessionInfo[],
   timeRange: InsightsTimeRange,
-  repo: string
+  repo: string,
+  tzOffset: number = 0
 ): InsightsAggregate {
   const fromMs = getTimeRangeCutoff(timeRange);
 
@@ -120,9 +131,9 @@ export function computeInsightsAggregate(
     totalCost += data.cost;
     totalTurns += data.turns;
 
-    const dt = new Date(session.startTime);
-    const dateKey = dt.toISOString().slice(0, 10);
-    const hour = dt.getUTCHours();
+    const local = toLocalDate(new Date(session.startTime).getTime(), tzOffset);
+    const dateKey = local.toISOString().slice(0, 10);
+    const hour = local.getUTCHours();
 
     activeDaySet.add(dateKey);
     hourWeights[hour] += data.tokensIn + data.tokensOut;

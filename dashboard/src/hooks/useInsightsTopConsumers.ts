@@ -50,7 +50,8 @@ export function useInsightsTopConsumers(
     setLoading(true);
     setError(null);
 
-    fetch(`/api/insights/top-consumers?timeRange=${timeRange}&repo=${repo}`)
+    const tz = new Date().getTimezoneOffset();
+    fetch(`/api/insights/top-consumers?timeRange=${timeRange}&repo=${repo}&tz=${tz}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<TopConsumersClient>;

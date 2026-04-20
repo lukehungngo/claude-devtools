@@ -43,22 +43,25 @@ const RANGE_DAYS: Record<string, number | null> = {
   "all": null,
 };
 
-function daysAgoUtcString(daysAgo: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - daysAgo);
-  return d.toISOString().slice(0, 10);
+function daysAgoLocalString(n: number, tzOffset: number): string {
+  // tzOffset is JS getTimezoneOffset() — minutes WEST of UTC (e.g. UTC+7 → -420).
+  // To get local time: subtract tzOffset minutes from UTC.
+  const localMs = Date.now() - tzOffset * 60_000;
+  const d = new Date(localMs - n * 86_400_000);
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD in local time
 }
 
 function sumDailySlice(
   daily: InsightsAggregateClient["daily"],
   fromDaysAgo: number,
-  toDaysAgo: number
+  toDaysAgo: number,
+  tzOffset: number
 ): { tokensIn: number; tokensOut: number; cost: number } {
   // Compare by date string (YYYY-MM-DD) to avoid sub-day timestamp drift.
   // Range is [fromDaysAgo, toDaysAgo) — inclusive lower bound, exclusive upper bound.
   // For toDaysAgo=0 we include today and beyond (open upper bound).
-  const fromDate = daysAgoUtcString(fromDaysAgo);
-  const toDate = toDaysAgo === 0 ? null : daysAgoUtcString(toDaysAgo);
+  const fromDate = daysAgoLocalString(fromDaysAgo, tzOffset);
+  const toDate = toDaysAgo === 0 ? null : daysAgoLocalString(toDaysAgo, tzOffset);
 
   return daily
     .filter((d) => d.date >= fromDate && (toDate === null || d.date < toDate))
@@ -92,10 +95,11 @@ export function useInsightsAggregate(
     setLoading(true);
     setError(null);
 
-    const primaryUrl = `/api/insights/aggregate?timeRange=${timeRange}&repo=${repo}`;
+    const tz = new Date().getTimezoneOffset();
+    const primaryUrl = `/api/insights/aggregate?timeRange=${timeRange}&repo=${repo}&tz=${tz}`;
     const deltaRange = DELTA_RANGE[timeRange] ?? null;
     const deltaUrl = deltaRange
-      ? `/api/insights/aggregate?timeRange=${deltaRange}&repo=${repo}`
+      ? `/api/insights/aggregate?timeRange=${deltaRange}&repo=${repo}&tz=${tz}`
       : null;
 
     const primaryFetch = fetch(primaryUrl).then((r) => {
@@ -116,8 +120,8 @@ export function useInsightsAggregate(
         setData(primary);
         const rangeDays = RANGE_DAYS[timeRange] ?? null;
         if (wider !== null && rangeDays !== null) {
-          const currentSlice = sumDailySlice(wider.daily, rangeDays, 0);
-          const prevSlice = sumDailySlice(wider.daily, rangeDays * 2, rangeDays);
+          const currentSlice = sumDailySlice(wider.daily, rangeDays, 0, tz);
+          const prevSlice = sumDailySlice(wider.daily, rangeDays * 2, rangeDays, tz);
           setDelta({
             tokensIn: computeDelta(currentSlice.tokensIn, prevSlice.tokensIn),
             tokensOut: computeDelta(currentSlice.tokensOut, prevSlice.tokensOut),

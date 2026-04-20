@@ -21,7 +21,8 @@ export function useInsightsActivity(
     setLoading(true);
     setError(null);
 
-    const url = `/api/insights/activity?timeRange=${encodeURIComponent(timeRange)}&repo=${encodeURIComponent(repo)}`;
+    const tz = new Date().getTimezoneOffset();
+    const url = `/api/insights/activity?timeRange=${encodeURIComponent(timeRange)}&repo=${encodeURIComponent(repo)}&tz=${tz}`;
 
     fetch(url)
       .then((r) => {

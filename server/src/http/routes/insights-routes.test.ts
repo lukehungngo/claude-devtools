@@ -94,13 +94,14 @@ describe("GET /insights/aggregate", () => {
     expect(mockedAggregate).toHaveBeenCalledWith(
       expect.anything(),
       "30d",
-      "/home/user/project"
+      "/home/user/project",
+      0
     );
   });
 
   it("uses 7d and all as defaults", async () => {
     await request(buildApp()).get("/insights/aggregate");
-    expect(mockedAggregate).toHaveBeenCalledWith(expect.anything(), "7d", "all");
+    expect(mockedAggregate).toHaveBeenCalledWith(expect.anything(), "7d", "all", 0);
   });
 
   it("returns 400 for invalid timeRange", async () => {
@@ -124,6 +125,36 @@ describe("GET /insights/aggregate", () => {
       expect(res.status).toBe(200);
     }
   });
+
+  it("passes tz param as tzOffset to computeInsightsAggregate", async () => {
+    await request(buildApp()).get("/insights/aggregate?tz=-420");
+    expect(mockedAggregate).toHaveBeenCalledWith(
+      expect.anything(),
+      "7d",
+      "all",
+      -420
+    );
+  });
+
+  it("defaults tz to 0 when not provided", async () => {
+    await request(buildApp()).get("/insights/aggregate");
+    expect(mockedAggregate).toHaveBeenCalledWith(
+      expect.anything(),
+      "7d",
+      "all",
+      0
+    );
+  });
+
+  it("defaults tz to 0 when invalid value provided", async () => {
+    await request(buildApp()).get("/insights/aggregate?tz=abc");
+    expect(mockedAggregate).toHaveBeenCalledWith(
+      expect.anything(),
+      "7d",
+      "all",
+      0
+    );
+  });
 });
 
 describe("GET /insights/activity", () => {
@@ -141,13 +172,24 @@ describe("GET /insights/activity", () => {
     expect(mockedActivity).toHaveBeenCalledWith(
       expect.anything(),
       "30d",
-      "/home/user/project"
+      "/home/user/project",
+      0
     );
   });
 
   it("uses 7d and all as defaults", async () => {
     await request(buildApp()).get("/insights/activity");
-    expect(mockedActivity).toHaveBeenCalledWith(expect.anything(), "7d", "all");
+    expect(mockedActivity).toHaveBeenCalledWith(expect.anything(), "7d", "all", 0);
+  });
+
+  it("passes tz param as tzOffset to computeInsightsActivity", async () => {
+    await request(buildApp()).get("/insights/activity?tz=-420");
+    expect(mockedActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      "7d",
+      "all",
+      -420
+    );
   });
 
   it("returns 400 for invalid timeRange", async () => {
@@ -212,13 +254,24 @@ describe("GET /insights/top-consumers", () => {
   it("passes timeRange and repo to computeInsightsTopConsumers", async () => {
     mockedDiscover.mockReturnValue([]);
     await request(buildApp()).get("/insights/top-consumers?timeRange=90d&repo=all");
-    expect(mockedTopConsumers).toHaveBeenCalledWith([], "90d", "all");
+    expect(mockedTopConsumers).toHaveBeenCalledWith([], "90d", "all", 0);
   });
 
   it("uses 7d and all as defaults", async () => {
     mockedDiscover.mockReturnValue([]);
     await request(buildApp()).get("/insights/top-consumers");
-    expect(mockedTopConsumers).toHaveBeenCalledWith(expect.anything(), "7d", "all");
+    expect(mockedTopConsumers).toHaveBeenCalledWith(expect.anything(), "7d", "all", 0);
+  });
+
+  it("passes tz param as tzOffset to computeInsightsTopConsumers", async () => {
+    mockedDiscover.mockReturnValue([]);
+    await request(buildApp()).get("/insights/top-consumers?tz=300");
+    expect(mockedTopConsumers).toHaveBeenCalledWith(
+      expect.anything(),
+      "7d",
+      "all",
+      300
+    );
   });
 });
 

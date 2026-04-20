@@ -74,10 +74,20 @@ function computeToolCountsForSession(session: SessionInfo): Map<string, number> 
   }
 }
 
+/**
+ * Converts a UTC timestamp to a local Date by shifting by tzOffset minutes.
+ * tzOffset follows JS convention: getTimezoneOffset() returns minutes WEST of UTC.
+ * Vietnam UTC+7 → -420. Use local.toISOString().slice(0,10) for local date.
+ */
+function toLocalDate(utcMs: number, tzOffset: number): Date {
+  return new Date(utcMs - tzOffset * 60_000);
+}
+
 export function computeInsightsTopConsumers(
   sessions: SessionInfo[],
   timeRange: InsightsTimeRange,
-  repo: string
+  repo: string,
+  tzOffset: number = 0
 ): InsightsTopConsumers {
   const fromMs = getTimeRangeCutoff(timeRange);
 
@@ -124,7 +134,7 @@ export function computeInsightsTopConsumers(
 
     sessionCosts.push({
       sessionId: session.id,
-      date: new Date(session.startTime).toISOString().slice(0, 10),
+      date: toLocalDate(new Date(session.startTime).getTime(), tzOffset).toISOString().slice(0, 10),
       repo: repoName,
       cost: data.cost,
     });

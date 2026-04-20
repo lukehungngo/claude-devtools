@@ -223,4 +223,43 @@ describe("computeInsightsAggregate", () => {
     const result = computeInsightsAggregate([session], "7d", "all");
     expect(result.cacheReadTokens).toBe(0);
   });
+
+  describe("timezone offset (tzOffset)", () => {
+    it("tzOffset=0 produces identical results to no-arg call", () => {
+      const today = new Date();
+      today.setUTCHours(10, 0, 0, 0);
+      const session = makeSession({ startTime: today.toISOString() });
+      mockedParse.mockReturnValue({ events: [makeAssistantEvent(500, 200)], newOffset: 200 });
+      const resultDefault = computeInsightsAggregate([session], "7d", "all");
+      const resultZero = computeInsightsAggregate([session], "7d", "all", 0);
+      expect(resultZero.daily[0].date).toBe(resultDefault.daily[0].date);
+      expect(resultZero.peakHour).toBe(resultDefault.peakHour);
+    });
+
+    it("shifts date bucket when tzOffset crosses midnight (UTC→local date change)", () => {
+      // Session at 2026-04-13T23:30:00Z. In UTC+7 (tzOffset=-420), local time is 2026-04-14T06:30
+      // So the local date bucket should be "2026-04-14", not "2026-04-13"
+      const session = makeSession({ startTime: "2026-04-13T23:30:00.000Z" });
+      mockedParse.mockReturnValue({ events: [makeAssistantEvent(100, 50)], newOffset: 100 });
+      const result = computeInsightsAggregate([session], "all", "all", -420);
+      expect(result.daily).toHaveLength(1);
+      expect(result.daily[0].date).toBe("2026-04-14");
+    });
+
+    it("shifts peakHour to local hour when tzOffset is applied", () => {
+      // Session at 2026-04-13T23:00:00Z. In UTC+7 (tzOffset=-420), local hour is 6
+      const session = makeSession({ startTime: "2026-04-13T23:00:00.000Z" });
+      mockedParse.mockReturnValue({ events: [makeAssistantEvent(100, 50)], newOffset: 100 });
+      const result = computeInsightsAggregate([session], "all", "all", -420);
+      expect(result.peakHour).toBe(6);
+    });
+
+    it("shifts peakHour backwards for negative UTC offset (UTC-5 / EST)", () => {
+      // Session at 2026-04-14T10:00:00Z. In UTC-5 (tzOffset=300), local hour is 5
+      const session = makeSession({ startTime: "2026-04-14T10:00:00.000Z" });
+      mockedParse.mockReturnValue({ events: [makeAssistantEvent(100, 50)], newOffset: 100 });
+      const result = computeInsightsAggregate([session], "all", "all", 300);
+      expect(result.peakHour).toBe(5);
+    });
+  });
 });

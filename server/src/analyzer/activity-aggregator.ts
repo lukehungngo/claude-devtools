@@ -7,10 +7,20 @@ import type {
 } from "../types.js";
 import { computeInsightsSessionData, getTimeRangeCutoff } from "./insights-aggregator.js";
 
+/**
+ * Converts a UTC timestamp to a local Date by shifting by tzOffset minutes.
+ * tzOffset follows JS convention: getTimezoneOffset() returns minutes WEST of UTC.
+ * Vietnam UTC+7 → -420. Use local.getUTCHours() and local.getUTCDay() after this.
+ */
+function toLocalDate(utcMs: number, tzOffset: number): Date {
+  return new Date(utcMs - tzOffset * 60_000);
+}
+
 export function computeInsightsActivity(
   sessions: SessionInfo[],
   timeRange: InsightsTimeRange,
-  repo: string
+  repo: string,
+  tzOffset: number = 0
 ): InsightsActivity {
   const fromMs = getTimeRangeCutoff(timeRange);
 
@@ -28,9 +38,9 @@ export function computeInsightsActivity(
   for (const session of filtered) {
     const data = computeInsightsSessionData(session);
     const volume = data.tokensIn + data.tokensOut;
-    const dt = new Date(session.startTime);
-    const day = (dt.getUTCDay() + 6) % 7;
-    const hour = dt.getUTCHours();
+    const local = toLocalDate(new Date(session.startTime).getTime(), tzOffset);
+    const day = (local.getUTCDay() + 6) % 7;
+    const hour = local.getUTCHours();
     grid[day][hour] += volume;
     hourlyTokens[hour] += volume;
     hourlyCounts[hour]++;

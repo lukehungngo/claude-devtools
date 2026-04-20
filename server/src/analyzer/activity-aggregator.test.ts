@@ -101,4 +101,37 @@ describe("computeInsightsActivity", () => {
     expect(result.heatmap.every((c) => c.intensity === 0)).toBe(true);
     expect(result.hourly.every((h) => h.tokensAvg === 0)).toBe(true);
   });
+
+  describe("timezone offset (tzOffset)", () => {
+    it("tzOffset=0 produces identical results to default call", () => {
+      const sessions = [makeSession("s1", "2026-04-13T10:00:00Z")];
+      const resultDefault = computeInsightsActivity(sessions, "all", "all");
+      const resultZero = computeInsightsActivity(sessions, "all", "all", 0);
+      expect(resultZero.heatmap).toEqual(resultDefault.heatmap);
+      expect(resultZero.hourly).toEqual(resultDefault.hourly);
+    });
+
+    it("shifts day-of-week bucket when tzOffset crosses midnight (UTC Sun → local Mon)", () => {
+      // 2026-04-19T23:30:00Z is Sunday. In UTC+7 (tzOffset=-420), local is 2026-04-20T06:30 = Monday
+      // Monday maps to day index 0 (Mon=0), Sunday maps to day index 6 (Sun=6)
+      const sessions = [makeSession("s1", "2026-04-19T23:30:00Z")];
+      const result = computeInsightsActivity(sessions, "all", "all", -420);
+      // Should be in day 0 (Monday), hour 6
+      const cell = result.heatmap.find((c) => c.day === 0 && c.hour === 6);
+      expect(cell?.intensity).toBeGreaterThan(0);
+      // Should NOT be in day 6 (Sunday), hour 23
+      const wrongCell = result.heatmap.find((c) => c.day === 6 && c.hour === 23);
+      expect(wrongCell?.intensity).toBe(0);
+    });
+
+    it("shifts hour bucket when tzOffset is applied (UTC-5 / EST)", () => {
+      // 2026-04-14T10:00:00Z. In UTC-5 (tzOffset=300), local hour is 5
+      const sessions = [makeSession("s1", "2026-04-14T10:00:00Z")];
+      const result = computeInsightsActivity(sessions, "all", "all", 300);
+      const hourlyBucket = result.hourly.find((h) => h.hour === 5);
+      expect(hourlyBucket?.tokensAvg).toBeGreaterThan(0);
+      const wrongBucket = result.hourly.find((h) => h.hour === 10);
+      expect(wrongBucket?.tokensAvg).toBe(0);
+    });
+  });
 });
