@@ -330,3 +330,10 @@ export interface InsightsActivity {
   hourly: InsightsHourlyBucket[];
   daily?: InsightsDailyPoint[];
 }
+
+export interface InsightsToolMilestone {
+  name: string;        // MCP server name, e.g. "token-savior", "claude-mem"
+  firstSeen: string;   // YYYY-MM-DD (earliest session using this tool)
+  lastSeen: string;    // YYYY-MM-DD (most recent session using this tool)
+  isActive: boolean;   // true if lastSeen is within last 14 days
+}

@@ -11,6 +11,7 @@ import { HourlyBars } from "../components/insights/HourlyBars.js";
 import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
 import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
 import { useInsightsCommandsAgentsSkills } from "../hooks/useInsightsCommandsAgentsSkills";
+import { useInsightsToolMilestones } from "../hooks/useInsightsToolMilestones";
 import { CASRow, BADGE_PALETTE, abbreviateName } from "../components/insights/CASRow";
 import { TokenTrendChart } from "../components/insights/TokenTrendChart";
 
@@ -268,6 +269,8 @@ export function InsightsPage(): JSX.Element {
   }, [topConsumersData?.repos]);
   const { data: casData, loading: casLoading } =
     useInsightsCommandsAgentsSkills(timeRange, repo, refreshCount);
+  const { data: toolMilestonesData } =
+    useInsightsToolMilestones(timeRange, repo, refreshCount);
   const anyLoading = loading || activityLoading || modelMixLoading || topConsumersLoading || casLoading;
 
   useEffect(() => {
@@ -479,7 +482,11 @@ export function InsightsPage(): JSX.Element {
           <h2 className="text-lg font-semibold text-dt-text0 mb-3" style={{ letterSpacing: "-0.01em" }}>
             Token Trend
           </h2>
-          <TokenTrendChart daily={activityData?.daily} loading={activityLoading} />
+          <TokenTrendChart
+            daily={activityData?.daily}
+            loading={activityLoading}
+            autoMilestones={toolMilestonesData ?? undefined}
+          />
         </section>
 
         {/* Model Mix section */}

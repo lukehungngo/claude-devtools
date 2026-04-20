@@ -45,6 +45,12 @@ vi.mock("../../analyzer/insights-commands-agents-skills.js", () => ({
     skills: [{ name: "verification", count: 2, share: 1.0, daily: [1, 1, 0, 0, 0, 0, 0], trend: "improving" as const, tokensIn: 400, tokensOut: 300, avgTokensIn: 200, avgTokensOut: 150 }],
   })),
 }));
+vi.mock("../../analyzer/tool-milestone-scanner.js", () => ({
+  scanToolMilestones: vi.fn(() => [
+    { name: "token-savior", firstSeen: "2026-04-01", lastSeen: "2026-04-18", isActive: true },
+    { name: "claude-mem", firstSeen: "2026-04-05", lastSeen: "2026-04-15", isActive: true },
+  ]),
+}));
 vi.mock("../../logger.js", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -59,6 +65,7 @@ import { computeInsightsActivity } from "../../analyzer/activity-aggregator.js";
 import { computeInsightsModelMix } from "../../analyzer/insights-model-mix.js";
 import { computeInsightsTopConsumers } from "../../analyzer/insights-top-consumers.js";
 import { computeInsightsCommandsAgentsSkills } from "../../analyzer/insights-commands-agents-skills.js";
+import { scanToolMilestones } from "../../analyzer/tool-milestone-scanner.js";
 
 const mockedDiscover = vi.mocked(discoverSessions);
 const mockedAggregate = vi.mocked(computeInsightsAggregate);
@@ -66,6 +73,7 @@ const mockedActivity = vi.mocked(computeInsightsActivity);
 const mockedModelMix = vi.mocked(computeInsightsModelMix);
 const mockedTopConsumers = vi.mocked(computeInsightsTopConsumers);
 const mockedCas = vi.mocked(computeInsightsCommandsAgentsSkills);
+const mockedScanMilestones = vi.mocked(scanToolMilestones);
 
 function buildApp() {
   const app = express();
@@ -247,5 +255,57 @@ describe("GET /insights/commands-agents-skills", () => {
     mockedDiscover.mockReturnValue([]);
     await request(buildApp()).get("/insights/commands-agents-skills");
     expect(mockedCas).toHaveBeenCalledWith(expect.anything(), "7d", "all");
+  });
+});
+
+describe("GET /insights/tool-milestones", () => {
+  it("returns 200 with milestones array", async () => {
+    mockedDiscover.mockReturnValue([]);
+    const res = await request(buildApp()).get("/insights/tool-milestones");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it("returns milestone shape with name/firstSeen/lastSeen/isActive", async () => {
+    mockedDiscover.mockReturnValue([]);
+    const res = await request(buildApp()).get("/insights/tool-milestones");
+    expect(res.status).toBe(200);
+    expect(res.body[0]).toMatchObject({
+      name: expect.any(String),
+      firstSeen: expect.any(String),
+      lastSeen: expect.any(String),
+      isActive: expect.any(Boolean),
+    });
+  });
+
+  it("passes repo query param to scanToolMilestones", async () => {
+    mockedDiscover.mockReturnValue([]);
+    await request(buildApp()).get("/insights/tool-milestones?repo=/home/user/project");
+    expect(mockedScanMilestones).toHaveBeenCalledWith(
+      expect.anything(),
+      "/home/user/project"
+    );
+  });
+
+  it("uses 'all' as default repo", async () => {
+    mockedDiscover.mockReturnValue([]);
+    await request(buildApp()).get("/insights/tool-milestones");
+    expect(mockedScanMilestones).toHaveBeenCalledWith(expect.anything(), "all");
+  });
+
+  it("calls discoverSessions()", async () => {
+    mockedDiscover.mockReturnValue([]);
+    await request(buildApp()).get("/insights/tool-milestones");
+    expect(mockedDiscover).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 500 when scanner throws", async () => {
+    mockedDiscover.mockReturnValue([]);
+    mockedScanMilestones.mockImplementationOnce(() => {
+      throw new Error("Unexpected error");
+    });
+    const res = await request(buildApp()).get("/insights/tool-milestones");
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBeDefined();
   });
 });

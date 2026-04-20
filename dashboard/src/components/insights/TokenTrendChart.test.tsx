@@ -262,3 +262,63 @@ describe("TokenTrendChart — delete milestone", () => {
     expect(screen.getByTestId("milestones-empty")).toBeTruthy();
   });
 });
+
+describe("TokenTrendChart — auto milestones", () => {
+  const AUTO_MILESTONES = [
+    { name: "token-savior", firstSeen: "2026-04-10", lastSeen: "2026-04-12", isActive: true },
+    { name: "claude-mem", firstSeen: "2026-04-11", lastSeen: "2026-04-12", isActive: false },
+  ];
+
+  it("renders auto milestone bands when autoMilestones is provided", () => {
+    render(<TokenTrendChart daily={DAILY} autoMilestones={AUTO_MILESTONES} />);
+    expect(screen.getByTestId("auto-milestones-section")).toBeTruthy();
+  });
+
+  it("renders one AutoMilestoneBand per auto milestone", () => {
+    render(<TokenTrendChart daily={DAILY} autoMilestones={AUTO_MILESTONES} />);
+    expect(screen.getByTestId("auto-milestone-band-token-savior")).toBeTruthy();
+    expect(screen.getByTestId("auto-milestone-band-claude-mem")).toBeTruthy();
+  });
+
+  it("shows auto milestone names", () => {
+    render(<TokenTrendChart daily={DAILY} autoMilestones={AUTO_MILESTONES} />);
+    expect(screen.getByText("token-savior")).toBeTruthy();
+    expect(screen.getByText("claude-mem")).toBeTruthy();
+  });
+
+  it("does NOT render delete button for auto milestones", () => {
+    render(<TokenTrendChart daily={DAILY} autoMilestones={AUTO_MILESTONES} />);
+    expect(screen.queryByTestId("milestone-delete-token-savior")).toBeNull();
+    expect(screen.queryByTestId("milestone-delete-claude-mem")).toBeNull();
+  });
+
+  it("shows empty state when no auto milestones and no manual milestones", () => {
+    render(<TokenTrendChart daily={DAILY} autoMilestones={[]} />);
+    expect(screen.getByTestId("milestones-empty")).toBeTruthy();
+  });
+
+  it("does not show empty state when autoMilestones is non-empty", () => {
+    render(<TokenTrendChart daily={DAILY} autoMilestones={AUTO_MILESTONES} />);
+    expect(screen.queryByTestId("milestones-empty")).toBeNull();
+  });
+
+  it("still renders add milestone button alongside auto milestones", () => {
+    render(<TokenTrendChart daily={DAILY} autoMilestones={AUTO_MILESTONES} />);
+    expect(screen.getByTestId("add-milestone-btn")).toBeTruthy();
+  });
+
+  it("renders both auto and manual milestones when both exist", () => {
+    const stored = JSON.stringify([
+      { id: "m1", name: "My Tool", startDate: "2026-04-10", endDate: null, color: "blue" },
+    ]);
+    window.localStorage.getItem = vi.fn((key: string) => (key === LS_KEY ? stored : null));
+
+    render(<TokenTrendChart daily={DAILY} autoMilestones={AUTO_MILESTONES} />);
+    expect(screen.getByTestId("auto-milestone-band-token-savior")).toBeTruthy();
+    expect(screen.getByText("My Tool")).toBeTruthy();
+  });
+
+  it("does not crash when autoMilestones is undefined", () => {
+    expect(() => render(<TokenTrendChart daily={DAILY} />)).not.toThrow();
+  });
+});

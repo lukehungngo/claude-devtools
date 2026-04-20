@@ -9,6 +9,7 @@ import {
   Tooltip,
 } from "recharts";
 import { Plus, X } from "lucide-react";
+import type { InsightsToolMilestone } from "../../lib/types.js";
 
 // ──────────────────────────────────────────────
 // Types
@@ -32,6 +33,7 @@ interface Milestone {
 export interface TokenTrendChartProps {
   daily?: DailyPoint[];
   loading?: boolean;
+  autoMilestones?: InsightsToolMilestone[];
 }
 
 // ──────────────────────────────────────────────
@@ -155,6 +157,101 @@ function MilestoneBand({ milestone, daily, onDelete }: MilestoneBandProps): JSX.
       >
         <X size={13} />
       </button>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Auto milestone band (read-only, from server scan)
+// ──────────────────────────────────────────────
+
+interface AutoMilestoneBandProps {
+  milestone: InsightsToolMilestone;
+  daily: DailyPoint[];
+}
+
+/** Auto-badge color cycle for MCP server bands */
+const AUTO_BAND_COLORS = [
+  "#6366F1", // indigo
+  "#10B981", // emerald
+  "#F59E0B", // amber
+  "#EC4899", // pink
+  "#8B5CF6", // violet
+  "#14B8A6", // teal
+];
+
+function AutoMilestoneBand({ milestone, daily }: AutoMilestoneBandProps): JSX.Element {
+  // Compute position based on firstSeen / lastSeen relative to the daily chart range
+  let leftPct = 0;
+  let widthPct = 10; // fallback
+
+  if (daily.length > 0) {
+    const first = daily[0].date;
+    const last = daily[daily.length - 1].date;
+    const totalMs = new Date(last).getTime() - new Date(first).getTime() || 1;
+
+    const startMs = Math.max(
+      new Date(milestone.firstSeen).getTime() - new Date(first).getTime(),
+      0
+    );
+    const endMs = Math.min(
+      new Date(milestone.lastSeen).getTime() - new Date(first).getTime(),
+      totalMs
+    );
+
+    leftPct = Math.min((startMs / totalMs) * 100, 100);
+    widthPct = Math.min(Math.max(((endMs - startMs) / totalMs) * 100, 2), 100 - leftPct);
+  }
+
+  // Stable color per server name (hash index into palette)
+  const colorIndex =
+    milestone.name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) %
+    AUTO_BAND_COLORS.length;
+  const bg = AUTO_BAND_COLORS[colorIndex];
+
+  return (
+    <div
+      data-testid={`auto-milestone-band-${milestone.name}`}
+      className="relative flex items-center"
+      style={{ height: 28, marginBottom: 4 }}
+    >
+      {/* Full-width track */}
+      <div
+        className="absolute inset-0 rounded"
+        style={{ background: "var(--border)", opacity: 0.3 }}
+      />
+      {/* Colored band */}
+      <div
+        className="absolute top-0 bottom-0 rounded opacity-60"
+        style={{
+          left: `${leftPct}%`,
+          width: `${widthPct}%`,
+          background: bg,
+        }}
+      />
+      {/* Label */}
+      <span
+        className="relative z-10 ml-2 text-sm font-mono font-semibold text-dt-text0 truncate flex-1"
+        style={{ maxWidth: "calc(100% - 56px)" }}
+      >
+        {milestone.name}
+      </span>
+      {/* "auto" badge + active indicator */}
+      <span className="relative z-10 ml-auto mr-2 flex items-center gap-1.5 flex-shrink-0">
+        {milestone.isActive && (
+          <span
+            className="inline-block rounded-full bg-dt-green"
+            style={{ width: 6, height: 6 }}
+            title="Active in last 14 days"
+          />
+        )}
+        <span
+          className="text-xs font-mono font-bold uppercase tracking-wider text-dt-text2 bg-dt-bg2 border border-dt-border rounded px-1"
+          style={{ lineHeight: "16px" }}
+        >
+          auto
+        </span>
+      </span>
     </div>
   );
 }
@@ -350,7 +447,7 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps): JSX.Elem
 // Main component
 // ──────────────────────────────────────────────
 
-export function TokenTrendChart({ daily, loading = false }: TokenTrendChartProps): JSX.Element {
+export function TokenTrendChart({ daily, loading = false, autoMilestones }: TokenTrendChartProps): JSX.Element {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [showForm, setShowForm] = useState(false);
 
@@ -455,15 +552,32 @@ export function TokenTrendChart({ daily, loading = false }: TokenTrendChartProps
           />
         )}
 
-        {/* Milestone bands */}
-        {milestones.length === 0 ? (
+        {/* Auto-detected MCP milestones (read-only, shown first) */}
+        {autoMilestones && autoMilestones.length > 0 && (
+          <div
+            data-testid="auto-milestones-section"
+            className="flex flex-col"
+            style={{ paddingTop: 4 }}
+          >
+            {autoMilestones.map((m) => (
+              <AutoMilestoneBand
+                key={m.name}
+                milestone={m}
+                daily={daily ?? []}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Manual milestone bands */}
+        {milestones.length === 0 && (!autoMilestones || autoMilestones.length === 0) ? (
           <div
             data-testid="milestones-empty"
             className="text-sm font-mono text-dt-text2 py-2"
           >
             Add a tool milestone to track its impact on token usage
           </div>
-        ) : (
+        ) : milestones.length > 0 ? (
           <div className="flex flex-col" style={{ paddingTop: 4 }}>
             {milestones.map((m) => (
               <MilestoneBand
@@ -474,7 +588,7 @@ export function TokenTrendChart({ daily, loading = false }: TokenTrendChartProps
               />
             ))}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
