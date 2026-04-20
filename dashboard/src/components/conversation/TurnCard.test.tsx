@@ -378,6 +378,28 @@ describe("TurnCard model badge", () => {
   });
 });
 
+describe("TurnCard — CostFooter cacheReadTokens wiring", () => {
+  it("shows 'Cached:' in CostFooter when turn.cacheReadTokens > 0", () => {
+    const evts = [makeAssistantEvent("Done.")] as SessionEvent[];
+    const { turn, allEvents } = makeTurnAndEvents(
+      {
+        cost: 0.05,
+        inputTokens: 10000,
+        outputTokens: 500,
+        cacheReadTokens: 3100,
+        costBreakdown: { total: 0.05, inputCost: 0.03, outputCost: 0.02 },
+        agents: [],
+      } as unknown as Partial<TurnSnapshot>,
+      evts,
+    );
+    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+
+    const costFooter = container.querySelector('[aria-label="Cost breakdown"]');
+    expect(costFooter).not.toBeNull();
+    expect(costFooter!.textContent).toContain("Cached");
+  });
+});
+
 describe("TurnCard — model badge in assistant header", () => {
   it("shows model name next to 'Claude' in header when model is set", () => {
     const evts = [makeAssistantEvent("Response text")] as SessionEvent[];

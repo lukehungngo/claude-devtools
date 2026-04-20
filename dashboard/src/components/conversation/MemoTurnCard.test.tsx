@@ -23,6 +23,7 @@ function makeTurn(overrides: Partial<TurnSnapshot> = {}): TurnSnapshot {
     costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
     inputTokens: 0,
     outputTokens: 0,
+    cacheReadTokens: 0,
     agents: [],
     startIndex: 0,
     endIndex: 1,

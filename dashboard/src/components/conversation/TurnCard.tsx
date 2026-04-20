@@ -199,6 +199,7 @@ export function turnCardAreEqual(
     prev.turn.cost === next.turn.cost &&
     prev.turn.inputTokens === next.turn.inputTokens &&
     prev.turn.outputTokens === next.turn.outputTokens &&
+    prev.turn.cacheReadTokens === next.turn.cacheReadTokens &&
     prev.turn.agents.length === next.turn.agents.length &&
     prev.turn.model === next.turn.model &&
     prev.isHighlighted === next.isHighlighted &&
@@ -324,6 +325,7 @@ export function TurnCard({
               agentCalls={turn.agents.length}
               inputTokens={turn.inputTokens}
               outputTokens={turn.outputTokens}
+              cacheReadTokens={turn.cacheReadTokens}
             />
           )}
 

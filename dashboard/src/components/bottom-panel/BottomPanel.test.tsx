@@ -77,6 +77,7 @@ const mockTurn: TurnSnapshot = {
   costBreakdown: { total: 0.5, inputCost: 0.3, outputCost: 0.2 },
   inputTokens: 0,
   outputTokens: 0,
+  cacheReadTokens: 0,
   startTime: "2026-01-01T00:00:00Z",
   endTime: "2026-01-01T00:00:01Z",
   dispatchedAgentIds: new Set<string>(["main"]),
