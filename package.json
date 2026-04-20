@@ -1,5 +1,5 @@
 {
-  "name": "claude-devtools",
+  "name": "@lukehungngo/claude-devtools",
   "version": "0.3.6",
   "description": "Web-based Claude Code client with agent observability",
   "bin": "./dist/cli.mjs",
