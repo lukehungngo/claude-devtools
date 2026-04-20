@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-.PHONY: dev dev-debug build package clean install lint test test-e2e typecheck bench bench-server bench-dashboard bench-all
+.PHONY: dev dev-debug build package npm-build clean install lint test test-e2e typecheck bench bench-server bench-dashboard bench-all
 
 # Install all dependencies
 install:
@@ -40,6 +40,16 @@ test-e2e:
 typecheck:
 	cd $(ROOT_DIR)/server && npx tsc --noEmit
 	cd $(ROOT_DIR)/dashboard && npx tsc --noEmit
+
+# Build npm package: dist/cli.js (server bundle) + dist/public/ (dashboard)
+npm-build:
+	mkdir -p $(ROOT_DIR)dist
+	cd $(ROOT_DIR)server && pnpm run npm-build
+	cd $(ROOT_DIR)dashboard && pnpm run build
+	mkdir -p $(ROOT_DIR)dist/public
+	cp -r $(ROOT_DIR)dashboard/dist/. $(ROOT_DIR)dist/public/
+	chmod +x $(ROOT_DIR)dist/cli.js
+	@echo "npm-build complete → dist/cli.js + dist/public/"
 
 # Build everything
 build:

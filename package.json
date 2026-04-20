@@ -1,11 +1,25 @@
 {
   "name": "claude-devtools",
-  "private": true,
-  "type": "module",
   "version": "0.2.0",
+  "type": "module",
+  "description": "Web-based Claude Code client with agent observability",
+  "bin": {
+    "claude-devtools": "./dist/cli.js"
+  },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "lint": "eslint server/src/ dashboard/src/ && pnpm --dir dashboard lint:styles",
     "lint:fix": "eslint server/src/ dashboard/src/ --fix && pnpm --dir dashboard lint:styles"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.114",
+    "chokidar": "^3.6.0",
+    "express": "^4.18.0",
+    "open": "^10.0.0",
+    "pino": "^10.3.1",
+    "ws": "^8.16.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -19,5 +33,20 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^17.4.0",
     "typescript-eslint": "^8.57.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "anthropic",
+    "ai",
+    "developer-tools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthropics/claude-devtools"
   }
 }

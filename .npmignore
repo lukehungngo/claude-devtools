@@ -1,0 +1,9 @@
+server/
+dashboard/
+docs/
+.claude/
+.worktrees/
+node_modules/
+*.log
+.env*
+eslint.config.js

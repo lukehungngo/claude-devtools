@@ -1,4 +1,5 @@
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
+import { createRequire } from "module";
 
 // ---- Row types returned by queries ----
 
@@ -137,10 +138,16 @@ export class DebugDB {
    * Factory method. Returns null if NODE_ENV !== 'development'.
    */
   static open(dbPath: string): DebugDB | null {
-    if (process.env.NODE_ENV !== "development") {
+    if (process.env.NODE_ENV !== "development") return null;
+    try {
+      // Lazy require so better-sqlite3 (native addon) is never imported in production.
+      // justification: better-sqlite3 is an optional dev-only dependency; dynamic load prevents crash when not installed.
+      const req = createRequire(import.meta.url);
+      const Db = req("better-sqlite3") as new (path: string) => Database.Database;
+      return new DebugDB(new Db(dbPath));
+    } catch {
       return null;
     }
-    return new DebugDB(new Database(dbPath));
   }
 
   private constructor(db: Database.Database) {
