@@ -307,6 +307,7 @@ export interface InsightsHourlyBucket {
 export interface InsightsActivity {
   heatmap: InsightsHeatmapCell[];
   hourly: InsightsHourlyBucket[];
+  daily: InsightsDailyBucket[];
 }
 
 export interface InsightsModelRow {

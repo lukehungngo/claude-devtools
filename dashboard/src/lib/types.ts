@@ -318,7 +318,15 @@ export interface InsightsHourlyBucket {
   tokensAvg: number;
 }
 
+export interface InsightsDailyPoint {
+  date: string;
+  tokensIn: number;
+  tokensOut: number;
+  cost: number;
+}
+
 export interface InsightsActivity {
   heatmap: InsightsHeatmapCell[];
   hourly: InsightsHourlyBucket[];
+  daily?: InsightsDailyPoint[];
 }

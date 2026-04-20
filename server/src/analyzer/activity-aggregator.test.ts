@@ -101,4 +101,58 @@ describe("computeInsightsActivity", () => {
     expect(result.heatmap.every((c) => c.intensity === 0)).toBe(true);
     expect(result.hourly.every((h) => h.tokensAvg === 0)).toBe(true);
   });
+
+  describe("daily aggregation", () => {
+    it("returns empty daily array when no sessions", () => {
+      const result = computeInsightsActivity([], "all", "all");
+      expect(result.daily).toEqual([]);
+    });
+
+    it("returns one bucket per unique UTC date", () => {
+      mockedSessionData
+        .mockReturnValueOnce({ fileSize: 100, offset: 100, tokensIn: 1000, tokensOut: 500, cacheReadTokens: 0, cost: 0.01, turns: 2 })
+        .mockReturnValueOnce({ fileSize: 100, offset: 100, tokensIn: 2000, tokensOut: 300, cacheReadTokens: 0, cost: 0.02, turns: 1 });
+      const sessions = [
+        makeSession("s1", "2026-04-13T09:00:00Z"),
+        makeSession("s2", "2026-04-14T10:00:00Z"),
+      ];
+      const result = computeInsightsActivity(sessions, "all", "all");
+      expect(result.daily).toHaveLength(2);
+      expect(result.daily[0].date).toBe("2026-04-13");
+      expect(result.daily[1].date).toBe("2026-04-14");
+    });
+
+    it("sums tokensIn, tokensOut, cost for sessions on the same date", () => {
+      mockedSessionData
+        .mockReturnValueOnce({ fileSize: 100, offset: 100, tokensIn: 1000, tokensOut: 400, cacheReadTokens: 0, cost: 0.01, turns: 1 })
+        .mockReturnValueOnce({ fileSize: 100, offset: 100, tokensIn: 500, tokensOut: 100, cacheReadTokens: 0, cost: 0.005, turns: 1 });
+      const sessions = [
+        makeSession("s1", "2026-04-13T09:00:00Z"),
+        makeSession("s2", "2026-04-13T14:00:00Z"),
+      ];
+      const result = computeInsightsActivity(sessions, "all", "all");
+      expect(result.daily).toHaveLength(1);
+      expect(result.daily[0]).toEqual({
+        date: "2026-04-13",
+        tokensIn: 1500,
+        tokensOut: 500,
+        cost: 0.015,
+      });
+    });
+
+    it("sorts daily buckets ascending by date", () => {
+      mockedSessionData
+        .mockReturnValueOnce({ fileSize: 100, offset: 100, tokensIn: 100, tokensOut: 50, cacheReadTokens: 0, cost: 0.001, turns: 1 })
+        .mockReturnValueOnce({ fileSize: 100, offset: 100, tokensIn: 200, tokensOut: 80, cacheReadTokens: 0, cost: 0.002, turns: 1 })
+        .mockReturnValueOnce({ fileSize: 100, offset: 100, tokensIn: 300, tokensOut: 90, cacheReadTokens: 0, cost: 0.003, turns: 1 });
+      // Sessions added out of order
+      const sessions = [
+        makeSession("s3", "2026-04-15T00:00:00Z"),
+        makeSession("s1", "2026-04-13T23:59:59Z"),
+        makeSession("s2", "2026-04-14T12:00:00Z"),
+      ];
+      const result = computeInsightsActivity(sessions, "all", "all");
+      expect(result.daily.map((b) => b.date)).toEqual(["2026-04-13", "2026-04-14", "2026-04-15"]);
+    });
+  });
 });
