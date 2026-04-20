@@ -307,7 +307,6 @@ export interface InsightsHourlyBucket {
 export interface InsightsActivity {
   heatmap: InsightsHeatmapCell[];
   hourly: InsightsHourlyBucket[];
-  daily: InsightsDailyBucket[];
 }
 
 export interface InsightsModelRow {
@@ -396,13 +395,6 @@ export interface InsightsCommandsAgentsSkills {
   commands: InsightsCommandRow[];  // top 10, sorted by count desc
   agents: InsightsAgentRow[];      // top 10, sorted by count desc
   skills: InsightsSkillRow[];      // top 10, sorted by count desc
-}
-
-export interface InsightsToolMilestone {
-  name: string;        // MCP server name, e.g. "token-savior", "claude-mem"
-  firstSeen: string;   // YYYY-MM-DD (earliest session using this tool)
-  lastSeen: string;    // YYYY-MM-DD (most recent session using this tool)
-  isActive: boolean;   // true if lastSeen is within last 14 days
 }
 
 export interface PermissionSuggestion {

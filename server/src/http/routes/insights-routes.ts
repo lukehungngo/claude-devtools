@@ -5,7 +5,6 @@ import { computeInsightsActivity } from "../../analyzer/activity-aggregator.js";
 import { computeInsightsModelMix } from "../../analyzer/insights-model-mix.js";
 import { computeInsightsTopConsumers } from "../../analyzer/insights-top-consumers.js";
 import { computeInsightsCommandsAgentsSkills } from "../../analyzer/insights-commands-agents-skills.js";
-import { scanToolMilestones } from "../../analyzer/tool-milestone-scanner.js";
 import type { InsightsTimeRange } from "../../types.js";
 import type { RouteContext } from "./route-context.js";
 
@@ -131,20 +130,6 @@ export function createInsightsRoutes(_ctx: RouteContext): Router {
       res.json(data);
     } catch {
       res.status(500).json({ error: "Failed to compute commands/agents/skills" });
-    }
-  });
-
-  router.get("/insights/tool-milestones", (req, res) => {
-    const repo = (req.query.repo as string) ?? "all";
-    // timeRange is accepted but not filtered here: milestones scan all sessions
-    // matching repo. The firstSeen/lastSeen dates naturally reflect the window.
-
-    try {
-      const sessions = discoverSessions();
-      const milestones = scanToolMilestones(sessions, repo);
-      res.json(milestones);
-    } catch {
-      res.status(500).json({ error: "Failed to compute tool milestones" });
     }
   });
 

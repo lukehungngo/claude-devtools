@@ -1,7 +1,6 @@
 import type {
   SessionInfo,
   InsightsActivity,
-  InsightsDailyBucket,
   InsightsHeatmapCell,
   InsightsHourlyBucket,
   InsightsTimeRange,
@@ -25,7 +24,6 @@ export function computeInsightsActivity(
   const grid: number[][] = Array.from({ length: 7 }, () => new Array<number>(24).fill(0));
   const hourlyTokens = new Array<number>(24).fill(0);
   const hourlyCounts = new Array<number>(24).fill(0);
-  const dailyMap = new Map<string, InsightsDailyBucket>();
 
   for (const session of filtered) {
     const data = computeInsightsSessionData(session);
@@ -36,13 +34,6 @@ export function computeInsightsActivity(
     grid[day][hour] += volume;
     hourlyTokens[hour] += volume;
     hourlyCounts[hour]++;
-
-    const dateKey = dt.toISOString().slice(0, 10);
-    const bucket = dailyMap.get(dateKey) ?? { date: dateKey, tokensIn: 0, tokensOut: 0, cost: 0 };
-    bucket.tokensIn += data.tokensIn;
-    bucket.tokensOut += data.tokensOut;
-    bucket.cost += data.cost;
-    dailyMap.set(dateKey, bucket);
   }
 
   let maxVolume = 0;
@@ -69,7 +60,5 @@ export function computeInsightsActivity(
     tokensAvg: hourlyCounts[h] > 0 ? hourlyTokens[h] / hourlyCounts[h] : 0,
   }));
 
-  const daily = [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date));
-
-  return { heatmap, hourly, daily };
+  return { heatmap, hourly };
 }

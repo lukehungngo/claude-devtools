@@ -318,22 +318,7 @@ export interface InsightsHourlyBucket {
   tokensAvg: number;
 }
 
-export interface InsightsDailyPoint {
-  date: string;
-  tokensIn: number;
-  tokensOut: number;
-  cost: number;
-}
-
 export interface InsightsActivity {
   heatmap: InsightsHeatmapCell[];
   hourly: InsightsHourlyBucket[];
-  daily?: InsightsDailyPoint[];
-}
-
-export interface InsightsToolMilestone {
-  name: string;        // MCP server name, e.g. "token-savior", "claude-mem"
-  firstSeen: string;   // YYYY-MM-DD (earliest session using this tool)
-  lastSeen: string;    // YYYY-MM-DD (most recent session using this tool)
-  isActive: boolean;   // true if lastSeen is within last 14 days
 }

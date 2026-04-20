@@ -11,9 +11,7 @@ import { HourlyBars } from "../components/insights/HourlyBars.js";
 import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
 import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
 import { useInsightsCommandsAgentsSkills } from "../hooks/useInsightsCommandsAgentsSkills";
-import { useInsightsToolMilestones } from "../hooks/useInsightsToolMilestones";
 import { CASRow, BADGE_PALETTE, abbreviateName } from "../components/insights/CASRow";
-import { TokenTrendChart } from "../components/insights/TokenTrendChart";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -269,8 +267,6 @@ export function InsightsPage(): JSX.Element {
   }, [topConsumersData?.repos]);
   const { data: casData, loading: casLoading } =
     useInsightsCommandsAgentsSkills(timeRange, repo, refreshCount);
-  const { data: toolMilestonesData } =
-    useInsightsToolMilestones(timeRange, repo, refreshCount);
   const anyLoading = loading || activityLoading || modelMixLoading || topConsumersLoading || casLoading;
 
   useEffect(() => {
@@ -471,22 +467,6 @@ export function InsightsPage(): JSX.Element {
               </div>
             </div>
           )}
-        </section>
-
-        {/* Token Trend with tool milestones */}
-        <section
-          data-testid="section-token-trend"
-          className="bg-dt-bg1 border border-dt-border rounded-dt"
-          style={{ padding: "18px 20px 16px" }}
-        >
-          <h2 className="text-lg font-semibold text-dt-text0 mb-3" style={{ letterSpacing: "-0.01em" }}>
-            Token Trend
-          </h2>
-          <TokenTrendChart
-            daily={activityData?.daily}
-            loading={activityLoading}
-            autoMilestones={toolMilestonesData ?? undefined}
-          />
         </section>
 
         {/* Model Mix section */}
