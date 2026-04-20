@@ -287,7 +287,16 @@ export function InsightsPage(): JSX.Element {
             </span>
           </div>
           <div className="flex items-center gap-2.5 flex-wrap pt-1">
-            <SegPill options={repoOptions} value={repo} onChange={setRepo} testId="repo-pill" />
+            <select
+              data-testid="repo-pill"
+              value={repo}
+              onChange={(e) => setRepo(e.target.value)}
+              className="h-7 px-2.5 rounded-full font-mono text-sm font-semibold bg-dt-bg2 border border-dt-border text-dt-text1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-dt-accent"
+            >
+              {repoOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
             <SegPill
               options={TIME_RANGE_OPTIONS}
               value={timeRange}
