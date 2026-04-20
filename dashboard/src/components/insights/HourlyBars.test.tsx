@@ -1,14 +1,7 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import type { InsightsHourlyBucket } from "../../lib/types.js";
-
-vi.mock("./EChartsWrapper.js", () => ({
-  EChartsWrapper: vi.fn(({ className }: { className?: string }) => (
-    <div data-testid="echarts-wrapper" className={className ?? ""} />
-  )),
-}));
-
-import { HourlyBars, buildHourlyBarsOption } from "./HourlyBars";
+import { HourlyBars } from "./HourlyBars";
 
 afterEach(cleanup);
 
@@ -21,42 +14,11 @@ function makeHourly(
   }));
 }
 
-describe("buildHourlyBarsOption", () => {
-  it("returns option with bar series type", () => {
-    const option = buildHourlyBarsOption(makeHourly());
-    const series = option.series as Array<{ type: string }>;
-    expect(series[0].type).toBe("bar");
-  });
-
-  it("series data has 24 entries", () => {
-    const option = buildHourlyBarsOption(makeHourly());
-    const series = option.series as Array<{ data: unknown[] }>;
-    expect(series[0].data).toHaveLength(24);
-  });
-
-  it("peak hour bar uses accent color", () => {
-    const option = buildHourlyBarsOption(makeHourly({ 14: 9000 }));
-    const series = option.series as Array<{
-      data: Array<{ value: number; itemStyle: { color: string } }>;
-    }>;
-    const peakBar = series[0].data[14];
-    expect(peakBar.itemStyle.color).toMatch(/accent|#C|#D|#E/i);
-  });
-
-  it("non-peak bars use teal color", () => {
-    const option = buildHourlyBarsOption(makeHourly({ 14: 9000 }));
-    const series = option.series as Array<{
-      data: Array<{ value: number; itemStyle: { color: string } }>;
-    }>;
-    const nonPeakBar = series[0].data[0];
-    expect(nonPeakBar.itemStyle.color).not.toBe(series[0].data[14].itemStyle.color);
-  });
-});
-
 describe("HourlyBars component", () => {
-  it("renders EChartsWrapper with hourly data", () => {
-    render(<HourlyBars hourly={makeHourly({ 9: 5000 })} />);
-    expect(screen.getByTestId("echarts-wrapper")).toBeTruthy();
+  it("renders 24 SVG rect bars", () => {
+    const { container } = render(<HourlyBars hourly={makeHourly({ 9: 5000 })} />);
+    const rects = container.querySelectorAll("rect");
+    expect(rects.length).toBe(24);
   });
 
   it("renders observation text in DOM", () => {
@@ -78,8 +40,38 @@ describe("HourlyBars component", () => {
     expect(obs.textContent).toMatch(/no activity/i);
   });
 
-  it("renders without crash", () => {
-    render(<HourlyBars hourly={makeHourly()} />);
-    expect(screen.getByTestId("echarts-wrapper")).toBeTruthy();
+  it("renders without crash when all zeros", () => {
+    const { container } = render(<HourlyBars hourly={makeHourly()} />);
+    expect(container.firstElementChild).not.toBeNull();
+  });
+
+  it("shows tooltip with hour range on bar hover", () => {
+    const { container } = render(
+      <HourlyBars hourly={makeHourly({ 14: 9000 })} />
+    );
+    const rects = container.querySelectorAll("rect");
+    fireEvent.mouseEnter(rects[14]);
+    expect(container.textContent).toContain("14:00");
+    expect(container.textContent).toContain("15:00");
+  });
+
+  it("shows avg tokens in tooltip", () => {
+    const { container } = render(
+      <HourlyBars hourly={makeHourly({ 10: 5000 })} />
+    );
+    const rects = container.querySelectorAll("rect");
+    fireEvent.mouseEnter(rects[10]);
+    expect(container.textContent).toContain("5.0K");
+  });
+
+  it("hides tooltip on bar mouse leave", () => {
+    const { container } = render(
+      <HourlyBars hourly={makeHourly({ 10: 5000 })} />
+    );
+    const rects = container.querySelectorAll("rect");
+    fireEvent.mouseEnter(rects[10]);
+    fireEvent.mouseLeave(rects[10]);
+    const tooltipDivs = container.querySelectorAll("[style*='zIndex: 20']");
+    expect(tooltipDivs.length).toBe(0);
   });
 });

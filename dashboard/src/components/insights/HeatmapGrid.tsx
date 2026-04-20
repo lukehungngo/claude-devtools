@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { InsightsHeatmapCell } from "../../lib/types.js";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const INTENSITY_LABELS = ["No activity", "Light", "Moderate", "Heavy", "Peak"];
 
 const CELL_COLOR: Record<number, string> = {
   0: "var(--bg-s)",
@@ -16,8 +17,16 @@ interface HeatmapGridProps {
   className?: string;
 }
 
+interface TooltipState {
+  day: number;
+  hour: number;
+  x: number;
+  y: number;
+}
+
 export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Element {
-  const [hovered, setHovered] = useState<{ day: number; hour: number } | null>(null);
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Build [day][hour] → intensity lookup
   const grid: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
@@ -33,8 +42,61 @@ export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Eleme
     }
   }
 
+  function handleCellEnter(e: React.MouseEvent<HTMLDivElement>, day: number, hour: number) {
+    const container = containerRef.current;
+    if (!container) return;
+    const cr = container.getBoundingClientRect();
+    const tr = e.currentTarget.getBoundingClientRect();
+    setTooltip({
+      day,
+      hour,
+      x: tr.left - cr.left + tr.width / 2,
+      y: tr.top - cr.top,
+    });
+  }
+
+  const intensity = tooltip !== null ? grid[tooltip.day][tooltip.hour] : 0;
+
   return (
-    <div className={className ?? ""}>
+    <div className={className ?? ""} ref={containerRef} style={{ position: "relative" }}>
+      {/* Tooltip */}
+      {tooltip !== null && (
+        <div
+          style={{
+            position: "absolute",
+            left: tooltip.x,
+            top: tooltip.y,
+            transform: "translate(-50%, calc(-100% - 6px))",
+            background: "var(--bg0)",
+            border: "1px solid var(--bd)",
+            borderRadius: 6,
+            padding: "6px 10px",
+            pointerEvents: "none",
+            zIndex: 20,
+            whiteSpace: "nowrap",
+            boxShadow: "0 4px 12px rgba(0,0,0,.25)",
+          }}
+        >
+          <div className="font-mono text-sm font-semibold text-dt-text0">
+            {DAY_LABELS[tooltip.day]}&nbsp;
+            {String(tooltip.hour).padStart(2, "0")}:00–{String((tooltip.hour + 1) % 24).padStart(2, "0")}:00
+          </div>
+          <div className="font-mono text-sm text-dt-text2 flex items-center gap-1.5 mt-0.5">
+            <span
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                background: CELL_COLOR[intensity],
+                border: intensity === 0 ? "1px solid var(--bd)" : undefined,
+              }}
+            />
+            {INTENSITY_LABELS[intensity]}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 0 }}>
         {/* Y-axis day labels */}
         <div style={{
@@ -57,19 +119,18 @@ export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Eleme
           <div style={{ display: "grid", gridTemplateColumns: "repeat(24, 1fr)", gap: 2 }}>
             {Array.from({ length: 7 }, (_, day) =>
               Array.from({ length: 24 }, (_, hour) => {
-                const intensity = grid[day][hour];
+                const cellIntensity = grid[day][hour];
                 const isPeak = day === peakDay && hour === peakHour;
-                const isHovered = hovered?.day === day && hovered?.hour === hour;
+                const isHovered = tooltip?.day === day && tooltip?.hour === hour;
                 return (
                   <div
                     key={`${day}-${hour}`}
-                    title={`${DAY_LABELS[day]} ${String(hour).padStart(2, "0")}:00`}
-                    onMouseEnter={() => setHovered({ day, hour })}
-                    onMouseLeave={() => setHovered(null)}
+                    onMouseEnter={(e) => handleCellEnter(e, day, hour)}
+                    onMouseLeave={() => setTooltip(null)}
                     style={{
                       aspectRatio: "1",
                       borderRadius: 2,
-                      background: CELL_COLOR[intensity],
+                      background: CELL_COLOR[cellIntensity],
                       outline: isPeak ? "2px solid var(--acc)" : undefined,
                       outlineOffset: isPeak ? 1 : undefined,
                       transform: isPeak || isHovered ? "scale(1.3)" : undefined,

@@ -1,14 +1,7 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import type { InsightsHeatmapCell } from "../../lib/types.js";
-
-vi.mock("./EChartsWrapper.js", () => ({
-  EChartsWrapper: vi.fn(({ className }: { className?: string }) => (
-    <div data-testid="echarts-wrapper" className={className ?? ""} />
-  )),
-}));
-
-import { HeatmapGrid, buildHeatmapOption } from "./HeatmapGrid";
+import { HeatmapGrid } from "./HeatmapGrid";
 
 afterEach(cleanup);
 
@@ -28,61 +21,18 @@ function makeFullGrid(override?: Partial<InsightsHeatmapCell>): InsightsHeatmapC
   return cells;
 }
 
-describe("buildHeatmapOption", () => {
-  it("returns option with series type heatmap", () => {
-    const option = buildHeatmapOption(makeFullGrid());
-    const series = option.series as Array<{ type: string }>;
-    expect(series[0].type).toBe("heatmap");
-  });
-
-  it("series data has 168 points for full 7x24 grid", () => {
-    const option = buildHeatmapOption(makeFullGrid());
-    const series = option.series as Array<{ data: unknown[] }>;
-    expect(series[0].data).toHaveLength(168);
-  });
-
-  it("each data point is [hour, day, intensity]", () => {
-    const cells = makeFullGrid({ day: 2, hour: 15, intensity: 4 });
-    const option = buildHeatmapOption(cells);
-    const series = option.series as Array<{ data: Array<[number, number, number]> }>;
-    const targetPoint = series[0].data.find(
-      ([h, d]) => h === 15 && d === 2
-    );
-    expect(targetPoint).toBeDefined();
-    expect(targetPoint![2]).toBe(4);
-  });
-
-  it("yAxis.data contains 7 day labels", () => {
-    const option = buildHeatmapOption(makeFullGrid());
-    const yAxis = option.yAxis as { data: string[] };
-    expect(yAxis.data).toHaveLength(7);
-    expect(yAxis.data).toContain("Mon");
-    expect(yAxis.data).toContain("Sun");
-  });
-
-  it("xAxis.data contains 24 hour labels", () => {
-    const option = buildHeatmapOption(makeFullGrid());
-    const xAxis = option.xAxis as { data: number[] };
-    expect(xAxis.data).toHaveLength(24);
-  });
-
-  it("visualMap min/max is 0/4 matching intensity range", () => {
-    const option = buildHeatmapOption(makeFullGrid());
-    const vm = option.visualMap as { min: number; max: number };
-    expect(vm.min).toBe(0);
-    expect(vm.max).toBe(4);
-  });
-});
-
 describe("HeatmapGrid component", () => {
-  it("renders EChartsWrapper with heatmap data", () => {
-    render(<HeatmapGrid heatmap={makeFullGrid()} />);
-    expect(screen.getByTestId("echarts-wrapper")).toBeTruthy();
+  it("renders 168 cells for full 7×24 grid", () => {
+    const { container } = render(<HeatmapGrid heatmap={makeFullGrid()} />);
+    // 7 rows × 24 cols = 168 cells in the grid
+    const grid = container.querySelector("[style*='repeat(24, 1fr)']");
+    expect(grid).not.toBeNull();
+    expect(grid!.children.length).toBe(168);
   });
 
   it("renders without crash when heatmap is empty", () => {
-    render(<HeatmapGrid heatmap={[]} />);
-    expect(screen.getByTestId("echarts-wrapper")).toBeTruthy();
+    const { container } = render(<HeatmapGrid heatmap={[]} />);
+    expect(container.firstElementChild).not.toBeNull();
   });
 
   it("applies className to outer container", () => {
@@ -90,5 +40,51 @@ describe("HeatmapGrid component", () => {
       <HeatmapGrid heatmap={makeFullGrid()} className="my-grid" />
     );
     expect(container.firstElementChild!.getAttribute("class")).toContain("my-grid");
+  });
+
+  it("shows all 7 day labels", () => {
+    const { container } = render(<HeatmapGrid heatmap={makeFullGrid()} />);
+    const text = container.textContent ?? "";
+    for (const day of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) {
+      expect(text).toContain(day);
+    }
+  });
+
+  it("shows tooltip with day and hour on cell hover", () => {
+    const cells = makeFullGrid({ day: 2, hour: 15, intensity: 3 });
+    const { container } = render(<HeatmapGrid heatmap={cells} />);
+    const gridEl = container.querySelector("[style*='repeat(24, 1fr)']")!;
+    // cell index = day * 24 + hour = 2*24 + 15 = 63
+    const targetCell = gridEl.children[63] as HTMLElement;
+    fireEvent.mouseEnter(targetCell);
+    expect(container.textContent).toContain("Wed");
+    expect(container.textContent).toContain("15:00");
+  });
+
+  it("hides tooltip on cell mouse leave", () => {
+    const cells = makeFullGrid({ day: 0, hour: 8, intensity: 2 });
+    const { container } = render(<HeatmapGrid heatmap={cells} />);
+    const gridEl = container.querySelector("[style*='repeat(24, 1fr)']")!;
+    const targetCell = gridEl.children[8] as HTMLElement;
+    fireEvent.mouseEnter(targetCell);
+    fireEvent.mouseLeave(targetCell);
+    // tooltip should be gone — "Mon" day label still there but tooltip content gone
+    const tooltipDivs = container.querySelectorAll("[style*='zIndex: 20']");
+    expect(tooltipDivs.length).toBe(0);
+  });
+
+  it("shows intensity label in tooltip", () => {
+    const cells = makeFullGrid({ day: 1, hour: 10, intensity: 4 });
+    const { container } = render(<HeatmapGrid heatmap={cells} />);
+    const gridEl = container.querySelector("[style*='repeat(24, 1fr)']")!;
+    const targetCell = gridEl.children[1 * 24 + 10] as HTMLElement;
+    fireEvent.mouseEnter(targetCell);
+    expect(container.textContent).toContain("Peak");
+  });
+
+  it("shows legend with Less/More labels", () => {
+    const { container } = render(<HeatmapGrid heatmap={makeFullGrid()} />);
+    expect(container.textContent).toContain("Less");
+    expect(container.textContent).toContain("More");
   });
 });
