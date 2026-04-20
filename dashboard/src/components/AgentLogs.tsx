@@ -10,7 +10,6 @@ import type {
 import { normalizeContent } from "../lib/normalizeContent";
 import { formatTime } from "../lib/formatTime";
 import { formatCost, formatDuration, formatTokens, calculateTurnCost } from "../lib/cost";
-import { getAgentBadgeStyle } from "../lib/agentColors";
 import { buildExportPayload, downloadJson } from "../lib/exportAgentLog";
 import { formatModelName } from "../lib/formatModelName";
 
@@ -53,37 +52,40 @@ type FlatItem =
 
 // ─── Action badge colors ─────────────────────────────────────────────
 
-function getActionBadgeStyle(toolName: string | null): {
-  border: string;
+export function getActionBadgeStyle(toolName: string | null): {
+  bg: string;
   color: string;
+  border?: string;
   label: string;
-} {
-  if (!toolName) {
-    return { border: "var(--text-2)", color: "var(--text-2)", label: "msg" };
-  }
+} | null {
+  if (!toolName) return null;
 
   const name = toolName.toLowerCase();
+  if (name === "thinking" || name === "think") {
+    return { bg: "var(--resp-think-bg)", color: "var(--resp-think)", label: "think" };
+  }
   if (name === "read" || name === "grep" || name === "glob") {
-    return { border: "var(--cyan)", color: "var(--cyan)", label: toolName };
+    return { bg: "var(--resp-tool-bg)", color: "var(--resp-tool)", label: toolName };
   }
   if (name === "write" || name === "edit") {
-    return { border: "var(--green)", color: "var(--green)", label: toolName };
+    return { bg: "var(--grn-bg)", color: "var(--grn)", label: toolName };
   }
   if (name === "bash") {
-    return { border: "var(--orange)", color: "var(--orange)", label: toolName };
-  }
-  if (name === "thinking" || name === "think") {
-    return { border: "var(--purple)", color: "var(--purple)", label: "think" };
+    return { bg: "var(--resp-tool-bg)", color: "var(--resp-tool)", label: "Bash" };
   }
   if (name === "error") {
-    return { border: "var(--red)", color: "var(--red)", label: "error" };
+    return { bg: "var(--red-bg)", color: "var(--red)", label: "error" };
   }
-  if (name === "spawn" || name === "completed") {
-    return { border: "var(--green)", color: "var(--green)", label: toolName };
+  if (name === "result") {
+    return { bg: "var(--bg-s)", color: "var(--t2)", border: "1px solid var(--bd)", label: "result" };
   }
+  if (name === "spawn" || name === "completed" || name === "agent") {
+    return { bg: "var(--resp-dispatch-bg)", color: "var(--resp-dispatch)", label: toolName };
+  }
+  // Unknown tool — purple (tool category)
   return {
-    border: "var(--orange)",
-    color: "var(--orange)",
+    bg: "var(--resp-tool-bg)",
+    color: "var(--resp-tool)",
     label: toolName.length > 12 ? toolName.slice(0, 12) + "\u2026" : toolName,
   };
 }
@@ -368,21 +370,6 @@ function normalizeAgentTypeLabel(type: string): string {
   return type;
 }
 
-// ─── Timeline line colors by depth ───────────────────────────────────
-
-const DEPTH_COLORS = [
-  "var(--accent)",
-  "var(--cyan)",
-  "var(--green)",
-  "var(--orange)",
-  "var(--purple)",
-  "var(--pink)",
-];
-
-function getDepthColor(depth: number): string {
-  return DEPTH_COLORS[depth % DEPTH_COLORS.length];
-}
-
 // ─── Component ───────────────────────────────────────────────────────
 
 interface Props {
@@ -517,51 +504,56 @@ export function AgentLogs({
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-dt-border shrink-0 bg-dt-bg2/80">
-        <div className="text-sm font-semibold uppercase tracking-[0.5px] text-dt-text2 flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="opacity-50">
-            <path d="M1.5 1.75V13.5h13.75a.75.75 0 010 1.5H.75a.75.75 0 01-.75-.75V1.75a.75.75 0 011.5 0z" />
-          </svg>
-          Agent Timeline
-          <span className="text-xs px-1.5 py-0.5 rounded-full font-semibold bg-dt-accent-dim text-dt-accent">
-            {agents.length} agents
-          </span>
-        </div>
-        <div className="flex gap-1">
-          <button
-            onClick={handleExport}
-            className="h-6 px-2 flex items-center gap-1 rounded-dt-sm text-[11px] font-medium text-dt-text2 cursor-pointer border border-dt-border bg-dt-bg2 hover:bg-dt-bg3 transition-all duration-150"
-            title="Export agent log as JSON"
+      <div className="flex items-center px-3 shrink-0 h-[30px] bg-dt-bg0 border-b border-dt-border gap-2">
+        <span className="font-mono text-xs font-semibold uppercase tracking-[0.6px] text-dt-text2 flex-1 flex items-center gap-1.5">
+          Agent Log
+          <span
+            className="text-[9px] font-mono font-semibold px-[5px] py-px rounded-[3px]"
+            style={{
+              background: "var(--bg-s)",
+              border: "1px solid var(--bd)",
+              color: "var(--t2)",
+            }}
           >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 2v9M4.5 7.5 8 11l3.5-3.5M3 14h10" />
-            </svg>
-            Export
+            {agents.length}
+          </span>
+        </span>
+        <button
+          onClick={handleExport}
+          className="h-5 px-2 flex items-center gap-1 rounded-dt-xs text-sm font-mono font-medium text-dt-text2 cursor-pointer border border-dt-border bg-transparent hover:bg-[var(--bg-s)] transition-colors duration-[120ms]"
+          title="Export agent log as JSON"
+        >
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 2v9M4.5 7.5 8 11l3.5-3.5M3 14h10" />
+          </svg>
+          Export
+        </button>
+        {!autoScroll && (
+          <button
+            onClick={resumeAutoScroll}
+            className="w-5 h-5 flex items-center justify-center rounded-dt-xs text-dt-accent cursor-pointer border-none bg-dt-accent-dim hover:bg-dt-accent/20 transition-colors duration-[120ms] text-xs"
+            title="Resume auto-scroll"
+          >
+            &#x2193;
           </button>
-          {!autoScroll && (
-            <button
-              onClick={resumeAutoScroll}
-              className="w-7 h-7 flex items-center justify-center rounded-dt-sm text-dt-accent cursor-pointer border-none bg-dt-accent-dim hover:bg-dt-accent/20 transition-all duration-150 text-sm shadow-dt-sm"
-              title="Resume auto-scroll"
-            >
-              &#x2193;
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Filter bar */}
-      <div className="flex gap-1.5 px-4 py-2 border-b border-dt-border/50 bg-dt-bg2/60 shrink-0 overflow-x-auto [scrollbar-width:none] dt-scrollbar">
+      <div
+        className="flex gap-[3px] px-3 py-[5px] border-b border-dt-border shrink-0 overflow-x-auto [scrollbar-width:none]"
+        style={{ background: "var(--bg-s)" }}
+      >
         {filterTabs.map((tab) => {
           const isActive = activeFilter === tab;
           return (
             <button
               key={tab}
               onClick={() => setActiveFilter(tab)}
-              className={`px-2.5 py-1 rounded-full text-sm cursor-pointer transition-all duration-150 border whitespace-nowrap shrink-0 ${
+              className={`px-2 py-[3px] rounded-[3px] text-sm font-mono cursor-pointer transition-colors duration-[120ms] whitespace-nowrap shrink-0 border ${
                 isActive
-                  ? "text-dt-text0 border-dt-accent bg-dt-accent-dim font-medium"
-                  : "text-dt-text2 border-transparent bg-transparent hover:bg-dt-bg3/50"
+                  ? "text-dt-text0 border-dt-border bg-dt-bg0"
+                  : "text-dt-text2 border-transparent bg-transparent hover:text-dt-text1 hover:bg-[var(--bg-h)]"
               }`}
             >
               {tab}
@@ -569,8 +561,11 @@ export function AgentLogs({
           );
         })}
         {toolFilter && (
-          <span className="ml-auto text-sm text-dt-orange flex items-center gap-1 bg-dt-orange-dim px-2 py-0.5 rounded-full">
-            Tool: {toolFilter}
+          <span
+            className="ml-auto text-sm font-mono flex items-center gap-1 px-2 py-[3px] rounded-[3px]"
+            style={{ color: "var(--pur)", background: "var(--pur-bg)" }}
+          >
+            {toolFilter}
           </span>
         )}
       </div>
@@ -610,9 +605,9 @@ export function AgentLogs({
               if (item.kind === "agent-header") {
                 const { group, groupIndex } = item;
                 const isCollapsed = collapsedGroups.has(groupIndex);
-                const badgeStyle = getAgentBadgeStyle(group.agentType);
-                const depthColor = getDepthColor(group.depth);
-                const indent = group.depth * 20;
+                const indentPx = 18 + group.depth * 20;
+                // Main agent (depth 0) uses dispatch/terracotta, subagents use tool/purple
+                const nameColor = group.depth === 0 ? "var(--resp-dispatch)" : "var(--resp-tool)";
 
                 return (
                   <div
@@ -628,6 +623,7 @@ export function AgentLogs({
                     }}
                   >
                     <div
+                      data-testid="agent-group-header"
                       onClick={() => {
                         setExpandedGroups((prev) => {
                           const next = new Set(prev);
@@ -636,22 +632,30 @@ export function AgentLogs({
                           return next;
                         });
                       }}
-                      className="flex items-center gap-2 py-1 cursor-pointer select-none border-b border-dt-border/30"
-                      style={{ paddingLeft: 12 + indent }}
+                      className="flex items-center gap-2 border-b border-dt-border cursor-pointer select-none pr-[18px] py-2 font-mono text-base"
+                      style={{
+                        background: "var(--bg-s)",
+                        paddingLeft: indentPx,
+                      }}
                     >
-                      {/* Timeline dot */}
+                      {/* Chevron */}
                       <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ background: depthColor }}
-                      />
-                      {/* Collapse arrow */}
-                      <span className={`text-[8px] text-dt-text2 transition-transform duration-150 ${isCollapsed ? "-rotate-90" : "rotate-0"}`}>
-                        {"\u25BC"}
+                        aria-hidden="true"
+                        className="shrink-0 transition-transform duration-[120ms]"
+                        style={{
+                          color: "var(--t3)",
+                          fontSize: 9,
+                          transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                          display: "inline-block",
+                        }}
+                      >
+                        ▾
                       </span>
-                      {/* Agent badge */}
+
+                      {/* Agent name — clickable, selects agent in DAG */}
                       <span
-                        className="px-1.5 py-px rounded-[3px] font-semibold text-[10px] cursor-pointer"
-                        style={{ background: badgeStyle.background, color: badgeStyle.color }}
+                        className="font-semibold shrink-0 cursor-pointer"
+                        style={{ color: nameColor }}
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelectAgent(group.agentId);
@@ -659,35 +663,53 @@ export function AgentLogs({
                       >
                         {normalizeAgentTypeLabel(group.agentType)}
                       </span>
+
+                      {/* Model badge */}
                       {group.model && (
                         <span
                           data-testid="agent-header-model-badge"
-                          className="text-[10px] font-mono text-dt-text2"
+                          className="shrink-0 text-sm font-mono text-dt-text2"
                         >
                           {formatModelName(group.model)}
                         </span>
                       )}
-                      {/* Time range */}
-                      <span className="text-dt-text2 text-[10px] font-mono">
+
+                      {/* Time range + duration */}
+                      <span className="shrink-0 text-sm font-mono text-dt-text2 ml-1.5">
                         {formatTime(group.startTime)}
                         {group.durationMs > 0 && ` \u2014 ${formatTime(group.endTime)}`}
+                        {group.durationMs > 0 && ` (${formatDuration(group.durationMs)})`}
                       </span>
-                      {group.durationMs > 0 && (
-                        <span className="text-dt-text3 text-[10px] font-mono">
-                          ({formatDuration(group.durationMs)})
-                        </span>
-                      )}
+
+                      {/* Spacer */}
+                      <span className="flex-1" />
+
+                      {/* Cost (amber) */}
                       {group.cost > 0 && (
-                        <span className="text-[10px] px-[5px] py-px rounded-[3px] font-semibold bg-dt-green-dim text-dt-green font-mono">
+                        <span
+                          className="font-semibold shrink-0 text-sm font-mono"
+                          style={{ color: "var(--amb)" }}
+                        >
                           {formatCost(group.cost)}
                         </span>
                       )}
+
+                      {/* Token count */}
                       {(group.tokensIn > 0 || group.tokensOut > 0) && (
-                        <span className="text-[10px] text-dt-text3 font-mono">
+                        <span className="shrink-0 text-sm font-mono text-dt-text1">
                           {formatTokens(group.tokensIn)}/{formatTokens(group.tokensOut)}
                         </span>
                       )}
-                      <span className="text-[10px] px-[5px] py-px rounded-full font-semibold bg-dt-bg4 text-dt-text2">
+
+                      {/* Entry count pill */}
+                      <span
+                        className="rounded-full px-[5px] py-px shrink-0 text-xs font-mono font-semibold"
+                        style={{
+                          background: "var(--bg-e)",
+                          border: "1px solid var(--bd)",
+                          color: "var(--t2)",
+                        }}
+                      >
                         {group.entries.length}
                       </span>
                     </div>
@@ -702,8 +724,7 @@ export function AgentLogs({
               const isExpanded = expandedEntries.has(entry.uuid);
               const hasMore = entry.rawMessage && entry.rawMessage !== entry.message;
               const displayMessage = isExpanded ? (entry.rawMessage || entry.message) : entry.message;
-              const indent = depth * 20;
-              const depthColor = getDepthColor(depth);
+              const indentPx = 18 + depth * 20;
 
               return (
                 <div
@@ -719,47 +740,48 @@ export function AgentLogs({
                   }}
                 >
                   <div
-                    className={`flex items-start gap-2 py-0.5 pr-3 text-[11px] border-b border-dt-border/20 transition-colors duration-150 ${isHighlighted ? "bg-dt-bg2" : ""}`}
-                    style={{ paddingLeft: 16 + indent }}
+                    className={`grid border-b border-dt-border/15 transition-colors duration-[120ms] ${
+                      isHighlighted ? "bg-[var(--bg-sel)]" : "hover:bg-[var(--bg-s)]"
+                    }`}
+                    style={{
+                      gridTemplateColumns: "70px 1fr",
+                      paddingLeft: indentPx,
+                      paddingRight: 18,
+                      paddingTop: 3,
+                      paddingBottom: 3,
+                      gap: "12px",
+                    }}
                   >
-                    {/* Timeline line segment */}
-                    <div className="flex flex-col items-center shrink-0 pt-0.5" style={{ width: 8 }}>
-                      <span
-                        className="w-px h-full min-h-[16px]"
-                        style={{ background: depthColor, opacity: 0.3 }}
-                      />
-                    </div>
-
                     {/* Timestamp */}
-                    <span className="font-mono text-dt-text3 text-[10px] shrink-0 w-[58px]">
+                    <span className="font-mono text-sm text-dt-text2 leading-[17px] shrink-0 tabular-nums">
                       {formatTime(entry.timestamp)}
                     </span>
 
-                    {/* Action badge */}
-                    {entry.toolName && (
-                      <span
-                        className="text-[10px] px-[5px] py-px rounded-[3px] whitespace-nowrap font-medium shrink-0"
-                        style={{ border: `1px solid ${actionStyle.border}`, color: actionStyle.color, background: "transparent" }}
-                      >
-                        {actionStyle.label}
-                      </span>
-                    )}
-
-                    {/* Message */}
+                    {/* Content: tag + message */}
                     <span
+                      className={`font-mono text-base text-dt-text0 leading-[17px] min-w-0 ${
+                        isExpanded ? "whitespace-pre-wrap break-all" : "whitespace-nowrap overflow-hidden text-ellipsis"
+                      } ${hasMore ? "cursor-pointer" : ""}`}
                       onClick={() => hasMore && toggleExpand(entry.uuid)}
-                      className={`text-dt-text1 leading-[1.3] ${
-                        isExpanded
-                          ? "whitespace-pre-wrap break-all"
-                          : "whitespace-nowrap"
-                      } ${hasMore ? "cursor-pointer" : "cursor-default"}`}
                     >
+                      {actionStyle && (
+                        <span
+                          className="inline-block text-[9px] font-bold uppercase tracking-[0.4px] px-[5px] py-px rounded-[3px] mr-1.5 align-middle"
+                          style={{
+                            background: actionStyle.bg,
+                            color: actionStyle.color,
+                            ...(actionStyle.border ? { border: actionStyle.border } : {}),
+                          }}
+                        >
+                          {actionStyle.label}
+                        </span>
+                      )}
                       {highlightMessage(displayMessage)}
                       {hasMore && !isExpanded && (
-                        <span className="text-[9px] text-dt-accent ml-1 opacity-70">{"\u25B6"}</span>
+                        <span className="text-[9px] text-dt-accent ml-1 opacity-60">{"\u25B6"}</span>
                       )}
                       {isExpanded && (
-                        <span className="text-[9px] text-dt-accent ml-1 opacity-70">{"\u25BC"}</span>
+                        <span className="text-[9px] text-dt-accent ml-1 opacity-60">{"\u25BC"}</span>
                       )}
                     </span>
                   </div>
