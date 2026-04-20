@@ -826,8 +826,7 @@ export function ConversationView({
         </button>
       </div>
 
-      {/* Command input */}
-      <PromptInput sessionCwd={sessionCwd} sessionId={sessionId} projectHash={projectHash} activeSessionId={activeSessionId} onSessionStarted={onSessionStarted} getAssistantResponses={getAssistantResponses} metrics={metrics} usage={usage} costs={costs} events={events} onOpenPanel={onOpenPanel} hasMessages={turns.length > 0} lastTurnHadError={lastTurnHadError} onStreamingEvent={streamingActions.handleSSEEvent} onStreamingReset={streamingActions.reset} />
+      {/* Command input — hidden until ready to release */}
 
       {/* RewindMenu — conditionally rendered on Esc+Esc or trigger button click */}
       {showRewindMenu && (
