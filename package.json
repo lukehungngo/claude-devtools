@@ -3,9 +3,7 @@
   "version": "0.2.0",
   "type": "module",
   "description": "Web-based Claude Code client with agent observability",
-  "bin": {
-    "claude-devtools": "./dist/cli.js"
-  },
+  "bin": "./dist/cli.js",
   "files": [
     "dist/"
   ],
@@ -47,6 +45,6 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/anthropics/claude-devtools"
+    "url": "git+https://github.com/anthropics/claude-devtools.git"
   }
 }
