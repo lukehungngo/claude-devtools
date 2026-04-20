@@ -361,7 +361,9 @@ describe("InsightsPage", () => {
     expect(vi.mocked(useInsightsAggregate)).toHaveBeenLastCalledWith("7d", "all", 1);
     expect(vi.mocked(useInsightsActivity)).toHaveBeenLastCalledWith("7d", "all", 1);
     expect(vi.mocked(useInsightsModelMix)).toHaveBeenLastCalledWith("7d", "all", 1);
-    expect(vi.mocked(useInsightsTopConsumers)).toHaveBeenLastCalledWith("7d", "all", 1);
+    // Called twice: once for filtered data (timeRange, repo) and once for all-repos dropdown
+    expect(vi.mocked(useInsightsTopConsumers)).toHaveBeenCalledWith("7d", "all", 1);
+    expect(vi.mocked(useInsightsTopConsumers)).toHaveBeenCalledWith("all", "all", 1);
     expect(vi.mocked(useInsightsCommandsAgentsSkills)).toHaveBeenLastCalledWith("7d", "all", 1);
   });
 });

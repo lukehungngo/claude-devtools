@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ChevronDown } from "lucide-react";
 import { useLayoutContext } from "../contexts/LayoutContext";
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { formatCost, formatTokens } from "../lib/cost";
@@ -257,14 +257,17 @@ export function InsightsPage(): JSX.Element {
   const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo, refreshCount);
   const { data: modelMixData, loading: modelMixLoading } = useInsightsModelMix(timeRange, repo, refreshCount);
   const { data: topConsumersData, loading: topConsumersLoading } = useInsightsTopConsumers(timeRange, repo, refreshCount);
+  // Load all repos independently (unfiltered, all-time) so the dropdown always shows every scanned repo
+  const { data: allReposData } = useInsightsTopConsumers("all", "all", refreshCount);
   const repoOptions = useMemo(() => {
     const base = [{ value: "all", label: "All repos" }];
-    if (!topConsumersData?.repos?.length) return base;
+    const repos = allReposData?.repos ?? [];
+    if (!repos.length) return base;
     return [
       ...base,
-      ...topConsumersData.repos.map((r) => ({ value: r.cwd, label: r.repo })),
+      ...repos.map((r) => ({ value: r.cwd, label: r.repo })),
     ];
-  }, [topConsumersData?.repos]);
+  }, [allReposData?.repos]);
   const { data: casData, loading: casLoading } =
     useInsightsCommandsAgentsSkills(timeRange, repo, refreshCount);
   const anyLoading = loading || activityLoading || modelMixLoading || topConsumersLoading || casLoading;
@@ -287,16 +290,19 @@ export function InsightsPage(): JSX.Element {
             </span>
           </div>
           <div className="flex items-center gap-2.5 flex-wrap pt-1">
-            <select
-              data-testid="repo-pill"
-              value={repo}
-              onChange={(e) => setRepo(e.target.value)}
-              className="h-7 px-2.5 rounded-full font-mono text-sm font-semibold bg-dt-bg2 border border-dt-border text-dt-text1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-dt-accent"
-            >
-              {repoOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+            <div className="relative inline-flex items-center">
+              <select
+                data-testid="repo-pill"
+                value={repo}
+                onChange={(e) => setRepo(e.target.value)}
+                className="appearance-none h-7 pl-2.5 pr-7 rounded font-mono text-sm font-semibold bg-dt-bg2 border border-dt-border text-dt-text1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-dt-accent"
+              >
+                {repoOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 pointer-events-none text-dt-text2" />
+            </div>
             <SegPill
               options={TIME_RANGE_OPTIONS}
               value={timeRange}
