@@ -230,6 +230,38 @@ describe("InsightsPage", () => {
     expect(screen.queryByTestId("insights-cached-tokens")).toBeNull();
   });
 
+  it("uses lg:grid-cols-6 on stats grid when cacheReadTokens > 0", () => {
+    vi.mocked(useInsightsAggregate).mockReturnValue({
+      data: {
+        tokensIn: 120_000,
+        tokensOut: 45_000,
+        cacheReadTokens: 8_000,
+        cost: 1.23,
+        sessions: 8,
+        turns: 42,
+        avgCostPerTurn: 0.029,
+        avgTokensPerTurn: 3928,
+        activeDays: 5,
+        peakHour: 15,
+        daily: [],
+      },
+      delta: null,
+      loading: false,
+      error: null,
+    });
+    render(<InsightsPage />);
+    const grid = screen.getByTestId("stats-grid");
+    expect(grid.className).toContain("lg:grid-cols-6");
+  });
+
+  it("uses lg:grid-cols-5 on stats grid when cacheReadTokens is 0", () => {
+    mockData(); // cacheReadTokens: 0
+    render(<InsightsPage />);
+    const grid = screen.getByTestId("stats-grid");
+    expect(grid.className).toContain("lg:grid-cols-5");
+    expect(grid.className).not.toContain("lg:grid-cols-6");
+  });
+
   it("renders commands, agents, skills, and efficiency hints sections", () => {
     mockData();
     render(<InsightsPage />);

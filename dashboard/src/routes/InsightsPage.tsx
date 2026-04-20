@@ -324,7 +324,7 @@ export function InsightsPage(): JSX.Element {
             ))}
           </div>
         ) : data ? (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div data-testid="stats-grid" className={`grid grid-cols-2 gap-3 ${data.cacheReadTokens > 0 ? 'lg:grid-cols-6' : 'lg:grid-cols-5'}`}>
             <HeadlineTile
               label="Tokens In"
               value={formatTokens(data.tokensIn)}
