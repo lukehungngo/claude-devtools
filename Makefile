@@ -48,8 +48,8 @@ npm-build:
 	cd $(ROOT_DIR)dashboard && pnpm run build
 	mkdir -p $(ROOT_DIR)dist/public
 	cp -r $(ROOT_DIR)dashboard/dist/. $(ROOT_DIR)dist/public/
-	chmod +x $(ROOT_DIR)dist/cli.js
-	@echo "npm-build complete → dist/cli.js + dist/public/"
+	chmod +x $(ROOT_DIR)dist/cli.mjs
+	@echo "npm-build complete → dist/cli.mjs + dist/public/"
 
 # Build everything
 build:

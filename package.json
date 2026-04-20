@@ -1,9 +1,9 @@
 {
   "name": "claude-devtools",
-  "version": "0.2.0",
+  "version": "0.3.6",
   "type": "module",
   "description": "Web-based Claude Code client with agent observability",
-  "bin": "./dist/cli.js",
+  "bin": "./dist/cli.mjs",
   "files": [
     "dist/"
   ],

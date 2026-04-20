@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --outdir=dist --format=esm --external:express --external:ws --external:chokidar --external:open --external:better-sqlite3",
-    "npm-build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --outfile=../dist/cli.js --format=esm '--define:process.env.NODE_ENV=\"production\"' --external:express --external:ws --external:chokidar --external:open --external:pino --external:better-sqlite3 '--external:@anthropic-ai/claude-agent-sdk' '--banner:js=#!/usr/bin/env node'",
+    "npm-build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --outfile=../dist/cli.mjs --format=esm '--define:process.env.NODE_ENV=\"production\"' --external:express --external:ws --external:chokidar --external:open --external:pino --external:better-sqlite3 '--external:@anthropic-ai/claude-agent-sdk' '--banner:js=#!/usr/bin/env node'",
     "dev": "tsx watch src/dev-server.ts",
     "dev:mcp": "tsx watch src/index.ts",
     "test": "vitest run",
