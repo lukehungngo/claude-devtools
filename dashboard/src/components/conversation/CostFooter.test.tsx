@@ -82,3 +82,37 @@ describe("CostFooter", () => {
     expect(container.querySelector('[aria-label="Cost breakdown"]')).toBeTruthy();
   });
 });
+
+describe("CostFooter — cache tokens", () => {
+  it("does not show Cached when cacheReadTokens is 0", () => {
+    const { queryByText } = render(
+      <CostFooter
+        totalCost={0.05}
+        mainCost={0.05}
+        mainTurns={1}
+        agentCost={0}
+        agentCalls={0}
+        inputTokens={10000}
+        outputTokens={500}
+        cacheReadTokens={0}
+      />
+    );
+    expect(queryByText(/Cached/i)).toBeNull();
+  });
+
+  it("shows Cached when cacheReadTokens > 0", () => {
+    const { getByText } = render(
+      <CostFooter
+        totalCost={0.05}
+        mainCost={0.05}
+        mainTurns={1}
+        agentCost={0}
+        agentCalls={0}
+        inputTokens={10000}
+        outputTokens={500}
+        cacheReadTokens={3100}
+      />
+    );
+    expect(getByText(/Cached/i)).toBeDefined();
+  });
+});
