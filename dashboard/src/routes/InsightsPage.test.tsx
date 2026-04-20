@@ -418,7 +418,7 @@ describe("top consumers section", () => {
     vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: false, error: null });
     vi.mocked(useInsightsTopConsumers).mockReturnValue({
       data: {
-        repos: [{ repo: "claude-devtools", tokensIn: 1000, tokensOut: 500, totalTokens: 1500, cost: 0.01, share: 1.0 }],
+        repos: [{ repo: "claude-devtools", cwd: "/path/to/claude-devtools", tokensIn: 1000, tokensOut: 500, totalTokens: 1500, cost: 0.01, share: 1.0 }],
         sessions: [{ sessionId: "s1", date: "2026-04-18", repo: "claude-devtools", cost: 0.01, share: 1.0 }],
         tools: [{ name: "Read", count: 42, share: 1.0 }],
       },
@@ -427,7 +427,7 @@ describe("top consumers section", () => {
     });
     render(<InsightsPage />);
     expect(screen.getByTestId("section-top-consumers")).toBeTruthy();
-    expect(screen.getByText("claude-devtools")).toBeTruthy();
+    expect(screen.getAllByText("claude-devtools").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Read")).toBeTruthy();
   });
 

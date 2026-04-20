@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 
 export interface TopRepoClient {
   repo: string;
+  cwd: string;
   tokensIn: number;
   tokensOut: number;
   totalTokens: number;

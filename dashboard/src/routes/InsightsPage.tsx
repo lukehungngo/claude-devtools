@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { RefreshCw } from "lucide-react";
 import { useLayoutContext } from "../contexts/LayoutContext";
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
@@ -23,7 +23,6 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
   { value: "all", label: "All" },
 ];
 
-const REPO_OPTIONS = [{ value: "all", label: "All repos" }];
 
 function formatHour(h: number): string {
   if (h === 0) return "12am";
@@ -258,6 +257,14 @@ export function InsightsPage(): JSX.Element {
   const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo, refreshCount);
   const { data: modelMixData, loading: modelMixLoading } = useInsightsModelMix(timeRange, repo, refreshCount);
   const { data: topConsumersData, loading: topConsumersLoading } = useInsightsTopConsumers(timeRange, repo, refreshCount);
+  const repoOptions = useMemo(() => {
+    const base = [{ value: "all", label: "All repos" }];
+    if (!topConsumersData?.repos?.length) return base;
+    return [
+      ...base,
+      ...topConsumersData.repos.map((r) => ({ value: r.cwd, label: r.repo })),
+    ];
+  }, [topConsumersData?.repos]);
   const { data: casData, loading: casLoading } =
     useInsightsCommandsAgentsSkills(timeRange, repo, refreshCount);
   const anyLoading = loading || activityLoading || modelMixLoading || topConsumersLoading || casLoading;
@@ -280,7 +287,7 @@ export function InsightsPage(): JSX.Element {
             </span>
           </div>
           <div className="flex items-center gap-2.5 flex-wrap pt-1">
-            <SegPill options={REPO_OPTIONS} value={repo} onChange={setRepo} testId="repo-pill" />
+            <SegPill options={repoOptions} value={repo} onChange={setRepo} testId="repo-pill" />
             <SegPill
               options={TIME_RANGE_OPTIONS}
               value={timeRange}

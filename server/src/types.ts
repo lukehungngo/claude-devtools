@@ -325,6 +325,7 @@ export interface InsightsModelMix {
 
 export interface InsightsTopRepoRow {
   repo: string;         // basename of cwd
+  cwd: string;          // full filesystem path
   tokensIn: number;
   tokensOut: number;
   totalTokens: number;

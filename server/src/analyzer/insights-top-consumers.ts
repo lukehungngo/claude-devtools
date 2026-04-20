@@ -139,6 +139,7 @@ export function computeInsightsTopConsumers(
   const sortedRepos = [...repoTokens.entries()]
     .map(([, v]) => ({
       repo: path.basename(v.cwd),
+      cwd: v.cwd,
       tokensIn: v.tokensIn,
       tokensOut: v.tokensOut,
       totalTokens: v.tokensIn + v.tokensOut,
