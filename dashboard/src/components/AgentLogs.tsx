@@ -504,51 +504,56 @@ export function AgentLogs({
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-dt-border shrink-0 bg-dt-bg2/80">
-        <div className="text-sm font-semibold uppercase tracking-[0.5px] text-dt-text2 flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="opacity-50">
-            <path d="M1.5 1.75V13.5h13.75a.75.75 0 010 1.5H.75a.75.75 0 01-.75-.75V1.75a.75.75 0 011.5 0z" />
-          </svg>
-          Agent Timeline
-          <span className="text-xs px-1.5 py-0.5 rounded-full font-semibold bg-dt-accent-dim text-dt-accent">
-            {agents.length} agents
-          </span>
-        </div>
-        <div className="flex gap-1">
-          <button
-            onClick={handleExport}
-            className="h-6 px-2 flex items-center gap-1 rounded-dt-sm text-[11px] font-medium text-dt-text2 cursor-pointer border border-dt-border bg-dt-bg2 hover:bg-dt-bg3 transition-all duration-150"
-            title="Export agent log as JSON"
+      <div className="flex items-center px-3 shrink-0 h-[30px] bg-dt-bg0 border-b border-dt-border gap-2">
+        <span className="font-mono text-xs font-semibold uppercase tracking-[0.6px] text-dt-text2 flex-1 flex items-center gap-1.5">
+          Agent Log
+          <span
+            className="text-[9px] font-mono font-semibold px-[5px] py-px rounded-[3px]"
+            style={{
+              background: "var(--bg-s)",
+              border: "1px solid var(--bd)",
+              color: "var(--t2)",
+            }}
           >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 2v9M4.5 7.5 8 11l3.5-3.5M3 14h10" />
-            </svg>
-            Export
+            {agents.length}
+          </span>
+        </span>
+        <button
+          onClick={handleExport}
+          className="h-5 px-2 flex items-center gap-1 rounded-dt-xs text-sm font-mono font-medium text-dt-text2 cursor-pointer border border-dt-border bg-transparent hover:bg-[var(--bg-s)] transition-colors duration-[120ms]"
+          title="Export agent log as JSON"
+        >
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 2v9M4.5 7.5 8 11l3.5-3.5M3 14h10" />
+          </svg>
+          Export
+        </button>
+        {!autoScroll && (
+          <button
+            onClick={resumeAutoScroll}
+            className="w-5 h-5 flex items-center justify-center rounded-dt-xs text-dt-accent cursor-pointer border-none bg-dt-accent-dim hover:bg-dt-accent/20 transition-colors duration-[120ms] text-xs"
+            title="Resume auto-scroll"
+          >
+            &#x2193;
           </button>
-          {!autoScroll && (
-            <button
-              onClick={resumeAutoScroll}
-              className="w-7 h-7 flex items-center justify-center rounded-dt-sm text-dt-accent cursor-pointer border-none bg-dt-accent-dim hover:bg-dt-accent/20 transition-all duration-150 text-sm shadow-dt-sm"
-              title="Resume auto-scroll"
-            >
-              &#x2193;
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Filter bar */}
-      <div className="flex gap-1.5 px-4 py-2 border-b border-dt-border/50 bg-dt-bg2/60 shrink-0 overflow-x-auto [scrollbar-width:none] dt-scrollbar">
+      <div
+        className="flex gap-[3px] px-3 py-[5px] border-b border-dt-border shrink-0 overflow-x-auto [scrollbar-width:none]"
+        style={{ background: "var(--bg-s)" }}
+      >
         {filterTabs.map((tab) => {
           const isActive = activeFilter === tab;
           return (
             <button
               key={tab}
               onClick={() => setActiveFilter(tab)}
-              className={`px-2.5 py-1 rounded-full text-sm cursor-pointer transition-all duration-150 border whitespace-nowrap shrink-0 ${
+              className={`px-2 py-[3px] rounded-[3px] text-sm font-mono cursor-pointer transition-colors duration-[120ms] whitespace-nowrap shrink-0 border ${
                 isActive
-                  ? "text-dt-text0 border-dt-accent bg-dt-accent-dim font-medium"
-                  : "text-dt-text2 border-transparent bg-transparent hover:bg-dt-bg3/50"
+                  ? "text-dt-text0 border-dt-border bg-dt-bg0"
+                  : "text-dt-text2 border-transparent bg-transparent hover:text-dt-text1 hover:bg-[var(--bg-h)]"
               }`}
             >
               {tab}
@@ -556,8 +561,11 @@ export function AgentLogs({
           );
         })}
         {toolFilter && (
-          <span className="ml-auto text-sm text-dt-orange flex items-center gap-1 bg-dt-orange-dim px-2 py-0.5 rounded-full">
-            Tool: {toolFilter}
+          <span
+            className="ml-auto text-sm font-mono flex items-center gap-1 px-2 py-[3px] rounded-[3px]"
+            style={{ color: "var(--pur)", background: "var(--pur-bg)" }}
+          >
+            {toolFilter}
           </span>
         )}
       </div>
@@ -624,16 +632,10 @@ export function AgentLogs({
                           return next;
                         });
                       }}
-                      className="flex items-center gap-2 border-b border-dt-border cursor-pointer select-none"
+                      className="flex items-center gap-2 border-b border-dt-border cursor-pointer select-none pr-[18px] py-2 font-mono text-base"
                       style={{
                         background: "var(--bg-s)",
                         paddingLeft: indentPx,
-                        paddingRight: 18,
-                        paddingTop: 8,
-                        paddingBottom: 8,
-                        fontFamily: "var(--font-mono)",
-                        fontSize: 11,
-                        lineHeight: "17px",
                       }}
                     >
                       {/* Chevron */}
@@ -666,15 +668,14 @@ export function AgentLogs({
                       {group.model && (
                         <span
                           data-testid="agent-header-model-badge"
-                          className="shrink-0"
-                          style={{ color: "var(--t3)", fontSize: 10 }}
+                          className="shrink-0 text-sm font-mono text-dt-text2"
                         >
                           {formatModelName(group.model)}
                         </span>
                       )}
 
                       {/* Time range + duration */}
-                      <span className="shrink-0" style={{ color: "var(--t3)", fontSize: 10, marginLeft: 6 }}>
+                      <span className="shrink-0 text-sm font-mono text-dt-text2 ml-1.5">
                         {formatTime(group.startTime)}
                         {group.durationMs > 0 && ` \u2014 ${formatTime(group.endTime)}`}
                         {group.durationMs > 0 && ` (${formatDuration(group.durationMs)})`}
@@ -686,8 +687,8 @@ export function AgentLogs({
                       {/* Cost (amber) */}
                       {group.cost > 0 && (
                         <span
-                          className="font-semibold shrink-0"
-                          style={{ color: "var(--amb)", fontSize: 10 }}
+                          className="font-semibold shrink-0 text-sm font-mono"
+                          style={{ color: "var(--amb)" }}
                         >
                           {formatCost(group.cost)}
                         </span>
@@ -695,20 +696,18 @@ export function AgentLogs({
 
                       {/* Token count */}
                       {(group.tokensIn > 0 || group.tokensOut > 0) && (
-                        <span className="shrink-0" style={{ color: "var(--t2)", fontSize: 10 }}>
+                        <span className="shrink-0 text-sm font-mono text-dt-text1">
                           {formatTokens(group.tokensIn)}/{formatTokens(group.tokensOut)}
                         </span>
                       )}
 
                       {/* Entry count pill */}
                       <span
-                        className="rounded-full px-[5px] py-px shrink-0"
+                        className="rounded-full px-[5px] py-px shrink-0 text-xs font-mono font-semibold"
                         style={{
                           background: "var(--bg-e)",
                           border: "1px solid var(--bd)",
                           color: "var(--t2)",
-                          fontSize: 9,
-                          fontWeight: 600,
                         }}
                       >
                         {group.entries.length}

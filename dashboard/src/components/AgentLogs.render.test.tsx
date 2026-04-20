@@ -121,4 +121,126 @@ describe("TASK-2: AgentLogs agent group header redesign", () => {
     const nameSpan = header!.querySelector("span[style*='resp-dispatch']");
     expect(nameSpan).not.toBeNull();
   });
+
+  it("subagent (depth > 0) name uses var(--resp-tool) purple color", () => {
+    const parent = makeAgent("main", "main");
+    const child: AgentNode = { ...makeAgent("sub-1", "general-purpose"), parentId: "main" };
+    const events: SessionEvent[] = [
+      makeAssistantEvent({ agentId: "main", uuid: "e1" }),
+      makeAssistantEvent({ agentId: "sub-1", uuid: "e2", timestamp: "2026-03-23T10:01:00Z" }),
+    ];
+
+    const { container } = render(
+      <AgentLogs
+        events={events}
+        agents={[parent, child]}
+        selectedAgent={null}
+        toolFilter={null}
+        onSelectAgent={() => {}}
+      />,
+    );
+
+    const headers = container.querySelectorAll("[data-testid='agent-group-header']");
+    // Should have 2 headers: main agent and subagent
+    expect(headers.length).toBe(2);
+    // The subagent header (second one) should have var(--resp-tool) on name span
+    const subagentHeader = headers[1];
+    const nameSpan = subagentHeader.querySelector("span[style*='resp-tool']");
+    expect(nameSpan).not.toBeNull();
+  });
+});
+
+describe("TASK-3: AgentLogs panel header and filter bar redesign", () => {
+  it("panel header has h-[30px] class and shows 'Agent Log' text (not 'Agent Timeline')", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({ agentId: "main" }),
+    ];
+    const agents: AgentNode[] = [makeAgent("main", "main")];
+
+    const { container, queryByText } = render(
+      <AgentLogs
+        events={events}
+        agents={agents}
+        selectedAgent={null}
+        toolFilter={null}
+        onSelectAgent={() => {}}
+      />,
+    );
+
+    // New header should have h-[30px] class
+    const header = container.querySelector(".h-\\[30px\\]");
+    expect(header).not.toBeNull();
+
+    // New header text should be 'Agent Log', not 'Agent Timeline'
+    expect(queryByText(/Agent Log/)).not.toBeNull();
+    expect(queryByText(/Agent Timeline/)).toBeNull();
+  });
+
+  it("panel header shows agent count badge with number only (not 'N agents')", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({ agentId: "main" }),
+    ];
+    const agents: AgentNode[] = [makeAgent("main", "main"), makeAgent("sub-1", "general-purpose")];
+
+    const { queryByText } = render(
+      <AgentLogs
+        events={events}
+        agents={agents}
+        selectedAgent={null}
+        toolFilter={null}
+        onSelectAgent={() => {}}
+      />,
+    );
+
+    // Badge shows count only, no "N agents" text
+    expect(queryByText("2 agents")).toBeNull();
+    expect(queryByText("2")).not.toBeNull();
+  });
+
+  it("filter bar 'All' tab active state uses bg-dt-bg0, not rounded-full or bg-dt-accent-dim", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({ agentId: "main" }),
+    ];
+    const agents: AgentNode[] = [makeAgent("main", "main")];
+
+    const { getByText } = render(
+      <AgentLogs
+        events={events}
+        agents={agents}
+        selectedAgent={null}
+        toolFilter={null}
+        onSelectAgent={() => {}}
+      />,
+    );
+
+    const allButton = getByText("All");
+    expect(allButton.tagName).toBe("BUTTON");
+    // Active tab should use bg-dt-bg0
+    expect(allButton.className).toContain("bg-dt-bg0");
+    // Should NOT use old rounded-full pill style
+    expect(allButton.className).not.toContain("rounded-full");
+    // Should NOT use old accent-dim active style
+    expect(allButton.className).not.toContain("bg-dt-accent-dim");
+  });
+
+  it("filter bar buttons use rounded-[3px], not rounded-full", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({ agentId: "main" }),
+    ];
+    const agents: AgentNode[] = [makeAgent("main", "main")];
+
+    const { getByText } = render(
+      <AgentLogs
+        events={events}
+        agents={agents}
+        selectedAgent={null}
+        toolFilter={null}
+        onSelectAgent={() => {}}
+      />,
+    );
+
+    const allButton = getByText("All");
+    expect(allButton.className).toContain("rounded-[3px]");
+    expect(allButton.className).not.toContain("rounded-full");
+  });
 });
