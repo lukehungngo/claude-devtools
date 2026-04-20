@@ -334,6 +334,14 @@ export function InsightsPage(): JSX.Element {
               sparklineData={data.daily.map((d) => d.tokensIn)}
               sparklineColor="teal"
             />
+            {data.cacheReadTokens > 0 && (
+              <HeadlineTile
+                label="Cached"
+                value={formatTokens(data.cacheReadTokens)}
+                delta={null}
+                testId="insights-cached-tokens"
+              />
+            )}
             <HeadlineTile
               label="Tokens Out"
               value={formatTokens(data.tokensOut)}

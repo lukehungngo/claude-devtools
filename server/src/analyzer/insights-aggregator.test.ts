@@ -37,7 +37,7 @@ function makeSession(overrides: Partial<SessionInfo> = {}): SessionInfo {
   };
 }
 
-function makeAssistantEvent(inputTokens: number, outputTokens: number): SessionEvent {
+function makeAssistantEvent(inputTokens: number, outputTokens: number, cacheReadTokens = 0): SessionEvent {
   return {
     type: "assistant",
     uuid: "a1",
@@ -55,7 +55,7 @@ function makeAssistantEvent(inputTokens: number, outputTokens: number): SessionE
         input_tokens: inputTokens,
         output_tokens: outputTokens,
         cache_creation_input_tokens: 0,
-        cache_read_input_tokens: 0,
+        cache_read_input_tokens: cacheReadTokens,
       },
     },
   } as unknown as SessionEvent;
@@ -197,5 +197,30 @@ describe("computeInsightsAggregate", () => {
   it("peakHour is 0 when no session data", () => {
     const result = computeInsightsAggregate([], "7d", "all");
     expect(result.peakHour).toBe(0);
+  });
+
+  it("aggregates cacheReadTokens across sessions", () => {
+    const s1 = makeSession({ path: "/tmp/s1.jsonl" });
+    const s2 = makeSession({ path: "/tmp/s2.jsonl" });
+    let call = 0;
+    mockedParse.mockImplementation(() => {
+      call++;
+      return {
+        events: [makeAssistantEvent(100, 50, call === 1 ? 300 : 200)],
+        newOffset: 100,
+      };
+    });
+    const result = computeInsightsAggregate([s1, s2], "7d", "all");
+    expect(result.cacheReadTokens).toBe(500);
+  });
+
+  it("returns cacheReadTokens=0 when no cache reads occurred", () => {
+    const session = makeSession();
+    mockedParse.mockReturnValue({
+      events: [makeAssistantEvent(1000, 500, 0)],
+      newOffset: 500,
+    });
+    const result = computeInsightsAggregate([session], "7d", "all");
+    expect(result.cacheReadTokens).toBe(0);
   });
 });

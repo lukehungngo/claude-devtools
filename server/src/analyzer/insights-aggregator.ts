@@ -13,6 +13,7 @@ interface InsightsSessionData {
   offset: number;
   tokensIn: number;
   tokensOut: number;
+  cacheReadTokens: number;
   cost: number;
   turns: number;
 }
@@ -24,7 +25,7 @@ export function computeInsightsSessionData(session: SessionInfo): InsightsSessio
   try {
     stat = statSync(session.path);
   } catch {
-    return { fileSize: 0, offset: 0, cost: 0, tokensIn: 0, tokensOut: 0, turns: 0 };
+    return { fileSize: 0, offset: 0, cost: 0, tokensIn: 0, tokensOut: 0, cacheReadTokens: 0, turns: 0 };
   }
 
   const cached = sessionDataCache.get(session.id);
@@ -34,6 +35,7 @@ export function computeInsightsSessionData(session: SessionInfo): InsightsSessio
   let cost = cached?.cost ?? 0;
   let tokensIn = cached?.tokensIn ?? 0;
   let tokensOut = cached?.tokensOut ?? 0;
+  let cacheReadTokens = cached?.cacheReadTokens ?? 0;
   let turns = cached?.turns ?? 0;
 
   try {
@@ -45,13 +47,15 @@ export function computeInsightsSessionData(session: SessionInfo): InsightsSessio
         if (!usage) continue;
         const inTok = usage.input_tokens || 0;
         const outTok = usage.output_tokens || 0;
+        const cacheRead = usage.cache_read_input_tokens || 0;
         tokensIn += inTok;
         tokensOut += outTok;
+        cacheReadTokens += cacheRead;
         cost += calculateTokenCost(model, {
           inputTokens: inTok,
           outputTokens: outTok,
           cacheWriteTokens: usage.cache_creation_input_tokens || 0,
-          cacheReadTokens: usage.cache_read_input_tokens || 0,
+          cacheReadTokens: cacheRead,
         });
       } else if (event.type === "user" && event.userType === "external") {
         turns++;
@@ -63,12 +67,13 @@ export function computeInsightsSessionData(session: SessionInfo): InsightsSessio
       cost,
       tokensIn,
       tokensOut,
+      cacheReadTokens,
       turns,
     };
     sessionDataCache.set(session.id, data);
     return data;
   } catch {
-    return { fileSize: 0, offset: 0, cost, tokensIn, tokensOut, turns };
+    return { fileSize: 0, offset: 0, cost, tokensIn, tokensOut, cacheReadTokens, turns };
   }
 }
 
@@ -103,6 +108,7 @@ export function computeInsightsAggregate(
 
   let totalTokensIn = 0;
   let totalTokensOut = 0;
+  let totalCacheReadTokens = 0;
   let totalCost = 0;
   let totalTurns = 0;
 
@@ -110,6 +116,7 @@ export function computeInsightsAggregate(
     const data = computeInsightsSessionData(session);
     totalTokensIn += data.tokensIn;
     totalTokensOut += data.tokensOut;
+    totalCacheReadTokens += data.cacheReadTokens;
     totalCost += data.cost;
     totalTurns += data.turns;
 
@@ -133,6 +140,7 @@ export function computeInsightsAggregate(
   return {
     tokensIn: totalTokensIn,
     tokensOut: totalTokensOut,
+    cacheReadTokens: totalCacheReadTokens,
     cost: totalCost,
     sessions: filtered.length,
     turns: totalTurns,

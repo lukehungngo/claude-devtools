@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 export interface InsightsAggregateClient {
   tokensIn: number;
   tokensOut: number;
+  cacheReadTokens: number;
   cost: number;
   sessions: number;
   turns: number;

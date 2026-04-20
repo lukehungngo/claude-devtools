@@ -6,6 +6,7 @@ function makeAggregate(override: Record<string, unknown> = {}) {
   return {
     tokensIn: 1000,
     tokensOut: 500,
+    cacheReadTokens: 0,
     cost: 0.01,
     sessions: 5,
     turns: 20,
@@ -133,6 +134,16 @@ describe("useInsightsAggregate", () => {
     rerender({ rc: 1 });
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it("exposes cacheReadTokens from the API response", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(makeAggregate({ cacheReadTokens: 12_500 })),
+    });
+    const { result } = renderHook(() => useInsightsAggregate("7d", "all"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.data?.cacheReadTokens).toBe(12_500);
   });
 
   it("refetches when timeRange changes", async () => {

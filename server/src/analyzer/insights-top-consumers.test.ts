@@ -62,6 +62,7 @@ beforeEach(() => {
     offset: 100,
     tokensIn: 0,
     tokensOut: 0,
+    cacheReadTokens: 0,
     cost: 0,
     turns: 0,
   });
@@ -89,6 +90,7 @@ describe("computeInsightsTopConsumers", () => {
           offset: 100,
           tokensIn: 1000,
           tokensOut: 500,
+          cacheReadTokens: 0,
           cost: 0.01,
           turns: 1,
         };
@@ -98,6 +100,7 @@ describe("computeInsightsTopConsumers", () => {
           offset: 100,
           tokensIn: 200,
           tokensOut: 100,
+          cacheReadTokens: 0,
           cost: 0.002,
           turns: 1,
         };
@@ -107,6 +110,7 @@ describe("computeInsightsTopConsumers", () => {
         offset: 100,
         tokensIn: 3000,
         tokensOut: 1000,
+        cacheReadTokens: 0,
         cost: 0.03,
         turns: 1,
       };
@@ -133,6 +137,7 @@ describe("computeInsightsTopConsumers", () => {
           offset: 100,
           tokensIn: 100,
           tokensOut: 50,
+          cacheReadTokens: 0,
           cost: 0.05,
           turns: 1,
         };
@@ -141,6 +146,7 @@ describe("computeInsightsTopConsumers", () => {
         offset: 100,
         tokensIn: 500,
         tokensOut: 200,
+        cacheReadTokens: 0,
         cost: 2.0,
         turns: 1,
       };
@@ -158,6 +164,7 @@ describe("computeInsightsTopConsumers", () => {
       offset: 100,
       tokensIn: 100,
       tokensOut: 50,
+      cacheReadTokens: 0,
       cost: 0.01,
       turns: 1,
     });
@@ -208,6 +215,7 @@ describe("computeInsightsTopConsumers", () => {
       offset: 100,
       tokensIn: 1000 - parseInt(s.id.replace("s", "")) * 50,
       tokensOut: 500,
+      cacheReadTokens: 0,
       cost: 0.01,
       turns: 1,
     }));
@@ -228,6 +236,7 @@ describe("computeInsightsTopConsumers", () => {
       offset: 100,
       tokensIn: 500,
       tokensOut: 200,
+      cacheReadTokens: 0,
       cost: 0.01,
       turns: 1,
     });
@@ -251,6 +260,7 @@ describe("computeInsightsTopConsumers", () => {
       offset: 100,
       tokensIn: 100,
       tokensOut: 50,
+      cacheReadTokens: 0,
       cost: 0.01,
       turns: 1,
     });

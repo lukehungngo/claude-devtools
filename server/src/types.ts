@@ -282,6 +282,7 @@ export interface InsightsDailyBucket {
 export interface InsightsAggregate {
   tokensIn: number;
   tokensOut: number;
+  cacheReadTokens: number;
   cost: number;
   sessions: number;
   turns: number;

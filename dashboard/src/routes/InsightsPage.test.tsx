@@ -56,6 +56,7 @@ function mockData() {
     data: {
       tokensIn: 120_000,
       tokensOut: 45_000,
+      cacheReadTokens: 0,
       cost: 1.23,
       sessions: 8,
       turns: 42,
@@ -165,6 +166,7 @@ describe("InsightsPage", () => {
       data: {
         tokensIn: 120_000,
         tokensOut: 45_000,
+        cacheReadTokens: 0,
         cost: 1.23,
         sessions: 8,
         turns: 42,
@@ -199,6 +201,35 @@ describe("InsightsPage", () => {
     expect(screen.getByTestId("tile-turns")).toBeTruthy();
   });
 
+  it("renders Cached tile when cacheReadTokens > 0", () => {
+    vi.mocked(useInsightsAggregate).mockReturnValue({
+      data: {
+        tokensIn: 120_000,
+        tokensOut: 45_000,
+        cacheReadTokens: 8_000,
+        cost: 1.23,
+        sessions: 8,
+        turns: 42,
+        avgCostPerTurn: 0.029,
+        avgTokensPerTurn: 3928,
+        activeDays: 5,
+        peakHour: 15,
+        daily: [],
+      },
+      delta: null,
+      loading: false,
+      error: null,
+    });
+    render(<InsightsPage />);
+    expect(screen.getByTestId("insights-cached-tokens")).toBeTruthy();
+  });
+
+  it("does not render Cached tile when cacheReadTokens is 0", () => {
+    mockData(); // cacheReadTokens: 0
+    render(<InsightsPage />);
+    expect(screen.queryByTestId("insights-cached-tokens")).toBeNull();
+  });
+
   it("renders commands, agents, skills, and efficiency hints sections", () => {
     mockData();
     render(<InsightsPage />);
@@ -230,6 +261,7 @@ describe("InsightsPage", () => {
       data: {
         tokensIn: 120_000,
         tokensOut: 45_000,
+        cacheReadTokens: 0,
         cost: 1.23,
         sessions: 8,
         turns: 42,
@@ -255,6 +287,7 @@ describe("InsightsPage", () => {
       data: {
         tokensIn: 120_000,
         tokensOut: 45_000,
+        cacheReadTokens: 0,
         cost: 1.23,
         sessions: 8,
         turns: 42,

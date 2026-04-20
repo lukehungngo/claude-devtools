@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("./insights-aggregator.js", () => ({
   computeInsightsSessionData: vi.fn(() => ({
-    fileSize: 100, offset: 100, tokensIn: 1000, tokensOut: 500, cost: 0.01, turns: 3,
+    fileSize: 100, offset: 100, tokensIn: 1000, tokensOut: 500, cacheReadTokens: 0, cost: 0.01, turns: 3,
   })),
   getTimeRangeCutoff: vi.fn(() => 0),
 }));
@@ -31,7 +31,7 @@ describe("computeInsightsActivity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedSessionData.mockReturnValue({
-      fileSize: 100, offset: 100, tokensIn: 1000, tokensOut: 500, cost: 0.01, turns: 3,
+      fileSize: 100, offset: 100, tokensIn: 1000, tokensOut: 500, cacheReadTokens: 0, cost: 0.01, turns: 3,
     });
   });
 
@@ -85,8 +85,8 @@ describe("computeInsightsActivity", () => {
 
   it("hourly bucket tokensAvg averages across sessions in same hour", () => {
     mockedSessionData
-      .mockReturnValueOnce({ fileSize: 100, offset: 100, tokensIn: 2000, tokensOut: 0, cost: 0, turns: 1 })
-      .mockReturnValueOnce({ fileSize: 100, offset: 100, tokensIn: 4000, tokensOut: 0, cost: 0, turns: 1 });
+      .mockReturnValueOnce({ fileSize: 100, offset: 100, tokensIn: 2000, tokensOut: 0, cacheReadTokens: 0, cost: 0, turns: 1 })
+      .mockReturnValueOnce({ fileSize: 100, offset: 100, tokensIn: 4000, tokensOut: 0, cacheReadTokens: 0, cost: 0, turns: 1 });
     const sessions = [
       makeSession("s1", "2026-04-13T09:00:00Z"),
       makeSession("s2", "2026-04-14T09:00:00Z"),
