@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { eventsToLogEntries, buildTimelineGroups } from "./AgentLogs";
+import { eventsToLogEntries, buildTimelineGroups, getActionBadgeStyle } from "./AgentLogs";
 import { calculateTurnCost } from "../lib/cost";
 import type { SessionEvent, AgentNode } from "../lib/types";
 import type { LogEntry } from "./AgentLogs";
@@ -351,5 +351,64 @@ describe("AgentLogs token tracking", () => {
       expect(e.tokensIn).toBe(0);
       expect(e.tokensOut).toBe(0);
     });
+  });
+});
+
+describe("getActionBadgeStyle (redesigned filled badges)", () => {
+  it("returns null for null tool name", () => {
+    expect(getActionBadgeStyle(null)).toBeNull();
+  });
+  it("think → resp-think vars", () => {
+    const s = getActionBadgeStyle("thinking");
+    expect(s).not.toBeNull();
+    expect(s!.bg).toBe("var(--resp-think-bg)");
+    expect(s!.color).toBe("var(--resp-think)");
+    expect(s!.label).toBe("think");
+  });
+  it("Bash → resp-tool vars", () => {
+    const s = getActionBadgeStyle("Bash");
+    expect(s!.bg).toBe("var(--resp-tool-bg)");
+    expect(s!.color).toBe("var(--resp-tool)");
+    expect(s!.label).toBe("Bash");
+  });
+  it("Read → resp-tool vars", () => {
+    const s = getActionBadgeStyle("Read");
+    expect(s!.bg).toBe("var(--resp-tool-bg)");
+    expect(s!.color).toBe("var(--resp-tool)");
+  });
+  it("Write → grn vars", () => {
+    const s = getActionBadgeStyle("Write");
+    expect(s!.bg).toBe("var(--grn-bg)");
+    expect(s!.color).toBe("var(--grn)");
+  });
+  it("Edit → grn vars", () => {
+    const s = getActionBadgeStyle("Edit");
+    expect(s!.bg).toBe("var(--grn-bg)");
+    expect(s!.color).toBe("var(--grn)");
+  });
+  it("error → red vars", () => {
+    const s = getActionBadgeStyle("error");
+    expect(s!.bg).toBe("var(--red-bg)");
+    expect(s!.color).toBe("var(--red)");
+  });
+  it("result → bg-s + border + t2", () => {
+    const s = getActionBadgeStyle("result");
+    expect(s!.bg).toBe("var(--bg-s)");
+    expect(s!.color).toBe("var(--t2)");
+    expect(s!.border).toBe("1px solid var(--bd)");
+  });
+  it("spawn → resp-dispatch vars", () => {
+    const s = getActionBadgeStyle("spawn");
+    expect(s!.bg).toBe("var(--resp-dispatch-bg)");
+    expect(s!.color).toBe("var(--resp-dispatch)");
+  });
+  it("unknown tool → resp-tool vars (purple fallback)", () => {
+    const s = getActionBadgeStyle("SomeTool");
+    expect(s!.bg).toBe("var(--resp-tool-bg)");
+    expect(s!.color).toBe("var(--resp-tool)");
+  });
+  it("long unknown tool truncated to 12 chars + ellipsis", () => {
+    const s = getActionBadgeStyle("VeryLongToolName");
+    expect(s!.label).toBe("VeryLongTool\u2026");
   });
 });

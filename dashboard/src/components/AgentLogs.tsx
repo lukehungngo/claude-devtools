@@ -53,37 +53,40 @@ type FlatItem =
 
 // ─── Action badge colors ─────────────────────────────────────────────
 
-function getActionBadgeStyle(toolName: string | null): {
-  border: string;
+export function getActionBadgeStyle(toolName: string | null): {
+  bg: string;
   color: string;
+  border?: string;
   label: string;
-} {
-  if (!toolName) {
-    return { border: "var(--text-2)", color: "var(--text-2)", label: "msg" };
-  }
+} | null {
+  if (!toolName) return null;
 
   const name = toolName.toLowerCase();
+  if (name === "thinking" || name === "think") {
+    return { bg: "var(--resp-think-bg)", color: "var(--resp-think)", label: "think" };
+  }
   if (name === "read" || name === "grep" || name === "glob") {
-    return { border: "var(--cyan)", color: "var(--cyan)", label: toolName };
+    return { bg: "var(--resp-tool-bg)", color: "var(--resp-tool)", label: toolName };
   }
   if (name === "write" || name === "edit") {
-    return { border: "var(--green)", color: "var(--green)", label: toolName };
+    return { bg: "var(--grn-bg)", color: "var(--grn)", label: toolName };
   }
   if (name === "bash") {
-    return { border: "var(--orange)", color: "var(--orange)", label: toolName };
-  }
-  if (name === "thinking" || name === "think") {
-    return { border: "var(--purple)", color: "var(--purple)", label: "think" };
+    return { bg: "var(--resp-tool-bg)", color: "var(--resp-tool)", label: "Bash" };
   }
   if (name === "error") {
-    return { border: "var(--red)", color: "var(--red)", label: "error" };
+    return { bg: "var(--red-bg)", color: "var(--red)", label: "error" };
   }
-  if (name === "spawn" || name === "completed") {
-    return { border: "var(--green)", color: "var(--green)", label: toolName };
+  if (name === "result") {
+    return { bg: "var(--bg-s)", color: "var(--t2)", border: "1px solid var(--bd)", label: "result" };
   }
+  if (name === "spawn" || name === "completed" || name === "agent") {
+    return { bg: "var(--resp-dispatch-bg)", color: "var(--resp-dispatch)", label: toolName };
+  }
+  // Unknown tool — purple (tool category)
   return {
-    border: "var(--orange)",
-    color: "var(--orange)",
+    bg: "var(--resp-tool-bg)",
+    color: "var(--resp-tool)",
     label: toolName.length > 12 ? toolName.slice(0, 12) + "\u2026" : toolName,
   };
 }
@@ -702,8 +705,7 @@ export function AgentLogs({
               const isExpanded = expandedEntries.has(entry.uuid);
               const hasMore = entry.rawMessage && entry.rawMessage !== entry.message;
               const displayMessage = isExpanded ? (entry.rawMessage || entry.message) : entry.message;
-              const indent = depth * 20;
-              const depthColor = getDepthColor(depth);
+              const indentPx = 18 + depth * 20;
 
               return (
                 <div
@@ -719,47 +721,48 @@ export function AgentLogs({
                   }}
                 >
                   <div
-                    className={`flex items-start gap-2 py-0.5 pr-3 text-[11px] border-b border-dt-border/20 transition-colors duration-150 ${isHighlighted ? "bg-dt-bg2" : ""}`}
-                    style={{ paddingLeft: 16 + indent }}
+                    className={`grid border-b border-dt-border/15 transition-colors duration-[120ms] ${
+                      isHighlighted ? "bg-[var(--bg-sel)]" : "hover:bg-[var(--bg-s)]"
+                    }`}
+                    style={{
+                      gridTemplateColumns: "70px 1fr",
+                      paddingLeft: indentPx,
+                      paddingRight: 18,
+                      paddingTop: 3,
+                      paddingBottom: 3,
+                      gap: "12px",
+                    }}
                   >
-                    {/* Timeline line segment */}
-                    <div className="flex flex-col items-center shrink-0 pt-0.5" style={{ width: 8 }}>
-                      <span
-                        className="w-px h-full min-h-[16px]"
-                        style={{ background: depthColor, opacity: 0.3 }}
-                      />
-                    </div>
-
                     {/* Timestamp */}
-                    <span className="font-mono text-dt-text3 text-[10px] shrink-0 w-[58px]">
+                    <span className="font-mono text-sm text-dt-text2 leading-[17px] shrink-0 tabular-nums">
                       {formatTime(entry.timestamp)}
                     </span>
 
-                    {/* Action badge */}
-                    {entry.toolName && (
-                      <span
-                        className="text-[10px] px-[5px] py-px rounded-[3px] whitespace-nowrap font-medium shrink-0"
-                        style={{ border: `1px solid ${actionStyle.border}`, color: actionStyle.color, background: "transparent" }}
-                      >
-                        {actionStyle.label}
-                      </span>
-                    )}
-
-                    {/* Message */}
+                    {/* Content: tag + message */}
                     <span
+                      className={`font-mono text-base text-dt-text0 leading-[17px] min-w-0 ${
+                        isExpanded ? "whitespace-pre-wrap break-all" : "whitespace-nowrap overflow-hidden text-ellipsis"
+                      } ${hasMore ? "cursor-pointer" : ""}`}
                       onClick={() => hasMore && toggleExpand(entry.uuid)}
-                      className={`text-dt-text1 leading-[1.3] ${
-                        isExpanded
-                          ? "whitespace-pre-wrap break-all"
-                          : "whitespace-nowrap"
-                      } ${hasMore ? "cursor-pointer" : "cursor-default"}`}
                     >
+                      {actionStyle && (
+                        <span
+                          className="inline-block text-[9px] font-bold uppercase tracking-[0.4px] px-[5px] py-px rounded-[3px] mr-1.5 align-middle"
+                          style={{
+                            background: actionStyle.bg,
+                            color: actionStyle.color,
+                            ...(actionStyle.border ? { border: actionStyle.border } : {}),
+                          }}
+                        >
+                          {actionStyle.label}
+                        </span>
+                      )}
                       {highlightMessage(displayMessage)}
                       {hasMore && !isExpanded && (
-                        <span className="text-[9px] text-dt-accent ml-1 opacity-70">{"\u25B6"}</span>
+                        <span className="text-[9px] text-dt-accent ml-1 opacity-60">{"\u25B6"}</span>
                       )}
                       {isExpanded && (
-                        <span className="text-[9px] text-dt-accent ml-1 opacity-70">{"\u25BC"}</span>
+                        <span className="text-[9px] text-dt-accent ml-1 opacity-60">{"\u25BC"}</span>
                       )}
                     </span>
                   </div>
