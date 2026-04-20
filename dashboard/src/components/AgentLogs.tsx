@@ -10,7 +10,6 @@ import type {
 import { normalizeContent } from "../lib/normalizeContent";
 import { formatTime } from "../lib/formatTime";
 import { formatCost, formatDuration, formatTokens, calculateTurnCost } from "../lib/cost";
-import { getAgentBadgeStyle } from "../lib/agentColors";
 import { buildExportPayload, downloadJson } from "../lib/exportAgentLog";
 import { formatModelName } from "../lib/formatModelName";
 
@@ -371,21 +370,6 @@ function normalizeAgentTypeLabel(type: string): string {
   return type;
 }
 
-// ─── Timeline line colors by depth ───────────────────────────────────
-
-const DEPTH_COLORS = [
-  "var(--accent)",
-  "var(--cyan)",
-  "var(--green)",
-  "var(--orange)",
-  "var(--purple)",
-  "var(--pink)",
-];
-
-function getDepthColor(depth: number): string {
-  return DEPTH_COLORS[depth % DEPTH_COLORS.length];
-}
-
 // ─── Component ───────────────────────────────────────────────────────
 
 interface Props {
@@ -613,9 +597,9 @@ export function AgentLogs({
               if (item.kind === "agent-header") {
                 const { group, groupIndex } = item;
                 const isCollapsed = collapsedGroups.has(groupIndex);
-                const badgeStyle = getAgentBadgeStyle(group.agentType);
-                const depthColor = getDepthColor(group.depth);
-                const indent = group.depth * 20;
+                const indentPx = 18 + group.depth * 20;
+                // Main agent (depth 0) uses dispatch/terracotta, subagents use tool/purple
+                const nameColor = group.depth === 0 ? "var(--resp-dispatch)" : "var(--resp-tool)";
 
                 return (
                   <div
@@ -631,6 +615,7 @@ export function AgentLogs({
                     }}
                   >
                     <div
+                      data-testid="agent-group-header"
                       onClick={() => {
                         setExpandedGroups((prev) => {
                           const next = new Set(prev);
@@ -639,22 +624,36 @@ export function AgentLogs({
                           return next;
                         });
                       }}
-                      className="flex items-center gap-2 py-1 cursor-pointer select-none border-b border-dt-border/30"
-                      style={{ paddingLeft: 12 + indent }}
+                      className="flex items-center gap-2 border-b border-dt-border cursor-pointer select-none"
+                      style={{
+                        background: "var(--bg-s)",
+                        paddingLeft: indentPx,
+                        paddingRight: 18,
+                        paddingTop: 8,
+                        paddingBottom: 8,
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 11,
+                        lineHeight: "17px",
+                      }}
                     >
-                      {/* Timeline dot */}
+                      {/* Chevron */}
                       <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ background: depthColor }}
-                      />
-                      {/* Collapse arrow */}
-                      <span className={`text-[8px] text-dt-text2 transition-transform duration-150 ${isCollapsed ? "-rotate-90" : "rotate-0"}`}>
-                        {"\u25BC"}
+                        aria-hidden="true"
+                        className="shrink-0 transition-transform duration-[120ms]"
+                        style={{
+                          color: "var(--t3)",
+                          fontSize: 9,
+                          transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                          display: "inline-block",
+                        }}
+                      >
+                        ▾
                       </span>
-                      {/* Agent badge */}
+
+                      {/* Agent name — clickable, selects agent in DAG */}
                       <span
-                        className="px-1.5 py-px rounded-[3px] font-semibold text-[10px] cursor-pointer"
-                        style={{ background: badgeStyle.background, color: badgeStyle.color }}
+                        className="font-semibold shrink-0 cursor-pointer"
+                        style={{ color: nameColor }}
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelectAgent(group.agentId);
@@ -662,35 +661,56 @@ export function AgentLogs({
                       >
                         {normalizeAgentTypeLabel(group.agentType)}
                       </span>
+
+                      {/* Model badge */}
                       {group.model && (
                         <span
                           data-testid="agent-header-model-badge"
-                          className="text-[10px] font-mono text-dt-text2"
+                          className="shrink-0"
+                          style={{ color: "var(--t3)", fontSize: 10 }}
                         >
                           {formatModelName(group.model)}
                         </span>
                       )}
-                      {/* Time range */}
-                      <span className="text-dt-text2 text-[10px] font-mono">
+
+                      {/* Time range + duration */}
+                      <span className="shrink-0" style={{ color: "var(--t3)", fontSize: 10, marginLeft: 6 }}>
                         {formatTime(group.startTime)}
                         {group.durationMs > 0 && ` \u2014 ${formatTime(group.endTime)}`}
+                        {group.durationMs > 0 && ` (${formatDuration(group.durationMs)})`}
                       </span>
-                      {group.durationMs > 0 && (
-                        <span className="text-dt-text3 text-[10px] font-mono">
-                          ({formatDuration(group.durationMs)})
-                        </span>
-                      )}
+
+                      {/* Spacer */}
+                      <span className="flex-1" />
+
+                      {/* Cost (amber) */}
                       {group.cost > 0 && (
-                        <span className="text-[10px] px-[5px] py-px rounded-[3px] font-semibold bg-dt-green-dim text-dt-green font-mono">
+                        <span
+                          className="font-semibold shrink-0"
+                          style={{ color: "var(--amb)", fontSize: 10 }}
+                        >
                           {formatCost(group.cost)}
                         </span>
                       )}
+
+                      {/* Token count */}
                       {(group.tokensIn > 0 || group.tokensOut > 0) && (
-                        <span className="text-[10px] text-dt-text3 font-mono">
+                        <span className="shrink-0" style={{ color: "var(--t2)", fontSize: 10 }}>
                           {formatTokens(group.tokensIn)}/{formatTokens(group.tokensOut)}
                         </span>
                       )}
-                      <span className="text-[10px] px-[5px] py-px rounded-full font-semibold bg-dt-bg4 text-dt-text2">
+
+                      {/* Entry count pill */}
+                      <span
+                        className="rounded-full px-[5px] py-px shrink-0"
+                        style={{
+                          background: "var(--bg-e)",
+                          border: "1px solid var(--bd)",
+                          color: "var(--t2)",
+                          fontSize: 9,
+                          fontWeight: 600,
+                        }}
+                      >
                         {group.entries.length}
                       </span>
                     </div>
