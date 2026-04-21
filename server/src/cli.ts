@@ -1,5 +1,11 @@
 import { startHttpServer } from "./http/server.js";
 import open from "open";
+import updateNotifier from "update-notifier";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const pkg = require("../../package.json") as { name: string; version: string };
+updateNotifier({ pkg }).notify();
 
 const port = parseInt(process.env.DEVTOOLS_PORT || "3142", 10);
 
