@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Play, Settings, Copy, Check, Plus, LayoutList } from "lucide-react";
 import type { RepoGroup } from "../lib/types";
+import { SourceBadge } from "./SourceBadge";
 
 const SESSION_NAMES_KEY = "session-names";
 
@@ -231,6 +232,7 @@ export function RepoList({
                         >
                           {displayName}
                         </span>
+                        <SourceBadge source={session.source} />
                         <button
                           data-testid="copy-session-id"
                           data-session-id={session.id}
