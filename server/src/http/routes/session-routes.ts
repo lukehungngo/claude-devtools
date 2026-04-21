@@ -8,6 +8,7 @@ import {
   discoverSessions,
   loadFullSession,
 } from "../../parser/session-discovery.js";
+import { collectorBuffer } from "../../collector/buffer.js";
 import { computeMetrics } from "../../analyzer/metrics.js";
 import { getAgentEvents } from "../../analyzer/agent-events.js";
 import {
@@ -167,6 +168,17 @@ export function createSessionRoutes({ state }: RouteContext): Router {
       }
 
       if (!cacheHit) {
+        // Check collector buffer first for remote sessions
+        const collectorEvents = collectorBuffer.getEvents(sessionId);
+        if (collectorEvents.length > 0) {
+          const emptySubagentEvents = new Map<string, SessionEvent[]>();
+          const emptySubagentMeta = new Map<string, { agentType: string; description: string }>();
+          metrics = computeMetrics(session, collectorEvents, emptySubagentEvents, emptySubagentMeta);
+          allEvents = collectorEvents;
+          subagentMeta = emptySubagentMeta;
+          return res.json({ metrics, events: allEvents, subagentMeta: {} });
+        }
+
         const { mainEvents, subagentEvents, subagentMeta: loadedMeta } =
           loadFullSession(session);
         subagentMeta = loadedMeta;

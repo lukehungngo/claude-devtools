@@ -5,6 +5,7 @@ import type { SessionInfo, SessionEvent, RepoGroup } from "../types.js";
 import { parseJsonlFile } from "./jsonl-reader.js";
 import { SessionCache } from "../cache/session-cache.js";
 import { parserLog } from "../logger.js";
+import { collectorBuffer } from "../collector/buffer.js";
 
 /** Shared session cache instance — used by discoverSessions(). */
 export const sessionCache = new SessionCache();
@@ -54,6 +55,14 @@ export function discoverSessions(): SessionInfo[] {
     (a, b) =>
       new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
   );
+
+  // Merge collector-sourced sessions (remote/docker)
+  const collectorSessions = collectorBuffer.getSessions();
+  for (const cs of collectorSessions) {
+    if (!sessions.find((s) => s.id === cs.id)) {
+      sessions.push(cs);
+    }
+  }
 
   discoveryCache = { sessions, timestamp: Date.now() };
   return sessions;
