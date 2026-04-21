@@ -11,6 +11,9 @@ import { DebugDB } from "../debug/debug-db.js";
 import { backfillDebugDb } from "../debug/backfill.js";
 import type { WsBroadcastMessage } from "../types.js";
 import { logger, wsLog, LOG_FILE_PATH } from "../logger.js";
+import { CollectorHub } from "../collector/hub.js";
+import { loadOrCreate } from "../collector/token.js";
+import { startDockerInjector } from "../collector/docker-injector.js";
 
 let __dirname: string;
 try {
@@ -24,6 +27,7 @@ export interface ServerState {
   clients: Set<WebSocket>;
   sessionManager?: SessionManager;
   debugDb?: DebugDB;
+  collectorHub?: CollectorHub;
 }
 
 export function startHttpServer(port: number = 3142): Promise<{
@@ -80,6 +84,18 @@ export function startHttpServer(port: number = 3142): Promise<{
       });
     });
 
+    // Collector hub — same HTTP server, /collect WS path
+    const collectorToken = loadOrCreate();
+    const collectorHub = new CollectorHub({
+      token: collectorToken,
+      httpServer: server,
+      onBroadcast: (msg) => broadcast(state, msg as WsBroadcastMessage),
+    });
+    state.collectorHub = collectorHub;
+
+    // Docker auto-injector
+    const dockerInjector = startDockerInjector(port, collectorToken);
+
     // API routes (pass state for WebSocket broadcasting)
     app.use("/api", setupRoutes(state));
 
@@ -97,6 +113,8 @@ export function startHttpServer(port: number = 3142): Promise<{
     const watcher = startWatcher(state);
 
     const cleanup = () => {
+      dockerInjector.stop();
+      collectorHub.close();
       watcher.close();
       state.sessionManager?.dispose();
       state.debugDb?.close();
@@ -107,7 +125,7 @@ export function startHttpServer(port: number = 3142): Promise<{
     server.on("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "EADDRINUSE" && port === 3142) {
         // Fallback to random port
-        server.listen(0, "127.0.0.1", () => {
+        server.listen(0, "0.0.0.0", () => {
           const addr = server.address();
           const actualPort = typeof addr === "object" ? addr?.port : 0;
           const url = `http://localhost:${actualPort}`;
@@ -118,9 +136,11 @@ export function startHttpServer(port: number = 3142): Promise<{
       }
     });
 
-    server.listen(port, "127.0.0.1", () => {
+    server.listen(port, "0.0.0.0", () => {
       const url = `http://localhost:${port}`;
       logger.info({ url, logFile: LOG_FILE_PATH }, "server started");
+      process.stdout.write(`Collector token: ${collectorToken}\n`);
+      process.stdout.write(`  (run 'claude-devtools token' to see again)\n\n`);
       resolve({ url, close: cleanup });
     });
   });
