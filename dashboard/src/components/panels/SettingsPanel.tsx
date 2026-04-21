@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Save, Plus, X } from "lucide-react";
 import type { SessionMetrics, UsageInfo } from "../../lib/types";
+import { CollectorsPanel } from "./CollectorsPanel";
 
 interface SettingsPanelProps {
   metrics: SessionMetrics | null;
@@ -374,6 +375,9 @@ export function SettingsPanel({ metrics, usage }: SettingsPanelProps) {
 
       {/* Editable user-level settings */}
       <EditableSettings sessionId={metrics.session.id} />
+
+      <SectionHeader title="Collectors" />
+      <CollectorsPanel />
     </div>
   );
 }
