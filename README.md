@@ -13,23 +13,11 @@ Claude DevTools is the observability layer for Claude Code — monitor active se
 
 ## Installation
 
-### As a Claude Code Plugin
-
-1. Build the plugin (see Development below)
-2. Install the `.plugin` file:
-   ```bash
-   cp claude-devtools.plugin ~/.claude/plugins/
-   ```
-3. Restart Claude Code
-4. The dashboard will be available at `http://localhost:3142`
-
-### From Source
-
 ```bash
-npm install
-npm run build
-node dist/index.js
+npx @lukehungngo/claude-devtools
 ```
+
+That's it. The dashboard opens automatically at `http://localhost:3142`.
 
 ## Dashboard
 
