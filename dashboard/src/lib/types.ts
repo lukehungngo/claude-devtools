@@ -152,6 +152,7 @@ export interface SessionInfo {
   model?: string;
   isActive?: boolean;
   isRunning?: boolean;
+  source?: string;
   sessionName?: string;
 }
 
@@ -321,4 +322,21 @@ export interface InsightsHourlyBucket {
 export interface InsightsActivity {
   heatmap: InsightsHeatmapCell[];
   hourly: InsightsHourlyBucket[];
+}
+
+// === WebSocket Broadcast Types ===
+
+export interface WsNewEventsMessage {
+  type: "new-events";
+  filePath: string;
+  sessionId: string;
+  source?: string;
+  events: SessionEvent[];
+}
+
+export interface WsNewSessionMessage {
+  type: "new-session";
+  filePath: string;
+  sessionId: string;
+  source?: string;
 }

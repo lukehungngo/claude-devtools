@@ -150,6 +150,7 @@ export interface SessionInfo {
   model?: string;
   isActive?: boolean;
   isRunning?: boolean;
+  source?: string;
   sessionName?: string;
 }
 
@@ -440,6 +441,7 @@ export interface WsNewEventsMessage {
   type: "new-events";
   filePath: string;
   sessionId: string;
+  source?: string;
   events: SessionEvent[];
 }
 
@@ -447,6 +449,7 @@ export interface WsNewSessionMessage {
   type: "new-session";
   filePath: string;
   sessionId: string;
+  source?: string;
 }
 
 export interface WsPermissionRequestMessage {
