@@ -81,6 +81,10 @@ export function filterDagForTurn(
   if (!dag || !activeTurn) return dag;
   // If the turn has no agents yet (brand-new turn), show full DAG
   if (activeTurn.agents.length === 0) return dag;
+  // If the turn only ran main (no subagents dispatched), show full session DAG
+  // so the user sees the session context rather than a single-node view
+  const turnHasSubagents = activeTurn.agents.some((a) => a.agentId !== "main");
+  if (!turnHasSubagents) return dag;
 
   const turnAgentIds = new Set(activeTurn.agents.map((a) => a.agentId));
   turnAgentIds.add("main");

@@ -73,6 +73,12 @@ describe("filterDagForTurn", () => {
     expect(result).toBe(fullDag);
   });
 
+  it("returns full dag when turn only has main (no subagents dispatched)", () => {
+    const mainOnlyTurn = makeTurn([{ agentId: "main" }]);
+    const result = filterDagForTurn(fullDag, mainOnlyTurn);
+    expect(result).toBe(fullDag);
+  });
+
   it("filters dag to only agents in the active turn plus main", () => {
     const turn = makeTurn([{ agentId: "agent-1" }]);
     const result = filterDagForTurn(fullDag, turn)!;
