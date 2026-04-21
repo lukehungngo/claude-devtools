@@ -1,7 +1,7 @@
 {
   "name": "@lukehungngo/claude-devtools",
-  "version": "0.3.8",
-  "description": "Web-based Claude Code client with agent observability",
+  "version": "0.3.9",
+  "description": "Live observability, turn-by-turn traces, and usage insights for Claude Code",
   "bin": "./dist/cli.mjs",
   "files": [
     "dist/"
@@ -39,11 +39,15 @@
     "claude",
     "claude-code",
     "anthropic",
-    "ai",
+    "observability",
+    "tracing",
+    "insights",
+    "monitoring",
     "developer-tools"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/anthropics/claude-devtools.git"
-  }
+    "url": "git+https://github.com/lukehungngo/claude-devtools.git"
+  },
+  "homepage": "https://github.com/lukehungngo/claude-devtools#readme"
 }

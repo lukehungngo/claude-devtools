@@ -15,7 +15,10 @@ export function HomePage() {
         <h2 className="text-xl font-bold mb-1 text-dt-text0 font-sans">
           Claude DevTools
         </h2>
-        <p className="text-sm text-dt-text2">
+        <p className="text-sm text-dt-text2 tracking-wide">
+          Observe · Trace · Understand
+        </p>
+        <p className="text-xs text-dt-text2 mt-1 opacity-60">
           Select a session from the sidebar to begin
         </p>
       </div>

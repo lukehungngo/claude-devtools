@@ -1,6 +1,6 @@
 # claude-devtools
 
-Web-based Claude Code client with agent observability. Monorepo: `server/` (Express + SDK) and `dashboard/` (React + Vite).
+Observability, tracing, and insights for the Claude Code CLI. Monorepo: `server/` (Express + SDK) and `dashboard/` (React + Vite).
 
 ## Build & Test
 

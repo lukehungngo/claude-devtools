@@ -1,6 +1,6 @@
 # Claude DevTools
 
-A comprehensive debugging and monitoring dashboard for Claude Code agents. Monitor agent execution flow, token usage, costs, tool invocations, and more in real-time.
+Claude DevTools is the observability layer for Claude Code — monitor active sessions in real-time, trace what happened turn-by-turn, and extract insights from your usage over time.
 
 ## Features
 

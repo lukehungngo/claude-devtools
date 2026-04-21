@@ -17,7 +17,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "open-dashboard",
       description:
-        "Open the Claude DevTools dashboard in the browser. Shows agent flow visualization, token/cost metrics, tool usage stats, and session timeline.",
+        "Open Claude DevTools — real-time observability for Claude Code. Live agent traces, turn-by-turn session forensics, and usage insights.",
       inputSchema: {
         type: "object" as const,
         properties: {},
