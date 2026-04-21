@@ -3,7 +3,7 @@
   "version": "0.3.10",
   "description": "Live observability, turn-by-turn traces, and usage insights for Claude Code",
   "bin": {
-    "claude-devtools": "./dist/cli.mjs"
+    "claude-devtools": "./dist/cli.cjs"
   },
   "files": [
     "dist/"
