@@ -4,12 +4,10 @@ import type { UsageInfo } from "../lib/types";
 interface ProfileDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  isConnected?: boolean;
-  wsLatency?: number | null;
   usage?: UsageInfo | null;
 }
 
-export function ProfileDrawer({ isOpen, onClose, isConnected, wsLatency, usage }: ProfileDrawerProps) {
+export function ProfileDrawer({ isOpen, onClose, usage }: ProfileDrawerProps) {
   return (
     <>
       {/* Backdrop */}
@@ -115,7 +113,7 @@ export function ProfileDrawer({ isOpen, onClose, isConnected, wsLatency, usage }
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
-          <DrawerConnectionSection isConnected={isConnected} wsLatency={wsLatency} usage={usage} />
+          <DrawerPlanSection usage={usage} />
           <DrawerUsageSection usage={usage} />
         </div>
 
@@ -157,15 +155,9 @@ export function ProfileDrawer({ isOpen, onClose, isConnected, wsLatency, usage }
   );
 }
 
-function DrawerConnectionSection({
-  isConnected,
-  wsLatency,
-  usage,
-}: {
-  isConnected?: boolean;
-  wsLatency?: number | null;
-  usage?: UsageInfo | null;
-}) {
+function DrawerPlanSection({ usage }: { usage?: UsageInfo | null }) {
+  if (!usage?.planName) return null;
+
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--bd)" }}>
       <div
@@ -175,125 +167,50 @@ function DrawerConnectionSection({
           marginBottom: 10,
         }}
       >
-        Connection
+        Plan
       </div>
 
-      {/* Connection tiles */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <ConnectionTile
-          label="Claude Code"
-          value={isConnected ? "connected" : "disconnected"}
-          sub="MCP · logs · hooks"
-          isConnected={isConnected}
-        />
-        <ConnectionTile
-          label="API"
-          value={wsLatency != null ? String(wsLatency) : "—"}
-          valueUnit={wsLatency != null ? "ms" : undefined}
-          sub="api.anthropic.com"
-          isConnected={isConnected}
-        />
-      </div>
-
-      {/* Plan card */}
-      {usage?.planName && (
-        <div
-          style={{
-            background: "linear-gradient(135deg, var(--acc-bg), var(--teal-bg))",
-            border: "1px solid var(--acc-bg)",
-            borderRadius: "var(--r-md, 10px)",
-            padding: "12px 14px",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginTop: 8,
-          }}
-        >
-          <div
-            style={{
-              width: 36, height: 36, borderRadius: "var(--r-sm, 6px)",
-              background: "var(--acc)", color: "#fff",
-              fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 700,
-              letterSpacing: ".5px",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            {usage.planName.substring(0, 3).toUpperCase()}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--t1)", display: "flex", alignItems: "baseline", gap: 6 }}>
-              {usage.planName} plan
-              <span
-                style={{
-                  fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600,
-                  color: "var(--acc)", background: "#fff",
-                  padding: "1px 5px", borderRadius: "var(--r-xs, 4px)", letterSpacing: ".4px",
-                }}
-              >
-                5× usage
-              </span>
-            </div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--t2)", marginTop: 2 }}>
-              sonnet-4-6 · opus-4 · haiku-4-5
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ConnectionTile({
-  label,
-  value,
-  valueUnit,
-  sub,
-  isConnected,
-}: {
-  label: string;
-  value: string;
-  valueUnit?: string;
-  sub: string;
-  isConnected?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--bg-e)", border: "1px solid var(--bd)",
-        borderRadius: "var(--r-sm, 6px)", padding: "10px 12px",
-        display: "flex", flexDirection: "column", gap: 8,
-        position: "relative", overflow: "hidden",
-      }}
-    >
       <div
         style={{
-          display: "flex", alignItems: "center", gap: 6,
-          fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600,
-          letterSpacing: ".4px", textTransform: "uppercase" as const, color: "var(--t3)",
+          background: "linear-gradient(135deg, var(--acc-bg), var(--teal-bg))",
+          border: "1px solid var(--acc-bg)",
+          borderRadius: "var(--r-md, 10px)",
+          padding: "12px 14px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
         }}
       >
-        {isConnected && (
-          <span
-            style={{
-              width: 6, height: 6, borderRadius: "50%", background: "var(--grn)",
-              boxShadow: "0 0 0 3px var(--grn-bg)",
-              animation: "cpulse 2s ease-in-out infinite",
-              flexShrink: 0,
-            }}
-          />
-        )}
-        {label}
+        <div
+          style={{
+            width: 36, height: 36, borderRadius: "var(--r-sm, 6px)",
+            background: "var(--acc)", color: "#fff",
+            fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 700,
+            letterSpacing: ".5px",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {usage.planName.substring(0, 3).toUpperCase()}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--t1)", display: "flex", alignItems: "baseline", gap: 6 }}>
+            {usage.planName} plan
+            <span
+              style={{
+                fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600,
+                color: "var(--acc)", background: "#fff",
+                padding: "1px 5px", borderRadius: "var(--r-xs, 4px)", letterSpacing: ".4px",
+              }}
+            >
+              5× usage
+            </span>
+          </div>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--t2)", marginTop: 2 }}>
+            sonnet-4-6 · opus-4 · haiku-4-5
+          </div>
+        </div>
       </div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", fontFeatureSettings: '"tnum"' }}>
-        {value}
-        {valueUnit && (
-          <span style={{ fontSize: 10, color: "var(--t3)", fontFamily: "var(--font-mono)", fontWeight: 500, marginLeft: 3 }}>
-            {valueUnit}
-          </span>
-        )}
-      </div>
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--t3)" }}>{sub}</div>
     </div>
   );
 }

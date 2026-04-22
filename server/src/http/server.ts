@@ -37,7 +37,7 @@ export function startHttpServer(port: number = 3142): Promise<{
   return new Promise((resolve, reject) => {
     const app = express();
     const server = createServer(app);
-    const wss = new WebSocketServer({ server });
+    const wss = new WebSocketServer({ server, path: "/ws" });
 
     // Debug DB: dev-only SQLite for lifecycle snapshots
     const debugDb = DebugDB.open(join(__dirname, "..", "..", "debug.sqlite")) ?? undefined;
@@ -71,6 +71,10 @@ export function startHttpServer(port: number = 3142): Promise<{
         clearInterval(heartbeat);
         state.clients.delete(ws);
         wsLog.info({ clientCount: state.clients.size }, "ws client disconnected");
+      });
+
+      ws.on("error", (err) => {
+        wsLog.warn({ err }, "ws client error");
       });
 
       // Application-level ping/pong for client-side latency measurement

@@ -32,24 +32,6 @@ describe("Titlebar", () => {
     expect(screen.getByTestId("home-button")).toBeDefined();
   });
 
-  it("shows connected pill when isConnected=true", () => {
-    render(<Titlebar isConnected={true} wsLatency={47} />);
-    expect(screen.getByText("Connected")).toBeDefined();
-    expect(screen.getByText("47ms")).toBeDefined();
-  });
-
-  it("shows disconnected pill when isConnected=false", () => {
-    render(<Titlebar isConnected={false} wsLatency={null} />);
-    expect(screen.getByText("Disconnected")).toBeDefined();
-    expect(screen.queryByText("Connected")).toBeNull();
-  });
-
-  it("renders no connection pill when isConnected is not provided", () => {
-    render(<Titlebar />);
-    expect(screen.queryByText("Connected")).toBeNull();
-    expect(screen.queryByText("Disconnected")).toBeNull();
-  });
-
   it("shows session usage percent when usage provided", () => {
     render(<Titlebar usage={mockUsage} />);
     expect(screen.getByText("13%")).toBeDefined();
@@ -66,30 +48,16 @@ describe("Titlebar", () => {
     expect(arrows.length >= 1).toBe(true);
   });
 
-  it("connection pill is a button element", () => {
-    render(<Titlebar isConnected={true} wsLatency={47} />);
-    const pill = screen.getByRole("button", { name: /connected/i });
-    expect(pill).toBeDefined();
-  });
-
   it("usage section renders as a single button pill", () => {
     render(<Titlebar usage={mockUsage} />);
     const pill = screen.getByRole("button", { name: /usage/i });
     expect(pill).toBeDefined();
   });
 
-  it("renders tb-sep divider between brand and connection pill", () => {
-    const { container } = render(<Titlebar isConnected={true} wsLatency={47} />);
+  it("renders tb-sep divider", () => {
+    const { container } = render(<Titlebar />);
     const sep = container.querySelector('[data-testid="tb-sep"]');
     expect(sep).not.toBeNull();
-  });
-
-  it("calls onOpenDrawer when connection pill is clicked", () => {
-    const onOpenDrawer = vi.fn();
-    render(<Titlebar isConnected={true} wsLatency={47} onOpenDrawer={onOpenDrawer} />);
-    const pill = screen.getByRole("button", { name: /connected/i });
-    pill.click();
-    expect(onOpenDrawer).toHaveBeenCalledTimes(1);
   });
 
   it("calls onOpenDrawer when usage pill is clicked", () => {

@@ -293,8 +293,6 @@ export function AppLayout() {
         onToggleSidebar={isInsights ? undefined : () => setSidebarCollapsed((prev) => !prev)}
         titlebar={
           <Titlebar
-            isConnected={isLive}
-            wsLatency={wsLatency}
             usage={usage}
             onOpenDrawer={openDrawer}
           />
@@ -387,8 +385,6 @@ export function AppLayout() {
       <ProfileDrawer
         isOpen={drawerOpen}
         onClose={closeDrawer}
-        isConnected={isLive}
-        wsLatency={wsLatency}
         usage={usage}
       />
     </LayoutContext.Provider>

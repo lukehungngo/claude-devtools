@@ -5,8 +5,6 @@ import { useTheme } from "../contexts/ThemeContext";
 import type { UsageInfo } from "../lib/types";
 
 interface TitlebarProps {
-  isConnected?: boolean;
-  wsLatency?: number | null;
   usage?: UsageInfo | null;
   onOpenDrawer?: () => void;
 }
@@ -24,7 +22,7 @@ export function formatTimeUntil(resetsAt: string | null | undefined, now: number
   return `${mins}m`;
 }
 
-export function Titlebar({ isConnected, wsLatency, usage, onOpenDrawer }: TitlebarProps) {
+export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const { location } = useRouterState();
@@ -111,62 +109,7 @@ export function Titlebar({ isConnected, wsLatency, usage, onOpenDrawer }: Titleb
         }}
       />
 
-      {/* Connection pill */}
-      {isConnected !== undefined && (
-        <button
-          type="button"
-          aria-label={isConnected ? "Connected — WebSocket connection status" : "Disconnected — WebSocket connection status"}
-          title="WebSocket connection status"
-          onClick={onOpenDrawer}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: "3px 10px",
-            background: "transparent",
-            border: "1px solid var(--bd)",
-            borderRadius: "var(--r)",
-            height: "24px",
-            fontFamily: "var(--font-mono)",
-            cursor: "pointer",
-            marginLeft: 4,
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-e)"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-        >
-          {isConnected ? (
-            <span
-              style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: "var(--grn)",
-                boxShadow: "0 0 0 2px var(--grn-bg)",
-                animation: "tbcpulse 2.2s ease-in-out infinite",
-                flexShrink: 0,
-              }}
-            />
-          ) : (
-            <span
-              style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: "var(--amb)",
-                flexShrink: 0,
-              }}
-            />
-          )}
-          <span style={{ color: "var(--t1)", fontWeight: 600 }}>
-            {isConnected ? "Connected" : "Disconnected"}
-          </span>
-          {isConnected && wsLatency != null && (
-            <span style={{ color: "var(--t3)" }}>{wsLatency}ms</span>
-          )}
-        </button>
-      )}
-
-      {/* Plan badge — outside the usage pill */}
+      {/* Plan badge */}
       {usage?.planName && (
         <span style={{ color: "var(--t1)", fontWeight: 600, fontSize: "11px", flexShrink: 0 }}>
           {usage.planName}

@@ -14,7 +14,7 @@ describe("ProfileDrawer", () => {
 
   it("renders nothing visible when closed", () => {
     const { container } = render(
-      <ProfileDrawer isOpen={false} onClose={vi.fn()} isConnected={true} wsLatency={47} usage={mockUsage} />
+      <ProfileDrawer isOpen={false} onClose={vi.fn()} usage={mockUsage} />
     );
     const drawer = container.querySelector("[data-testid='profile-drawer']");
     expect(drawer).not.toBeNull();
@@ -25,20 +25,20 @@ describe("ProfileDrawer", () => {
 
   it("slides in when open", () => {
     const { container } = render(
-      <ProfileDrawer isOpen={true} onClose={vi.fn()} isConnected={true} wsLatency={47} usage={mockUsage} />
+      <ProfileDrawer isOpen={true} onClose={vi.fn()} usage={mockUsage} />
     );
     const drawer = container.querySelector("[data-testid='profile-drawer']");
     expect((drawer as HTMLElement).style.transform).toBe("translateX(0)");
   });
 
   it("renders close button", () => {
-    render(<ProfileDrawer isOpen={true} onClose={vi.fn()} isConnected={true} wsLatency={47} usage={mockUsage} />);
+    render(<ProfileDrawer isOpen={true} onClose={vi.fn()} usage={mockUsage} />);
     expect(screen.getByRole("button", { name: /close/i })).toBeDefined();
   });
 
   it("calls onClose when close button clicked", () => {
     const onClose = vi.fn();
-    render(<ProfileDrawer isOpen={true} onClose={onClose} isConnected={true} wsLatency={47} usage={mockUsage} />);
+    render(<ProfileDrawer isOpen={true} onClose={onClose} usage={mockUsage} />);
     screen.getByRole("button", { name: /close/i }).click();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -46,7 +46,7 @@ describe("ProfileDrawer", () => {
   it("calls onClose when backdrop clicked", () => {
     const onClose = vi.fn();
     const { container } = render(
-      <ProfileDrawer isOpen={true} onClose={onClose} isConnected={true} wsLatency={47} usage={mockUsage} />
+      <ProfileDrawer isOpen={true} onClose={onClose} usage={mockUsage} />
     );
     const backdrop = container.querySelector("[data-testid='drawer-backdrop']") as HTMLElement;
     backdrop.click();
@@ -54,7 +54,7 @@ describe("ProfileDrawer", () => {
   });
 
   it("renders Preferences and Sign out footer buttons", () => {
-    render(<ProfileDrawer isOpen={true} onClose={vi.fn()} isConnected={true} wsLatency={47} usage={mockUsage} />);
+    render(<ProfileDrawer isOpen={true} onClose={vi.fn()} usage={mockUsage} />);
     expect(screen.getByRole("button", { name: /preferences/i })).toBeDefined();
     expect(screen.getByRole("button", { name: /sign out/i })).toBeDefined();
   });

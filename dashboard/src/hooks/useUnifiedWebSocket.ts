@@ -139,6 +139,7 @@ export function useUnifiedWebSocket(
   const unmountedRef = useRef(false);
   const handlersRef = useRef(handlers);
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stableResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep handlers ref current without re-creating effect
   useEffect(() => {
@@ -151,20 +152,28 @@ export function useUnifiedWebSocket(
     function connect() {
       if (unmountedRef.current) return;
 
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+      // In dev mode, bypass Vite's http-proxy (flaky with WebSocket)
+      // and connect directly to the backend server
+      const wsUrl = import.meta.env.DEV
+        ? "ws://localhost:3142/ws"
+        : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
         setIsConnected(true);
         setError(null);
-        reconnectDelay.current = 1000;
         ws.send(JSON.stringify({ type: "ping", ts: Date.now() }));
         pingIntervalRef.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: "ping", ts: Date.now() }));
           }
         }, 15_000);
+        // Only reset backoff after connection is stable for 5s
+        // Prevents perpetual 1s flash cycle on flaky connections
+        stableResetTimer.current = setTimeout(() => {
+          reconnectDelay.current = 1000;
+        }, 5000);
       };
 
       ws.onclose = () => {
@@ -173,6 +182,10 @@ export function useUnifiedWebSocket(
         if (pingIntervalRef.current) {
           clearInterval(pingIntervalRef.current);
           pingIntervalRef.current = null;
+        }
+        if (stableResetTimer.current) {
+          clearTimeout(stableResetTimer.current);
+          stableResetTimer.current = null;
         }
         if (unmountedRef.current) return;
 
@@ -204,6 +217,10 @@ export function useUnifiedWebSocket(
       if (pingIntervalRef.current) {
         clearInterval(pingIntervalRef.current);
         pingIntervalRef.current = null;
+      }
+      if (stableResetTimer.current) {
+        clearTimeout(stableResetTimer.current);
+        stableResetTimer.current = null;
       }
       wsRef.current?.close();
       wsRef.current = null;
