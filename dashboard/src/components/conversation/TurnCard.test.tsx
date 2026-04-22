@@ -45,6 +45,7 @@ function makeTurnAndEvents(
       costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
       endTime: "",
       dispatchedAgentIds: new Set<string>(["main"]),
+      eventAgentIds: new Set<string>(["main"]),
       ...overrides,
     } as TurnSnapshot,
     allEvents: events,
@@ -281,6 +282,7 @@ describe("TurnCard — DOM order: tool entries before response text", () => {
       endTime: "2026-01-01T00:00:03Z",
       completedAt: "2026-01-01T00:00:03Z",
       dispatchedAgentIds: new Set<string>(["main"]),
+      eventAgentIds: new Set<string>(["main"]),
     } as unknown as TurnSnapshot;
 
     const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
@@ -375,28 +377,6 @@ describe("TurnCard model badge", () => {
     const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
     const badge = container.querySelector('[data-testid="turn-model-badge"]');
     expect(badge).toBeNull();
-  });
-});
-
-describe("TurnCard — CostFooter cacheReadTokens wiring", () => {
-  it("shows 'Cached:' in CostFooter when turn.cacheReadTokens > 0", () => {
-    const evts = [makeAssistantEvent("Done.")] as SessionEvent[];
-    const { turn, allEvents } = makeTurnAndEvents(
-      {
-        cost: 0.05,
-        inputTokens: 10000,
-        outputTokens: 500,
-        cacheReadTokens: 3100,
-        costBreakdown: { total: 0.05, inputCost: 0.03, outputCost: 0.02 },
-        agents: [],
-      } as unknown as Partial<TurnSnapshot>,
-      evts,
-    );
-    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
-
-    const costFooter = container.querySelector('[aria-label="Cost breakdown"]');
-    expect(costFooter).not.toBeNull();
-    expect(costFooter!.textContent).toContain("Cached");
   });
 });
 

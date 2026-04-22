@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import type { SessionEvent, AgentDAG, SubagentMeta } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { getEventsForTurn } from "../../lib/turnSnapshot";
+import { filterDagForTurn } from "../../lib/filterDagForTurn";
 import { AgentLogs } from "../AgentLogs";
 
 export interface AgentLogTabProps {
@@ -25,17 +26,23 @@ function AgentLogTabInner({
   activeTurnIndex,
   turns,
 }: AgentLogTabProps) {
+  const activeTurn = (activeTurnIndex != null && turns?.length)
+    ? turns[activeTurnIndex]
+    : undefined;
+
   const displayEvents = useMemo(() => {
-    if (activeTurnIndex == null || !turns?.length) return allEvents;
-    const turn = turns[activeTurnIndex];
-    if (!turn) return allEvents;
-    return getEventsForTurn(turn, allEvents);
-  }, [allEvents, activeTurnIndex, turns]);
+    if (!activeTurn) return allEvents;
+    return getEventsForTurn(activeTurn, allEvents);
+  }, [allEvents, activeTurn]);
+
+  const filteredDag = useMemo(() => {
+    return filterDagForTurn(dag ?? null, activeTurn);
+  }, [dag, activeTurn]);
 
   return (
     <AgentLogs
       events={displayEvents}
-      agents={dag?.nodes ?? []}
+      agents={filteredDag?.nodes ?? []}
       subagentMeta={subagentMeta ?? undefined}
       selectedAgent={selectedAgent}
       toolFilter={toolFilter}

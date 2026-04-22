@@ -1933,3 +1933,165 @@ describe("TurnSnapshot token totals", () => {
     expect(t2.outputTokens).toBe(150);
   });
 });
+
+// ─── eventAgentIds builder tests ────────────────────────────────────
+//
+// eventAgentIds is derived from every event's agentId in the turn,
+// regardless of the dispatch heuristic. It is the authoritative source
+// for which agents participated in a turn (used by filterDagForTurn).
+// These tests verify that buildTurn and extendTurn produce it correctly.
+
+describe("eventAgentIds in buildTurn", () => {
+  it("always includes 'main' even when all events lack agentId", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "hello", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z" }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].eventAgentIds).toBeInstanceOf(Set);
+    expect(turns[0].eventAgentIds.has("main")).toBe(true);
+  });
+
+  it("captures agentIds from events even when dispatch heuristic misses them", () => {
+    // Scenario: main does NOT emit a Task tool_use, but a sidechain event
+    // with agentId "rogue-agent" appears in the turn's window. The dispatch
+    // heuristic (computeDispatchedAgentIds) won't include "rogue-agent"
+    // because there's no Task dispatch. But eventAgentIds MUST include it
+    // because the event exists.
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:01Z",
+      }),
+      makeAssistantEvent({
+        agentId: "rogue-agent",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:02Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+
+    // dispatchedAgentIds should NOT contain rogue-agent (no Task dispatch)
+    expect(turns[0].dispatchedAgentIds.has("rogue-agent")).toBe(false);
+    // agents array should NOT contain rogue-agent (filtered by dispatch)
+    expect(turns[0].agents.find(a => a.agentId === "rogue-agent")).toBeUndefined();
+
+    // But eventAgentIds MUST contain rogue-agent (derived from event.agentId)
+    expect(turns[0].eventAgentIds.has("main")).toBe(true);
+    expect(turns[0].eventAgentIds.has("rogue-agent")).toBe(true);
+    expect(turns[0].eventAgentIds.size).toBe(2);
+  });
+
+  it("collects multiple subagent IDs from events", () => {
+    // Main dispatches sub-A, but sub-B also appears in events without dispatch.
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["do sub-A work"],
+      }),
+      makeAssistantEvent({
+        agentId: "sub-A",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:02Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+      makeAssistantEvent({
+        agentId: "sub-B",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:03Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].eventAgentIds).toEqual(
+      new Set(["main", "sub-A", "sub-B"]),
+    );
+  });
+});
+
+describe("eventAgentIds in extendTurn", () => {
+  it("inherits eventAgentIds from prior snapshot and extends with new agentIds", () => {
+    // Initial turn has main + sub-A in events.
+    const initial: SessionEvent[] = [
+      makeUserEvent({ text: "hello", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["sub-A work"],
+      }),
+      makeAssistantEvent({
+        agentId: "sub-A",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:02Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
+    ];
+    const existing = groupEventsIntoTurns(initial);
+    expect(existing[0].eventAgentIds).toEqual(new Set(["main", "sub-A"]));
+
+    // Delta: a NEW agent "sub-B" appears (not dispatched, just present in events).
+    const allEvents: SessionEvent[] = [
+      ...initial,
+      makeAssistantEvent({
+        agentId: "sub-B",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:03Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+    ];
+
+    const incremental = groupEventsIntoTurnsIncremental(existing, allEvents, 1);
+    expect(incremental).toHaveLength(1);
+
+    // eventAgentIds must contain all three: main, sub-A (inherited), sub-B (new)
+    expect(incremental[0].eventAgentIds).toEqual(
+      new Set(["main", "sub-A", "sub-B"]),
+    );
+  });
+
+  it("does not lose existing eventAgentIds when delta has no new agents", () => {
+    // Initial turn has main + sub-A.
+    const initial: SessionEvent[] = [
+      makeUserEvent({ text: "hello", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        taskDispatches: ["sub-A work"],
+      }),
+      makeAssistantEvent({
+        agentId: "sub-A",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:02Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "tool_use" }),
+    ];
+    const existing = groupEventsIntoTurns(initial);
+    expect(existing[0].eventAgentIds).toEqual(new Set(["main", "sub-A"]));
+
+    // Delta: only main events, no new agents.
+    const allEvents: SessionEvent[] = [
+      ...initial,
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:03Z",
+      }),
+    ];
+
+    const incremental = groupEventsIntoTurnsIncremental(existing, allEvents, 1);
+    // sub-A must still be present (inherited from prior snapshot).
+    expect(incremental[0].eventAgentIds).toEqual(new Set(["main", "sub-A"]));
+  });
+});

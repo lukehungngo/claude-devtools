@@ -45,10 +45,10 @@ function makeTurn(turnNumber: number, promptText: string, startIndex: number, en
     costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
     inputTokens: 0,
     outputTokens: 0,
-    cacheReadTokens: 0,
     startTime: "",
     endTime: "",
     dispatchedAgentIds: new Set<string>(["main"]),
+    eventAgentIds: new Set<string>(["main"]),
   };
 }
 

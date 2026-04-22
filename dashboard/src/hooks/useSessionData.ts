@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { SessionMetrics, SessionEvent, SubagentMeta } from "../lib/types";
 
 export function useSessionMetrics(
@@ -10,19 +10,26 @@ export function useSessionMetrics(
   const [subagentMeta, setSubagentMeta] = useState<SubagentMeta>({});
   const [loading, setLoading] = useState(false);
   const [refreshCount, setRefreshCount] = useState(0);
+  const prevSessionKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!projectHash || !sessionId) {
       setMetrics(null);
       setEvents([]);
       setSubagentMeta({});
+      prevSessionKeyRef.current = null;
       return;
     }
 
-    // Clear stale data immediately before fetching new session
-    setMetrics(null);
-    setEvents([]);
-    setSubagentMeta({});
+    const sessionKey = `${projectHash}/${sessionId}`;
+    const isNewSession = prevSessionKeyRef.current !== sessionKey;
+    prevSessionKeyRef.current = sessionKey;
+
+    if (isNewSession) {
+      setMetrics(null);
+      setEvents([]);
+      setSubagentMeta({});
+    }
     setLoading(true);
 
     const controller = new AbortController();

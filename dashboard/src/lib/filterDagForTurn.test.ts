@@ -40,13 +40,13 @@ function makeTurn(agents: { agentId: string }[]): TurnSnapshot {
     costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
     inputTokens: 0,
     outputTokens: 0,
-    cacheReadTokens: 0,
     durationMs: null,
     startTime: "2026-01-01T00:00:00Z",
     endTime: "",
     // TASK-002: dispatchedAgentIds is now required on TurnSnapshot. Mirror
     // production semantics by including "main" plus any agentIds in the fixture.
     dispatchedAgentIds: new Set<string>(["main", ...agents.map((a) => a.agentId)]),
+    eventAgentIds: new Set<string>(["main", ...agents.map((a) => a.agentId)]),
   };
 }
 
@@ -60,88 +60,39 @@ const fullDag: AgentDAG = {
 
 describe("filterDagForTurn", () => {
   it("returns null when dag is null", () => {
-    expect(filterDagForTurn(null, makeTurn([]), null)).toBeNull();
+    expect(filterDagForTurn(null, makeTurn([]))).toBeNull();
   });
 
   it("returns full dag when activeTurn is undefined", () => {
-    expect(filterDagForTurn(fullDag, undefined, null)).toBe(fullDag);
+    expect(filterDagForTurn(fullDag, undefined)).toBe(fullDag);
   });
 
-  it("returns only main node when turn has empty agents array", () => {
-    const emptyTurn = makeTurn([]);
-    const result = filterDagForTurn(fullDag, emptyTurn, null)!;
+  it("returns single-node main DAG when turn has no subagents (only main in eventAgentIds)", () => {
+    const mainOnlyTurn = makeTurn([]);
+    const result = filterDagForTurn(fullDag, mainOnlyTurn);
     expect(result).not.toBe(fullDag);
-    expect(result.nodes.map((n) => n.id)).toEqual(["main"]);
-    expect(result.edges).toEqual([]);
-  });
-
-  it("returns only main node when turn only has main (no subagents dispatched)", () => {
-    const mainOnlyTurn = makeTurn([{ agentId: "main" }]);
-    const result = filterDagForTurn(fullDag, mainOnlyTurn, null)!;
-    expect(result).not.toBe(fullDag);
-    expect(result.nodes.map((n) => n.id)).toEqual(["main"]);
-    expect(result.edges).toEqual([]);
-  });
-
-  it("applies turn-specific token data to main node in main-only turn", () => {
-    const dagWithCosts: AgentDAG = {
-      nodes: [
-        { ...makeNode("main"), tokenUsage: { inputTokens: 50000, outputTokens: 20000, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 5.0 } },
-        makeNode("agent-1"),
-      ],
-      edges: [{ source: "main", target: "agent-1" }],
-    };
-    const mainOnlyTurn: TurnSnapshot = {
-      ...makeTurn([{ agentId: "main" }]),
-      durationMs: 2000,
-      startTime: "2026-01-01T00:10:00Z",
-      endTime: "2026-01-01T00:10:02Z",
-      agents: [
-        { agentId: "main", agentType: "main", displayName: "Main session", invocationCount: 1, cost: 0.05, tokensIn: 200, tokensOut: 100, tools: ["Read"] },
-      ],
-    };
-    const result = filterDagForTurn(dagWithCosts, mainOnlyTurn, null)!;
-    expect(result.nodes).toHaveLength(1);
-    const mainNode = result.nodes[0];
-    expect(mainNode.tokenUsage.inputTokens).toBe(200);
-    expect(mainNode.tokenUsage.outputTokens).toBe(100);
-    expect(mainNode.tokenUsage.totalCost).toBeCloseTo(0.05);
-    expect(mainNode.startTime).toBe("2026-01-01T00:10:00Z");
-    expect(mainNode.endTime).toBe("2026-01-01T00:10:02Z");
+    expect(result!.nodes).toHaveLength(1);
+    expect(result!.nodes[0].id).toBe("main");
+    expect(result!.edges).toEqual([]);
   });
 
   it("filters dag to only agents in the active turn plus main", () => {
     const turn = makeTurn([{ agentId: "agent-1" }]);
-    const result = filterDagForTurn(fullDag, turn, null)!;
+    const result = filterDagForTurn(fullDag, turn)!;
     expect(result.nodes.map((n) => n.id)).toEqual(["main", "agent-1"]);
     expect(result.edges).toEqual([{ source: "main", target: "agent-1" }]);
   });
 
   it("always includes main node even if not in turn agents", () => {
     const turn = makeTurn([{ agentId: "agent-2" }]);
-    const result = filterDagForTurn(fullDag, turn, null)!;
+    const result = filterDagForTurn(fullDag, turn)!;
     expect(result.nodes.map((n) => n.id)).toContain("main");
-  });
-
-  it("uses eventAgentIds for membership when provided", () => {
-    // Turn agents only has main, but events show agent-2 was active
-    const mainOnlyTurn = makeTurn([{ agentId: "main" }]);
-    const eventIds = new Set(["main", "agent-2"]);
-    const result = filterDagForTurn(fullDag, mainOnlyTurn, eventIds)!;
-    expect(result.nodes.map((n) => n.id)).toEqual(["main", "agent-2"]);
-    expect(result.edges).toEqual([{ source: "main", target: "agent-2" }]);
-  });
-
-  it("falls back to TurnSnapshot.agents when eventAgentIds is null", () => {
-    const turn = makeTurn([{ agentId: "agent-1" }]);
-    const result = filterDagForTurn(fullDag, turn, null)!;
-    expect(result.nodes.map((n) => n.id)).toEqual(["main", "agent-1"]);
   });
 
   it("returns same reference when called with same agent set and previous result", () => {
     const turn = makeTurn([{ agentId: "agent-1" }]);
     const first = filterDagForTurn(fullDag, turn, null);
-    const second = filterDagForTurn(fullDag, turn, null, first);
+    const second = filterDagForTurn(fullDag, turn, first);
     expect(second).toBe(first); // same reference, not a new object
   });
 
@@ -149,7 +100,7 @@ describe("filterDagForTurn", () => {
     const turn1 = makeTurn([{ agentId: "agent-1" }]);
     const turn2 = makeTurn([{ agentId: "agent-1" }, { agentId: "agent-2" }]);
     const first = filterDagForTurn(fullDag, turn1, null);
-    const second = filterDagForTurn(fullDag, turn2, null, first);
+    const second = filterDagForTurn(fullDag, turn2, first);
     expect(second).not.toBe(first);
     expect(second!.nodes.map((n) => n.id)).toEqual(["main", "agent-1", "agent-2"]);
   });
@@ -194,14 +145,14 @@ describe("filterDagForTurn", () => {
       costBreakdown: { total: 1.25, inputCost: 0.75, outputCost: 0.50 },
       inputTokens: 0,
       outputTokens: 0,
-      cacheReadTokens: 0,
       durationMs: 5000,
       startTime: "2026-01-01T00:00:00Z",
       endTime: "2026-01-01T00:00:05Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+      eventAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
-    const result = filterDagForTurn(dagWithCosts, turn, null)!;
+    const result = filterDagForTurn(dagWithCosts, turn)!;
     const mainNode = result.nodes.find((n) => n.id === "main")!;
     const agentNode = result.nodes.find((n) => n.id === "agent-1")!;
 
@@ -238,11 +189,11 @@ describe("filterDagForTurn", () => {
       costBreakdown: { total: 0.30, inputCost: 0.15, outputCost: 0.15 },
       inputTokens: 0,
       outputTokens: 0,
-      cacheReadTokens: 0,
       durationMs: 1000,
       startTime: "2026-01-01T00:00:00Z",
       endTime: "2026-01-01T00:00:01Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+      eventAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
     const turnB: TurnSnapshot = {
@@ -258,15 +209,15 @@ describe("filterDagForTurn", () => {
       costBreakdown: { total: 1.30, inputCost: 0.70, outputCost: 0.60 },
       inputTokens: 0,
       outputTokens: 0,
-      cacheReadTokens: 0,
       durationMs: 3000,
       startTime: "2026-01-01T00:01:00Z",
       endTime: "2026-01-01T00:01:03Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+      eventAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
-    const resultA = filterDagForTurn(dagWithCosts, turnA, null);
-    const resultB = filterDagForTurn(dagWithCosts, turnB, null, resultA);
+    const resultA = filterDagForTurn(dagWithCosts, turnA);
+    const resultB = filterDagForTurn(dagWithCosts, turnB, resultA);
 
     // Must be a different reference — same agents but different data
     expect(resultB).not.toBe(resultA);
@@ -305,11 +256,11 @@ describe("filterDagForTurn", () => {
       costBreakdown: { total: 0.30, inputCost: 0.15, outputCost: 0.15 },
       inputTokens: 0,
       outputTokens: 0,
-      cacheReadTokens: 0,
       durationMs: 1000,
       startTime: "2026-01-01T00:00:00Z",
       endTime: "2026-01-01T00:00:01Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+      eventAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
     const turnB: TurnSnapshot = {
@@ -327,15 +278,15 @@ describe("filterDagForTurn", () => {
       costBreakdown: { total: 0.90, inputCost: 0.50, outputCost: 0.40 },
       inputTokens: 0,
       outputTokens: 0,
-      cacheReadTokens: 0,
       durationMs: 2000,
       startTime: "2026-01-01T00:01:00Z",
       endTime: "2026-01-01T00:01:02Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+      eventAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
-    const resultA = filterDagForTurn(dagWithCosts, turnA, null);
-    const resultB = filterDagForTurn(dagWithCosts, turnB, null, resultA);
+    const resultA = filterDagForTurn(dagWithCosts, turnA);
+    const resultB = filterDagForTurn(dagWithCosts, turnB, resultA);
 
     // Must be a different reference -- same agents, same main tokens, but different agent-1 tokens
     expect(resultB).not.toBe(resultA);
@@ -378,14 +329,14 @@ describe("filterDagForTurn", () => {
       costBreakdown: { total: 0.3, inputCost: 0.2, outputCost: 0.1 },
       inputTokens: 0,
       outputTokens: 0,
-      cacheReadTokens: 0,
       durationMs: 180000,
       startTime: "2026-01-01T00:30:00Z",
       endTime: "2026-01-01T00:33:00Z",
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+      eventAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
-    const result = filterDagForTurn(dagWithTimes, turn, null)!;
+    const result = filterDagForTurn(dagWithTimes, turn)!;
     const mainNode = result.nodes.find((n) => n.id === "main")!;
     const agentNode = result.nodes.find((n) => n.id === "agent-1")!;
 
@@ -427,14 +378,14 @@ describe("filterDagForTurn", () => {
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         inputTokens: 0,
         outputTokens: 0,
-        cacheReadTokens: 0,
         durationMs: null,
         startTime: turnStart,
         endTime: turnEnd,
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+        eventAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
-      const result = filterDagForTurn(dagWithTimes, turn, null)!;
+      const result = filterDagForTurn(dagWithTimes, turn)!;
       const mainNode = result.nodes.find((n) => n.id === "main")!;
       // groupEnd (subagent T+10m) > turn.endTime (T+5m) → main endTime = T+10m
       expect(mainNode.endTime).toBe(subEnd);
@@ -466,14 +417,14 @@ describe("filterDagForTurn", () => {
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         inputTokens: 0,
         outputTokens: 0,
-        cacheReadTokens: 0,
         durationMs: null,
         startTime: turnStart,
         endTime: turnEnd,
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+        eventAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
-      const result = filterDagForTurn(dagWithTimes, turn, null)!;
+      const result = filterDagForTurn(dagWithTimes, turn)!;
       const mainNode = result.nodes.find((n) => n.id === "main")!;
       // turn.endTime (T+20m) > groupEnd (T+10m) → main endTime = T+20m
       expect(mainNode.endTime).toBe(turnEnd);
@@ -505,14 +456,14 @@ describe("filterDagForTurn", () => {
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         inputTokens: 0,
         outputTokens: 0,
-        cacheReadTokens: 0,
         durationMs: null,
         startTime: turnStart,
         endTime: "",
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+        eventAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
-      const result = filterDagForTurn(dagWithTimes, turn, null)!;
+      const result = filterDagForTurn(dagWithTimes, turn)!;
       const mainNode = result.nodes.find((n) => n.id === "main")!;
       // Active subagent with no endTime extends group envelope to Date.now().
       // Allow 1s tolerance for clock drift between computeGroupEnvelope and assertion.
@@ -549,11 +500,11 @@ describe("filterDagForTurn", () => {
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         inputTokens: 0,
         outputTokens: 0,
-        cacheReadTokens: 0,
         durationMs: null,
         startTime: turnStart,
         endTime: turnEnd,
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+        eventAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
       // First DAG: subagent endTime = T+10m.
@@ -576,7 +527,7 @@ describe("filterDagForTurn", () => {
       };
 
       const first = filterDagForTurn(dagA, turn, null);
-      const second = filterDagForTurn(dagB, turn, null, first);
+      const second = filterDagForTurn(dagB, turn, first);
 
       // Envelope changed → must NOT be prev reference.
       expect(second).not.toBe(first);
@@ -606,11 +557,11 @@ describe("filterDagForTurn", () => {
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         inputTokens: 0,
         outputTokens: 0,
-        cacheReadTokens: 0,
         durationMs: null,
         startTime: turnStart,
         endTime: turnEnd,
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+        eventAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
       const dag: AgentDAG = {
@@ -622,10 +573,47 @@ describe("filterDagForTurn", () => {
       };
 
       const first = filterDagForTurn(dag, turn, null);
-      const second = filterDagForTurn(dag, turn, null, first);
+      const second = filterDagForTurn(dag, turn, first);
 
       // Identical inputs → same reference.
       expect(second).toBe(first);
     });
+  });
+
+  it("includes agent from eventAgentIds even when absent from agents array (dispatch heuristic miss)", () => {
+    // Bug scenario: computeDispatchedAgentIds misses agent-2, so it does
+    // not appear in activeTurn.agents. But agent-2's events ARE in the turn
+    // window, so eventAgentIds correctly contains it. The filtered DAG must
+    // include agent-2 (with session-wide token data since no AgentSummary).
+    const turn: TurnSnapshot = {
+      turnNumber: 1,
+      promptText: "test",
+      startIndex: 0,
+      endIndex: 10,
+      agents: [
+        // Only main and agent-1 in the agents array (dispatch detected these)
+        { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, cost: 0, tokensIn: 100, tokensOut: 50, tools: [] },
+        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0, tokensIn: 200, tokensOut: 100, tools: [] },
+      ],
+      cost: 0,
+      costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+      inputTokens: 0,
+      outputTokens: 0,
+      durationMs: null,
+      startTime: "2026-01-01T00:00:00Z",
+      endTime: "",
+      dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
+      // eventAgentIds includes agent-2 (from events) even though dispatch missed it
+      eventAgentIds: new Set<string>(["main", "agent-1", "agent-2"]),
+    };
+
+    const result = filterDagForTurn(fullDag, turn)!;
+    const nodeIds = result.nodes.map((n) => n.id);
+    // agent-2 must be in the filtered DAG
+    expect(nodeIds).toContain("agent-2");
+    expect(nodeIds).toContain("main");
+    expect(nodeIds).toContain("agent-1");
+    // Edges involving agent-2 must also be present
+    expect(result.edges).toContainEqual({ source: "main", target: "agent-2" });
   });
 });

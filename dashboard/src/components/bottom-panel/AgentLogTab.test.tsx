@@ -120,10 +120,10 @@ describe("AgentLogTab", () => {
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         inputTokens: 0,
         outputTokens: 0,
-        cacheReadTokens: 0,
         startTime: "2026-04-01T10:00:00.000Z",
         endTime: "2026-04-01T10:00:01.000Z",
         dispatchedAgentIds: new Set<string>(["main"]),
+        eventAgentIds: new Set<string>(["main"]),
       },
       {
         turnNumber: 2,
@@ -136,10 +136,10 @@ describe("AgentLogTab", () => {
         costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
         inputTokens: 0,
         outputTokens: 0,
-        cacheReadTokens: 0,
         startTime: "2026-04-01T10:01:00.000Z",
         endTime: "2026-04-01T10:01:01.000Z",
         dispatchedAgentIds: new Set<string>(["main"]),
+        eventAgentIds: new Set<string>(["main"]),
       },
     ];
 

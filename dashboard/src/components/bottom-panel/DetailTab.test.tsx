@@ -55,10 +55,10 @@ function makeToolUseTurnData(): { turn: TurnSnapshot; allEvents: SessionEvent[] 
     costBreakdown: { total: 0.1, inputCost: 0.06, outputCost: 0.04 },
     inputTokens: 0,
     outputTokens: 0,
-    cacheReadTokens: 0,
     startTime: "2026-01-01T10:00:00Z",
     endTime: "2026-01-01T10:00:05Z",
     dispatchedAgentIds: new Set<string>(["main"]),
+    eventAgentIds: new Set<string>(["main"]),
   };
 
   return { turn, allEvents };
@@ -131,10 +131,10 @@ describe("DetailTab", () => {
       costBreakdown: { total: 0.42, inputCost: 0.15, outputCost: 0.27 },
       inputTokens: 0,
       outputTokens: 0,
-      cacheReadTokens: 0,
       startTime: "2026-03-30T10:00:00Z",
       endTime: "2026-03-30T10:02:14Z",
       dispatchedAgentIds: new Set<string>(["main", "s1"]),
+      eventAgentIds: new Set<string>(["main", "s1"]),
     };
     render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
 
@@ -168,10 +168,10 @@ describe("DetailTab", () => {
       costBreakdown: { total: 0.42, inputCost: 0.15, outputCost: 0.27 },
       inputTokens: 0,
       outputTokens: 0,
-      cacheReadTokens: 0,
       startTime: "2026-03-30T10:00:00Z",
       endTime: "2026-03-30T10:02:14Z",
       dispatchedAgentIds: new Set<string>(["main"]),
+      eventAgentIds: new Set<string>(["main"]),
     };
     render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
 
@@ -206,10 +206,10 @@ describe("DetailTab", () => {
       costBreakdown: { total: 0.1, inputCost: 0.06, outputCost: 0.04 },
       inputTokens: 0,
       outputTokens: 0,
-      cacheReadTokens: 0,
       startTime: "2026-01-01T10:00:00Z",
       endTime: "2026-01-01T10:00:05Z",
       dispatchedAgentIds: new Set<string>(["main"]),
+      eventAgentIds: new Set<string>(["main"]),
     };
     render(<DetailTab turns={[turn]} allEvents={allEvents} activeTurnIndex={0} />);
 

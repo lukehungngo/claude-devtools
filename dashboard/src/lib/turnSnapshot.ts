@@ -59,8 +59,6 @@ export interface TurnSnapshot {
   inputTokens: number;
   /** Total output tokens across all agents in this turn */
   outputTokens: number;
-  /** Total cache read tokens across all agents in this turn */
-  cacheReadTokens: number;
   startTime: string;
   endTime: string;
   /** Model used in this turn, e.g. "claude-sonnet-4-6". Last model seen wins. */
@@ -74,6 +72,16 @@ export interface TurnSnapshot {
    * so invariants can be enforced without optional-chain escape hatches.
    */
   dispatchedAgentIds: Set<string>;
+  /**
+   * Set of unique agentIds found in the turn's events (via event.agentId).
+   * Always includes "main". Unlike `dispatchedAgentIds` (which uses the
+   * heuristic dispatch-detection that can miss agents), this set is derived
+   * directly from the events and is the authoritative source for which agents
+   * participated in a turn. Used by `filterDagForTurn` for DAG membership.
+   *
+   * Populated by both `buildTurn` and `extendTurn` in O(newEvents) time.
+   */
+  eventAgentIds: Set<string>;
 }
 
 /**
@@ -290,7 +298,7 @@ function buildTurn(
   let lastModel = "";
   const agentMap = new Map<
     string,
-    { count: number; agentType: string; cost: number; tokensIn: number; tokensOut: number; cacheRead: number; tools: Set<string> }
+    { count: number; agentType: string; cost: number; tokensIn: number; tokensOut: number; tools: Set<string> }
   >();
 
   // TASK-002: restrict agent-map membership to agents dispatched by a main
@@ -299,14 +307,19 @@ function buildTurn(
   // timestamp range.
   const dispatchedAgentIds = computeDispatchedAgentIds(events, agentMeta);
 
+  // Build the event-derived agent ID set: every unique agentId across all
+  // events in this turn, regardless of dispatch heuristic. This is the
+  // authoritative membership source for the Agent Graph (filterDagForTurn).
+  const eventAgentIds = new Set<string>(["main"]);
+
   for (const event of events) {
     const agentId = event.agentId ?? "main";
+    eventAgentIds.add(agentId);
     if (!dispatchedAgentIds.has(agentId)) continue;
 
     let eventCost = 0;
     let eventTokensIn = 0;
     let eventTokensOut = 0;
-    let eventCacheRead = 0;
     const eventTools: string[] = [];
 
     if (event.type === "assistant") {
@@ -316,12 +329,12 @@ function buildTurn(
         eventTokensIn = usage.input_tokens ?? 0;
         eventTokensOut = usage.output_tokens ?? 0;
         const cacheWrite = usage.cache_creation_input_tokens ?? 0;
-        eventCacheRead = usage.cache_read_input_tokens ?? 0;
+        const cacheRead = usage.cache_read_input_tokens ?? 0;
         const model = asst.message?.model || "";
         if (model) lastModel = model;
-        eventCost = calculateTurnCost(model, eventTokensIn, eventTokensOut, cacheWrite, eventCacheRead);
+        eventCost = calculateTurnCost(model, eventTokensIn, eventTokensOut, cacheWrite, cacheRead);
         cost += eventCost;
-        totalInputCost += calculateTurnCost(model, eventTokensIn, 0, cacheWrite, eventCacheRead);
+        totalInputCost += calculateTurnCost(model, eventTokensIn, 0, cacheWrite, cacheRead);
         totalOutputCost += calculateTurnCost(model, 0, eventTokensOut);
       }
       // Collect tool names from content
@@ -343,7 +356,6 @@ function buildTurn(
         existing.cost += eventCost;
         existing.tokensIn += eventTokensIn;
         existing.tokensOut += eventTokensOut;
-        existing.cacheRead += eventCacheRead;
       }
       for (const t of eventTools) existing.tools.add(t);
     } else {
@@ -353,7 +365,6 @@ function buildTurn(
         cost: eventCost,
         tokensIn: eventTokensIn,
         tokensOut: eventTokensOut,
-        cacheRead: eventCacheRead,
         tools: new Set(eventTools),
       });
     }
@@ -362,15 +373,12 @@ function buildTurn(
   // Sum token totals across all dispatched agents
   let turnInputTokens = 0;
   let turnOutputTokens = 0;
-  let turnCacheReadTokens = 0;
   for (const [, info] of agentMap) {
     turnInputTokens += info.tokensIn;
     turnOutputTokens += info.tokensOut;
-    turnCacheReadTokens += info.cacheRead;
   }
 
   // Only derive the turn_duration time from the system event. No status
-
   // derivation happens here: consumers compute status via isAgentCompleted.
   let durationMs: number | null = null;
   for (const event of events) {
@@ -413,13 +421,13 @@ function buildTurn(
     },
     inputTokens: turnInputTokens,
     outputTokens: turnOutputTokens,
-    cacheReadTokens: turnCacheReadTokens,
     startTime: events[0]?.timestamp ?? "",
     endTime,
     model: lastModel || undefined,
     // Carry the dispatched set forward so extendTurn can inherit it without
     // re-scanning the full turn event range (Architecture Invariant #8).
     dispatchedAgentIds,
+    eventAgentIds,
   };
 }
 
@@ -451,10 +459,16 @@ function extendTurn(
   const seed = existing.dispatchedAgentIds;
   const dispatchedAgentIds = computeDispatchedAgentIds(newEvents, agentMeta, seed);
 
+  // Inherit event-derived agent IDs and extend with new events' agentIds.
+  const eventAgentIds = new Set(existing.eventAgentIds);
+  for (const event of newEvents) {
+    eventAgentIds.add(event.agentId ?? "main");
+  }
+
   // Rebuild agent map from existing summaries so we can extend it
   const agentMap = new Map<
     string,
-    { count: number; agentType: string; cost: number; tokensIn: number; tokensOut: number; cacheRead: number; tools: Set<string> }
+    { count: number; agentType: string; cost: number; tokensIn: number; tokensOut: number; tools: Set<string> }
   >();
   for (const agent of existing.agents) {
     agentMap.set(agent.agentId, {
@@ -463,13 +477,9 @@ function extendTurn(
       cost: agent.cost,
       tokensIn: agent.tokensIn,
       tokensOut: agent.tokensOut,
-      cacheRead: 0, // per-agent cacheRead not persisted in AgentSummary; re-accumulated from delta
       tools: new Set(agent.tools),
     });
   }
-
-  // Carry the existing turn-level cacheRead total forward; accumulate delta below
-  let turnCacheReadTokens = existing.cacheReadTokens;
 
   // Process only the new events
   for (const event of newEvents) {
@@ -479,7 +489,6 @@ function extendTurn(
     let eventCost = 0;
     let eventTokensIn = 0;
     let eventTokensOut = 0;
-    let eventCacheRead = 0;
     const eventTools: string[] = [];
 
     if (event.type === "assistant") {
@@ -489,12 +498,12 @@ function extendTurn(
         eventTokensIn = usage.input_tokens ?? 0;
         eventTokensOut = usage.output_tokens ?? 0;
         const cacheWrite = usage.cache_creation_input_tokens ?? 0;
-        eventCacheRead = usage.cache_read_input_tokens ?? 0;
+        const cacheRead = usage.cache_read_input_tokens ?? 0;
         const model = asst.message?.model || "";
         if (model) lastModel = model;
-        eventCost = calculateTurnCost(model, eventTokensIn, eventTokensOut, cacheWrite, eventCacheRead);
+        eventCost = calculateTurnCost(model, eventTokensIn, eventTokensOut, cacheWrite, cacheRead);
         cost += eventCost;
-        totalInputCost += calculateTurnCost(model, eventTokensIn, 0, cacheWrite, eventCacheRead);
+        totalInputCost += calculateTurnCost(model, eventTokensIn, 0, cacheWrite, cacheRead);
         totalOutputCost += calculateTurnCost(model, 0, eventTokensOut);
       }
       const contentArr = asst.message?.content;
@@ -514,8 +523,6 @@ function extendTurn(
         entry.cost += eventCost;
         entry.tokensIn += eventTokensIn;
         entry.tokensOut += eventTokensOut;
-        entry.cacheRead += eventCacheRead;
-        turnCacheReadTokens += eventCacheRead;
       }
       for (const t of eventTools) entry.tools.add(t);
     } else {
@@ -525,12 +532,8 @@ function extendTurn(
         cost: eventCost,
         tokensIn: eventTokensIn,
         tokensOut: eventTokensOut,
-        cacheRead: eventCacheRead,
         tools: new Set(eventTools),
       });
-      if (event.type === "assistant") {
-        turnCacheReadTokens += eventCacheRead;
-      }
     }
   }
 
@@ -586,11 +589,11 @@ function extendTurn(
     },
     inputTokens: turnInputTokens,
     outputTokens: turnOutputTokens,
-    cacheReadTokens: turnCacheReadTokens,
     startTime: existing.startTime,
     endTime,
     model: lastModel || undefined,
     dispatchedAgentIds,
+    eventAgentIds,
   };
 }
 

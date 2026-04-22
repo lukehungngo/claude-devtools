@@ -1,7 +1,6 @@
 import { memo, useMemo, useRef, useState, useCallback } from "react";
-import type { AgentDAG, AgentNode, SessionEvent } from "../../lib/types";
+import type { AgentDAG, AgentNode } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
-import { getEventsForTurn } from "../../lib/turnSnapshot";
 import { filterDagForTurn } from "../../lib/filterDagForTurn";
 import { formatCost, formatDuration, formatTokens } from "../../lib/cost";
 import { formatModelName } from "../../lib/formatModelName";
@@ -24,7 +23,6 @@ const DATA_COLS_WIDTH = NAME_COL_WIDTH + MODEL_COL_WIDTH + DURATION_COL_WIDTH + 
 export interface TraceTabProps {
   dag: AgentDAG | null;
   turns: TurnSnapshot[];
-  allEvents?: SessionEvent[];
   activeTurnIndex: number | null;
   selectedAgent: string | null;
   onSelectAgent?: (agentId: string) => void;
@@ -440,7 +438,6 @@ const TraceRowComponent = memo(function TraceRowComponent({
 function TraceTabInner({
   dag,
   turns,
-  allEvents = [],
   activeTurnIndex,
   selectedAgent,
   onSelectAgent,
@@ -462,21 +459,11 @@ function TraceTabInner({
       ? turns[activeTurnIndex]
       : undefined;
 
-  const eventAgentIds = useMemo(() => {
-    if (!activeTurn || allEvents.length === 0) return null;
-    const turnEvents = getEventsForTurn(activeTurn, allEvents);
-    const ids = new Set<string>();
-    for (const e of turnEvents) {
-      ids.add(e.agentId ?? "main");
-    }
-    return ids;
-  }, [activeTurn, allEvents]);
-
   const filteredDag = useMemo(() => {
-    const result = filterDagForTurn(dag, activeTurn, eventAgentIds, prevFilteredRef.current);
+    const result = filterDagForTurn(dag, activeTurn, prevFilteredRef.current);
     prevFilteredRef.current = result;
     return result;
-  }, [dag, activeTurn, eventAgentIds]);
+  }, [dag, activeTurn]);
 
   const isEmpty = !filteredDag || filteredDag.nodes.length === 0;
   const contentHeight = panelHeight - TAB_BAR_HEIGHT;
