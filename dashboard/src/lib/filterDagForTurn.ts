@@ -80,42 +80,29 @@ export function filterDagForTurn(
 ): AgentDAG | null {
   if (!dag || !activeTurn) return dag;
 
-  // Completed turn (durationMs set) with no subagents → show only main node.
-  // In-progress turn (durationMs null) → show full DAG as context since
-  // subagents may still be dispatched.
-  const turnIsComplete = activeTurn.durationMs !== null;
-
-  if (activeTurn.agents.length === 0) {
-    if (turnIsComplete) {
-      const mainNode = dag.nodes.find((n) => n.id === "main");
-      return mainNode ? { nodes: [mainNode], edges: [] } : dag;
-    }
-    return dag;
-  }
-
+  // Turn with no subagents → show only main node with turn-specific data.
+  // Never fall back to full session DAG — the user selected a specific turn
+  // and expects to see only that turn's agents.
   const turnHasSubagents = activeTurn.agents.some((a) => a.agentId !== "main");
   if (!turnHasSubagents) {
-    if (turnIsComplete) {
-      const mainNode = dag.nodes.find((n) => n.id === "main");
-      if (!mainNode) return dag;
-      const summary = activeTurn.agents.find((a) => a.agentId === "main");
-      const filtered: AgentNode = summary
-        ? {
-            ...mainNode,
-            startTime: activeTurn.startTime || mainNode.startTime,
-            endTime: activeTurn.endTime || mainNode.endTime,
-            tokenUsage: {
-              ...mainNode.tokenUsage,
-              inputTokens: summary.tokensIn,
-              outputTokens: summary.tokensOut,
-              totalCost: summary.cost,
-            },
-            toolCalls: summary.tools.length,
-          }
-        : mainNode;
-      return { nodes: [filtered], edges: [] };
-    }
-    return dag;
+    const mainNode = dag.nodes.find((n) => n.id === "main");
+    if (!mainNode) return dag;
+    const summary = activeTurn.agents.find((a) => a.agentId === "main");
+    const filtered: AgentNode = summary
+      ? {
+          ...mainNode,
+          startTime: activeTurn.startTime || mainNode.startTime,
+          endTime: activeTurn.endTime || mainNode.endTime,
+          tokenUsage: {
+            ...mainNode.tokenUsage,
+            inputTokens: summary.tokensIn,
+            outputTokens: summary.tokensOut,
+            totalCost: summary.cost,
+          },
+          toolCalls: summary.tools.length,
+        }
+      : mainNode;
+    return { nodes: [filtered], edges: [] };
   }
 
   const turnAgentIds = new Set(activeTurn.agents.map((a) => a.agentId));
