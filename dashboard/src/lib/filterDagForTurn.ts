@@ -79,12 +79,44 @@ export function filterDagForTurn(
   prev?: AgentDAG | null,
 ): AgentDAG | null {
   if (!dag || !activeTurn) return dag;
-  // If the turn has no agents yet (brand-new turn), show full DAG
-  if (activeTurn.agents.length === 0) return dag;
-  // If the turn only ran main (no subagents dispatched), show full session DAG
-  // so the user sees the session context rather than a single-node view
+
+  // Completed turn (durationMs set) with no subagents → show only main node.
+  // In-progress turn (durationMs null) → show full DAG as context since
+  // subagents may still be dispatched.
+  const turnIsComplete = activeTurn.durationMs !== null;
+
+  if (activeTurn.agents.length === 0) {
+    if (turnIsComplete) {
+      const mainNode = dag.nodes.find((n) => n.id === "main");
+      return mainNode ? { nodes: [mainNode], edges: [] } : dag;
+    }
+    return dag;
+  }
+
   const turnHasSubagents = activeTurn.agents.some((a) => a.agentId !== "main");
-  if (!turnHasSubagents) return dag;
+  if (!turnHasSubagents) {
+    if (turnIsComplete) {
+      const mainNode = dag.nodes.find((n) => n.id === "main");
+      if (!mainNode) return dag;
+      const summary = activeTurn.agents.find((a) => a.agentId === "main");
+      const filtered: AgentNode = summary
+        ? {
+            ...mainNode,
+            startTime: activeTurn.startTime || mainNode.startTime,
+            endTime: activeTurn.endTime || mainNode.endTime,
+            tokenUsage: {
+              ...mainNode.tokenUsage,
+              inputTokens: summary.tokensIn,
+              outputTokens: summary.tokensOut,
+              totalCost: summary.cost,
+            },
+            toolCalls: summary.tools.length,
+          }
+        : mainNode;
+      return { nodes: [filtered], edges: [] };
+    }
+    return dag;
+  }
 
   const turnAgentIds = new Set(activeTurn.agents.map((a) => a.agentId));
   turnAgentIds.add("main");

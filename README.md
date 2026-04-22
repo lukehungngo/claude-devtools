@@ -2,14 +2,16 @@
 
 Claude DevTools is the observability layer for Claude Code — monitor active sessions in real-time, trace what happened turn-by-turn, and extract insights from your usage over time.
 
+Works locally, inside Docker containers, and on remote servers.
+
 ## Features
 
 - **Agent Flow Visualization**: Watch your agent's execution path in real-time as it processes tasks
-- **Token Tracking**: Monitor input/output tokens and total consumption
+- **Token Tracking**: Monitor input/output tokens, cache hits, and total consumption
 - **Cost Analytics**: Track estimated API costs for your agent runs
 - **Tool Monitoring**: See which tools are being called and their execution status
-- **Command Input**: Test commands and invoke tools directly from the dashboard
 - **Live Updates**: WebSocket-based real-time updates to the dashboard
+- **Remote & Docker**: Connect sessions from Docker containers or remote machines
 
 ## Installation
 
@@ -17,25 +19,54 @@ Claude DevTools is the observability layer for Claude Code — monitor active se
 npx @lukehungngo/claude-devtools
 ```
 
-That's it. The dashboard opens automatically at `http://localhost:3142`.
+The dashboard opens automatically at `http://localhost:3142`.
 
-## Dashboard
+## Remote & Docker Connectivity
 
-The Claude DevTools dashboard provides:
+By default, claude-devtools reads Claude Code sessions from `~/.claude/projects/` on your local machine. To monitor sessions running inside Docker containers or on remote servers, use the collector.
 
-- **Agent Execution Timeline**: Visual timeline of agent actions and tool calls
-- **Token Metrics**: Real-time token counter showing input, output, and total tokens used
-- **Cost Estimate**: Automatic cost calculation based on current Claude model pricing
-- **Tool Registry**: Complete list of available tools and their schemas
-- **Active Connections**: Monitor connected agent instances
-- **Command Line**: Send commands to the agent and receive responses
+### Docker (automatic)
 
-### Dashboard Views
+If Docker is running on your machine, claude-devtools automatically detects containers that have Claude Code installed and injects a collector agent. No extra steps needed.
 
-- **Timeline**: Sequential view of all agent actions
-- **Tools**: Registered tools and their schemas
-- **Metrics**: Token usage and cost analytics
-- **Logs**: Detailed execution logs and debugging info
+### Remote server
+
+**1. Get your token** (on your local machine):
+
+```bash
+npx @lukehungngo/claude-devtools token
+```
+
+**2. Start the collector** (on the remote machine):
+
+```bash
+npx @lukehungngo/claude-devtools collect \
+  --server ws://<your-local-ip>:3142 \
+  --token <token>
+```
+
+The collector streams new JSONL events to your local dashboard as they appear. Sessions from remote machines are tagged with a `remote:<hostname>` badge in the session list.
+
+### Source badges
+
+The session list shows where each session is running:
+
+| Badge | Source |
+|-------|--------|
+| _(none)_ | Local filesystem |
+| `docker:<name>` | Docker container (auto-detected) |
+| `remote:<host>` | Remote collector |
+
+### Connected collectors panel
+
+The Settings panel shows all connected collectors with their status and session count.
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `DEVTOOLS_PORT` | `3142` | Dashboard and collector hub port |
+| `DEVTOOLS_TOKEN` | _(auto-generated)_ | Override the collector auth token |
 
 ## Development
 
@@ -43,110 +74,61 @@ The Claude DevTools dashboard provides:
 
 ```bash
 # Install all dependencies
-npm install
-
-# Install server dependencies
-cd server && npm install && cd ..
-
-# Install dashboard dependencies
-cd dashboard && npm install && cd ..
+cd server && pnpm install && cd ../dashboard && pnpm install
 ```
 
 ### Development Mode
 
-Run both server and dashboard in development mode:
-
 ```bash
 # In terminal 1: Start the server with hot reload
-cd server && npm run dev
+cd server && pnpm dev
 
 # In terminal 2: Start the dashboard with Vite dev server
-cd dashboard && npm run dev
+cd dashboard && pnpm dev
 ```
 
-The dashboard will be available at `http://localhost:5173` (Vite dev server)
-The MCP server will run on `http://localhost:3142`
+The dashboard will be available at `http://localhost:5173` (Vite dev server).
+The server runs on `http://localhost:3142`.
 
 ### Building
 
 ```bash
-# Build server and dashboard
-npm run build
+make build
+```
 
-# This runs:
-# - cd server && npm run build
-# - cd dashboard && npm run build
-# - Copies dashboard/dist to server/dist/public
+### Testing
+
+```bash
+cd server && pnpm test && cd ../dashboard && pnpm test
 ```
 
 ## Tech Stack
 
 - **Backend**: Node.js + Express + TypeScript
-- **MCP Protocol**: Model Context Protocol SDK for agent integration
 - **Frontend**: React + Vite + TypeScript
-- **WebSocket**: Real-time communication between server and dashboard
-- **Styling**: TailwindCSS for UI components
+- **Real-time**: WebSocket (dashboard updates + collector hub on `/collect` path)
+- **Styling**: TailwindCSS with `dt-*` design tokens
 
 ## Project Structure
 
 ```
 claude-devtools/
-├── server/              # MCP server (Node.js/Express)
+├── server/              # Express server + session reader
 │   ├── src/
-│   │   ├── index.ts    # MCP server entry point
-│   │   ├── http/       # HTTP/WebSocket server
-│   │   └── tools/      # Tool implementations
-│   ├── dist/           # Compiled server
+│   │   ├── cli.ts          # Entry point — serve / collect / token
+│   │   ├── http/           # HTTP + WebSocket server
+│   │   ├── session/        # JSONL parsing and session management
+│   │   ├── collector/      # Remote collector hub, agent, Docker injector
+│   │   └── types.ts
 │   └── package.json
-├── dashboard/          # React SPA dashboard
+├── dashboard/           # React SPA
 │   ├── src/
-│   │   ├── App.tsx
-│   │   └── components/ # React components
-│   ├── dist/          # Built SPA
+│   │   ├── routes/         # Page-level components
+│   │   └── components/     # UI components
 │   └── package.json
-├── skills/            # Claude Code skills
-├── .claude-plugin/    # Plugin manifest
-├── .mcp.json         # MCP configuration
-└── Makefile          # Build automation
+├── skills/              # Claude Code skills
+└── Makefile             # Build automation
 ```
-
-## API
-
-### MCP Tools
-
-The server exposes tools through the Model Context Protocol:
-
-- `list_agent_actions` - Get all recorded agent actions
-- `get_metrics` - Current token and cost metrics
-- `list_tools` - Available tools registry
-- `invoke_tool` - Execute a tool directly
-
-### WebSocket Events
-
-Real-time events emitted to connected clients:
-
-- `action_started` - Agent began an action
-- `action_completed` - Agent completed an action
-- `tool_called` - Tool was invoked
-- `metrics_updated` - Token/cost metrics changed
-
-## Troubleshooting
-
-### Server won't start
-
-Ensure all dependencies are installed:
-```bash
-cd server && npm install
-cd ../dashboard && npm install
-```
-
-### Dashboard not loading
-
-Check that the server is running and serving the SPA at `http://localhost:3142`
-
-### WebSocket connection failures
-
-Ensure your firewall allows connections to port 3142. Check browser console for detailed errors.
 
 ## License
 

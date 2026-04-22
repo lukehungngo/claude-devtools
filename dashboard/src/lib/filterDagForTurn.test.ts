@@ -67,16 +67,63 @@ describe("filterDagForTurn", () => {
     expect(filterDagForTurn(fullDag, undefined)).toBe(fullDag);
   });
 
-  it("returns full dag when activeTurn has empty agents array (brand-new turn)", () => {
+  it("returns full dag when in-progress turn has empty agents array (brand-new turn)", () => {
     const emptyTurn = makeTurn([]);
+    // durationMs is null (in-progress) — might dispatch agents soon, show full DAG
+    expect(emptyTurn.durationMs).toBeNull();
     const result = filterDagForTurn(fullDag, emptyTurn);
     expect(result).toBe(fullDag);
   });
 
-  it("returns full dag when turn only has main (no subagents dispatched)", () => {
+  it("returns only main node when completed turn has empty agents array", () => {
+    const completedEmptyTurn = { ...makeTurn([]), durationMs: 5000 };
+    const result = filterDagForTurn(fullDag, completedEmptyTurn)!;
+    expect(result).not.toBe(fullDag);
+    expect(result.nodes.map((n) => n.id)).toEqual(["main"]);
+    expect(result.edges).toEqual([]);
+  });
+
+  it("returns full dag when in-progress turn only has main (no subagents dispatched yet)", () => {
     const mainOnlyTurn = makeTurn([{ agentId: "main" }]);
+    // durationMs is null (in-progress) — might dispatch agents soon, show full DAG
+    expect(mainOnlyTurn.durationMs).toBeNull();
     const result = filterDagForTurn(fullDag, mainOnlyTurn);
     expect(result).toBe(fullDag);
+  });
+
+  it("returns only main node when completed turn only has main (no subagents dispatched)", () => {
+    const completedMainOnly = { ...makeTurn([{ agentId: "main" }]), durationMs: 3000 };
+    const result = filterDagForTurn(fullDag, completedMainOnly)!;
+    expect(result).not.toBe(fullDag);
+    expect(result.nodes.map((n) => n.id)).toEqual(["main"]);
+    expect(result.edges).toEqual([]);
+  });
+
+  it("applies turn-specific token data to main node in completed main-only turn", () => {
+    const dagWithCosts: AgentDAG = {
+      nodes: [
+        { ...makeNode("main"), tokenUsage: { inputTokens: 50000, outputTokens: 20000, cacheWriteTokens: 0, cacheReadTokens: 0, totalCost: 5.0 } },
+        makeNode("agent-1"),
+      ],
+      edges: [{ source: "main", target: "agent-1" }],
+    };
+    const completedMainOnly: TurnSnapshot = {
+      ...makeTurn([{ agentId: "main" }]),
+      durationMs: 2000,
+      startTime: "2026-01-01T00:10:00Z",
+      endTime: "2026-01-01T00:10:02Z",
+      agents: [
+        { agentId: "main", agentType: "main", displayName: "Main session", invocationCount: 1, cost: 0.05, tokensIn: 200, tokensOut: 100, tools: ["Read"] },
+      ],
+    };
+    const result = filterDagForTurn(dagWithCosts, completedMainOnly)!;
+    expect(result.nodes).toHaveLength(1);
+    const mainNode = result.nodes[0];
+    expect(mainNode.tokenUsage.inputTokens).toBe(200);
+    expect(mainNode.tokenUsage.outputTokens).toBe(100);
+    expect(mainNode.tokenUsage.totalCost).toBeCloseTo(0.05);
+    expect(mainNode.startTime).toBe("2026-01-01T00:10:00Z");
+    expect(mainNode.endTime).toBe("2026-01-01T00:10:02Z");
   });
 
   it("filters dag to only agents in the active turn plus main", () => {
