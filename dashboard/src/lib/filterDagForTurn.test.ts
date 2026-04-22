@@ -60,16 +60,16 @@ const fullDag: AgentDAG = {
 
 describe("filterDagForTurn", () => {
   it("returns null when dag is null", () => {
-    expect(filterDagForTurn(null, makeTurn([]))).toBeNull();
+    expect(filterDagForTurn(null, makeTurn([]), null)).toBeNull();
   });
 
   it("returns full dag when activeTurn is undefined", () => {
-    expect(filterDagForTurn(fullDag, undefined)).toBe(fullDag);
+    expect(filterDagForTurn(fullDag, undefined, null)).toBe(fullDag);
   });
 
   it("returns only main node when turn has empty agents array", () => {
     const emptyTurn = makeTurn([]);
-    const result = filterDagForTurn(fullDag, emptyTurn)!;
+    const result = filterDagForTurn(fullDag, emptyTurn, null)!;
     expect(result).not.toBe(fullDag);
     expect(result.nodes.map((n) => n.id)).toEqual(["main"]);
     expect(result.edges).toEqual([]);
@@ -77,7 +77,7 @@ describe("filterDagForTurn", () => {
 
   it("returns only main node when turn only has main (no subagents dispatched)", () => {
     const mainOnlyTurn = makeTurn([{ agentId: "main" }]);
-    const result = filterDagForTurn(fullDag, mainOnlyTurn)!;
+    const result = filterDagForTurn(fullDag, mainOnlyTurn, null)!;
     expect(result).not.toBe(fullDag);
     expect(result.nodes.map((n) => n.id)).toEqual(["main"]);
     expect(result.edges).toEqual([]);
@@ -100,7 +100,7 @@ describe("filterDagForTurn", () => {
         { agentId: "main", agentType: "main", displayName: "Main session", invocationCount: 1, cost: 0.05, tokensIn: 200, tokensOut: 100, tools: ["Read"] },
       ],
     };
-    const result = filterDagForTurn(dagWithCosts, mainOnlyTurn)!;
+    const result = filterDagForTurn(dagWithCosts, mainOnlyTurn, null)!;
     expect(result.nodes).toHaveLength(1);
     const mainNode = result.nodes[0];
     expect(mainNode.tokenUsage.inputTokens).toBe(200);
@@ -112,21 +112,36 @@ describe("filterDagForTurn", () => {
 
   it("filters dag to only agents in the active turn plus main", () => {
     const turn = makeTurn([{ agentId: "agent-1" }]);
-    const result = filterDagForTurn(fullDag, turn)!;
+    const result = filterDagForTurn(fullDag, turn, null)!;
     expect(result.nodes.map((n) => n.id)).toEqual(["main", "agent-1"]);
     expect(result.edges).toEqual([{ source: "main", target: "agent-1" }]);
   });
 
   it("always includes main node even if not in turn agents", () => {
     const turn = makeTurn([{ agentId: "agent-2" }]);
-    const result = filterDagForTurn(fullDag, turn)!;
+    const result = filterDagForTurn(fullDag, turn, null)!;
     expect(result.nodes.map((n) => n.id)).toContain("main");
+  });
+
+  it("uses eventAgentIds for membership when provided", () => {
+    // Turn agents only has main, but events show agent-2 was active
+    const mainOnlyTurn = makeTurn([{ agentId: "main" }]);
+    const eventIds = new Set(["main", "agent-2"]);
+    const result = filterDagForTurn(fullDag, mainOnlyTurn, eventIds)!;
+    expect(result.nodes.map((n) => n.id)).toEqual(["main", "agent-2"]);
+    expect(result.edges).toEqual([{ source: "main", target: "agent-2" }]);
+  });
+
+  it("falls back to TurnSnapshot.agents when eventAgentIds is null", () => {
+    const turn = makeTurn([{ agentId: "agent-1" }]);
+    const result = filterDagForTurn(fullDag, turn, null)!;
+    expect(result.nodes.map((n) => n.id)).toEqual(["main", "agent-1"]);
   });
 
   it("returns same reference when called with same agent set and previous result", () => {
     const turn = makeTurn([{ agentId: "agent-1" }]);
     const first = filterDagForTurn(fullDag, turn, null);
-    const second = filterDagForTurn(fullDag, turn, first);
+    const second = filterDagForTurn(fullDag, turn, null, first);
     expect(second).toBe(first); // same reference, not a new object
   });
 
@@ -134,7 +149,7 @@ describe("filterDagForTurn", () => {
     const turn1 = makeTurn([{ agentId: "agent-1" }]);
     const turn2 = makeTurn([{ agentId: "agent-1" }, { agentId: "agent-2" }]);
     const first = filterDagForTurn(fullDag, turn1, null);
-    const second = filterDagForTurn(fullDag, turn2, first);
+    const second = filterDagForTurn(fullDag, turn2, null, first);
     expect(second).not.toBe(first);
     expect(second!.nodes.map((n) => n.id)).toEqual(["main", "agent-1", "agent-2"]);
   });
@@ -186,7 +201,7 @@ describe("filterDagForTurn", () => {
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
-    const result = filterDagForTurn(dagWithCosts, turn)!;
+    const result = filterDagForTurn(dagWithCosts, turn, null)!;
     const mainNode = result.nodes.find((n) => n.id === "main")!;
     const agentNode = result.nodes.find((n) => n.id === "agent-1")!;
 
@@ -250,8 +265,8 @@ describe("filterDagForTurn", () => {
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
-    const resultA = filterDagForTurn(dagWithCosts, turnA);
-    const resultB = filterDagForTurn(dagWithCosts, turnB, resultA);
+    const resultA = filterDagForTurn(dagWithCosts, turnA, null);
+    const resultB = filterDagForTurn(dagWithCosts, turnB, null, resultA);
 
     // Must be a different reference — same agents but different data
     expect(resultB).not.toBe(resultA);
@@ -319,8 +334,8 @@ describe("filterDagForTurn", () => {
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
-    const resultA = filterDagForTurn(dagWithCosts, turnA);
-    const resultB = filterDagForTurn(dagWithCosts, turnB, resultA);
+    const resultA = filterDagForTurn(dagWithCosts, turnA, null);
+    const resultB = filterDagForTurn(dagWithCosts, turnB, null, resultA);
 
     // Must be a different reference -- same agents, same main tokens, but different agent-1 tokens
     expect(resultB).not.toBe(resultA);
@@ -370,7 +385,7 @@ describe("filterDagForTurn", () => {
       dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
     };
 
-    const result = filterDagForTurn(dagWithTimes, turn)!;
+    const result = filterDagForTurn(dagWithTimes, turn, null)!;
     const mainNode = result.nodes.find((n) => n.id === "main")!;
     const agentNode = result.nodes.find((n) => n.id === "agent-1")!;
 
@@ -419,7 +434,7 @@ describe("filterDagForTurn", () => {
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
-      const result = filterDagForTurn(dagWithTimes, turn)!;
+      const result = filterDagForTurn(dagWithTimes, turn, null)!;
       const mainNode = result.nodes.find((n) => n.id === "main")!;
       // groupEnd (subagent T+10m) > turn.endTime (T+5m) → main endTime = T+10m
       expect(mainNode.endTime).toBe(subEnd);
@@ -458,7 +473,7 @@ describe("filterDagForTurn", () => {
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
-      const result = filterDagForTurn(dagWithTimes, turn)!;
+      const result = filterDagForTurn(dagWithTimes, turn, null)!;
       const mainNode = result.nodes.find((n) => n.id === "main")!;
       // turn.endTime (T+20m) > groupEnd (T+10m) → main endTime = T+20m
       expect(mainNode.endTime).toBe(turnEnd);
@@ -497,7 +512,7 @@ describe("filterDagForTurn", () => {
         dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
       };
 
-      const result = filterDagForTurn(dagWithTimes, turn)!;
+      const result = filterDagForTurn(dagWithTimes, turn, null)!;
       const mainNode = result.nodes.find((n) => n.id === "main")!;
       // Active subagent with no endTime extends group envelope to Date.now().
       // Allow 1s tolerance for clock drift between computeGroupEnvelope and assertion.
@@ -561,7 +576,7 @@ describe("filterDagForTurn", () => {
       };
 
       const first = filterDagForTurn(dagA, turn, null);
-      const second = filterDagForTurn(dagB, turn, first);
+      const second = filterDagForTurn(dagB, turn, null, first);
 
       // Envelope changed → must NOT be prev reference.
       expect(second).not.toBe(first);
@@ -607,7 +622,7 @@ describe("filterDagForTurn", () => {
       };
 
       const first = filterDagForTurn(dag, turn, null);
-      const second = filterDagForTurn(dag, turn, first);
+      const second = filterDagForTurn(dag, turn, null, first);
 
       // Identical inputs → same reference.
       expect(second).toBe(first);

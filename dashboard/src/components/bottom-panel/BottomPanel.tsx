@@ -264,6 +264,7 @@ export function BottomPanel({
               <TraceTab
                 dag={dag}
                 turns={turns}
+                allEvents={events}
                 activeTurnIndex={activeTurnIndex}
                 selectedAgent={selectedAgent}
                 onSelectAgent={onSelectAgent}
