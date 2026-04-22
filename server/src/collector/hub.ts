@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from "ws";
-import type { IncomingMessage, Server } from "node:http";
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
 import { logger } from "../logger.js";
 import { collectorBuffer } from "./buffer.js";
 import type { SessionEvent, SessionInfo, WsNewEventsMessage, WsNewSessionMessage } from "../types.js";
@@ -16,7 +17,6 @@ type BroadcastFn = (msg: WsNewEventsMessage | WsNewSessionMessage) => void;
 
 interface HubOptions {
   token: string;
-  httpServer: Server;
   onBroadcast?: BroadcastFn;
 }
 
@@ -26,13 +26,19 @@ export class CollectorHub {
   private token: string;
   private onBroadcast?: BroadcastFn;
 
-  constructor({ token, httpServer, onBroadcast }: HubOptions) {
+  constructor({ token, onBroadcast }: HubOptions) {
     this.token = token;
     this.onBroadcast = onBroadcast;
 
-    this.wss = new WebSocketServer({ server: httpServer, path: "/collect" });
+    this.wss = new WebSocketServer({ noServer: true });
     this.wss.on("connection", (ws: WebSocket, _req: IncomingMessage) => {
       this.handleConnection(ws);
+    });
+  }
+
+  handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
+    this.wss.handleUpgrade(req, socket, head, (ws) => {
+      this.wss.emit("connection", ws, req);
     });
   }
 

@@ -5,6 +5,14 @@ import { CollectorHub } from "./hub.js";
 
 const TEST_TOKEN = "dt_test1234test1234test1234test1234";
 
+function createTestServer(hub: CollectorHub) {
+  const http = createServer();
+  http.on("upgrade", (req, socket, head) => {
+    hub.handleUpgrade(req, socket, head);
+  });
+  return http;
+}
+
 describe("CollectorHub", () => {
   const cleanups: Array<() => Promise<void>> = [];
 
@@ -15,9 +23,9 @@ describe("CollectorHub", () => {
 
   it("rejects connection with wrong token", async () => {
     await new Promise<void>((resolve) => {
-      const http = createServer();
-      new CollectorHub({ token: TEST_TOKEN, httpServer: http });
-      cleanups.push(() => new Promise((r) => http.close(() => r())));
+      const hub = new CollectorHub({ token: TEST_TOKEN });
+      const http = createTestServer(hub);
+      cleanups.push(() => new Promise((r) => { hub.close(); http.close(() => r()); }));
 
       http.listen(0, "127.0.0.1", () => {
         const addr = http.address() as { port: number };
@@ -32,9 +40,9 @@ describe("CollectorHub", () => {
 
   it("accepts connection with correct token and responds collector-ok", async () => {
     await new Promise<void>((resolve) => {
-      const http = createServer();
-      new CollectorHub({ token: TEST_TOKEN, httpServer: http });
-      cleanups.push(() => new Promise((r) => http.close(() => r())));
+      const hub = new CollectorHub({ token: TEST_TOKEN });
+      const http = createTestServer(hub);
+      cleanups.push(() => new Promise((r) => { hub.close(); http.close(() => r()); }));
 
       http.listen(0, "127.0.0.1", () => {
         const addr = http.address() as { port: number };
@@ -54,9 +62,9 @@ describe("CollectorHub", () => {
 
   it("getConnectedCollectors returns registered collectors", async () => {
     await new Promise<void>((resolve) => {
-      const http = createServer();
-      const hub = new CollectorHub({ token: TEST_TOKEN, httpServer: http });
-      cleanups.push(() => new Promise((r) => http.close(() => r())));
+      const hub = new CollectorHub({ token: TEST_TOKEN });
+      const http = createTestServer(hub);
+      cleanups.push(() => new Promise((r) => { hub.close(); http.close(() => r()); }));
 
       http.listen(0, "127.0.0.1", () => {
         const addr = http.address() as { port: number };

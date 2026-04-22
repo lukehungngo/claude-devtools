@@ -152,11 +152,7 @@ export function useUnifiedWebSocket(
     function connect() {
       if (unmountedRef.current) return;
 
-      // In dev mode, bypass Vite's http-proxy (flaky with WebSocket)
-      // and connect directly to the backend server
-      const wsUrl = import.meta.env.DEV
-        ? "ws://localhost:3142/ws"
-        : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
+      const wsUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 

@@ -37,7 +37,7 @@ export function startHttpServer(port: number = 3142): Promise<{
   return new Promise((resolve, reject) => {
     const app = express();
     const server = createServer(app);
-    const wss = new WebSocketServer({ server, path: "/ws" });
+    const wss = new WebSocketServer({ noServer: true });
 
     // Debug DB: dev-only SQLite for lifecycle snapshots
     const debugDb = DebugDB.open(join(__dirname, "..", "..", "debug.sqlite")) ?? undefined;
@@ -88,12 +88,23 @@ export function startHttpServer(port: number = 3142): Promise<{
       });
     });
 
-    // Collector hub — same HTTP server, /collect WS path
+    // Collector hub — noServer mode, routed via upgrade handler below
     const collectorToken = loadOrCreate();
     const collectorHub = new CollectorHub({
       token: collectorToken,
-      httpServer: server,
       onBroadcast: (msg) => broadcast(state, msg as WsBroadcastMessage),
+    });
+
+    // Single upgrade handler routes to the correct WSS by path
+    server.on("upgrade", (req, socket, head) => {
+      const pathname = new URL(req.url ?? "/", "ws://localhost").pathname;
+      if (pathname === "/collect") {
+        collectorHub.handleUpgrade(req, socket, head);
+      } else {
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          wss.emit("connection", ws, req);
+        });
+      }
     });
     state.collectorHub = collectorHub;
 
