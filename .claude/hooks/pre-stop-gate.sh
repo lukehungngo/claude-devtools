@@ -8,7 +8,7 @@ set -euo pipefail
 
 # CUSTOMIZE THESE LINES:
 LINT_CMD="pnpm lint --quiet"
-TEST_CMD="cd server && pnpm test && cd ../dashboard && pnpm test"
+TEST_CMD="pnpm --dir server test run && pnpm --dir dashboard test run"
 
 LINT_RESULT=$($LINT_CMD 2>&1 || true)
 TEST_RESULT=$($TEST_CMD 2>&1 | tail -5 || true)
