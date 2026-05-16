@@ -4,6 +4,16 @@ import { formatCost, formatTokens } from "../../lib/cost";
 
 export interface CostTabProps {
   metrics: SessionMetrics | null;
+  /**
+   * OpenTelemetry-style `stop_reason` from the most recent SDK result event
+   * (CC v2.1.143, P2-5). Optional; hidden when both this and finishReasons are undefined.
+   */
+  stopReason?: string;
+  /**
+   * OpenTelemetry-style `gen_ai.response.finish_reasons` from the most recent
+   * SDK result event (CC v2.1.143, P2-5). Optional.
+   */
+  finishReasons?: readonly string[];
 }
 
 /** Compute projected total cost based on context window usage. */
@@ -54,7 +64,7 @@ export function computeBurnRateTrend(
   return { arrow: "→", color: "var(--t3)" };
 }
 
-function CostTabInner({ metrics }: CostTabProps) {
+function CostTabInner({ metrics, stopReason, finishReasons }: CostTabProps) {
   const { burnRate, sortedNodes, burnTrend, projected } = useMemo(() => {
     if (!metrics) return {
       burnRate: 0,
@@ -105,6 +115,9 @@ function CostTabInner({ metrics }: CostTabProps) {
           subtitle={projected.subtitle}
         />
       </div>
+
+      {/* OpenTelemetry-style result fields (CC v2.1.143, P2-5). Hidden when both absent. */}
+      <OtelResultRow stopReason={stopReason} finishReasons={finishReasons} />
 
       {/* Per-agent breakdown */}
       {sortedNodes.length > 0 && (
@@ -206,6 +219,43 @@ function CostCard({ label, value, subtitle, suffix }: CostCardProps) {
       </div>
       {subtitle && (
         <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 2 }}>{subtitle}</div>
+      )}
+    </div>
+  );
+}
+
+interface OtelResultRowProps {
+  stopReason?: string;
+  finishReasons?: readonly string[];
+}
+
+function OtelResultRow({ stopReason, finishReasons }: OtelResultRowProps) {
+  const hasStop = typeof stopReason === "string" && stopReason.length > 0;
+  const hasFinish = Array.isArray(finishReasons) && finishReasons.length > 0;
+  if (!hasStop && !hasFinish) return null;
+  return (
+    <div
+      data-testid="otel-result-row"
+      style={{
+        display: "flex",
+        gap: 16,
+        padding: "0 12px 8px",
+        fontFamily: "monospace",
+        fontSize: 11,
+        color: "var(--t3)",
+        alignItems: "baseline",
+      }}
+    >
+      {hasStop && (
+        <span>
+          Stop: <span style={{ color: "var(--t2)" }}>{stopReason}</span>
+        </span>
+      )}
+      {hasFinish && (
+        <span>
+          Finish:{" "}
+          <span style={{ color: "var(--t2)" }}>{finishReasons!.join(", ")}</span>
+        </span>
       )}
     </div>
   );

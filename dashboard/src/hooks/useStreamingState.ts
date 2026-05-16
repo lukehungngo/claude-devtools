@@ -200,10 +200,24 @@ export function useStreamingState(): UseStreamingStateReturn {
               sdkContextWindow = maxContextWindow;
             }
           }
+          // OpenTelemetry-style fields (CC v2.1.143, P2-5). Forwarded by the
+          // server from `msg.stop_reason` and `msg.gen_ai.response.finish_reasons`.
+          // Keep previous value when the new event omits them so a partial
+          // result doesn't blank out earlier data.
+          const incomingStop = data.stop_reason as string | undefined;
+          const incomingFinishRaw = data.finish_reasons as unknown;
+          const incomingFinish: readonly string[] | undefined =
+            Array.isArray(incomingFinishRaw) && incomingFinishRaw.every((r) => typeof r === "string")
+              ? (incomingFinishRaw as string[])
+              : undefined;
           return {
             ...prev,
             sessionState: "idle",
             sdkContextWindow,
+            lastResultStopReason:
+              typeof incomingStop === "string" ? incomingStop : prev.lastResultStopReason,
+            lastResultFinishReasons:
+              incomingFinish !== undefined ? incomingFinish : prev.lastResultFinishReasons,
           };
         }
 

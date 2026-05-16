@@ -394,6 +394,43 @@ describe("mapSdkMessageToSSEEvents", () => {
       ]);
     });
 
+    it("forwards OTel stop_reason and nested gen_ai.response.finish_reasons (P2-5)", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "result",
+        subtype: "success",
+        is_error: false,
+        total_cost_usd: 0.05,
+        duration_ms: 12000,
+        num_turns: 3,
+        result: "Done!",
+        stop_reason: "end_turn",
+        gen_ai: { response: { finish_reasons: ["stop"] } },
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        type: "result",
+        is_error: false,
+        stop_reason: "end_turn",
+        finish_reasons: ["stop"],
+      });
+    });
+
+    it("omits OTel fields when absent and does not crash (P2-5)", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "result",
+        subtype: "success",
+        is_error: false,
+        total_cost_usd: 0.01,
+        duration_ms: 100,
+        num_turns: 1,
+        result: "ok",
+      });
+      expect(result).toHaveLength(1);
+      const evt = result[0] as { stop_reason?: string; finish_reasons?: string[] };
+      expect(evt.stop_reason).toBeUndefined();
+      expect(evt.finish_reasons).toBeUndefined();
+    });
+
     it("maps error result with errors array", () => {
       const result = mapSdkMessageToSSEEvents({
         type: "result",

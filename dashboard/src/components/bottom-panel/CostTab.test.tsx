@@ -341,4 +341,39 @@ describe("CostTab", () => {
     const hasArrow = ["↑", "↓", "→"].some((a) => text.includes(a));
     expect(hasArrow).toBe(true);
   });
+
+  describe("OpenTelemetry result fields (P2-5)", () => {
+    it("renders Stop and Finish labels when both props supplied", () => {
+      render(
+        <CostTab
+          metrics={makeMetrics()}
+          stopReason="end_turn"
+          finishReasons={["stop"]}
+        />,
+      );
+      const row = screen.getByTestId("otel-result-row");
+      expect(row.textContent).toContain("Stop:");
+      expect(row.textContent).toContain("end_turn");
+      expect(row.textContent).toContain("Finish:");
+      expect(row.textContent).toContain("stop");
+    });
+
+    it("hides the row entirely when both OTel fields are absent", () => {
+      render(<CostTab metrics={makeMetrics()} />);
+      expect(screen.queryByTestId("otel-result-row")).toBeNull();
+    });
+
+    it("renders only Stop when finishReasons is empty", () => {
+      render(
+        <CostTab
+          metrics={makeMetrics()}
+          stopReason="tool_use"
+          finishReasons={[]}
+        />,
+      );
+      const row = screen.getByTestId("otel-result-row");
+      expect(row.textContent).toContain("Stop: tool_use");
+      expect(row.textContent).not.toContain("Finish:");
+    });
+  });
 });

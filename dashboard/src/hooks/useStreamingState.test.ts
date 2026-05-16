@@ -287,4 +287,38 @@ describe("useStreamingState", () => {
     });
     expect(result.current.state.sdkContextWindow).toBeNull();
   });
+
+  it("captures OTel stop_reason and finish_reasons from result event (P2-5)", () => {
+    const { result } = renderHook(() => useStreamingState());
+    expect(result.current.state.lastResultStopReason).toBeNull();
+    expect(result.current.state.lastResultFinishReasons).toBeNull();
+
+    act(() => {
+      result.current.actions.handleSSEEvent({
+        type: "result",
+        is_error: false,
+        stop_reason: "end_turn",
+        finish_reasons: ["stop"],
+      });
+    });
+    expect(result.current.state.lastResultStopReason).toBe("end_turn");
+    expect(result.current.state.lastResultFinishReasons).toEqual(["stop"]);
+  });
+
+  it("preserves previous OTel fields when a later result omits them (P2-5)", () => {
+    const { result } = renderHook(() => useStreamingState());
+    act(() => {
+      result.current.actions.handleSSEEvent({
+        type: "result",
+        is_error: false,
+        stop_reason: "tool_use",
+        finish_reasons: ["tool_use"],
+      });
+    });
+    act(() => {
+      result.current.actions.handleSSEEvent({ type: "result", is_error: false });
+    });
+    expect(result.current.state.lastResultStopReason).toBe("tool_use");
+    expect(result.current.state.lastResultFinishReasons).toEqual(["tool_use"]);
+  });
 });

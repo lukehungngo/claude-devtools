@@ -51,6 +51,16 @@ export interface StreamingState {
   responseText: string;
   /** Authoritative context window from SDK result.modelUsage (set once on result event) */
   sdkContextWindow: number | null;
+  /**
+   * OpenTelemetry-style stop_reason from the most recent result event
+   * (CC v2.1.143, P2-5). Null until the first result arrives.
+   */
+  lastResultStopReason: string | null;
+  /**
+   * OpenTelemetry-style gen_ai.response.finish_reasons from the most recent
+   * result event (CC v2.1.143, P2-5). Null until the first result arrives.
+   */
+  lastResultFinishReasons: readonly string[] | null;
 }
 
 export function createInitialStreamingState(): StreamingState {
@@ -65,6 +75,8 @@ export function createInitialStreamingState(): StreamingState {
     sessionState: null,
     responseText: "",
     sdkContextWindow: null,
+    lastResultStopReason: null,
+    lastResultFinishReasons: null,
   };
 }
 

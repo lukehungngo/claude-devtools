@@ -97,6 +97,15 @@ export interface SSEResultEvent {
     contextWindow: number;
     maxOutputTokens: number;
   }>;
+  /**
+   * OpenTelemetry-style fields added by CC v2.1.143 (CHANGELOG line 467).
+   * `stop_reason` mirrors the model's terminal reason ("end_turn", "tool_use", ...).
+   * `finish_reasons` mirrors `gen_ai.response.finish_reasons` from the OTel LLM span.
+   * The `user_system_prompt` field is gated behind `OTEL_LOG_USER_PROMPTS` and is
+   * intentionally not forwarded for privacy.
+   */
+  stop_reason?: string;
+  finish_reasons?: string[];
 }
 
 export interface SSEErrorEvent {
@@ -455,6 +464,20 @@ export function mapSdkMessageToSSEEvents(msg: {
     // Forward per-model usage breakdown (authoritative cost data from SDK)
     if (msg.modelUsage) {
       resultEvent.modelUsage = msg.modelUsage;
+    }
+    // OpenTelemetry-style fields (CC v2.1.143). `finish_reasons` lives under
+    // `gen_ai.response.finish_reasons` in the OTel span; older / variant SDK
+    // shapes may surface it at the top level. Tolerate both, never crash if
+    // either path is missing.
+    if (typeof msg.stop_reason === "string") {
+      resultEvent.stop_reason = msg.stop_reason;
+    }
+    const genAi = msg.gen_ai as { response?: { finish_reasons?: unknown } } | undefined;
+    const nestedFinish = genAi?.response?.finish_reasons;
+    const topLevelFinish = (msg as { finish_reasons?: unknown }).finish_reasons;
+    const rawFinish = nestedFinish ?? topLevelFinish;
+    if (Array.isArray(rawFinish) && rawFinish.every((r) => typeof r === "string")) {
+      resultEvent.finish_reasons = rawFinish as string[];
     }
     events.push(resultEvent);
   }
