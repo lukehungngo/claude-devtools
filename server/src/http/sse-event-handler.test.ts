@@ -741,5 +741,87 @@ describe("mapSdkMessageToSSEEvents", () => {
       const meta = (secondOut[0] as { metadata: { attributedTo?: unknown } }).metadata;
       expect(meta.attributedTo).toBeUndefined();
     });
+
+    it("attributes compact_boundary to a PostCompact hook_success (R-2)", () => {
+      mapSdkMessageToSSEEvents({
+        type: "attachment",
+        attachment: {
+          type: "hook_success",
+          hookName: "summarize-postcompact.sh",
+          hookEvent: "PostCompact",
+          command: "summarize-postcompact.sh",
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          content: "",
+          durationMs: 8,
+        },
+      });
+
+      const out = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "compact_boundary",
+        compactMetadata: {
+          trigger: "auto",
+          preTokens: 200000,
+          postTokens: 10000,
+          durationMs: 42000,
+        },
+      });
+
+      expect(out).toHaveLength(1);
+      expect(out[0]).toMatchObject({
+        type: "compact",
+        metadata: {
+          trigger: "auto",
+          attributedTo: { hookName: "summarize-postcompact.sh" },
+        },
+      });
+      const attribution = (out[0] as {
+        metadata: { attributedTo?: { cancelled?: boolean } };
+      }).metadata.attributedTo;
+      expect(attribution?.cancelled).toBeUndefined();
+    });
+
+    it("attributes compact_boundary to the most recent of mixed PreCompact + PostCompact (R-2)", () => {
+      // PreCompact fires first
+      mapSdkMessageToSSEEvents({
+        type: "attachment",
+        attachment: {
+          type: "hook_success",
+          hookName: "pre-rotate.sh",
+          hookEvent: "PreCompact",
+          command: "pre-rotate.sh",
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          content: "",
+          durationMs: 5,
+        },
+      });
+      // Then PostCompact fires within the window — should be the consumed one
+      mapSdkMessageToSSEEvents({
+        type: "attachment",
+        attachment: {
+          type: "hook_success",
+          hookName: "post-summary.sh",
+          hookEvent: "PostCompact",
+          command: "post-summary.sh",
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          content: "",
+          durationMs: 7,
+        },
+      });
+
+      const out = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "compact_boundary",
+        compactMetadata: { trigger: "auto", preTokens: 100, postTokens: 50 },
+      });
+      expect((out[0] as { metadata: { attributedTo?: { hookName: string } } })
+        .metadata.attributedTo?.hookName).toBe("post-summary.sh");
+    });
   });
 });

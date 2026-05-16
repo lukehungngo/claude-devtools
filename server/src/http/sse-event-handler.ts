@@ -76,13 +76,14 @@ export interface SSECompactEvent {
     /** Tools the model knew about pre-compaction; lost after. */
     preCompactDiscoveredTools?: string[];
     /**
-     * Attribution to a PreCompact hook that fired immediately before this
-     * compact event (CC v2.1.143, P2-9). Populated when a hook_success or
-     * hook_cancelled attachment with `hookEvent === "PreCompact"` arrived in
-     * the SDK stream within the last `PRE_COMPACT_BUFFER_DEFAULT_TTL_MS`.
-     * `cancelled === true` means the PreCompact hook blocked the compaction
-     * (exit 2 or returned `{decision: "block"}`); the UI then renders a
-     * "blocked by hook" banner instead of the usual compacted banner.
+     * Attribution to a PreCompact or PostCompact hook that fired around this
+     * compact event (CC v2.1.143, P2-9; PostCompact added in R-2). Populated
+     * when a hook_success or hook_cancelled attachment with
+     * `hookEvent === "PreCompact"` or `hookEvent === "PostCompact"` arrived
+     * in the SDK stream within the last `PRE_COMPACT_BUFFER_DEFAULT_TTL_MS`.
+     * `cancelled === true` means the hook blocked the compaction (exit 2 or
+     * returned `{decision: "block"}`); the UI then renders a "blocked by
+     * hook" banner instead of the usual compacted banner.
      */
     attributedTo?: {
       hookName: string;
@@ -242,9 +243,9 @@ export type SSEEvent =
   | SSEApiRetryEvent;
 
 /**
- * Default time-to-live for buffered PreCompact hook attachments, in ms.
- * Any PreCompact entry older than this is treated as unrelated to a later
- * compact_boundary and silently dropped from attribution lookups.
+ * Default time-to-live for buffered PreCompact/PostCompact hook attachments,
+ * in ms. Any compact-hook entry older than this is treated as unrelated to a
+ * later compact_boundary and silently dropped from attribution lookups.
  */
 export const PRE_COMPACT_BUFFER_DEFAULT_TTL_MS = 60_000;
 
@@ -270,10 +271,10 @@ function pushPreCompactEntry(entry: PreCompactBufferEntry): void {
 }
 
 /**
- * Consume the most recent PreCompact entry still inside the TTL window.
- * Returns `undefined` when no in-window entry exists. The entry is removed
- * from the buffer so back-to-back compact_boundary events do not both
- * attribute to the same hook.
+ * Consume the most recent PreCompact/PostCompact entry still inside the TTL
+ * window. Returns `undefined` when no in-window entry exists. The entry is
+ * removed from the buffer so back-to-back compact_boundary events do not
+ * both attribute to the same hook.
  */
 function consumeRecentPreCompactEntry(now: number): PreCompactBufferEntry | undefined {
   const cutoff = now - preCompactBufferTtlMs;
@@ -289,7 +290,7 @@ function consumeRecentPreCompactEntry(now: number): PreCompactBufferEntry | unde
   return undefined;
 }
 
-/** Test-only: clear the PreCompact buffer between tests. */
+/** Test-only: clear the compact-hook buffer between tests. */
 export function __resetPreCompactBufferForTest(): void {
   preCompactBuffer = [];
 }
@@ -431,16 +432,18 @@ export function mapSdkMessageToSSEEvents(msg: {
 
   // Attachment messages carry hook results, skill listings, queued commands, etc.
   // We do NOT emit SSE for them — HooksTab reads attachments straight from JSONL.
-  // The one side-effect: track PreCompact hook attachments so the next
-  // compact_boundary can be attributed to the hook that fired before it.
+  // The one side-effect: track PreCompact/PostCompact hook attachments so the
+  // next compact_boundary can be attributed to the hook that fired around it.
   if (msg.type === "attachment" && msg.attachment) {
     const inner = msg.attachment as { type?: string; [key: string]: unknown };
-    if (inner.type === "hook_success" && inner.hookEvent === "PreCompact") {
+    const isCompactHook =
+      inner.hookEvent === "PreCompact" || inner.hookEvent === "PostCompact";
+    if (inner.type === "hook_success" && isCompactHook) {
       const hookName = typeof inner.hookName === "string" ? inner.hookName : "";
       if (hookName) {
         pushPreCompactEntry({ kind: "success", hookName, ts: Date.now() });
       }
-    } else if (inner.type === "hook_cancelled" && inner.hookEvent === "PreCompact") {
+    } else if (inner.type === "hook_cancelled" && isCompactHook) {
       const hookName = typeof inner.hookName === "string" ? inner.hookName : "<unknown>";
       const reason = typeof inner.reason === "string" ? inner.reason : undefined;
       pushPreCompactEntry({ kind: "cancelled", hookName, reason, ts: Date.now() });

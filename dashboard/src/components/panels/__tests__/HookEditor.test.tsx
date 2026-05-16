@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { HOOK_EVENTS } from "@anthropic-ai/claude-agent-sdk";
 import { HookEditor } from "../HookEditor";
 
 describe("HookEditor", () => {
@@ -30,32 +31,38 @@ describe("HookEditor", () => {
     });
   });
 
-  // CC v2.1.143 supports at least 12 hook event types. Devtools must list all of them.
-  it("lists all 12 CC hook event types", async () => {
+  // SDK 0.3.143 exports HOOK_EVENTS as the authoritative list of 29 hook types.
+  // Devtools must surface all of them so users can attach hooks to any.
+  it("SDK HOOK_EVENTS contains 29 entries", () => {
+    expect(HOOK_EVENTS.length).toBe(29);
+  });
+
+  it("lists all 29 SDK HOOK_EVENTS in the editor", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({ hooks: {} }),
     } as Response);
 
     render(<HookEditor />);
-    const expectedEventTypes = [
-      "SessionStart",
-      "Setup",
-      "UserPromptSubmit",
-      "PreToolUse",
-      "PostToolUse",
-      "PostToolUseFailure",
-      "SubagentStart",
-      "SubagentStop",
-      "PreCompact",
-      "TaskCreated",
-      "Notification",
-      "Stop",
-    ];
     await waitFor(() => {
-      for (const eventType of expectedEventTypes) {
+      for (const eventType of HOOK_EVENTS) {
         expect(screen.getByText(eventType)).toBeTruthy();
       }
+    });
+  });
+
+  // PostCompact and FileChanged are proxies for the 17 events added beyond
+  // the legacy hardcoded 12 — assert they render to prove no regression.
+  it("renders PostCompact and FileChanged (new SDK events beyond the legacy 12)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ hooks: {} }),
+    } as Response);
+
+    render(<HookEditor />);
+    await waitFor(() => {
+      expect(screen.getByText("PostCompact")).toBeTruthy();
+      expect(screen.getByText("FileChanged")).toBeTruthy();
     });
   });
 

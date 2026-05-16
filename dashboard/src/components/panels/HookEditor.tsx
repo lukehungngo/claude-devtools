@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Trash2, ChevronDown, ChevronRight, Save, Loader2, X } from "lucide-react";
+import { HOOK_EVENTS } from "@anthropic-ai/claude-agent-sdk";
 
 type HookType = "command" | "http" | "prompt" | "agent";
 
@@ -23,24 +24,35 @@ interface LegacyHookItem {
   description?: string;
 }
 
-// CC hook event types (CHANGELOG v2.1.143).
-// Lifecycle order: session/turn lifecycle, tool lifecycle, subagent lifecycle, compaction, tasks, notifications, stop.
-const EVENT_TYPES = [
-  "SessionStart",       // changelog 63, 749, 236
-  "Setup",              // changelog 63
-  "UserPromptSubmit",   // changelog 218
-  "PreToolUse",
-  "PostToolUse",
-  "PostToolUseFailure", // changelog 524
-  "SubagentStart",      // changelog 63
-  "SubagentStop",       // changelog 595, 953
-  "PreCompact",         // changelog 826, 1241
-  "TaskCreated",        // changelog 1161, 1241
+// CC hook event types are the SDK's authoritative HOOK_EVENTS list
+// (29 entries as of SDK 0.3.143 — see sdk.d.ts). Ordered for the editor
+// by lifecycle group so related hooks cluster together. Anything not in
+// LIFECYCLE_ORDER falls to the end alphabetically.
+const LIFECYCLE_ORDER: readonly string[] = [
+  "SessionStart", "SessionEnd", "Setup",
+  "UserPromptSubmit", "UserPromptExpansion",
+  "PreToolUse", "PostToolUse", "PostToolUseFailure", "PostToolBatch",
+  "SubagentStart", "SubagentStop",
+  "PreCompact", "PostCompact",
+  "PermissionRequest", "PermissionDenied",
+  "TaskCreated", "TaskCompleted",
+  "Elicitation", "ElicitationResult",
   "Notification",
-  "Stop",
-] as const;
+  "Stop", "StopFailure",
+  "TeammateIdle",
+  "WorktreeCreate", "WorktreeRemove",
+  "InstructionsLoaded", "ConfigChange",
+  "CwdChanged", "FileChanged",
+];
 
-type EventType = typeof EVENT_TYPES[number];
+const EVENT_TYPES = [...HOOK_EVENTS].sort((a, b) => {
+  const ai = LIFECYCLE_ORDER.indexOf(a);
+  const bi = LIFECYCLE_ORDER.indexOf(b);
+  if (ai !== -1 && bi !== -1) return ai - bi;
+  if (ai !== -1) return -1;
+  if (bi !== -1) return 1;
+  return a.localeCompare(b);
+});
 
 interface HooksData {
   [eventType: string]: HookMatcher[] | LegacyHookItem[];
