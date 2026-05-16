@@ -385,7 +385,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
   // of "$0.0000" to make the missing-data state explicit.
   const costStr = isSynthetic ? "—" : formatCost(totalCost);
 
-  const rowClass = `trace-row${isToolCall ? " trace-row-tool" : ""}${selected ? " trace-row-selected" : ""}`;
+  const rowClass = `trace-row${isToolCall ? " trace-row-tool" : ""}${selected ? " trace-row-selected" : ""}${isActive ? " trace-row-active" : ""}`;
 
   return (
     <div
@@ -418,7 +418,7 @@ const TraceRowComponent = memo(function TraceRowComponent({
       </div>
       <div className="trace-track">
         <div
-          className="trace-bar"
+          className={`trace-bar${isActive ? " trace-bar-active" : ""}`}
           style={{
             left: `${bar.leftPct}%`,
             width: `${bar.widthPct}%`,
