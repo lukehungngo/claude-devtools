@@ -213,7 +213,7 @@ describe("mapSdkMessageToSSEEvents", () => {
       expect(result).toEqual([{ type: "status", status: "compacting" }]);
     });
 
-    it("maps compact_boundary message", () => {
+    it("maps compact_boundary message (snake_case fallback for legacy SDK)", () => {
       const result = mapSdkMessageToSSEEvents({
         type: "system",
         subtype: "compact_boundary",
@@ -222,9 +222,53 @@ describe("mapSdkMessageToSSEEvents", () => {
       expect(result).toEqual([
         {
           type: "compact",
-          metadata: { trigger: "auto", pre_tokens: 50000 },
+          metadata: {
+            trigger: "auto",
+            preTokens: 50000,
+            postTokens: undefined,
+            durationMs: undefined,
+            preCompactDiscoveredTools: undefined,
+          },
         },
       ]);
+    });
+
+    it("maps compact_boundary with camelCase compactMetadata (real CC JSONL shape)", () => {
+      // Real CC v2.1.143 shape captured from ~/.claude/projects/*.jsonl
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "compact_boundary",
+        compactMetadata: {
+          trigger: "auto",
+          preTokens: 168470,
+          postTokens: 8759,
+          durationMs: 60791,
+          preCompactDiscoveredTools: ["Read", "Write"],
+          preservedSegment: { headUuid: "h1", anchorUuid: "a1", tailUuid: "t1" },
+        },
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        type: "compact",
+        metadata: {
+          trigger: "auto",
+          preTokens: 168470,
+          postTokens: 8759,
+          durationMs: 60791,
+        },
+      });
+    });
+
+    it("maps compact_boundary manual trigger", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "compact_boundary",
+        compactMetadata: { trigger: "manual", preTokens: 100000, postTokens: 5000, durationMs: 30000 },
+      });
+      expect(result[0]).toMatchObject({
+        type: "compact",
+        metadata: { trigger: "manual" },
+      });
     });
 
     it("maps system init to init event", () => {

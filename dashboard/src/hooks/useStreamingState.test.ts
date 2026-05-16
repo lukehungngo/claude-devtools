@@ -153,6 +153,29 @@ describe("useStreamingState", () => {
     expect(result.current.state.compactResult).toEqual({
       trigger: "auto",
       preTokens: 150000,
+      postTokens: undefined,
+      durationMs: undefined,
+    });
+  });
+
+  it("handles richer camelCase compact metadata (real CC v2.1.143 shape)", () => {
+    const { result } = renderHook(() => useStreamingState());
+    act(() => {
+      result.current.actions.handleSSEEvent({
+        type: "compact",
+        metadata: {
+          trigger: "auto",
+          preTokens: 168470,
+          postTokens: 8759,
+          durationMs: 60791,
+        },
+      });
+    });
+    expect(result.current.state.compactResult).toEqual({
+      trigger: "auto",
+      preTokens: 168470,
+      postTokens: 8759,
+      durationMs: 60791,
     });
   });
 

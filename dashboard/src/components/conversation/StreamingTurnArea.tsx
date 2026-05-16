@@ -21,14 +21,32 @@ function CompactResultBanner({ result }: { result: CompactMetadata }): JSX.Eleme
 
   if (!visible) return null;
 
-  const tokenStr = result.preTokens > 0
-    ? ` (was ${result.preTokens.toLocaleString()} tokens)`
-    : "";
+  const parts: string[] = [];
+  if (result.preTokens > 0) {
+    if (result.postTokens != null && result.postTokens > 0) {
+      const pct = Math.round((1 - result.postTokens / result.preTokens) * 100);
+      parts.push(
+        `${result.preTokens.toLocaleString()} → ${result.postTokens.toLocaleString()} tokens (-${pct}%)`,
+      );
+    } else {
+      parts.push(`was ${result.preTokens.toLocaleString()} tokens`);
+    }
+  }
+  if (result.durationMs != null) {
+    const sec = result.durationMs / 1000;
+    parts.push(`${sec.toFixed(1)}s`);
+  }
+  const triggerLabel = result.trigger === "auto"
+    ? "auto-compacted"
+    : result.trigger === "manual"
+      ? "compacted via /compact"
+      : `compacted (${result.trigger})`;
+  const details = parts.length > 0 ? ` — ${parts.join(", ")}` : "";
 
   return (
     <div className="flex items-center gap-2 py-1 text-sm text-dt-green italic" data-testid="compact-result">
       <span className="inline-block w-2 h-2 rounded-full bg-dt-green" />
-      Context compacted{tokenStr}
+      Context {triggerLabel}{details}
     </div>
   );
 }

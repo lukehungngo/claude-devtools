@@ -50,11 +50,31 @@ export interface SSEStatusEvent {
   status: string | null;
 }
 
+/**
+ * Compaction taxonomy (CC v2.1.143).
+ * - `auto` — threshold-driven (autocompact)
+ * - `manual` — user ran `/compact`
+ * - `reactive` — token overflow on a request triggered an immediate summarize
+ * - `rewind` — Rewind menu → "Summarize up to here"
+ *
+ * Real JSONLs (~/.claude/projects/) currently emit `auto` and `manual` most often.
+ * The reactive/rewind values are documented in CC CHANGELOG (lines 62, 73) but may
+ * surface as a refined trigger string in future versions; keep the union open.
+ */
+export type CompactTrigger = "auto" | "manual" | "reactive" | "rewind" | string;
+
 export interface SSECompactEvent {
   type: "compact";
   metadata: {
-    trigger: "manual" | "auto";
-    pre_tokens: number;
+    trigger: CompactTrigger;
+    /** Tokens before compaction. */
+    preTokens: number;
+    /** Tokens after compaction (i.e. summary size). Undefined on older SDK shapes. */
+    postTokens?: number;
+    /** Wall-clock duration of the compaction call, ms. */
+    durationMs?: number;
+    /** Tools the model knew about pre-compaction; lost after. */
+    preCompactDiscoveredTools?: string[];
   };
 }
 
@@ -299,11 +319,26 @@ export function mapSdkMessageToSSEEvents(msg: {
     events.push({ type: "status", status: msg.status });
   }
 
-  // Compact boundary
+  // Compact boundary — real CC v2.1.143 JSONLs use `compactMetadata` (camelCase);
+  // legacy SDK shapes may use snake_case. Accept either and surface the full
+  // metadata set (trigger, preTokens, postTokens, durationMs, discovered tools).
   if (msg.type === "system" && msg.subtype === "compact_boundary") {
+    const rawMeta =
+      (msg as { compactMetadata?: Record<string, unknown> }).compactMetadata ??
+      (msg as { compact_metadata?: Record<string, unknown> }).compact_metadata ??
+      {};
     events.push({
       type: "compact",
-      metadata: msg.compact_metadata,
+      metadata: {
+        trigger: (rawMeta.trigger as string) ?? "auto",
+        preTokens: ((rawMeta.preTokens ?? rawMeta.pre_tokens) as number) ?? 0,
+        postTokens: (rawMeta.postTokens ?? rawMeta.post_tokens) as number | undefined,
+        durationMs: (rawMeta.durationMs ?? rawMeta.duration_ms) as number | undefined,
+        preCompactDiscoveredTools:
+          (rawMeta.preCompactDiscoveredTools ?? rawMeta.pre_compact_discovered_tools) as
+            | string[]
+            | undefined,
+      },
     });
   }
 

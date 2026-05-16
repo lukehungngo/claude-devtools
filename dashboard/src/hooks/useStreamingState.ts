@@ -152,12 +152,27 @@ export function useStreamingState(): UseStreamingStateReturn {
         }
 
         case "compact": {
-          const metadata = data.metadata as { trigger?: string; pre_tokens?: number } | undefined;
+          // Server now sends camelCase (preTokens) per real CC JSONL shape.
+          // Tolerate snake_case for older server builds.
+          const metadata = data.metadata as
+            | {
+                trigger?: string;
+                preTokens?: number;
+                pre_tokens?: number;
+                postTokens?: number;
+                durationMs?: number;
+              }
+            | undefined;
           return {
             ...prev,
             isCompacting: false,
             compactResult: metadata
-              ? { trigger: metadata.trigger ?? "unknown", preTokens: metadata.pre_tokens ?? 0 }
+              ? {
+                  trigger: metadata.trigger ?? "unknown",
+                  preTokens: metadata.preTokens ?? metadata.pre_tokens ?? 0,
+                  postTokens: metadata.postTokens,
+                  durationMs: metadata.durationMs,
+                }
               : null,
           };
         }

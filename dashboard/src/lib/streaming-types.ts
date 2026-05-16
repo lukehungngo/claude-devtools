@@ -20,9 +20,18 @@ export interface StreamingThinkingEntry {
   isComplete: boolean;
 }
 
+/**
+ * Compaction metadata observed in CC v2.1.143 JSONLs and SSE.
+ * Trigger taxonomy (CC CHANGELOG): "auto" | "manual" | "reactive" | "rewind".
+ * Keep as `string` so newer CC versions don't crash the dashboard.
+ */
 export interface CompactMetadata {
   trigger: string;
   preTokens: number;
+  /** Tokens after compaction (compression ratio). */
+  postTokens?: number;
+  /** Wall-clock duration of the compaction call, ms. */
+  durationMs?: number;
 }
 
 export interface StreamingState {
