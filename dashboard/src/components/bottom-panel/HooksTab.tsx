@@ -5,6 +5,7 @@ import type {
   HookSuccessAttachment,
   HookCancelledAttachment,
   AsyncHookResponseAttachment,
+  QueuedCommandAttachment,
 } from "../../lib/types";
 
 interface HooksTabProps {
@@ -13,11 +14,15 @@ interface HooksTabProps {
   activeTurnIndex?: number | null;
 }
 
+/** Origin of the row — drives the "Source" column. */
+type HookSource = "hook" | "Monitor";
+
 interface HookRow {
   uuid: string;
   timestamp: string;
   hookEvent: string;
   hookName: string;
+  source: HookSource;
   toolUseID?: string;
   command?: string;
   exitCode?: number;
@@ -30,8 +35,33 @@ interface HookRow {
 
 function isHookAttachment(e: SessionEvent): e is AttachmentEvent {
   if (e.type !== "attachment") return false;
-  const inner = (e as AttachmentEvent).attachment?.type;
-  return inner === "hook_success" || inner === "hook_cancelled" || inner === "async_hook_response";
+  const inner = (e as AttachmentEvent).attachment;
+  if (!inner) return false;
+  if (
+    inner.type === "hook_success" ||
+    inner.type === "hook_cancelled" ||
+    inner.type === "async_hook_response"
+  ) {
+    return true;
+  }
+  // task-notification queued_commands are Monitor / TaskCreate fan-outs —
+  // background event reports (e.g. "build complete"). They share the Hooks
+  // tab because they're machine-emitted side-effects, not user prompts.
+  // commandMode === "prompt" is user input — keep that filtered out.
+  if (inner.type === "queued_command") {
+    return (inner as QueuedCommandAttachment).commandMode === "task-notification";
+  }
+  return false;
+}
+
+/**
+ * Extract the inner text of the first <summary>...</summary> tag from a
+ * task-notification prompt. Returns the full prompt if no summary is found.
+ */
+function extractTaskNotificationSummary(prompt: string): string {
+  const match = prompt.match(/<summary>([\s\S]*?)<\/summary>/i);
+  if (match && match[1]) return match[1].trim();
+  return prompt;
 }
 
 function truncate(s: string | undefined, max = 80): string {
@@ -50,6 +80,7 @@ function toRow(e: AttachmentEvent): HookRow | null {
       timestamp: e.timestamp,
       hookEvent: a.hookEvent,
       hookName: a.hookName,
+      source: "hook",
       toolUseID: a.toolUseID,
       command: a.command,
       exitCode: a.exitCode,
@@ -66,6 +97,7 @@ function toRow(e: AttachmentEvent): HookRow | null {
       timestamp: e.timestamp,
       hookEvent: a.hookEvent ?? "<unknown>",
       hookName: a.hookName ?? "<unknown>",
+      source: "hook",
       stdoutPreview: "",
       stderrPreview: "",
       cancelled: true,
@@ -80,6 +112,7 @@ function toRow(e: AttachmentEvent): HookRow | null {
       timestamp: e.timestamp,
       hookEvent: a.hookEvent ?? "PostToolUse",
       hookName: a.hookName ?? "<async>",
+      source: "hook",
       // Surface the underlying tool name so the row tells the operator
       // which tool the hook reported on (Bash, Read, etc.).
       toolUseID: a.response?.tool_name
@@ -88,6 +121,24 @@ function toRow(e: AttachmentEvent): HookRow | null {
       durationMs: a.response?.duration_ms,
       stdoutPreview: truncate(a.response?.tool_response?.stdout),
       stderrPreview: truncate(a.response?.tool_response?.stderr),
+      cancelled: false,
+    };
+  }
+  // queued_command with commandMode === "task-notification" — Monitor /
+  // TaskCreate fan-out. We only show the <summary> tag content as the
+  // preview to keep the row scannable.
+  if (inner.type === "queued_command") {
+    const a = inner as QueuedCommandAttachment;
+    if (a.commandMode !== "task-notification") return null;
+    const summary = extractTaskNotificationSummary(a.prompt ?? "");
+    return {
+      uuid: e.uuid,
+      timestamp: e.timestamp,
+      hookEvent: "TaskNotification",
+      hookName: "Monitor",
+      source: "Monitor",
+      stdoutPreview: truncate(summary, 120),
+      stderrPreview: "",
       cancelled: false,
     };
   }
@@ -227,6 +278,7 @@ export function HooksTab({ events = [], activeTurnIndex: _ }: HooksTabProps): JS
         <table className="w-full t-mono-sm" style={{ borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ color: "var(--t3)", background: "var(--bg-h)" }}>
+              <th className="text-left px-2 py-1 font-normal">Source</th>
               <th className="text-left px-2 py-1 font-normal">Event</th>
               <th className="text-left px-2 py-1 font-normal">Hook</th>
               <th className="text-left px-2 py-1 font-normal">Tool use</th>
@@ -249,6 +301,9 @@ export function HooksTab({ events = [], activeTurnIndex: _ }: HooksTabProps): JS
                   data-testid={`hook-row-${r.uuid}`}
                   style={{ borderBottom: "1px solid var(--bd)", color: rowColor }}
                 >
+                  <td className="px-2 py-1" style={{ color: "var(--t3)" }}>
+                    {r.source}
+                  </td>
                   <td className="px-2 py-1" style={{ color: "var(--t2)" }}>
                     {r.hookEvent}
                   </td>

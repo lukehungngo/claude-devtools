@@ -180,7 +180,7 @@ describe("HooksTab", () => {
     expect(container.textContent).toContain("total 3.5s");
   });
 
-  it("ignores non-hook attachments and other event types", () => {
+  it("ignores non-hook attachments and queued_command prompts (but renders task-notifications)", () => {
     const events: SessionEvent[] = [
       hookSuccess("h1"),
       {
@@ -191,9 +191,72 @@ describe("HooksTab", () => {
         sessionId: "s1",
         attachment: { type: "skill_listing", skills: [] },
       } as AttachmentEvent,
+      // Regular user-input queued_command (commandMode === "prompt") is NOT
+      // a hook execution — keep it filtered out.
+      {
+        type: "attachment",
+        uuid: "q2",
+        parentUuid: "p1",
+        timestamp: "2026-05-16T10:00:00Z",
+        sessionId: "s1",
+        attachment: { type: "queued_command", prompt: "/ctx-stats", commandMode: "prompt" },
+      } as AttachmentEvent,
     ];
     render(<HooksTab events={events} />);
     expect(screen.getByTestId("hook-row-h1")).toBeDefined();
     expect(screen.queryByTestId("hook-row-q1")).toBeNull();
+    expect(screen.queryByTestId("hook-row-q2")).toBeNull();
+  });
+
+  it("renders task-notification queued_command attachments with extracted <summary> (LX-4)", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "attachment",
+        uuid: "tn1",
+        parentUuid: "p1",
+        timestamp: "2026-05-16T10:00:00Z",
+        sessionId: "s1",
+        attachment: {
+          type: "queued_command",
+          commandMode: "task-notification",
+          prompt:
+            '<task-notification>\n<task-id>b0hzris9r</task-id>\n<summary>Monitor event: "stream-resume test progress"</summary>\n<event>Running 2 tests using 1 worker</event>\n</task-notification>',
+        },
+      } as AttachmentEvent,
+    ];
+    const { getByTestId, container } = render(<HooksTab events={events} />);
+    const row = getByTestId("hook-row-tn1");
+    // Source column says Monitor (task-notification origin).
+    expect(row.textContent).toContain("Monitor");
+    // Summary text is extracted and rendered as the output preview.
+    expect(row.textContent).toContain('Monitor event: "stream-resume test progress"');
+    // The verbose <event> body is NOT rendered (we only show the summary).
+    expect(row.textContent ?? "").not.toContain("Running 2 tests using 1 worker");
+    // Stats include the task-notification in the hook count.
+    expect(container.textContent).toContain("1 hook");
+  });
+
+  it("source column distinguishes hooks from task-notifications", () => {
+    const events: SessionEvent[] = [
+      hookSuccess("h1", { hookName: "PreToolUse:Read" }),
+      {
+        type: "attachment",
+        uuid: "tn1",
+        parentUuid: "p1",
+        timestamp: "2026-05-16T10:00:00Z",
+        sessionId: "s1",
+        attachment: {
+          type: "queued_command",
+          commandMode: "task-notification",
+          prompt:
+            "<task-notification><task-id>abc</task-id><summary>build complete</summary></task-notification>",
+        },
+      } as AttachmentEvent,
+    ];
+    render(<HooksTab events={events} />);
+    const hookRow = screen.getByTestId("hook-row-h1");
+    const tnRow = screen.getByTestId("hook-row-tn1");
+    expect(hookRow.textContent).toContain("hook");
+    expect(tnRow.textContent).toContain("Monitor");
   });
 });
