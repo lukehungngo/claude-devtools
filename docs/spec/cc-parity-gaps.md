@@ -243,21 +243,47 @@ After each phase: run `pnpm -C server test && pnpm -C dashboard test` and `tsc -
 | P0-4 unknown event types — first model | superseded | 3a0027e |
 | P0-4 corrected — attachment wrapper + sidecars | ✅ | 86d0e00 |
 
-### Phase 1 — in progress (tag: `p1-partial`)
+### Phase 1 — partial (tag: `p1-complete`)
 
 | Gap | Status | Commit |
 |---|---|---|
-| P1-5 Compaction taxonomy | ✅ | 304d0ae |
+| P0-5 (spinoff) `hook_success` attachments rendered in Hooks tab | ✅ | 2d109d6 |
+| P1-5 Compaction taxonomy + real metadata | ✅ | 304d0ae |
 | P1-6 Context-pressure timeline | ✅ | d647143 |
-| P1-3 `/loop` & `CronCreate` wakeup markers | ⏸ deferred — need live `/loop` JSONL |
-| P1-4 `/goal` evaluator panel | ⏸ pending |
-| P1-1 `claude agents` background-agents view | ⏸ pending |
-| P1-2 `/bg`, `←←` detach fork relationships | ⏸ pending |
+| P1-1 `claude agents` view (partial — entrypoint badge) | ✅ partial | 9fe240a |
+| P1-2 `/bg` / `←←` detach (partial — entrypoint badge) | ✅ partial | 9fe240a |
+| P1-3 `/loop` & `CronCreate` wakeup markers | ⏸ deferred — see note |
+| P1-4 `/goal` evaluator panel | ⏸ deferred — see note |
 
 P1-5 closed a silent data bug: the SSE handler read `compact_metadata` (snake_case) but real CC v2.1.143 JSONLs write `compactMetadata` (camelCase). Every compaction event reached the dashboard with `metadata=undefined`. Now surfaces real preTokens → postTokens compression, duration, and trigger taxonomy.
 
 P1-6 ships a small SVG chart above the conversation view showing per-turn context% with vertical compaction markers. Suppressed for sessions under 30% peak pressure or fewer than 2 turns.
 
-**Follow-up P0 spinoff (P0-5):** with `AttachmentEvent` typed, surface `hook_success` attachments in the conversation view (~816 per session of dark events). Deferred — needs deeper changes to turn rendering than fit this session.
+**P1-3 investigation note:** grepping 30 real CC sessions for `/loop` markers came up empty (no `/loop` was used in those sessions). We did find a related top-level attachment family with `commandMode` discriminator:
 
-The remaining P1 items all need substantial new UI surfaces or live CC session capture; planned for the next dedicated session, branching from tag `p1-partial`.
+- `attachment.attachment.type === "queued_command"` carries one of two commandModes:
+  - `"task-notification"` (812 sample) — Monitor / TaskCreate fan-out: e.g. background test runs completing
+  - `"prompt"` (352 sample) — user-queued slash command waiting on dispatch
+
+Neither is a `/loop` wakeup. To finish P1-3 properly, capture a session that runs `/loop 5m /foo` and grep the resulting JSONL for the timestamp marker described in CC CHANGELOG line 1207. Type the marker as a new SystemEvent subtype (or AttachmentInnerType) and render it inline in the conversation with a clock icon.
+
+The remaining P1 items all need substantial new UI surfaces or live CC session capture; planned for the next dedicated session, branching from tag `p1-complete`.
+
+### Phase 2 — partial (tag: `p2-partial`)
+
+| Gap | Status | Commit |
+|---|---|---|
+| P2-1 "Summarize up to here" in Rewind menu | ✅ | b667160 |
+| P2-2 PowerShell tool rendered specially | ✅ | a99080f |
+| P2-3 PostToolUse `duration_ms` (async_hook_response.response.duration_ms) | ✅ | b23d49b |
+| P2-7 Centralize MODEL_PRICING + parity test | ✅ | 570fe01 |
+| P2-8 `formatModelShort` version-agnostic | ✅ | efea752 |
+| P2-4 `terminalSequence` hook field | ⏸ pending |
+| P2-5 OpenTelemetry fields (`stop_reason`, `gen_ai.response.finish_reasons`, `user_system_prompt`) | ⏸ pending |
+| P2-6 `claude project purge` dashboard action | ⏸ pending |
+| P2-9 PreCompact hook → compact attribution | ⏸ pending |
+| P2-10 Per-model + cache-hit `/usage` view | ⏸ pending |
+
+P2-3 closed a second silent-data bug: CC's PostToolUse async-hook response carries the underlying TOOL execution time (excluding hook overhead) at `attachment.response.duration_ms`. Devtools had a stub interface but no surface — now visible in the Hooks tab "ms" column and aggregated as session-total in the header.
+
+P2-7 added a server↔dashboard pricing parity test that reads the dashboard file as text and asserts every entry matches the server file verbatim. Catches drift on every CI run.
