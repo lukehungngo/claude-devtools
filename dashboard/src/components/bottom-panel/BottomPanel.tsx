@@ -69,6 +69,12 @@ export interface BottomPanelProps {
    * recent SDK result event. Forwarded to CostTab's OtelResultRow.
    */
   finishReasons?: readonly string[];
+  /**
+   * NEW-8 — live (in-flight + recently-completed) hook map keyed by SDK
+   * `hook_id`. Forwarded straight into HooksTab; absent for stale-session
+   * views where no SDK stream is connected.
+   */
+  liveHooks?: ReadonlyMap<string, import("../../lib/streaming-types").LiveHookState>;
 }
 
 const COLLAPSED_KEY = "bottomPanel.collapsed";
@@ -94,6 +100,7 @@ export function BottomPanel({
   highlightedHookId = null,
   stopReason,
   finishReasons,
+  liveHooks,
 }: BottomPanelProps) {
   const [activeTab, setActiveTab] = useState<BottomTab>("agent-graph");
   const [panelHeight, setPanelHeight] = useState(() => {
@@ -349,6 +356,7 @@ export function BottomPanel({
                 activeTurnIndex={activeTurnIndex}
                 onHookHover={onHookHover}
                 highlightedHookId={highlightedHookId}
+                liveHooks={liveHooks}
               />
             ) : activeTab === "usage" ? (
               <UsageTab sessionId={sessionId || undefined} />

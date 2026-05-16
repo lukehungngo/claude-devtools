@@ -123,6 +123,12 @@ export function AppLayout() {
   // UsageTab on live-session fetch, consumed by ContextWarningBanner.
   const [autoCompactThreshold, setAutoCompactThreshold] = useState<number | null>(null);
 
+  // NEW-8 — live (in-flight + recently-completed) hook map keyed by SDK
+  // `hook_id`. Written by ConversationView from useStreamingState and
+  // forwarded into BottomPanel → HooksTab so users see a spinner +
+  // elapsed-time counter before the JSONL hook_success attachment lands.
+  const [liveHooks, setLiveHooks] = useState<ReadonlyMap<string, import("../lib/streaming-types").LiveHookState> | null>(null);
+
   const handleTurnSelect = useCallback((turnIndex: number) => {
     onTurnClickRef.current?.(turnIndex);
   }, []);
@@ -310,6 +316,8 @@ export function AppLayout() {
     setLastResultFinishReasons,
     autoCompactThreshold,
     setAutoCompactThreshold,
+    liveHooks,
+    setLiveHooks,
   };
 
   return (
@@ -398,6 +406,7 @@ export function AppLayout() {
               highlightedHookId={highlightedHookId}
               stopReason={lastResultStopReason ?? undefined}
               finishReasons={lastResultFinishReasons ?? undefined}
+              liveHooks={liveHooks ?? undefined}
             />
           </Suspense>
         )}

@@ -65,6 +65,8 @@ function createMockContextValue(overrides?: Partial<LayoutContextValue>): Layout
     setLastResultFinishReasons: () => {},
     autoCompactThreshold: null,
     setAutoCompactThreshold: () => {},
+    liveHooks: null,
+    setLiveHooks: () => {},
     ...overrides,
   };
 }

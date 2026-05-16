@@ -3,6 +3,7 @@ import type { MutableRefObject } from "react";
 import type { RepoGroup, PermissionRequest, UsageInfo, CostSummary, SessionEvent, SessionMetrics, AgentDAG, SubagentMeta } from "../lib/types";
 import type { TurnSnapshot } from "../lib/turnSnapshot";
 import type { PermissionMode } from "../components/conversation/permissionModeTypes";
+import type { LiveHookState } from "../lib/streaming-types";
 
 /** Maps repoSlug -> projectHash */
 export type SlugMap = Map<string, string>;
@@ -108,6 +109,14 @@ export interface LayoutContextValue {
   // threshold instead of the hard-coded "/compact" copy.
   autoCompactThreshold: number | null;
   setAutoCompactThreshold: (n: number | null) => void;
+
+  // NEW-8 — live (in-flight + recently-completed) hook map keyed by
+  // SDK `hook_id`. Written by ConversationView from useStreamingState and
+  // forwarded through AppLayout → BottomPanel → HooksTab so the user sees
+  // a spinner + elapsed-time counter before the JSONL hook_success
+  // attachment lands. Null when no live session is active.
+  liveHooks: ReadonlyMap<string, LiveHookState> | null;
+  setLiveHooks: (hooks: ReadonlyMap<string, LiveHookState> | null) => void;
 }
 
 export const LayoutContext = createContext<LayoutContextValue | null>(null);

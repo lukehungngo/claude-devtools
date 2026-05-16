@@ -487,6 +487,15 @@ export function ConversationView({
     setLastResultFinishReasons?.(streamingState.lastResultFinishReasons);
   }, [streamingState.lastResultFinishReasons, setLastResultFinishReasons]);
 
+  // NEW-8 — bridge the live hooks map into LayoutContext so AppLayout can
+  // forward it through BottomPanel → HooksTab. Mirrors the OTel bridge above.
+  // The reducer mutates the map reference on every hook lifecycle event so a
+  // simple identity-check effect is enough to keep the consumer in sync.
+  const setLiveHooks = layoutCtx?.setLiveHooks;
+  useEffect(() => {
+    setLiveHooks?.(streamingState.liveHooks);
+  }, [streamingState.liveHooks, setLiveHooks]);
+
   const [showRewindMenu, setShowRewindMenu] = useState(false);
 
   // Build search index incrementally

@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { SDKStatus } from "@anthropic-ai/claude-agent-sdk";
-import type { LiveTaskState, StreamingToolEntry, StreamingState } from "../lib/streaming-types";
+import type { LiveTaskState, LiveHookState, StreamingToolEntry, StreamingState } from "../lib/streaming-types";
 import { createInitialStreamingState } from "../lib/streaming-types";
 
 type SessionStateValue = StreamingState["sessionState"];
@@ -27,6 +27,11 @@ function narrowLiveTaskStatus(value: unknown): LiveTaskState["status"] | undefin
   return typeof value === "string" && LIVE_TASK_STATUS_VALUES.has(value as LiveTaskState["status"])
     ? (value as LiveTaskState["status"])
     : undefined;
+}
+
+/** NEW-8: narrow `hook_response.outcome` to the SDK union; default to success. */
+function narrowHookOutcome(value: unknown): LiveHookState["outcome"] {
+  return value === "error" || value === "cancelled" || value === "success" ? value : "success";
 }
 
 export interface StreamingStateActions {
@@ -384,6 +389,58 @@ export function useStreamingState(): UseStreamingStateReturn {
           }
           next.set(taskId, entry);
           return { ...prev, liveTasks: next };
+        }
+
+        // NEW-8: hook lifecycle. Track in-flight hooks so HooksTab can render
+        // a spinner + elapsed time before the JSONL hook_success attachment
+        // arrives. Field names mirror the SDK shapes (sdk.d.ts:3080-3116).
+        case "hook_started": {
+          const hookId = data.hook_id as string | undefined;
+          if (!hookId) return prev;
+          const entry: LiveHookState = {
+            hook_id: hookId,
+            hook_name: (data.hook_name as string | undefined) ?? "",
+            hook_event: (data.hook_event as string | undefined) ?? "",
+            startedAt: Date.now(),
+            completed: false,
+          };
+          const newLiveHooks = new Map(prev.liveHooks);
+          newLiveHooks.set(hookId, entry);
+          return { ...prev, liveHooks: newLiveHooks };
+        }
+
+        case "hook_progress": {
+          const hookId = data.hook_id as string | undefined;
+          if (!hookId) return prev;
+          const existing = prev.liveHooks.get(hookId);
+          if (!existing) return prev;
+          const output = (data.output as string | undefined) ??
+            (data.stdout as string | undefined);
+          // Only allocate a new Map when we actually have a payload worth keeping
+          // (keeps the reducer O(1) on no-op progress pings).
+          if (output == null) return prev;
+          const newLiveHooks = new Map(prev.liveHooks);
+          newLiveHooks.set(hookId, { ...existing, lastOutput: output });
+          return { ...prev, liveHooks: newLiveHooks };
+        }
+
+        case "hook_response": {
+          const hookId = data.hook_id as string | undefined;
+          if (!hookId) return prev;
+          const existing = prev.liveHooks.get(hookId);
+          if (!existing) return prev;
+          const outcome = narrowHookOutcome(data.outcome);
+          const durationMs = Math.max(0, Date.now() - existing.startedAt);
+          const updated: LiveHookState = {
+            ...existing,
+            completed: true,
+            outcome,
+            durationMs,
+          };
+          if (typeof data.exit_code === "number") updated.exit_code = data.exit_code;
+          const newLiveHooks = new Map(prev.liveHooks);
+          newLiveHooks.set(hookId, updated);
+          return { ...prev, liveHooks: newLiveHooks };
         }
 
         default:
