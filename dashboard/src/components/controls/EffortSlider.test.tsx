@@ -26,20 +26,16 @@ describe("EffortSlider", () => {
     expect(screen.getByTestId("effort-slider-trigger").textContent).toContain("high");
   });
 
-  // P1-3: Only 3 valid levels (low, medium, high) — "max" is not supported by server
-  it("shows only 3 levels (low, medium, high) on click — no max", () => {
+  // CC v2.1.143: 5 effort levels — low, medium, high, xhigh (Opus 4.7), max
+  it("shows all 5 CC effort levels (low, medium, high, xhigh, max) in order", () => {
     renderSlider();
     expect(screen.queryByTestId("effort-slider-dropdown")).toBeNull();
     fireEvent.click(screen.getByTestId("effort-slider-trigger"));
     const dropdown = screen.getByTestId("effort-slider-dropdown");
     expect(dropdown).toBeDefined();
-    for (const level of ["low", "medium", "high"]) {
-      expect(dropdown.textContent).toContain(level);
-    }
-    // "max" must NOT appear
     const buttons = dropdown.querySelectorAll("button");
     const buttonTexts = Array.from(buttons).map((b) => b.textContent);
-    expect(buttonTexts).not.toContain("max");
+    expect(buttonTexts).toEqual(["low", "medium", "high", "xhigh", "max"]);
   });
 
   it("calls onChange with selected level", () => {

@@ -25,7 +25,14 @@ const VALID_PERMISSION_MODES: ReadonlySet<string> = new Set([
 ]);
 
 // Active session tracking
-export type EffortLevel = "low" | "medium" | "high";
+/**
+ * CC effort levels (CHANGELOG v2.1.143):
+ * - low / medium / high — original three
+ * - xhigh — Opus 4.7 only (changelog 716, 718)
+ * - max — top tier (changelog 694, 945)
+ * `auto` is a CLI alias for `max`; not stored.
+ */
+export type EffortLevel = "low" | "medium" | "high" | "xhigh" | "max";
 
 export interface ActiveSession {
   sessionId: string;

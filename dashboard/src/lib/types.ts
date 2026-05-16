@@ -333,7 +333,14 @@ export interface AgentLogEntry {
 
 // === Session Control Types ===
 
-export type EffortLevel = "low" | "medium" | "high";
+/**
+ * CC effort levels (CHANGELOG v2.1.143):
+ * - low / medium / high — original three
+ * - xhigh — Opus 4.7 only; sits between high and max (changelog 716, 718)
+ * - max — top tier (changelog 694, 945)
+ * Note: `/effort auto` is a CLI alias that resolves to `max`; not stored as its own level.
+ */
+export type EffortLevel = "low" | "medium" | "high" | "xhigh" | "max";
 
 // === Insights Activity Types ===
 

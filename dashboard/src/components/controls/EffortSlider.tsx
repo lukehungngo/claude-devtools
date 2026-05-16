@@ -7,12 +7,14 @@ interface EffortSliderProps {
   onChange: (level: EffortLevel) => void;
 }
 
-const LEVELS: EffortLevel[] = ["low", "medium", "high"];
+const LEVELS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 
 const LEVEL_COLORS: Record<EffortLevel, string> = {
   low: "var(--t3)",
   medium: "var(--teal)",
   high: "var(--grn)",
+  xhigh: "var(--amb)",
+  max: "var(--orange)",
 };
 
 export function EffortSlider({ level, onChange }: EffortSliderProps) {

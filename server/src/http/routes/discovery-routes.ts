@@ -40,7 +40,7 @@ const FALLBACK_COMMANDS = [
   { name: "cost", description: "Show session cost summary", argumentHint: "" },
   { name: "diff", description: "Show git diff (uncommitted changes)", argumentHint: "" },
   { name: "doctor", description: "Run system diagnostics", argumentHint: "" },
-  { name: "effort", description: "Set effort level", argumentHint: "<low|medium|high>" },
+  { name: "effort", description: "Set effort level", argumentHint: "<low|medium|high|xhigh|max>" },
   { name: "fast", description: "Toggle fast mode", argumentHint: "<on|off>" },
   { name: "help", description: "Show available commands", argumentHint: "" },
   { name: "hooks", description: "View configured hooks", argumentHint: "" },
