@@ -86,11 +86,25 @@ describe("PermissionBlock", () => {
       toolName: "Bash",
       input: { command: "ls -la /tmp" },
     });
-    const { container } = render(
+    const { container, getByTestId } = render(
       <PermissionBlock permission={perm} onDecide={vi.fn()} />
     );
 
     expect(container.textContent).toContain("ls -la /tmp");
+    expect(getByTestId("permission-bash-command")).toBeDefined();
+  });
+
+  it("shows command with PS> prefix for PowerShell tool (P2-2)", () => {
+    const perm = makePermission({
+      toolName: "PowerShell",
+      input: { command: "Get-ChildItem C:\\temp" },
+    });
+    const { container, getByTestId } = render(
+      <PermissionBlock permission={perm} onDecide={vi.fn()} />
+    );
+
+    expect(container.textContent).toContain("PS> Get-ChildItem C:\\temp");
+    expect(getByTestId("permission-powershell-command")).toBeDefined();
   });
 
   it("shows file path and content preview for Write tool", () => {

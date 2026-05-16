@@ -34,12 +34,18 @@ function ToolInputDetail({ toolName, input }: { toolName: string; input: Record<
   const filePath = input.file_path != null ? String(input.file_path) : null;
 
   switch (toolName) {
-    case "Bash": {
+    case "Bash":
+    case "PowerShell": {
       const command = input.command != null ? String(input.command) : null;
+      const prefix = toolName === "PowerShell" ? "PS> " : "";
       return (
         <div className="flex flex-col gap-1">
           {command && (
-            <pre className="text-xs font-mono px-2.5 py-1.5 rounded-dt-sm bg-dt-bg3 text-dt-text1 overflow-x-auto whitespace-pre-wrap break-all">
+            <pre
+              data-testid={toolName === "PowerShell" ? "permission-powershell-command" : "permission-bash-command"}
+              className="text-xs font-mono px-2.5 py-1.5 rounded-dt-sm bg-dt-bg3 text-dt-text1 overflow-x-auto whitespace-pre-wrap break-all"
+            >
+              {prefix}
               {truncate(command, 500)}
             </pre>
           )}

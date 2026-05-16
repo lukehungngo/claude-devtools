@@ -73,6 +73,10 @@ export function getActionBadgeStyle(toolName: string | null): {
   if (name === "bash") {
     return { bg: "var(--resp-tool-bg)", color: "var(--resp-tool)", label: "Bash" };
   }
+  if (name === "powershell") {
+    // CC v2.1.143 PowerShell tool — same category as Bash but distinct label.
+    return { bg: "var(--resp-tool-bg)", color: "var(--resp-tool)", label: "PowerShell" };
+  }
   if (name === "error") {
     return { bg: "var(--red-bg)", color: "var(--red)", label: "error" };
   }

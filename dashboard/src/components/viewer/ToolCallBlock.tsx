@@ -84,7 +84,11 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
   const hasOutput = lines.length > 0 && lines.some((l) => l.trim() !== "");
   const toolName = toolUse.name || "";
   const isEdit = toolName === "Edit";
+  // CC v2.1.143 ships PowerShell tool by default on Windows for Bedrock/Vertex/Foundry
+  // (changelog lines 22, 41). Treat it as a shell-style tool alongside Bash.
   const isBash = toolName === "Bash";
+  const isPowerShell = toolName === "PowerShell";
+  const isShellLike = isBash || isPowerShell;
 
   // Collapsed summary line
   const firstOutputLine = hasOutput ? lines.find((l) => l.trim() !== "") || "" : "";
@@ -158,8 +162,12 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
             {filePath}
           </span>
         )}
-        {isBash && command && (
-          <span className="text-dt-text1 font-semibold">
+        {isShellLike && command && (
+          <span
+            data-testid={isPowerShell ? "powershell-command" : "bash-command"}
+            className="text-dt-text1 font-semibold"
+          >
+            {isPowerShell && <span className="text-dt-purple mr-1">PS&gt;</span>}
             {command.length > 80 ? command.slice(0, 80) + "..." : command}
           </span>
         )}
