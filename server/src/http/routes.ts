@@ -7,6 +7,7 @@ import { createDiscoveryRoutes } from "./routes/discovery-routes.js";
 import { createDebugRoutes } from "./routes/debug-routes.js";
 import { createInsightsRoutes } from "./routes/insights-routes.js";
 import { createCollectorRoutes } from "./routes/collector-routes.js";
+import { createProjectRoutes } from "./routes/project-routes.js";
 
 export function setupRoutes(state?: ServerState): Router {
   const router = Router();
@@ -23,6 +24,7 @@ export function setupRoutes(state?: ServerState): Router {
   router.use(createDebugRoutes(context));
   router.use(createInsightsRoutes(context));
   router.use(createCollectorRoutes(context));
+  router.use(createProjectRoutes());
 
   return router;
 }

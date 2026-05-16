@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Play, Settings, Copy, Check, LayoutList, RefreshCw } from "lucide-react";
+import { Play, Settings, Copy, Check, LayoutList, RefreshCw, Trash2 } from "lucide-react";
 import type { RepoGroup } from "../lib/types";
 import { SourceBadge } from "./SourceBadge";
+import { PurgeConfirmModal } from "./PurgeConfirmModal";
 
 const SESSION_NAMES_KEY = "session-names";
 const REPO_FILTER_KEY = "repo-filter";
@@ -69,6 +70,7 @@ export function RepoList({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [repoFilter, setRepoFilter] = useState<RepoFilter>(() => loadRepoFilter());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [purgeTarget, setPurgeTarget] = useState<{ hash: string; name: string } | null>(null);
 
   const handleRefresh = useCallback(() => {
     if (!onRefresh) return;
@@ -236,7 +238,7 @@ export function RepoList({
               <div key={repo.cwd}>
                 {/* Repo item */}
                 <div
-                  className="flex items-center gap-[7px] cursor-pointer"
+                  className="group flex items-center gap-[7px] cursor-pointer"
                   onClick={() => toggleExpand(repo.cwd)}
                   style={{
                     padding: "8px 14px",
@@ -277,6 +279,28 @@ export function RepoList({
                       {repo.gitBranch || "main"}
                     </div>
                   </div>
+                  {repo.sessions[0]?.projectHash && (
+                    <button
+                      data-testid="purge-project-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const hash = repo.sessions[0].projectHash;
+                        setPurgeTarget({ hash, name: repo.repoName });
+                      }}
+                      className="cursor-pointer border-none bg-transparent shrink-0 opacity-0 group-hover:opacity-100 hover:!opacity-100"
+                      style={{
+                        padding: "2px 4px",
+                        color: "var(--t3)",
+                        transition: "color .15s, opacity .15s",
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--red)"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--t3)"; }}
+                      title={`Purge ${repo.repoName} (claude project purge)`}
+                      aria-label={`Purge ${repo.repoName}`}
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  )}
                 </div>
 
                 {/* Session list */}
@@ -417,6 +441,18 @@ export function RepoList({
         <Settings size={12} />
         Settings
       </div>
+
+      {purgeTarget && (
+        <PurgeConfirmModal
+          projectHash={purgeTarget.hash}
+          projectName={purgeTarget.name}
+          onClose={() => setPurgeTarget(null)}
+          onPurged={() => {
+            setPurgeTarget(null);
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
     </div>
   );
 }
