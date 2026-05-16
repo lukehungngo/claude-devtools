@@ -59,6 +59,9 @@ describe("SettingsPanel", () => {
       if (typeof url === "string" && url.includes("/api/settings")) {
         return mockFetchResponse({}) as Promise<Response>;
       }
+      if (typeof url === "string" && url.includes("/api/collectors")) {
+        return mockFetchResponse({ collectors: [] }) as Promise<Response>;
+      }
       if (typeof url === "string" && url.includes("/models")) {
         return mockFetchResponse({ models: [] }) as Promise<Response>;
       }
@@ -140,6 +143,9 @@ describe("SettingsPanel - Editable Settings", () => {
       if (typeof url === "string" && url === "/api/settings") {
         return mockFetchResponse({}) as Promise<Response>;
       }
+      if (typeof url === "string" && url.includes("/api/collectors")) {
+        return mockFetchResponse({ collectors: [] }) as Promise<Response>;
+      }
       return mockFetchResponse({ models: [] }) as Promise<Response>;
     });
 
@@ -174,6 +180,9 @@ describe("SettingsPanel - Editable Settings", () => {
       if (typeof url === "string" && url === "/api/settings") {
         return mockFetchResponse({ model: "claude-opus-4-6", effort: "high" }) as Promise<Response>;
       }
+      if (typeof url === "string" && url.includes("/api/collectors")) {
+        return mockFetchResponse({ collectors: [] }) as Promise<Response>;
+      }
       return mockFetchResponse({ models: [] }) as Promise<Response>;
     });
 
@@ -192,6 +201,9 @@ describe("SettingsPanel - Editable Settings", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
       if (typeof url === "string" && url === "/api/settings") {
         return mockFetchResponse({}) as Promise<Response>;
+      }
+      if (typeof url === "string" && url.includes("/api/collectors")) {
+        return mockFetchResponse({ collectors: [] }) as Promise<Response>;
       }
       return mockFetchResponse({ models: [] }) as Promise<Response>;
     });
@@ -214,6 +226,9 @@ describe("SettingsPanel - Editable Settings", () => {
     fetchSpy.mockImplementation((url) => {
       if (typeof url === "string" && url === "/api/settings") {
         return mockFetchResponse({}) as Promise<Response>;
+      }
+      if (typeof url === "string" && url.includes("/api/collectors")) {
+        return mockFetchResponse({ collectors: [] }) as Promise<Response>;
       }
       return mockFetchResponse({ models: [] }) as Promise<Response>;
     });
