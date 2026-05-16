@@ -310,3 +310,54 @@ describe("GET /sessions/:sessionId/mcp-status", () => {
     expect(res.body).toEqual({ servers: [] });
   });
 });
+
+// NEW-5 — POST /sessions/:sessionId/background-task
+describe("POST /sessions/:sessionId/background-task", () => {
+  let app: express.Express;
+  let sessionManager: SessionManager;
+
+  beforeEach(() => {
+    sessionManager = new SessionManager(vi.fn());
+    const state = {
+      clients: new Set(),
+      sessionManager,
+    } as unknown as import("../server.js").ServerState;
+
+    app = express();
+    app.use(express.json());
+    app.use(setupRoutes(state));
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    sessionManager.dispose();
+  });
+
+  it("forwards toolUseId to sessionManager.backgroundTask and returns { ok: true } on success", async () => {
+    const spy = vi
+      .spyOn(sessionManager, "backgroundTask")
+      .mockResolvedValue(true);
+
+    const res = await request(app)
+      .post("/sessions/sess-1/background-task")
+      .send({ toolUseId: "toolu_xyz" });
+
+    expect(spy).toHaveBeenCalledWith("sess-1", "toolu_xyz");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+  });
+
+  it("backgrounds all foreground tasks when body omits toolUseId", async () => {
+    const spy = vi
+      .spyOn(sessionManager, "backgroundTask")
+      .mockResolvedValue(true);
+
+    const res = await request(app)
+      .post("/sessions/sess-2/background-task")
+      .send({});
+
+    expect(spy).toHaveBeenCalledWith("sess-2", undefined);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+  });
+});

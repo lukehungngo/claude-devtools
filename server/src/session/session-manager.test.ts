@@ -936,3 +936,54 @@ describe("SessionManager.getMcpServerStatus", () => {
     expect(result).toBeNull();
 
     resolveYield!();
+    await iterPromise;
+  });
+});
+
+// NEW-5 — query.backgroundTasks() surface
+describe("SessionManager.backgroundTask", () => {
+  let manager: SessionManager;
+
+  beforeEach(() => {
+    manager = new SessionManager(vi.fn());
+    mockQuery.mockReset();
+  });
+
+  afterEach(() => {
+    manager.dispose();
+  });
+
+  it("delegates to activeQuery.backgroundTasks() and forwards toolUseId", async () => {
+    const mockBackgroundTasks = vi.fn().mockResolvedValue(true);
+    let resolveYield: (() => void) | null = null;
+    const yieldPromise = new Promise<void>((resolve) => { resolveYield = resolve; });
+
+    async function* slowStream() {
+      yield* [];
+      await yieldPromise;
+    }
+    const queryObj = slowStream();
+    (queryObj as unknown as Record<string, unknown>).backgroundTasks = mockBackgroundTasks;
+    mockQuery.mockReturnValue(queryObj);
+
+    const sessionId = await manager.startSession("/tmp");
+    const gen = manager.sendMessage(sessionId, "hello");
+    const iterPromise = (async () => {
+      for await (const _msg of gen) { /* drain */ }
+    })();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const result = await manager.backgroundTask(sessionId, "toolu_abc");
+    expect(mockBackgroundTasks).toHaveBeenCalledWith("toolu_abc");
+    expect(result).toBe(true);
+
+    resolveYield!();
+    await iterPromise;
+  });
+
+  it("returns false when session has no activeQuery", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    const result = await manager.backgroundTask(sessionId, "toolu_abc");
+    expect(result).toBe(false);
+  });
+});

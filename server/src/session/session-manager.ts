@@ -652,4 +652,42 @@ export class SessionManager {
       return null;
     }
   }
+
+  /**
+   * NEW-6 — Stop a live in-flight task by ID. Delegates to
+   * `activeQuery.stopTask(taskId)` per SDK `sdk.d.ts:2256`. The SDK emits
+   * a `task_notification` with status `'stopped'` once the task settles.
+   *
+   * Returns true on successful delegation, false when the session has no
+   * active query (cold session) or the SDK call throws.
+   */
+  async stopTask(sessionId: string, taskId: string): Promise<boolean> {
+    const session = this.activeSessions.get(sessionId);
+    if (!session?.activeQuery) return false;
+    try {
+      await session.activeQuery.stopTask(taskId);
+      return true;
+    } catch (err) {
+      sessionLog.warn({ sessionId, taskId, err: String(err) }, "stopTask failed");
+      return false;
+    }
+  }
+
+  /**
+   * NEW-5 — Background a foreground task via `query.backgroundTasks()`.
+   * Equivalent to pressing Ctrl+B in the terminal. With a `toolUseId`,
+   * targets a single tool_use block; without it, backgrounds all foreground
+   * tasks. Returns false when the session has no active query or when the
+   * SDK call throws.
+   */
+  async backgroundTask(sessionId: string, toolUseId?: string): Promise<boolean> {
+    const session = this.activeSessions.get(sessionId);
+    if (!session?.activeQuery) return false;
+    try {
+      return await session.activeQuery.backgroundTasks(toolUseId);
+    } catch (err) {
+      sessionLog.warn({ sessionId, toolUseId, err: String(err) }, "backgroundTasks failed");
+      return false;
+    }
+  }
 }

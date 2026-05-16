@@ -1167,8 +1167,11 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     }
   });
 
-  // P3: Stop background task
-  router.post("/sessions/:sessionId/stop-task", (req, res) => {
+  // NEW-6 — Stop a live in-flight task. Delegates to
+  // SessionManager.stopTask which wraps query.stopTask(taskId) per SDK
+  // sdk.d.ts:2256. The SDK emits a task_notification with status 'stopped'
+  // once the task settles; the dashboard reflects this on the next refresh.
+  router.post("/sessions/:sessionId/stop-task", async (req, res) => {
     try {
       const { taskId } = req.body;
       if (!taskId || typeof taskId !== "string") {
@@ -1178,18 +1181,10 @@ export function createSessionRoutes({ state }: RouteContext): Router {
       if (!sessionManager) {
         return res.status(500).json({ error: "Session manager not available" });
       }
-      const session = sessionManager.getStatus(req.params.sessionId);
-      if (!session?.activeQuery) {
-        return res.status(404).json({ error: "No active query for session" });
-      }
-      const query = session.activeQuery as unknown as Record<string, unknown>;
-      if (typeof query.stopTask === "function") {
-        (query.stopTask as (id: string) => void)(taskId);
-        res.json({ success: true });
-      } else {
-        res.status(501).json({ error: "stopTask not available on this SDK version" });
-      }
+      const ok = await sessionManager.stopTask(req.params.sessionId, taskId);
+      res.json({ ok });
     } catch (err) {
+      logger.error({ error: String(err) }, "stop-task failed");
       res.status(500).json({ error: "Failed to stop task" });
     }
   });
@@ -1259,6 +1254,25 @@ export function createSessionRoutes({ state }: RouteContext): Router {
         "Failed to load daemon tasks",
       );
       res.status(500).json({ error: "Failed to load daemon tasks" });
+    }
+  });
+
+  // NEW-5 — "Background this task" via query.backgroundTasks(toolUseId?)
+  // Equivalent to pressing Ctrl+B in the terminal. With { toolUseId }, targets
+  // a single tool_use block; without it, backgrounds all foreground tasks.
+  router.post("/sessions/:sessionId/background-task", async (req, res) => {
+    try {
+      const sessionManager = state?.sessionManager;
+      if (!sessionManager) {
+        return res.status(500).json({ error: "Session manager not available" });
+      }
+      const body = (req.body ?? {}) as { toolUseId?: unknown };
+      const toolUseId = typeof body.toolUseId === "string" ? body.toolUseId : undefined;
+      const ok = await sessionManager.backgroundTask(req.params.sessionId, toolUseId);
+      res.json({ ok });
+    } catch (err) {
+      logger.error({ error: String(err) }, "Failed to background task");
+      res.status(500).json({ error: "Failed to background task" });
     }
   });
 
