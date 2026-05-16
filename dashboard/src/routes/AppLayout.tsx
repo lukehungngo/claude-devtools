@@ -114,6 +114,12 @@ export function AppLayout() {
   const [highlightedToolUseId, setHighlightedToolUseId] = useState<string | null>(null);
   const [highlightedHookId, setHighlightedHookId] = useState<string | null>(null);
 
+  // B2-WIRE — OTel result fields bridged from ConversationView's streaming
+  // state into BottomPanel's Cost tab. Reset between sessions by
+  // ConversationView when the session id changes.
+  const [lastResultStopReason, setLastResultStopReason] = useState<string | null>(null);
+  const [lastResultFinishReasons, setLastResultFinishReasons] = useState<readonly string[] | null>(null);
+
   const handleTurnSelect = useCallback((turnIndex: number) => {
     onTurnClickRef.current?.(turnIndex);
   }, []);
@@ -295,6 +301,10 @@ export function AppLayout() {
     setHighlightedToolUseId,
     highlightedHookId,
     setHighlightedHookId,
+    lastResultStopReason,
+    setLastResultStopReason,
+    lastResultFinishReasons,
+    setLastResultFinishReasons,
   };
 
   return (
@@ -327,17 +337,7 @@ export function AppLayout() {
             loading={reposLoading}
             selected={selected}
             onSelect={handleSelect}
-            onNewSession={() => {
-              const selectedRepo = repos.find((r) =>
-                r.sessions.some(
-                  (s) =>
-                    s.projectHash === selected?.projectHash &&
-                    s.id === selected?.sessionId,
-                ),
-              );
-              const cwd = selectedRepo?.cwd ?? repos[0]?.cwd;
-              if (cwd) startNewSession(cwd);
-            }}
+            onRefresh={refreshRepos}
             activeSessionId={activeSessionId}
             onResumeSession={async (sessionId, cwd) => {
               try {
@@ -391,6 +391,8 @@ export function AppLayout() {
               openBottomTabRef={openBottomTabRef}
               onHookHover={setHighlightedToolUseId}
               highlightedHookId={highlightedHookId}
+              stopReason={lastResultStopReason ?? undefined}
+              finishReasons={lastResultFinishReasons ?? undefined}
             />
           </Suspense>
         )}

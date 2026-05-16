@@ -92,6 +92,15 @@ export interface LayoutContextValue {
   // ToolEntryRow on mouseenter and consumed by HooksTab to tint the row.
   highlightedHookId: string | null;
   setHighlightedHookId: (id: string | null) => void;
+
+  // B2-WIRE — OpenTelemetry result fields from the most recent SDK result
+  // event. Written by ConversationView (from useStreamingState) and consumed
+  // by AppLayout to pass into BottomPanel → CostTab. Null when the current
+  // session has not yet delivered a result event.
+  lastResultStopReason: string | null;
+  setLastResultStopReason: (reason: string | null) => void;
+  lastResultFinishReasons: readonly string[] | null;
+  setLastResultFinishReasons: (reasons: readonly string[] | null) => void;
 }
 
 export const LayoutContext = createContext<LayoutContextValue | null>(null);

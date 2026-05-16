@@ -56,6 +56,16 @@ export interface BottomPanelProps {
    * HooksTab gets a purple-dim background tint.
    */
   highlightedHookId?: string | null;
+  /**
+   * B2-WIRE — OpenTelemetry `stop_reason` from the most recent SDK result
+   * event (CC v2.1.143, P2-5). Forwarded to CostTab's OtelResultRow.
+   */
+  stopReason?: string;
+  /**
+   * B2-WIRE — OpenTelemetry `gen_ai.response.finish_reasons` from the most
+   * recent SDK result event. Forwarded to CostTab's OtelResultRow.
+   */
+  finishReasons?: readonly string[];
 }
 
 const COLLAPSED_KEY = "bottomPanel.collapsed";
@@ -79,6 +89,8 @@ export function BottomPanel({
   openBottomTabRef,
   onHookHover,
   highlightedHookId = null,
+  stopReason,
+  finishReasons,
 }: BottomPanelProps) {
   const [activeTab, setActiveTab] = useState<BottomTab>("agent-graph");
   const [panelHeight, setPanelHeight] = useState(() => {
@@ -296,7 +308,7 @@ export function BottomPanel({
             ) : activeTab === "tool-call" ? (
               <DetailTab turns={turns} allEvents={events} activeTurnIndex={activeTurnIndex} />
             ) : activeTab === "cost" ? (
-              <CostTab metrics={metrics} />
+              <CostTab metrics={metrics} stopReason={stopReason} finishReasons={finishReasons} />
             ) : activeTab === "tasks" ? (
               <TasksTab tasks={sessionTasks} />
             ) : activeTab === "hooks" ? (

@@ -470,6 +470,19 @@ export function ConversationView({
     }
   }, [streamingState.sdkContextWindow, onSdkContextWindow]);
 
+  // B2-WIRE — bridge OTel result fields into LayoutContext so BottomPanel's
+  // Cost tab can render OtelResultRow. Mirrors the sdkContextWindow bridge
+  // above; pushed into context (not a callback prop) because the consumer
+  // (BottomPanel) lives in AppLayout, parallel to SessionPage.
+  const setLastResultStopReason = layoutCtx?.setLastResultStopReason;
+  const setLastResultFinishReasons = layoutCtx?.setLastResultFinishReasons;
+  useEffect(() => {
+    setLastResultStopReason?.(streamingState.lastResultStopReason);
+  }, [streamingState.lastResultStopReason, setLastResultStopReason]);
+  useEffect(() => {
+    setLastResultFinishReasons?.(streamingState.lastResultFinishReasons);
+  }, [streamingState.lastResultFinishReasons, setLastResultFinishReasons]);
+
   const [showRewindMenu, setShowRewindMenu] = useState(false);
 
   // Build search index incrementally

@@ -59,6 +59,10 @@ function createMockContextValue(overrides?: Partial<LayoutContextValue>): Layout
     setHighlightedToolUseId: () => {},
     highlightedHookId: null,
     setHighlightedHookId: () => {},
+    lastResultStopReason: null,
+    setLastResultStopReason: () => {},
+    lastResultFinishReasons: null,
+    setLastResultFinishReasons: () => {},
     ...overrides,
   };
 }

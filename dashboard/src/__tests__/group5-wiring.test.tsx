@@ -70,6 +70,10 @@ function makeLayoutCtx(overrides?: Partial<LayoutContextValue>): LayoutContextVa
     setHighlightedToolUseId: () => {},
     highlightedHookId: null,
     setHighlightedHookId: () => {},
+    lastResultStopReason: null,
+    setLastResultStopReason: () => {},
+    lastResultFinishReasons: null,
+    setLastResultFinishReasons: () => {},
     ...overrides,
   };
 }

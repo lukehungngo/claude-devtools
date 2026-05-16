@@ -336,4 +336,38 @@ describe("BottomPanel", () => {
     // Ref should be cleaned up
     expect(openBottomTabRef.current).toBeNull();
   });
+
+  // --- B2-WIRE (TASK-R2A1): OTel result fields plumbed through to CostTab ---
+
+  it("forwards stopReason and finishReasons to CostTab so OTel row renders", () => {
+    // Start uncollapsed so the panel body is visible
+    localStorageMock.setItem("bottomPanel.collapsed", "false");
+
+    render(
+      <BottomPanel
+        metrics={mockMetrics}
+        stopReason="end_turn"
+        finishReasons={["stop"]}
+      />,
+    );
+
+    // Cost tab is not default — click it
+    fireEvent.click(screen.getByText("Cost"));
+
+    const otelRow = screen.getByTestId("otel-result-row");
+    expect(otelRow.textContent).toContain("Stop:");
+    expect(otelRow.textContent).toContain("end_turn");
+    expect(otelRow.textContent).toContain("Finish:");
+    expect(otelRow.textContent).toContain("stop");
+  });
+
+  it("does not render OTel row in Cost tab when stopReason and finishReasons are omitted", () => {
+    localStorageMock.setItem("bottomPanel.collapsed", "false");
+
+    render(<BottomPanel metrics={mockMetrics} />);
+
+    fireEvent.click(screen.getByText("Cost"));
+
+    expect(screen.queryByTestId("otel-result-row")).toBeNull();
+  });
 });
