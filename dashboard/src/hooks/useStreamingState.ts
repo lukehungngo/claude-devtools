@@ -1,6 +1,17 @@
 import { useCallback, useRef, useState } from "react";
+import type { SDKStatus } from "@anthropic-ai/claude-agent-sdk";
 import type { StreamingToolEntry, StreamingState } from "../lib/streaming-types";
 import { createInitialStreamingState } from "../lib/streaming-types";
+
+type SessionStateValue = StreamingState["sessionState"];
+
+function narrowSessionState(value: unknown): SessionStateValue {
+  return value === "running" || value === "idle" || value === "requires_action" ? value : null;
+}
+
+function narrowSdkStatus(value: unknown): SDKStatus {
+  return value === "compacting" || value === "requesting" ? value : null;
+}
 
 export interface StreamingStateActions {
   /** Process a parsed SSE event from the server */
@@ -143,7 +154,7 @@ export function useStreamingState(): UseStreamingStateReturn {
         }
 
         case "status": {
-          const status = data.status as string | null;
+          const status = narrowSdkStatus(data.status);
           return {
             ...prev,
             status,
@@ -178,12 +189,16 @@ export function useStreamingState(): UseStreamingStateReturn {
                 : {}),
             };
           }
+          // Narrow trigger to SDK union (sdk.d.ts:2525); default unknown
+          // values to "auto" matching server convention.
+          const narrowTrigger: "auto" | "manual" =
+            metadata?.trigger === "manual" ? "manual" : "auto";
           return {
             ...prev,
             isCompacting: false,
             compactResult: metadata
               ? {
-                  trigger: metadata.trigger ?? "unknown",
+                  trigger: narrowTrigger,
                   preTokens: metadata.preTokens ?? metadata.pre_tokens ?? 0,
                   postTokens: metadata.postTokens,
                   durationMs: metadata.durationMs,
@@ -196,7 +211,7 @@ export function useStreamingState(): UseStreamingStateReturn {
         case "session_state_changed": {
           return {
             ...prev,
-            sessionState: data.state as string,
+            sessionState: narrowSessionState(data.state),
           };
         }
 

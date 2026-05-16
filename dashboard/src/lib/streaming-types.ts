@@ -3,6 +3,8 @@
  * These mirror the server-side SSEEvent types.
  */
 
+import type { SDKStatus } from "@anthropic-ai/claude-agent-sdk";
+
 export interface StreamingToolEntry {
   id: string;
   name: string;
@@ -22,11 +24,13 @@ export interface StreamingThinkingEntry {
 
 /**
  * Compaction metadata observed in CC v2.1.143 JSONLs and SSE.
- * Trigger taxonomy (CC CHANGELOG): "auto" | "manual" | "reactive" | "rewind".
- * Keep as `string` so newer CC versions don't crash the dashboard.
+ * Trigger union narrowed to the SDK strict shape (sdk.d.ts:2525):
+ *   `'manual' | 'auto'`. R-5 (PhaseR3D) removed the open `string` escape
+ *   hatch — "reactive"/"rewind" were defensive but never emitted.
  */
 export interface CompactMetadata {
-  trigger: string;
+  /** Authoritative SDK union — see sdk.d.ts:2525. */
+  trigger: "auto" | "manual";
   preTokens: number;
   /** Tokens after compaction (compression ratio). */
   postTokens?: number;
@@ -53,12 +57,13 @@ export interface StreamingState {
   thinking: StreamingThinkingEntry;
   /** ID of the tool currently receiving input_json_delta events */
   activeToolId: string | null;
-  status: string | null;
+  /** Authoritative SDK status union — see sdk.d.ts:3455. */
+  status: SDKStatus;
   isCompacting: boolean;
   /** Metadata from the last compact event, cleared after display timeout */
   compactResult: CompactMetadata | null;
-  /** SDK session state from session_state_changed event ("idle" | "running" | "requires_action" | null) */
-  sessionState: string | null;
+  /** SDK session state from session_state_changed event — see sdk.d.ts:3429-3433. */
+  sessionState: "idle" | "running" | "requires_action" | null;
   /** Accumulated response text from stdout events */
   responseText: string;
   /** Authoritative context window from SDK result.modelUsage (set once on result event) */

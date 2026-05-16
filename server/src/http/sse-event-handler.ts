@@ -3,6 +3,12 @@
  * Extracted from routes.ts for testability.
  */
 
+import type {
+  SDKCompactBoundaryMessage,
+  SDKSessionStateChangedMessage,
+  SDKStatus,
+} from "@anthropic-ai/claude-agent-sdk";
+
 /** SSE event types sent to the dashboard */
 export interface SSETextEvent {
   type: "stdout";
@@ -47,21 +53,16 @@ export interface SSEToolProgressEvent {
 
 export interface SSEStatusEvent {
   type: "status";
-  status: string | null;
+  /** Authoritative SDK status union — see sdk.d.ts:3455. */
+  status: SDKStatus;
 }
 
 /**
- * Compaction taxonomy (CC v2.1.143).
- * - `auto` — threshold-driven (autocompact)
- * - `manual` — user ran `/compact`
- * - `reactive` — token overflow on a request triggered an immediate summarize
- * - `rewind` — Rewind menu → "Summarize up to here"
- *
- * Real JSONLs (~/.claude/projects/) currently emit `auto` and `manual` most often.
- * The reactive/rewind values are documented in CC CHANGELOG (lines 62, 73) but may
- * surface as a refined trigger string in future versions; keep the union open.
+ * Compaction trigger — narrow SDK union (sdk.d.ts:2525).
+ * Equivalent to `'manual' | 'auto'`. R-5 (PhaseR3D) narrowed this from the
+ * defensive open union; "reactive"/"rewind" were never emitted in practice.
  */
-export type CompactTrigger = "auto" | "manual" | "reactive" | "rewind" | string;
+export type CompactTrigger = SDKCompactBoundaryMessage["compact_metadata"]["trigger"];
 
 export interface SSECompactEvent {
   type: "compact";
@@ -198,7 +199,8 @@ export interface SSECommandOutputEvent {
 
 export interface SSESessionStateChangedEvent {
   type: "session_state_changed";
-  state: string;
+  /** Authoritative SDK union — see sdk.d.ts:3429-3433. */
+  state: SDKSessionStateChangedMessage["state"];
 }
 
 export interface SSEAuthStatusEvent {
@@ -421,7 +423,9 @@ export function mapSdkMessageToSSEEvents(msg: {
       {};
     const attribution = consumeRecentPreCompactEntry(Date.now());
     const metadata: SSECompactEvent["metadata"] = {
-      trigger: (rawMeta.trigger as string) ?? "auto",
+      // Narrow union per SDK (sdk.d.ts:2525). Default to "auto" for any
+      // unknown/missing value rather than widening the SSE type.
+      trigger: rawMeta.trigger === "manual" ? "manual" : "auto",
       preTokens: ((rawMeta.preTokens ?? rawMeta.pre_tokens) as number) ?? 0,
       postTokens: (rawMeta.postTokens ?? rawMeta.post_tokens) as number | undefined,
       durationMs: (rawMeta.durationMs ?? rawMeta.duration_ms) as number | undefined,
