@@ -23,9 +23,19 @@ interface LegacyHookItem {
   description?: string;
 }
 
+// CC hook event types (CHANGELOG v2.1.143).
+// Lifecycle order: session/turn lifecycle, tool lifecycle, subagent lifecycle, compaction, tasks, notifications, stop.
 const EVENT_TYPES = [
+  "SessionStart",       // changelog 63, 749, 236
+  "Setup",              // changelog 63
+  "UserPromptSubmit",   // changelog 218
   "PreToolUse",
   "PostToolUse",
+  "PostToolUseFailure", // changelog 524
+  "SubagentStart",      // changelog 63
+  "SubagentStop",       // changelog 595, 953
+  "PreCompact",         // changelog 826, 1241
+  "TaskCreated",        // changelog 1161, 1241
   "Notification",
   "Stop",
 ] as const;

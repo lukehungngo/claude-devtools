@@ -30,6 +30,35 @@ describe("HookEditor", () => {
     });
   });
 
+  // CC v2.1.143 supports at least 12 hook event types. Devtools must list all of them.
+  it("lists all 12 CC hook event types", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ hooks: {} }),
+    } as Response);
+
+    render(<HookEditor />);
+    const expectedEventTypes = [
+      "SessionStart",
+      "Setup",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "SubagentStart",
+      "SubagentStop",
+      "PreCompact",
+      "TaskCreated",
+      "Notification",
+      "Stop",
+    ];
+    await waitFor(() => {
+      for (const eventType of expectedEventTypes) {
+        expect(screen.getByText(eventType)).toBeTruthy();
+      }
+    });
+  });
+
   it("renders hooks grouped by event type", async () => {
     const hooks = {
       PreToolUse: [
