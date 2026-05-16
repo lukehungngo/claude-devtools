@@ -127,6 +127,23 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     }
   });
 
+  // NEW-3: Return the SDK-authoritative supportedAgents list (includes
+  // plugin-contributed agents that a filesystem scan would miss). Returns
+  // `{ agents: null }` for non-live sessions so the dashboard can fall back
+  // to the filesystem hint without branching on HTTP status.
+  // Registered BEFORE /sessions/:projectHash/:sessionId so Express does not
+  // match the 2-param route with sessionId="supported-agents".
+  router.get("/sessions/:sessionId/supported-agents", async (req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) return res.status(500).json({ error: "Session manager not available" });
+    try {
+      const agents = await sessionManager.getSupportedAgents(req.params.sessionId);
+      res.json({ agents });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch supported agents", detail: String(err) });
+    }
+  });
+
   // NEW-4: Return per-server MCP connection status via `query.mcpServerStatus()`.
   // `{ servers: null }` for non-live sessions; `{ servers: [] }` when live but no
   // servers are configured. Dashboard treats both as the empty state.

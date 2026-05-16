@@ -496,6 +496,89 @@ describe("SessionManager.getContextUsage", () => {
   });
 });
 
+describe("SessionManager.getSupportedAgents", () => {
+  let manager: SessionManager;
+
+  beforeEach(() => {
+    manager = new SessionManager(vi.fn());
+    mockQuery.mockReset();
+  });
+
+  afterEach(() => {
+    manager.dispose();
+  });
+
+  it("delegates to activeQuery.supportedAgents() when session is live", async () => {
+    const fakeAgents = [
+      { name: "Explore", description: "Search the codebase", model: "claude-sonnet-4-6" },
+      { name: "Reviewer", description: "Code review" },
+    ];
+    const mockSupportedAgents = vi.fn().mockResolvedValue(fakeAgents);
+    let resolveYield: (() => void) | null = null;
+    const yieldPromise = new Promise<void>((resolve) => { resolveYield = resolve; });
+
+    async function* slowStream() {
+      yield* [];
+      await yieldPromise;
+    }
+    const queryObj = slowStream();
+    (queryObj as unknown as Record<string, unknown>).supportedAgents = mockSupportedAgents;
+    mockQuery.mockReturnValue(queryObj);
+
+    const sessionId = await manager.startSession("/tmp");
+    const gen = manager.sendMessage(sessionId, "hello");
+    const iterPromise = (async () => {
+      for await (const _msg of gen) { /* drain */ }
+    })();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const result = await manager.getSupportedAgents(sessionId);
+    expect(mockSupportedAgents).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(fakeAgents);
+
+    resolveYield!();
+    await iterPromise;
+  });
+
+  it("returns null when session has no activeQuery (not live)", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    const result = await manager.getSupportedAgents(sessionId);
+    expect(result).toBeNull();
+  });
+
+  it("returns null when session is unknown", async () => {
+    const result = await manager.getSupportedAgents("nonexistent");
+    expect(result).toBeNull();
+  });
+
+  it("returns null when SDK supportedAgents throws", async () => {
+    const mockSupportedAgents = vi.fn().mockRejectedValue(new Error("SDK boom"));
+    let resolveYield: (() => void) | null = null;
+    const yieldPromise = new Promise<void>((resolve) => { resolveYield = resolve; });
+
+    async function* slowStream() {
+      yield* [];
+      await yieldPromise;
+    }
+    const queryObj = slowStream();
+    (queryObj as unknown as Record<string, unknown>).supportedAgents = mockSupportedAgents;
+    mockQuery.mockReturnValue(queryObj);
+
+    const sessionId = await manager.startSession("/tmp");
+    const gen = manager.sendMessage(sessionId, "hello");
+    const iterPromise = (async () => {
+      for await (const _msg of gen) { /* drain */ }
+    })();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const result = await manager.getSupportedAgents(sessionId);
+    expect(result).toBeNull();
+
+    resolveYield!();
+    await iterPromise;
+  });
+});
+
 describe("SessionManager.rewindFiles", () => {
   let manager: SessionManager;
 

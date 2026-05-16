@@ -205,6 +205,48 @@ describe("GET /sessions/:sessionId/context-usage", () => {
   });
 });
 
+describe("GET /sessions/:sessionId/supported-agents", () => {
+  let app: express.Express;
+  let sessionManager: SessionManager;
+
+  beforeEach(() => {
+    sessionManager = new SessionManager(vi.fn());
+    const state = {
+      clients: new Set(),
+      sessionManager,
+    } as unknown as import("../server.js").ServerState;
+
+    app = express();
+    app.use(setupRoutes(state));
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    sessionManager.dispose();
+  });
+
+  it("returns the SDK agents list for a live session", async () => {
+    const fakeAgents = [
+      { name: "Explore", description: "Search the codebase", model: "claude-sonnet-4-6" },
+      { name: "Reviewer", description: "Review code changes" },
+    ];
+    vi.spyOn(sessionManager, "getSupportedAgents").mockResolvedValue(fakeAgents);
+
+    const res = await request(app).get("/sessions/live-sess/supported-agents");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ agents: fakeAgents });
+  });
+
+  it("returns { agents: null } with 200 for a non-live session", async () => {
+    // SessionManager returns null when there is no activeQuery.
+    const res = await request(app).get("/sessions/cold-sess/supported-agents");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ agents: null });
+  });
+});
+
 // NEW-4 — MCP server status surface
 describe("GET /sessions/:sessionId/mcp-status", () => {
   let app: express.Express;

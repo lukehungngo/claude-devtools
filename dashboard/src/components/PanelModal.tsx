@@ -78,7 +78,7 @@ function renderPanel(panel: string, props: PanelModalProps) {
     case "mcp":
       return <McpManager sessionId={props.sessionId} />;
     case "agents":
-      return <AgentManager />;
+      return <AgentManager sessionId={props.sessionId} />;
     case "doctor":
       return <DoctorPanel />;
     case "stats":
