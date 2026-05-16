@@ -1,289 +1,179 @@
-# Claude Code Parity Gap Report
+# Claude Code Parity — Status & Remaining Spec
 
 **Anchor:** `anthropics/claude-code` CHANGELOG v2.1.143 (2026-05-15)
-**Created:** 2026-05-16
-**Branch at audit:** `master` @ `797ac94`
+**Branch:** `master` @ `9c185a1`
+**Tags:** `pre-cc-parity-p0` → `p0-complete` → `p1-complete` → `p2-partial`
+**Last update:** 2026-05-16
+
+This document was originally a strict gap report against CC. Most of that pass has shipped; the rest is summarized below with concrete acceptance criteria so the work is actionable in a future session.
 
 ## Source-of-truth notes
 
-- CC is closed source; CHANGELOG is the authoritative behavior reference.
-- OpenClaude (`Gitlawb/openclaude`) is a fork — used as a **window into CC internals** for things like JSONL shape, but never as a feature target. Any "OC-only" addition is out of scope.
-- Some details (exact JSONL event shapes for newer event types) require capturing a live CC session and grepping the JSONL.
+- CC is closed source; CHANGELOG is the authoritative behavior reference. Real JSONL samples in `~/.claude/projects/` were used to verify event shapes whenever possible.
+- OpenClaude (`Gitlawb/openclaude`) was used only as a window into CC internals. Any OC-only addition is out of scope.
 
-## Method
+## What shipped (closed)
 
-For each suspected gap:
-1. Confirm with evidence in `anthropics/claude-code` CHANGELOG.
-2. Confirm absence/incompleteness with file path + line in `server/` or `dashboard/`.
-3. Classify P0 (silent data corruption) / P1 (feature dark) / P2 (polish).
+### Phase 0 — type-system and silent-data fixes
 
-## Out of scope (explicitly retracted)
+| ID | Commit | Summary |
+|---|---|---|
+| **P0-1** | `b036cc9` | `stop_reason` enum widened to 6 values (added `max_tokens`, `stop_sequence`, `pause_turn`, `refusal`). Introduced `isTerminalStopReason()`; 5 consumer sites updated; 8 mirrored tests. |
+| **P0-2** | `debdd34` | Added `xhigh` (Opus 4.7) and `max` to `EffortLevel`. EffortSlider, discovery hint, server cast, slashCommandHandler all updated. |
+| **P0-3** | `5f546e5` | HookEditor `EVENT_TYPES` extended from 4 → 12 (SessionStart, Setup, UserPromptSubmit, PostToolUseFailure, SubagentStart, SubagentStop, PreCompact, TaskCreated added). |
+| P0 cleanup | `8a5f18a` | Stale narrow casts and error messages caught by post-P0 grep review. |
+| **P0-4** | `86d0e00` (corrects `3a0027e`) | Real CC top-level event is `attachment` (≈795/session) wrapping 12 inner types via `attachment.attachment.type`. Defined `AttachmentEvent`, `AttachmentPayload` discriminated union, typed payloads (HookSuccessAttachment with hookName/hookEvent/toolUseID/command/stdout/stderr/exitCode/durationMs etc.). 5 sidecar records (`ai-title`, `last-prompt`, `permission-mode`, `file-history-snapshot`, `worktree-state`) added to the parser's IGNORED set. |
 
-| Item | Reason |
+### Phase 1 — feature surfaces
+
+| ID | Commit | Summary |
+|---|---|---|
+| **P0-5** spinoff | `2d109d6` | New **Hooks tab** in BottomPanel — one row per `hook_success`/`hook_cancelled`/`async_hook_response`. Columns: event, name, tool_use_id, ms, exit, output. Header summary, event-type filter, free-text search. |
+| **P1-5** | `304d0ae` | **Silent data bug fixed:** SSE handler read `compact_metadata` (snake_case) but CC writes `compactMetadata` (camelCase) — every compaction event arrived with `metadata=undefined`. Now reads both casings; surfaces preTokens / postTokens / durationMs / preCompactDiscoveredTools. Banner shows `"Context auto-compacted — 168,470 → 8,759 tokens (-95%), 60.8s"`. |
+| **P1-1 / P1-2** partial | `9fe240a` | Captured session `entrypoint` (cli / sdk-cli / claude-desktop / sdk-ts) from JSONL head/tail scan. Surfaces as a "bg" / "desk" badge on RepoList session rows. The full `claude agents` daemon view (warm spares, retire/wake transitions) is not in JSONL and remains out of scope without a CC daemon API. |
+
+### Phase 2 — polish
+
+| ID | Commit | Summary |
+|---|---|---|
+| **P2-1** | `b667160` | Rewind menu "Summarize up to here" button + new `POST /api/sessions/:id/summarize-up-to` route (fire-and-forget dispatch). |
+| **P2-2** | `a99080f` | PowerShell tool render: ToolCallBlock + PermissionBlock + AgentLogs now branch alongside Bash. `PS>` prefix on command preview. |
+| **P2-3** | `b23d49b` | **Second silent data bug fixed:** PostToolUse async-hook response carries the underlying tool execution time at `attachment.response.duration_ms` (CHANGELOG line 524). Extended `AsyncHookResponseAttachment` to the full payload. HooksTab now shows duration per row and session-total in the header. |
+| **P2-7** | `570fe01` | Centralized `FALLBACK_MODEL_PRICING` and `FALLBACK_CONTEXT_WINDOW_SIZES` into dedicated mirror modules. Added a server↔dashboard parity test that reads the dashboard file as text and asserts every entry matches verbatim. |
+| **P2-8** | `efea752` | `formatModelShort` now version-agnostic: title-cases any family ("Future 1.0"), preserves `[1m]` → `(1M)` suffix. |
+
+### Tests + types end state
+
+- Server vitest: 644/644 pass (14 pre-existing DebugDB tests skipped — need `better-sqlite3` native build)
+- Dashboard vitest: 1404 pass + 4 skipped (5 pre-existing failures in `TurnCard.test.tsx` and `SettingsPanel.test.tsx` excluded)
+- `tsc --noEmit`: server clean; dashboard has 3 pre-existing `TurnCard.tsx:cacheReadTokens` errors unrelated to this work
+- 50 new tests added across server + dashboard
+
+## Retracted
+
+### OC-only (out of scope, never targeted)
+
+Multi-provider routing, gRPC, SQLite knowledge graph, Orama, coordinator/worker mode, autoDream/autoFix/ultraplan, microCompact/snipCompact/contextCollapse, SessionMemory/extractMemories/wiki, voice STT as a JSONL event class, Buddy companion, `~/.openclaude/projects/` discovery, `agent-<id>.meta.json` sidecar.
+
+### Shipped then retracted per user
+
+- **P1-6 Context-pressure chart** (commit `d647143`, removed in `9c185a1`). User did not want a chart above the conversation. The underlying P1-5 compaction-metadata fix that *fed* the chart is unaffected and stays shipped.
+
+## Remaining gaps with acceptance criteria
+
+The items below are everything from the original report that did not ship, restated with concrete acceptance criteria so each is independently actionable.
+
+### Deferred — need live JSONL capture
+
+The following items depend on event shapes we have not yet observed in 30 sampled real CC sessions. Each requires capturing a JSONL where the feature was actually used, then grepping for the event signature.
+
+#### P1-3 — `/loop` and `CronCreate` wakeup markers
+
+- **Reference:** CHANGELOG line 1207 "Added timestamp markers in transcripts when scheduled tasks (`/loop`, `CronCreate`) fire."
+- **Investigation done:** `attachment.attachment.type === "queued_command"` exists with `commandMode` ∈ {`task-notification`, `prompt`} — these are Monitor / TaskCreate notifications, not `/loop` wakeups.
+- **To unblock:** run a real session with `/loop 5m /foo`, locate the resulting JSONL, grep for the wakeup marker.
+- **Acceptance criteria:**
+  - New top-level system subtype (or AttachmentInnerType) recognized in `parseJsonlFile` and SSE handler.
+  - Rendered inline in the conversation as a distinct row (e.g. clock icon, "wakeup ⇢ /foo at 14:32:00").
+  - At least one test using a captured real-CC line.
+
+#### P1-4 — `/goal` evaluator overlay
+
+- **Reference:** CHANGELOG line 149 "Added `/goal` command: set a completion condition and Claude keeps working across turns until it's met. Shows live elapsed/turns/tokens as an overlay panel."
+- **Investigation done:** No `/goal` events seen in the sampled JSONLs. CC's overlay panel is a CLI-side UI; it may not produce its own JSONL event.
+- **To unblock:** run a real `/goal` session and confirm whether anything beyond the standard user message lands in JSONL.
+- **Acceptance criteria (if JSONL signal exists):**
+  - Recognize the goal-set / goal-tick / goal-met events.
+  - Render a small overlay panel in `ConversationView` showing live elapsed time, turn count, and tokens-since-goal.
+
+#### P1-1/P1-2 full — `claude agents` daemon view + `/bg` fork graph
+
+- **Reference:** CHANGELOG lines 25–37, 41, 50–54, 76–77, 82–83 + `/bg` / `←←` flag preservation across retire→wake (lines 31, 34, 35, 18).
+- **Investigation done:** Daemon-side state (warm-spare counts, dispatched/Working/Completed transitions, retire→wake) is not in JSONL. The `entrypoint` field is the only JSONL trace — already surfaced as a badge.
+- **To unblock:** requires a CC daemon API or local socket; out of scope for a pure JSONL observer.
+- **Acceptance criteria (if a daemon hook becomes available):**
+  - New `/api/agents/dashboard` proxy returning daemon state.
+  - New top-level dashboard view listing background sessions with their current state, owning flags, and a kill action.
+
+### Phase 2 — actionable now (no blocker)
+
+#### P2-4 — `terminalSequence` hook output field
+
+- **Reference:** CHANGELOG line 68 "Added `terminalSequence` field to hook JSON output so hooks can emit desktop notifications, window titles, and bells without a controlling terminal."
+- **Spec:**
+  - Extend `HookSuccessAttachment` to optionally carry the `terminalSequence` field (string).
+  - Surface it in the Hooks tab — e.g. a small bell icon next to rows that triggered a notification, with the sequence shown on hover.
+- **Acceptance criteria:**
+  - Type updated server + dashboard with `terminalSequence?: string`.
+  - HooksTab renders an icon for rows where the field is non-empty.
+  - Unit test using a synthetic hook_success with `terminalSequence: "]9;1;..."`.
+
+#### P2-5 — OpenTelemetry-style fields in result event
+
+- **Reference:** CHANGELOG line 467 "OpenTelemetry: added `stop_reason`, `gen_ai.response.finish_reasons`, and `user_system_prompt` (gated behind `OTEL_LOG_USER_PROMPTS`) to LLM request spans."
+- **Spec:** These appear on the SDK `result` event tail, not in mid-session JSONL.
+  - Extend `SSEResultEvent` (`server/src/http/sse-event-handler.ts:81`) to carry `stop_reason` and `finish_reasons[]` if present.
+  - Show them in `CostTab` or `DetailTab` alongside `total_cost_usd` and `num_turns`.
+- **Acceptance criteria:**
+  - Fields parsed by the SSE handler without breaking existing tests.
+  - Visible somewhere in the bottom panel for sessions where the SDK emitted them.
+
+#### P2-6 — `claude project purge` dashboard action
+
+- **Reference:** CHANGELOG line 391 "Added `claude project purge [path]` to delete all Claude Code state for a project (transcripts, tasks, file history, config entry)."
+- **Spec:**
+  - New `POST /api/projects/:hash/purge` server route that shells out to `claude project purge --dry-run` first, captures the file list, and only proceeds with explicit confirmation.
+  - New "Purge project" action on the RepoList project header, behind a confirmation modal listing what will be deleted.
+- **Acceptance criteria:**
+  - Dry-run path returns the file list; live path requires `{ confirm: true }` in the body.
+  - Server unit test using a stubbed `spawnSync` (no real CLI required).
+
+#### P2-9 — PreCompact hook attribution on compact events
+
+- **Reference:** CHANGELOG lines 826 (PreCompact added) and 1241.
+- **Spec:** When a compaction is preceded by a PreCompact `hook_success` attachment within the same turn, decorate the compact banner with the hook name ("Pre-compacted by `before-compact.sh`"). When a PreCompact hook exits 2 or returns `{decision: "block"}` (line 826), the compaction is suppressed — show a small "compaction blocked by PreCompact hook" notice instead of the banner.
+- **Acceptance criteria:**
+  - `useStreamingState` joins the most-recent PreCompact attachment to a compact event arriving within the same turn window.
+  - New SSE event type or extended `compact` event carrying `attributedTo?: string`.
+  - Test covering both the success-attribution and the blocked path.
+
+#### P2-10 — Per-model + cache-hit `/usage` view
+
+- **Reference:** CHANGELOG line 1057 "Added per-model and cache-hit breakdown to `/cost` for subscription users." `/cost` and `/stats` are now both inside `/usage` (line 572).
+- **Spec:**
+  - Server already proxies `/usage` via `getAnthropicUsage()` (`discovery-routes.ts:64,108`).
+  - New BottomPanel tab "Usage" (or extension of CostTab) rendering per-model rows with input/output/cache_create/cache_read columns plus a cache-hit ratio bar.
+- **Acceptance criteria:**
+  - Dashboard fetches the existing endpoint and groups rows by model.
+  - Cache-hit ratio rendered as a horizontal bar with token-count tooltips.
+  - Coverage test asserting the rows match the API shape.
+
+### Latent / pre-existing (not introduced by this work)
+
+These existed on `master` before P0; not addressed in this pass but worth tracking.
+
+| ID | Issue | Location |
+|---|---|---|
+| LX-1 | Three TS2339 errors on `TurnSnapshot.cacheReadTokens` (property never declared) | `dashboard/src/components/conversation/TurnCard.tsx:202, 328` |
+| LX-2 | 5 pre-existing test failures (`TurnCard.test.tsx > 'Generating...' for a running turn`, `SettingsPanel.test.tsx > renders canonical SDK permission mode options` + 3) | pre-master |
+| LX-3 | 14 DebugDB tests fail without `better-sqlite3` native build; `pnpm approve-builds` requires interactive confirmation | `server/src/debug/debug-db.ts` |
+| LX-4 | `queued_command` attachments with `commandMode: "task-notification"` (~812/session) are typed (P0-4) but not rendered anywhere — they're Monitor / TaskCreate fan-out events | `dashboard/src/components/bottom-panel/HooksTab.tsx` (filter) |
+
+### Other small follow-ups discovered during this pass
+
+| ID | Note |
 |---|---|
-| Multi-provider routing (OpenAI/Gemini/Ollama/etc.) | OC-only; CC is Anthropic-only |
-| gRPC `AgentService.Chat` | OC addition |
-| SQLite "working store" + JSON audit log + Orama | OC PR #1106; not in CC |
-| Coordinator/worker mode | OC abstraction |
-| autoDream / autoFix / ultraplan | OC services |
-| microCompact / snipCompact / contextCollapse / sessionMemoryCompact | OC compact family — CC has only `/compact`, autocompact, Rewind→Summarize |
-| SessionMemory / extractMemories / wiki / knowledge graph | OC additions |
-| Voice STT as JSONL event class | CC voice is VSCode push-to-talk dictation only — not a session event |
-| Buddy companion, sponsored tips, sinkKillswitch | OC additions |
-| `~/.openclaude/projects/` discovery | OC-only |
-| `agent-<id>.meta.json` sidecar | Not confirmed in CC source |
+| FU-1 | `summarize-up-to` route currently dispatches `/compact` to the whole session — the messageId is captured but not used to bound the summarization. CC's native command bounds it at the picked turn. Needs an SDK API or a custom prompt template. |
+| FU-2 | `P1-1` entrypoint badge only shows the FIRST entrypoint encountered in the head scan. If the session was retired+resumed with a different entrypoint, the badge can lie. Switch to "last seen" or surface both. |
+| FU-3 | The Hooks tab does not yet correlate to tool calls in the conversation view. Hovering a hook row could highlight the matching tool_use in the turn list. |
+| FU-4 | The compaction banner is shown only for live (SSE-streamed) sessions. Historical sessions parse `compactMetadata` correctly via P0-4 but the per-event banner timing logic still requires a live stream. Add a static "compacted at turn N" marker in the conversation timeline for replayed sessions. |
 
-## Confirmed gaps
+## Resume points
 
-### P0 — Silent data corruption
-
-#### P0-1 — `stop_reason` enum too narrow
-
-**Devtools:** `server/src/types.ts:53` defines
-```ts
-stop_reason: "end_turn" | "tool_use" | null
+```
+git checkout p2-partial        # rebase target for new P2 work
+git checkout p1-complete       # if you need to drop P2-* commits but keep P0+P1
+git checkout pre-cc-parity-p0  # nuclear reset point
 ```
 
-**Consumers (incorrectly treat unknown values as `null`):**
-- `server/src/analyzer/agentStatus.ts:62`
-- `server/src/debug/lifecycle-builder.ts:88`
-- `server/src/cache/session-cache.ts:356`
-
-**CC truth:** Anthropic Messages API + CC sessions can emit:
-- `end_turn`
-- `tool_use`
-- `max_tokens`
-- `stop_sequence`
-- `pause_turn`
-- `refusal`
-- `null` (in-progress / streaming)
-
-**Impact:** Sessions stopped by `max_tokens` (context-cap hit) or `refusal` (Usage Policy) are misclassified as "still running" → wrong agent status, wrong "completed" detection, wrong session-completion timing.
-
-#### P0-2 — Effort levels missing `xhigh`, `max`, `auto`
-
-**Devtools:** `dashboard/src/components/controls/EffortSlider.tsx:10`
-```ts
-const LEVELS: EffortLevel[] = ["low", "medium", "high"];
-```
-Plus the discovery hint `server/src/http/routes/discovery-routes.ts:43`:
-```ts
-argumentHint: "<low|medium|high>"
-```
-
-**CC truth (CHANGELOG):**
-- `low / medium / high` — original
-- `xhigh` (Opus 4.7 only) — line 716, 718
-- `max` — line 694
-- `auto` — line 694, 501
-
-Users cannot select xhigh/max/auto from the dashboard. The `EffortLevel` type union in `dashboard/src/lib/types.ts` needs widening too.
-
-#### P0-4 — Missing `attachment` event wrapper + sidecar metadata records
-
-**Devtools:** `server/src/types.ts` BaseEvent listed only 5 types:
-```ts
-type: "queue-operation" | "user" | "assistant" | "progress" | "system";
-```
-
-**Devtools parser:** `server/src/parser/jsonl-reader.ts:35` does `events.push(parsed as unknown as SessionEvent)` — unknown types make it into the array but every downstream switch silently drops them.
-
-**CC truth (strict line-start parse of 30 real session JSONLs in `~/.claude/projects/`):**
-
-Top-level types CC actually emits (by frequency):
-
-| Type | Sampled freq | Purpose |
-|---|---|---|
-| `attachment` | 795 | Wrapper for hook/skill/MCP/reminder runtime deltas |
-| `assistant` | 311 | ✅ have |
-| `user` | 209 | ✅ have |
-| `last-prompt` | 106 | Sidecar — resume state |
-| `queue-operation` | 84 | ✅ have |
-| `permission-mode` | 29 | Sidecar — permission-mode marker |
-| `system` | 19 | ✅ have |
-| `file-history-snapshot` | 18 | Sidecar — rewind support |
-| `worktree-state` | 12 | Sidecar — EnterWorktree state |
-| `ai-title` | 7 | Sidecar — auto-generated title |
-
-The `attachment` event carries an inner `attachment.type` discriminator. Inner type frequencies:
-
-| `attachment.type` | Sampled freq | Purpose |
-|---|---|---|
-| `hook_success` | 816 | Hook execution result |
-| `async_hook_response` | 182 | Async hook output |
-| `skill_listing` | 31 | Skill discovery |
-| `deferred_tools_delta` | 26 | Tool defer/load (ToolSearch) |
-| `mcp_instructions_delta` | 24 | MCP server-events stream |
-| `hook_additional_context` | 24 | Hook injecting context |
-| `hook_system_message` | 21 | Hook calling system msg |
-| `hook_cancelled` | 7 | Hook cancellation |
-| `todo_reminder` | 6 | Todo-item reminder |
-| `task_reminder` | 6 | TodoWrite reminder |
-| `command_permissions` | 2 | Per-command permission resolution |
-| `queued_command` | 1 | Slash-command queue entry |
-
-**Impact:** Devtools claimed "JSONL is source of truth" but discarded the most common top-level event (attachment, 795 occurrences) and 5 sidecar record types. Every one of these is potentially user-visible content. Most importantly, **hook_success attachments (~816 per session)** are the runtime side of P0-3 (HookEditor) — devtools shows users where to configure hooks but never shows them what their hooks did.
-
-#### P0-3 — Hook event types incomplete (8 of 12 missing)
-
-**Devtools:** `dashboard/src/components/panels/HookEditor.tsx:27`
-```ts
-const EVENT_TYPES = ["PreToolUse", "PostToolUse", "Notification", "Stop"];
-```
-
-**CC truth (from CHANGELOG):** at least 12 hook event types
-| Event | Evidence |
-|---|---|
-| PreToolUse | ✅ have |
-| PostToolUse | ✅ have |
-| PostToolUseFailure | line 524 |
-| Notification | ✅ have |
-| Stop | ✅ have |
-| SubagentStop | lines 595, 953, 993 |
-| SubagentStart | line 63 |
-| UserPromptSubmit | line 218 |
-| SessionStart | lines 63, 749, 236 |
-| Setup | line 63 |
-| PreCompact | lines 826, 1241 |
-| TaskCreated | lines 1161, 1241 |
-
-Users cannot author 8 hook event types from the dashboard.
-
-### P1 — Shipped CC features completely dark
-
-#### P1-1 — `claude agents` background-agents dashboard
-
-CC ships a multi-session dashboard with warm-spare daemon, dispatched / Working / Completed states, sleep/wake transitions, `--add-dir`, `--settings`, `--mcp-config`, `--plugin-dir`, `--permission-mode`, `--model`, `--effort` flags. Devtools' session list models none of this.
-
-**Changelog evidence:** lines 25–37, 41, 50–54, 71, 76–77, 82–83.
-
-#### P1-2 — `/bg` and `←←` detach
-
-Background-fork command with flag preservation across `retire→wake`. Devtools doesn't show fork relationships or background status.
-
-**Changelog evidence:** lines 18, 31, 34, 35, 27, 55, 76.
-
-#### P1-3 — `/loop` & `CronCreate` scheduled wakeup markers
-
-CC writes timestamp markers to the transcript when scheduled tasks fire (line 1207). Devtools doesn't recognize these — they look like regular user messages.
-
-**Changelog evidence:** lines 1207, 1670, 1671, 1620, 14, 140, 245.
-
-#### P1-4 — `/goal` evaluator panel
-
-Live elapsed/turns/tokens overlay panel; runs until completion condition met across turns.
-
-**Changelog evidence:** lines 149, 134, 15.
-
-#### P1-5 — Compaction taxonomy
-
-`sse-event-handler.ts:303` collapses all compactions into one event. CC actually has six distinct triggers visible to the user:
-1. Manual `/compact`
-2. Autocompact threshold-driven
-3. Reactive (after token overflow on a request)
-4. Rewind menu "Summarize up to here"
-5. PreCompact-hook-blocked
-6. Improved reactive seed (line 62)
-
-Plus `compact_metadata` is captured but unused beyond `trigger` and `pre_tokens`.
-
-**Changelog evidence:** lines 62, 1722, 826, 1241, 73.
-
-#### P1-6 — Context-pressure timeline
-
-CC users hit autocompact regularly. Devtools shows a 3-second "Context compacted" toast (`StreamingTurnArea.tsx:13`) but no permanent timeline of context% over turns nor compact_boundary markers as vertical lines.
-
-### P2 — Polish
-
-| # | Gap | Location |
-|---|---|---|
-| P2-1 | Rewind menu missing "Summarize up to here" option | `dashboard/.../RewindMenu.tsx` |
-| P2-2 | PowerShell tool not rendered specially | `dashboard/.../ToolCallBlock.tsx:87` — only branches on Bash |
-| P2-3 | PostToolUse `duration_ms` parsed but not surfaced in trace | `sse-event-handler.ts:66` |
-| P2-4 | `terminalSequence` hook output field not parsed | (changelog line 68) |
-| P2-5 | OpenTelemetry fields `stop_reason`, `gen_ai.response.finish_reasons`, `user_system_prompt` not collected | (changelog 467) |
-| P2-6 | `claude project purge [path]` has no dashboard action | (changelog 391) |
-| P2-7 | `MODEL_PRICING` and `CONTEXT_WINDOW_SIZES` duplicated client+server (drift risk) | `dashboard/src/lib/cost.ts:8` ↔ `server/src/analyzer/metrics.ts:20` |
-| P2-8 | `formatModelShort` only knows opus/sonnet/haiku families | `dashboard/.../TopBar.tsx:321` |
-| P2-9 | Hook events not joined to compact events (PreCompact attribution) | n/a |
-| P2-10 | Per-model + cache-hit breakdown view for `/usage` | server has the endpoint; no dashboard view |
-
-## Needs live-JSONL verification
-
-Capture a current CC session JSONL and grep for these before adding handlers:
-
-- `tengu_*` analytics-only events (likely never in session JSONL)
-- `system.subtype` values beyond `compact_boundary` and `init`
-- `TaskCreated` hook payload format
-- `transcript_path` field in hook input
-- Scheduled-task fire marker exact event type (line 1207)
-- `pause_turn` / `refusal` stop_reasons in real sessions
-- Background-agent daemon sidecar files (if any) under `~/.claude/projects/<hash>/`
-
-## Execution plan
-
-Phases run sequentially; within a phase, loop on remaining gaps until none left, then move to the next phase.
-
-**Phase 0 (P0):** widen enums, add missing hook types, model attachment+sidecar — pure type/data fixes.
-**Phase 1 (P1):** dark features — `claude agents`, `/loop`, `/goal`, compaction taxonomy, context-pressure timeline.
-**Phase 2 (P2):** polish.
-
-After each phase: run `pnpm -C server test && pnpm -C dashboard test` and `tsc --noEmit` in both. Failure of either is a P0.
-
-## Execution log
-
-### Phase 0 — complete (tag: `p0-complete`)
-
-| Gap | Status | Commit |
-|---|---|---|
-| P0-1 stop_reason enum | ✅ | b036cc9 |
-| P0-2 effort levels (xhigh/max) | ✅ | debdd34 |
-| P0-3 hook event types (12 of 12) | ✅ | 5f546e5 |
-| P0 cleanup (handler casts, error messages) | ✅ | 8a5f18a |
-| P0-4 unknown event types — first model | superseded | 3a0027e |
-| P0-4 corrected — attachment wrapper + sidecars | ✅ | 86d0e00 |
-
-### Phase 1 — partial (tag: `p1-complete`)
-
-| Gap | Status | Commit |
-|---|---|---|
-| P0-5 (spinoff) `hook_success` attachments rendered in Hooks tab | ✅ | 2d109d6 |
-| P1-5 Compaction taxonomy + real metadata | ✅ | 304d0ae |
-| P1-6 Context-pressure timeline | ✅ | d647143 |
-| P1-1 `claude agents` view (partial — entrypoint badge) | ✅ partial | 9fe240a |
-| P1-2 `/bg` / `←←` detach (partial — entrypoint badge) | ✅ partial | 9fe240a |
-| P1-3 `/loop` & `CronCreate` wakeup markers | ⏸ deferred — see note |
-| P1-4 `/goal` evaluator panel | ⏸ deferred — see note |
-
-P1-5 closed a silent data bug: the SSE handler read `compact_metadata` (snake_case) but real CC v2.1.143 JSONLs write `compactMetadata` (camelCase). Every compaction event reached the dashboard with `metadata=undefined`. Now surfaces real preTokens → postTokens compression, duration, and trigger taxonomy.
-
-P1-6 ships a small SVG chart above the conversation view showing per-turn context% with vertical compaction markers. Suppressed for sessions under 30% peak pressure or fewer than 2 turns.
-
-**P1-3 investigation note:** grepping 30 real CC sessions for `/loop` markers came up empty (no `/loop` was used in those sessions). We did find a related top-level attachment family with `commandMode` discriminator:
-
-- `attachment.attachment.type === "queued_command"` carries one of two commandModes:
-  - `"task-notification"` (812 sample) — Monitor / TaskCreate fan-out: e.g. background test runs completing
-  - `"prompt"` (352 sample) — user-queued slash command waiting on dispatch
-
-Neither is a `/loop` wakeup. To finish P1-3 properly, capture a session that runs `/loop 5m /foo` and grep the resulting JSONL for the timestamp marker described in CC CHANGELOG line 1207. Type the marker as a new SystemEvent subtype (or AttachmentInnerType) and render it inline in the conversation with a clock icon.
-
-The remaining P1 items all need substantial new UI surfaces or live CC session capture; planned for the next dedicated session, branching from tag `p1-complete`.
-
-### Phase 2 — partial (tag: `p2-partial`)
-
-| Gap | Status | Commit |
-|---|---|---|
-| P2-1 "Summarize up to here" in Rewind menu | ✅ | b667160 |
-| P2-2 PowerShell tool rendered specially | ✅ | a99080f |
-| P2-3 PostToolUse `duration_ms` (async_hook_response.response.duration_ms) | ✅ | b23d49b |
-| P2-7 Centralize MODEL_PRICING + parity test | ✅ | 570fe01 |
-| P2-8 `formatModelShort` version-agnostic | ✅ | efea752 |
-| P2-4 `terminalSequence` hook field | ⏸ pending |
-| P2-5 OpenTelemetry fields (`stop_reason`, `gen_ai.response.finish_reasons`, `user_system_prompt`) | ⏸ pending |
-| P2-6 `claude project purge` dashboard action | ⏸ pending |
-| P2-9 PreCompact hook → compact attribution | ⏸ pending |
-| P2-10 Per-model + cache-hit `/usage` view | ⏸ pending |
-
-P2-3 closed a second silent-data bug: CC's PostToolUse async-hook response carries the underlying TOOL execution time (excluding hook overhead) at `attachment.response.duration_ms`. Devtools had a stub interface but no surface — now visible in the Hooks tab "ms" column and aggregated as session-total in the header.
-
-P2-7 added a server↔dashboard pricing parity test that reads the dashboard file as text and asserts every entry matches the server file verbatim. Catches drift on every CI run.
+All remaining acceptance criteria above are self-contained — pick any item and implement against the criteria without re-reading the original CHANGELOG.
