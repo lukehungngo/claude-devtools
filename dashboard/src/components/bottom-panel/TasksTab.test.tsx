@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, act } from "@testing-library/react";
+import { render, screen, cleanup, act, fireEvent } from "@testing-library/react";
 import { TasksTab } from "./TasksTab";
 import type { SessionTask } from "../../lib/sessionTasks";
 
@@ -183,5 +183,91 @@ describe("TasksTab (daemon-authoritative)", () => {
     await act(async () => {});
 
     expect(screen.getByText("JSONL only")).toBeDefined();
+  });
+});
+
+// NEW-6 — kill button + inline confirmation for live in-flight tasks.
+describe("TasksTab kill button (NEW-6)", () => {
+  it("renders a stop button on in_progress and pending rows", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          tasks: [
+            { id: "1", subject: "Running one", status: "in_progress", blocks: [], blockedBy: [] },
+            { id: "2", subject: "Pending one", status: "pending", blocks: [], blockedBy: [] },
+          ],
+        }),
+    });
+
+    render(<TasksTab tasks={[]} sessionId="abc-123" />);
+    await act(async () => {});
+
+    const runningRow = screen.getByText("Running one").closest("tr");
+    const pendingRow = screen.getByText("Pending one").closest("tr");
+    expect(runningRow?.querySelector('[data-stop-task="1"]')).not.toBeNull();
+    expect(pendingRow?.querySelector('[data-stop-task="2"]')).not.toBeNull();
+  });
+
+  it("hides the stop button for completed and deleted tasks", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          tasks: [
+            { id: "1", subject: "Done task", status: "completed", blocks: [], blockedBy: [] },
+            { id: "2", subject: "Gone task", status: "deleted", blocks: [], blockedBy: [] },
+            { id: "3", subject: "Live task", status: "in_progress", blocks: [], blockedBy: [] },
+          ],
+        }),
+    });
+
+    render(<TasksTab tasks={[]} sessionId="abc-123" />);
+    await act(async () => {});
+
+    expect(screen.getByText("Done task").closest("tr")?.querySelector('[data-stop-task="1"]')).toBeNull();
+    expect(screen.getByText("Gone task").closest("tr")?.querySelector('[data-stop-task="2"]')).toBeNull();
+    expect(screen.getByText("Live task").closest("tr")?.querySelector('[data-stop-task="3"]')).not.toBeNull();
+  });
+
+  it("opens an inline confirmation and POSTs { taskId } on confirm", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          tasks: [
+            { id: "task-99", subject: "Refactor parser", status: "in_progress", blocks: [], blockedBy: [] },
+          ],
+        }),
+    });
+
+    render(<TasksTab tasks={[]} sessionId="sess-42" />);
+    await act(async () => {});
+
+    const trash = screen.getByTestId("stop-task-task-99");
+    await act(async () => {
+      fireEvent.click(trash);
+    });
+
+    expect(screen.getByText(/Stop task:/)).toBeDefined();
+    expect(screen.getByTestId("stop-task-confirm-task-99")).toBeDefined();
+    const confirmBtn = screen.getByRole("button", { name: /^stop$/i });
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ ok: true }),
+    });
+
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
+    const postCall = fetchMock.mock.calls.find(
+      (call) => call[0] === "/api/sessions/sess-42/stop-task",
+    );
+    expect(postCall).toBeDefined();
+    const init = postCall![1] as RequestInit;
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ taskId: "task-99" });
   });
 });
