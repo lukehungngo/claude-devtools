@@ -36,22 +36,31 @@ export const TaskMonitor = React.memo(function TaskMonitor({ sessionId, events }
       let updated = false;
       const next = new Map(prev);
       for (const evt of newEvents) {
+        // NEW-7: SSE task events now use snake_case (task_id, description, summary)
+        // matching the SDK shape — see sse-event-handler.ts.
         if (evt.type === "task_started") {
-          const id = evt.taskId as string;
-          next.set(id, { id, name: (evt.name as string) || "Task", status: "running", startedAt: Date.now() });
+          const id = evt.task_id as string;
+          next.set(id, {
+            id,
+            name: (evt.description as string) || "Task",
+            status: "running",
+            startedAt: Date.now(),
+          });
           updated = true;
         } else if (evt.type === "task_progress") {
-          const id = evt.taskId as string;
+          const id = evt.task_id as string;
           const existing = next.get(id);
           if (existing) {
-            next.set(id, { ...existing, progress: evt.progress as number | undefined, message: evt.message as string | undefined });
+            const summary = evt.summary as string | undefined;
+            next.set(id, { ...existing, message: summary });
             updated = true;
           }
         } else if (evt.type === "task_notification") {
-          const id = evt.taskId as string;
+          const id = evt.task_id as string;
           const existing = next.get(id);
           if (existing) {
-            next.set(id, { ...existing, status: (evt.status as string) === "failed" ? "failed" : "completed", message: evt.message as string | undefined });
+            const status = (evt.status as string) === "failed" ? "failed" : "completed";
+            next.set(id, { ...existing, status, message: evt.summary as string | undefined });
             updated = true;
           }
         }

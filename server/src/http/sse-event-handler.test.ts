@@ -294,39 +294,154 @@ describe("mapSdkMessageToSSEEvents", () => {
       ]);
     });
 
-    it("maps system task_started to task_started event", () => {
+    it("maps SDKTaskStartedMessage to task_started SSE event", () => {
+      // NEW-7: structured task lifecycle, sdk.d.ts:3543-3565.
       const result = mapSdkMessageToSSEEvents({
         type: "system",
         subtype: "task_started",
-        taskId: "task-1",
+        task_id: "task-1",
+        tool_use_id: "toolu_abc",
         description: "Running build",
+        subagent_type: "general-purpose",
+        task_type: "local_workflow",
+        workflow_name: "spec",
+        prompt: "build the spec",
+        skip_transcript: false,
+        uuid: "u-1",
+        session_id: "sess-1",
       });
       expect(result).toEqual([
-        { type: "task_started", taskId: "task-1", description: "Running build" },
+        {
+          type: "task_started",
+          task_id: "task-1",
+          tool_use_id: "toolu_abc",
+          description: "Running build",
+          subagent_type: "general-purpose",
+          task_type: "local_workflow",
+          workflow_name: "spec",
+          prompt: "build the spec",
+          skip_transcript: false,
+        },
       ]);
     });
 
-    it("maps system task_progress to task_progress event", () => {
+    it("maps SDKTaskStartedMessage minimal shape (no optionals)", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "task_started",
+        task_id: "task-2",
+        description: "Solo work",
+        uuid: "u-2",
+        session_id: "sess-1",
+      });
+      expect(result).toEqual([
+        { type: "task_started", task_id: "task-2", description: "Solo work" },
+      ]);
+    });
+
+    it("maps SDKTaskProgressMessage to task_progress SSE event", () => {
+      // NEW-7: sdk.d.ts:3521-3541.
       const result = mapSdkMessageToSSEEvents({
         type: "system",
         subtype: "task_progress",
-        taskId: "task-1",
-        progress: 50,
+        task_id: "task-1",
+        tool_use_id: "toolu_abc",
+        description: "Running build",
+        subagent_type: "general-purpose",
+        usage: { total_tokens: 1234, tool_uses: 5, duration_ms: 8000 },
+        last_tool_name: "Read",
+        summary: "Read 3 files",
+        uuid: "u-3",
+        session_id: "sess-1",
       });
       expect(result).toEqual([
-        { type: "task_progress", taskId: "task-1", progress: 50 },
+        {
+          type: "task_progress",
+          task_id: "task-1",
+          tool_use_id: "toolu_abc",
+          description: "Running build",
+          subagent_type: "general-purpose",
+          usage: { total_tokens: 1234, tool_uses: 5, duration_ms: 8000 },
+          last_tool_name: "Read",
+          summary: "Read 3 files",
+        },
       ]);
     });
 
-    it("maps system task_notification to task_notification event", () => {
+    it("maps SDKTaskNotificationMessage to task_notification SSE event", () => {
+      // NEW-7: sdk.d.ts:3503-3519.
       const result = mapSdkMessageToSSEEvents({
         type: "system",
         subtype: "task_notification",
-        taskId: "task-1",
-        message: "Build complete",
+        task_id: "task-1",
+        tool_use_id: "toolu_abc",
+        status: "completed",
+        output_file: "/tmp/out.txt",
+        summary: "Build complete",
+        usage: { total_tokens: 4000, tool_uses: 12, duration_ms: 45000 },
+        uuid: "u-4",
+        session_id: "sess-1",
       });
       expect(result).toEqual([
-        { type: "task_notification", taskId: "task-1", message: "Build complete" },
+        {
+          type: "task_notification",
+          task_id: "task-1",
+          tool_use_id: "toolu_abc",
+          status: "completed",
+          output_file: "/tmp/out.txt",
+          summary: "Build complete",
+          usage: { total_tokens: 4000, tool_uses: 12, duration_ms: 45000 },
+        },
+      ]);
+    });
+
+    it("maps SDKTaskUpdatedMessage to task_updated SSE event", () => {
+      // NEW-7: sdk.d.ts:3567-3584.
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "task_updated",
+        task_id: "task-1",
+        patch: {
+          status: "paused",
+          description: "Paused mid-flight",
+          end_time: 1700000000000,
+          total_paused_ms: 5000,
+          error: undefined,
+          is_backgrounded: true,
+        },
+        uuid: "u-5",
+        session_id: "sess-1",
+      });
+      expect(result).toEqual([
+        {
+          type: "task_updated",
+          task_id: "task-1",
+          patch: {
+            status: "paused",
+            description: "Paused mid-flight",
+            end_time: 1700000000000,
+            total_paused_ms: 5000,
+            is_backgrounded: true,
+          },
+        },
+      ]);
+    });
+
+    it("maps SDKTaskUpdatedMessage with only status patch", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "task_updated",
+        task_id: "task-1",
+        patch: { status: "completed" },
+        uuid: "u-6",
+        session_id: "sess-1",
+      });
+      expect(result).toEqual([
+        {
+          type: "task_updated",
+          task_id: "task-1",
+          patch: { status: "completed" },
+        },
       ]);
     });
 

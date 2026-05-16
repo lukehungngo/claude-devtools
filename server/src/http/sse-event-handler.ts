@@ -149,22 +149,64 @@ export interface SSERateLimitEvent {
   message?: string;
 }
 
+/**
+ * NEW-7: structured Task lifecycle messages from the SDK
+ * (sdk.d.ts:3503-3584). Replaces the earlier `taskId`/`progress`/`message`
+ * stubs which read fields that the SDK never emits. The dashboard merges
+ * these on top of daemon snapshot rows in TasksTab.
+ */
 export interface SSETaskStartedEvent {
   type: "task_started";
-  taskId: string;
-  description?: string;
+  task_id: string;
+  tool_use_id?: string;
+  description: string;
+  subagent_type?: string;
+  task_type?: string;
+  workflow_name?: string;
+  prompt?: string;
+  skip_transcript?: boolean;
 }
 
 export interface SSETaskProgressEvent {
   type: "task_progress";
-  taskId: string;
-  progress?: number;
+  task_id: string;
+  tool_use_id?: string;
+  description: string;
+  subagent_type?: string;
+  usage: {
+    total_tokens: number;
+    tool_uses: number;
+    duration_ms: number;
+  };
+  last_tool_name?: string;
+  summary?: string;
 }
 
 export interface SSETaskNotificationEvent {
   type: "task_notification";
-  taskId: string;
-  message?: string;
+  task_id: string;
+  tool_use_id?: string;
+  status: "completed" | "failed" | "stopped";
+  output_file: string;
+  summary: string;
+  usage?: {
+    total_tokens: number;
+    tool_uses: number;
+    duration_ms: number;
+  };
+}
+
+export interface SSETaskUpdatedEvent {
+  type: "task_updated";
+  task_id: string;
+  patch: {
+    status?: "pending" | "running" | "completed" | "failed" | "killed" | "paused";
+    description?: string;
+    end_time?: number;
+    total_paused_ms?: number;
+    error?: string;
+    is_backgrounded?: boolean;
+  };
 }
 
 export interface SSEHookStartedEvent {
@@ -235,6 +277,7 @@ export type SSEEvent =
   | SSETaskStartedEvent
   | SSETaskProgressEvent
   | SSETaskNotificationEvent
+  | SSETaskUpdatedEvent
   | SSEHookStartedEvent
   | SSEHookProgressEvent
   | SSEHookResponseEvent
@@ -474,15 +517,85 @@ export function mapSdkMessageToSSEEvents(msg: {
     });
   }
 
-  // System task events
+  // NEW-7 — structured Task lifecycle messages (sdk.d.ts:3503-3584).
+  // Forward only the wire-safe fields; uuid/session_id stay server-side.
   if (msg.type === "system" && msg.subtype === "task_started") {
-    events.push({ type: "task_started", taskId: msg.taskId, description: msg.description });
+    const evt: SSETaskStartedEvent = {
+      type: "task_started",
+      task_id: msg.task_id as string,
+      description: (msg.description as string) ?? "",
+    };
+    if (typeof msg.tool_use_id === "string") evt.tool_use_id = msg.tool_use_id;
+    if (typeof msg.subagent_type === "string") evt.subagent_type = msg.subagent_type;
+    if (typeof msg.task_type === "string") evt.task_type = msg.task_type;
+    if (typeof msg.workflow_name === "string") evt.workflow_name = msg.workflow_name;
+    if (typeof msg.prompt === "string") evt.prompt = msg.prompt;
+    if (typeof msg.skip_transcript === "boolean") evt.skip_transcript = msg.skip_transcript;
+    events.push(evt);
   }
   if (msg.type === "system" && msg.subtype === "task_progress") {
-    events.push({ type: "task_progress", taskId: msg.taskId, progress: msg.progress });
+    const usage = (msg.usage ?? {}) as {
+      total_tokens?: number;
+      tool_uses?: number;
+      duration_ms?: number;
+    };
+    const evt: SSETaskProgressEvent = {
+      type: "task_progress",
+      task_id: msg.task_id as string,
+      description: (msg.description as string) ?? "",
+      usage: {
+        total_tokens: usage.total_tokens ?? 0,
+        tool_uses: usage.tool_uses ?? 0,
+        duration_ms: usage.duration_ms ?? 0,
+      },
+    };
+    if (typeof msg.tool_use_id === "string") evt.tool_use_id = msg.tool_use_id;
+    if (typeof msg.subagent_type === "string") evt.subagent_type = msg.subagent_type;
+    if (typeof msg.last_tool_name === "string") evt.last_tool_name = msg.last_tool_name;
+    if (typeof msg.summary === "string") evt.summary = msg.summary;
+    events.push(evt);
   }
   if (msg.type === "system" && msg.subtype === "task_notification") {
-    events.push({ type: "task_notification", taskId: msg.taskId, message: msg.message });
+    const status = msg.status as SSETaskNotificationEvent["status"];
+    const evt: SSETaskNotificationEvent = {
+      type: "task_notification",
+      task_id: msg.task_id as string,
+      status,
+      output_file: (msg.output_file as string) ?? "",
+      summary: (msg.summary as string) ?? "",
+    };
+    if (typeof msg.tool_use_id === "string") evt.tool_use_id = msg.tool_use_id;
+    if (msg.usage && typeof msg.usage === "object") {
+      const u = msg.usage as { total_tokens?: number; tool_uses?: number; duration_ms?: number };
+      evt.usage = {
+        total_tokens: u.total_tokens ?? 0,
+        tool_uses: u.tool_uses ?? 0,
+        duration_ms: u.duration_ms ?? 0,
+      };
+    }
+    events.push(evt);
+  }
+  if (msg.type === "system" && msg.subtype === "task_updated") {
+    const rawPatch = (msg.patch ?? {}) as {
+      status?: SSETaskUpdatedEvent["patch"]["status"];
+      description?: string;
+      end_time?: number;
+      total_paused_ms?: number;
+      error?: string;
+      is_backgrounded?: boolean;
+    };
+    const patch: SSETaskUpdatedEvent["patch"] = {};
+    if (rawPatch.status !== undefined) patch.status = rawPatch.status;
+    if (typeof rawPatch.description === "string") patch.description = rawPatch.description;
+    if (typeof rawPatch.end_time === "number") patch.end_time = rawPatch.end_time;
+    if (typeof rawPatch.total_paused_ms === "number") patch.total_paused_ms = rawPatch.total_paused_ms;
+    if (typeof rawPatch.error === "string") patch.error = rawPatch.error;
+    if (typeof rawPatch.is_backgrounded === "boolean") patch.is_backgrounded = rawPatch.is_backgrounded;
+    events.push({
+      type: "task_updated",
+      task_id: msg.task_id as string,
+      patch,
+    });
   }
 
   // Session state changed (official SDK signal for running/idle/requires_action)
