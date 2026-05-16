@@ -7,6 +7,36 @@ import type {
 } from "./types";
 import { isTerminalStopReason } from "./types";
 import { eventsForAgent, mainEventsOnly } from "./turnEventFilters";
+import { isSyntheticAgentId, syntheticToToolUseId } from "./agentIds";
+
+/**
+ * Walk main `user` events for a `tool_result` block matching `toolUseId`.
+ * Phase 3: extracted helper used by both `hasParentToolResultAck` (real-agent
+ * acknowledgment chain) and the synthetic-agent short-circuit in `isAgentCompleted`.
+ *
+ * Skips sidechain user events (those don't carry parent acks).
+ */
+export function findToolResultForId(
+  events: readonly SessionEvent[],
+  toolUseId: string,
+): { timestamp: string; isError: boolean } | null {
+  for (const e of events) {
+    if (e.type !== "user") continue;
+    if (e.isSidechain) continue;
+    const content = (e as UserEvent).message.content;
+    if (!Array.isArray(content)) continue;
+    for (const c of content) {
+      if (c.type !== "tool_result") continue;
+      if ((c as { tool_use_id?: string }).tool_use_id === toolUseId) {
+        return {
+          timestamp: e.timestamp,
+          isError: !!(c as { is_error?: boolean }).is_error,
+        };
+      }
+    }
+  }
+  return null;
+}
 
 /**
  * Window (ms) for temporal-proximity matching between a main Task/Agent
@@ -50,6 +80,16 @@ export function isAgentCompleted(
   agentId: string,
   events: readonly SessionEvent[],
 ): boolean {
+  // Phase 3: synthetic agents have no own events. Completion is determined
+  // purely by the presence of a matching `tool_result` keyed by the
+  // dispatching `tool_use.id`. Must be first — `eventsForAgent` returns []
+  // for synthetic ids and `hasParentToolResultAck` bails at length === 0.
+  if (isSyntheticAgentId(agentId)) {
+    const toolUseId = syntheticToToolUseId(agentId);
+    if (!toolUseId) return false;
+    return findToolResultForId(events, toolUseId) !== null;
+  }
+
   // Signal 1: last owned assistant event's stop_reason
   const owned = eventsForAgent(events, agentId);
   for (let i = owned.length - 1; i >= 0; i--) {

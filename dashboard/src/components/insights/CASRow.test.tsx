@@ -65,9 +65,9 @@ describe("CASRow", () => {
 });
 
 describe("CASRow exports", () => {
-  it("BADGE_PALETTE has 8 colors", () => {
+  it("BADGE_PALETTE has 8 var-based colors", () => {
     expect(BADGE_PALETTE).toHaveLength(8);
-    expect(BADGE_PALETTE[0]).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(BADGE_PALETTE[0]).toMatch(/^var\(--[a-z][\w-]+\)$/);
   });
 
   it("abbreviateName: colon-delimited returns last segment uppercased 3 chars", () => {

@@ -11,6 +11,7 @@ import {
 import { loadDaemonTasks } from "../../parser/daemon-task-discovery.js";
 import { collectorBuffer } from "../../collector/buffer.js";
 import { computeMetrics } from "../../analyzer/metrics.js";
+import { isSyntheticAgentId } from "../../lib/agentIds.js";
 import { getAgentEvents } from "../../analyzer/agent-events.js";
 import {
   addPermissionRequest,
@@ -391,6 +392,11 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     (req, res) => {
       try {
         const { projectHash, sessionId, agentId } = req.params;
+        // Phase 3: synthetic agents have no own events; short-circuit before
+        // discoverSessions / getAgentEvents which assume a real subagent.
+        if (isSyntheticAgentId(agentId)) {
+          return res.json({ events: [] });
+        }
         const sessions = discoverSessions();
         const session = sessions.find(
           (s) => s.projectHash === projectHash && s.id === sessionId

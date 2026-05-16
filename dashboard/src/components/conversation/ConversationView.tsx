@@ -6,6 +6,7 @@ import { LayoutContext } from "../../contexts/LayoutContext";
 import { normalizeContent } from "../../lib/normalizeContent";
 import { buildSearchIndex, updateSearchIndex, filterTurnsByQuery } from "../../lib/searchIndex";
 import { getEventsForTurn } from "../../lib/turnSnapshot";
+import { deriveTasksByTurn } from "../../lib/sessionTasks";
 import { PermissionBlock } from "./PermissionBlock";
 import { cyclePermissionMode } from "./PermissionModeBadge";
 import type { PermissionMode } from "./permissionModeTypes";
@@ -527,72 +528,13 @@ export function ConversationView({
     });
   }, [turns, events]);
 
-  // Derive task items per-turn from tool_use events (TodoWrite, TaskCreate, TaskUpdate)
-  // Returns a map of turnNumber -> cumulative task state at that turn (only for turns with task tool calls)
-  const tasksByTurn = useMemo(() => {
-    type TaskItem = { id: string; name: string; status: "done" | "pending" | "in_progress" | "error" };
-    const TASK_TOOLS = new Set(["TodoWrite", "TaskCreate", "TaskUpdate"]);
-
-    const normalizeStatus = (s: unknown): TaskItem["status"] => {
-      if (s === "completed" || s === "done") return "done";
-      if (s === "in_progress") return "in_progress";
-      if (s === "error") return "error";
-      return "pending";
-    };
-
-    const result = new Map<number, TaskItem[]>();
-    let tasks: TaskItem[] = [];
-
-    for (const turn of turns) {
-      const turnEvents = getEventsForTurn(turn, events);
-      let turnHasTaskTools = false;
-
-      for (const evt of turnEvents) {
-        if (evt.type !== "assistant") continue;
-        const msg = (evt as AssistantEvent).message;
-        if (!Array.isArray(msg?.content)) continue;
-
-        for (const item of msg.content) {
-          if (
-            typeof item !== "object" ||
-            item === null ||
-            !("type" in item) ||
-            (item as { type: string }).type !== "tool_use"
-          ) continue;
-
-          const toolUse = item as { type: "tool_use"; name: string; input: Record<string, unknown> };
-          if (!TASK_TOOLS.has(toolUse.name)) continue;
-          turnHasTaskTools = true;
-
-          if (toolUse.name === "TodoWrite") {
-            const todos = toolUse.input.todos;
-            if (!Array.isArray(todos)) continue;
-            tasks = todos.map((todo: unknown, idx: number) => {
-              const t = todo as { content?: string; status?: string };
-              return {
-                id: `T-${String(idx + 1).padStart(3, "0")}`,
-                name: t.content ?? `Task ${idx + 1}`,
-                status: normalizeStatus(t.status),
-              };
-            });
-          } else if (toolUse.name === "TaskCreate") {
-            const desc = toolUse.input.description;
-            tasks = [...tasks, {
-              id: `T-${String(tasks.length + 1).padStart(3, "0")}`,
-              name: typeof desc === "string" ? desc : `Task ${tasks.length + 1}`,
-              status: "pending",
-            }];
-          }
-        }
-      }
-
-      if (turnHasTaskTools && tasks.length > 0) {
-        result.set(turn.turnNumber, [...tasks]);
-      }
-    }
-
-    return result;
-  }, [turns, events]);
+  // Per-turn task derivation — shared with BottomPanel's Tasks tab via
+  // `deriveTasksByTurn` in lib/sessionTasks. Phase 1 unified TaskCreate/TaskUpdate
+  // handling so TaskGrid now reflects in-turn status flips inline.
+  const tasksByTurn = useMemo(
+    () => deriveTasksByTurn(events, turns),
+    [events, turns],
+  );
 
   // Inline compact_boundary markers for replayed sessions (FU-4).
   // Live SSE sessions surface compaction via StreamingTurnArea's 3s banner;

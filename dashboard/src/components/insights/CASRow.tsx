@@ -11,15 +11,17 @@ export interface CASRowProps {
   sparklineColor?: "teal" | "purple";
 }
 
+// Phase 2: var-based palette. Phase 1 of design hygiene moved away from raw Tailwind hex
+// to canonical design tokens. Order is preserved so existing indices keep stable colors.
 export const BADGE_PALETTE = [
-  "#6366f1",
-  "#f59e0b",
-  "#10b981",
-  "#ef4444",
-  "#8b5cf6",
-  "#06b6d4",
-  "#f97316",
-  "#ec4899",
+  "var(--span-pm)",
+  "var(--span-swe)",
+  "var(--span-doc)",
+  "var(--span-qa)",
+  "var(--span-bug)",
+  "var(--span-rev)",
+  "var(--span-swe2)",
+  "var(--teal)",
 ];
 
 const TREND_CONFIG: Record<CASRowTrend, { symbol: string; label: string; classes: string }> = {

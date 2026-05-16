@@ -8,7 +8,7 @@ import { DetailTab } from "./DetailTab";
 import { TasksTab } from "./TasksTab";
 import { HooksTab } from "./HooksTab";
 import { UsageTab } from "./UsageTab";
-import { deriveSessionTasks } from "../../lib/sessionTasks";
+import { deriveSessionTasks, deriveTasksByTurn, getTasksAtTurn } from "../../lib/sessionTasks";
 export type BottomTab =
   | "agent-graph"
   | "tool-call"
@@ -116,7 +116,17 @@ export function BottomPanel({
     }
   });
   const dragStartRef = useRef<{ y: number; height: number } | null>(null);
-  const sessionTasks = useMemo(() => deriveSessionTasks(events), [events]);
+  const tasksByTurn = useMemo(
+    () => deriveTasksByTurn(events, turns),
+    [events, turns],
+  );
+  const sessionTasks = useMemo(
+    () =>
+      viewingTurnNumber !== undefined
+        ? getTasksAtTurn(tasksByTurn, viewingTurnNumber)
+        : deriveSessionTasks(events),
+    [tasksByTurn, viewingTurnNumber, events],
+  );
 
   // TASK-010: track previous hasSubagents to detect false->true transition
   const prevHasSubagentsRef = useRef(hasSubagents ?? false);
@@ -278,6 +288,25 @@ export function BottomPanel({
                   }}
                 >
                   {sessionTasks.length}
+                </span>
+              )}
+              {tab.id === "agent-graph" && dag && dag.nodes.length > 0 && (
+                <span
+                  className="t-mono-xs"
+                  style={{
+                    color: "inherit",
+                    background: "var(--bg-s)",
+                    padding: "1px 6px",
+                    borderRadius: 6,
+                    minWidth: 0,
+                    maxWidth: 28,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={`${dag.nodes.length} agents`}
+                >
+                  {dag.nodes.length > 99 ? "99+" : dag.nodes.length}
                 </span>
               )}
             </button>

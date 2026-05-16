@@ -49,6 +49,19 @@
   --fs-2xl: 15px;
   --fs-3xl: 18px;
   --fs-display: 24px;
+  /* ── Spacing micro-scale (Phase 2 — matches Anthropic design system) ── */
+  --sp-0_5: 2px;
+  --sp-1: 4px;
+  --sp-1_5: 6px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-3_5: 14px;
+  --sp-4: 16px;
+  --sp-4_5: 18px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 28px;
+  --sp-8: 32px;
   --hud-h: 56px;
   --titlebar-h: 38px;
   --ribbon-w: 260px;

@@ -254,6 +254,42 @@ describe("RepoList", () => {
   });
 });
 
+describe("RepoList filter auto-refresh (Phase 5)", () => {
+  afterEach(() => { cleanup(); });
+
+  it("calls onRefresh silently when toggling to Active Only", () => {
+    const onRefresh = vi.fn();
+    render(
+      <RepoList
+        repos={[makeRepoGroup()]}
+        loading={false}
+        selected={null}
+        onSelect={vi.fn()}
+        onRefresh={onRefresh}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("repo-filter-active"));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT call onRefresh when toggling back to All", () => {
+    const onRefresh = vi.fn();
+    render(
+      <RepoList
+        repos={[makeRepoGroup()]}
+        loading={false}
+        selected={null}
+        onSelect={vi.fn()}
+        onRefresh={onRefresh}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("repo-filter-active"));
+    onRefresh.mockClear();
+    fireEvent.click(screen.getByTestId("repo-filter-all"));
+    expect(onRefresh).not.toHaveBeenCalled();
+  });
+});
+
 describe("RepoList daemon status indicators (NEW-1)", () => {
   afterEach(() => { cleanup(); });
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { AgentLogEntry } from "../lib/types";
+import { isSyntheticAgentId } from "../lib/agentIds";
 
 export function useAgentLogs(
   projectHash: string | null,
@@ -12,6 +13,13 @@ export function useAgentLogs(
 
   const fetchLogs = useCallback(() => {
     if (!projectHash || !sessionId) return;
+    // Phase 3: synthetic agents have no own events — short-circuit before fetching
+    // to avoid a server round-trip that would return [] anyway.
+    if (isSyntheticAgentId(agentId)) {
+      setLogs([]);
+      setLoading(false);
+      return;
+    }
 
     fetch(`/api/sessions/${projectHash}/${sessionId}/events/${agentId}`)
       .then((r) => {

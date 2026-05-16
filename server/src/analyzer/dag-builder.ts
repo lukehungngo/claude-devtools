@@ -8,6 +8,32 @@ import type {
 import { calculateTokenCost } from "./metrics.js";
 import { normalizeContent } from "../lib/normalizeContent.js";
 import { getAgentStatus } from "./agentStatus.js";
+import { toolUseIdToSyntheticAgent } from "../lib/agentIds.js";
+
+/**
+ * Walk events for a `tool_result` block keyed by `toolUseId`.
+ * Server-side mirror of dashboard/src/lib/agentStatus.ts#findToolResultForId.
+ */
+function findToolResultForId(
+  events: SessionEvent[],
+  toolUseId: string,
+): { timestamp: string; isError: boolean } | null {
+  for (const e of events) {
+    if (e.type !== "user") continue;
+    if (e.isSidechain) continue;
+    const content = normalizeContent(e.message.content);
+    for (const c of content) {
+      if (c.type !== "tool_result") continue;
+      if ((c as { tool_use_id?: string }).tool_use_id === toolUseId) {
+        return {
+          timestamp: e.timestamp,
+          isError: !!(c as { is_error?: boolean }).is_error,
+        };
+      }
+    }
+  }
+  return null;
+}
 
 /**
  * Analyze a list of events in a single pass, returning:
@@ -30,6 +56,12 @@ function analyzeEvents(events: SessionEvent[]): {
   mcpToolCalls: number;
   hasError: boolean;
   agentDescriptions: string[];
+  agentDispatches: Array<{
+    toolUseId: string;
+    description: string;
+    subagentType?: string;
+    timestamp: string;
+  }>;
   model?: string;
 } {
   let inputTokens = 0;
@@ -41,6 +73,12 @@ function analyzeEvents(events: SessionEvent[]): {
   let mcpToolCalls = 0;
   let lastModel: string | undefined;
   const agentDescriptions: string[] = [];
+  const agentDispatches: Array<{
+    toolUseId: string;
+    description: string;
+    subagentType?: string;
+    timestamp: string;
+  }> = [];
 
   // Error is a content check: any tool_result across the given events with
   // is_error === true. Not bounded by a time window — if an error exists in
@@ -79,8 +117,18 @@ function analyzeEvents(events: SessionEvent[]): {
             mcpToolCalls++;
           }
           if (content.name === "Agent" || content.name === "Task") {
-            const desc = (content.input as Record<string, unknown>).description as string;
+            const input = content.input as Record<string, unknown>;
+            const desc = input.description as string;
             if (desc) agentDescriptions.push(desc);
+            // Phase 3: capture dispatch metadata for synthetic-node creation
+            if (content.id && desc) {
+              agentDispatches.push({
+                toolUseId: content.id,
+                description: desc,
+                subagentType: typeof input.subagent_type === "string" ? input.subagent_type : undefined,
+                timestamp: event.timestamp,
+              });
+            }
           }
         }
       }
@@ -100,6 +148,7 @@ function analyzeEvents(events: SessionEvent[]): {
     mcpToolCalls,
     hasError,
     agentDescriptions,
+    agentDispatches,
     model: lastModel,
   };
 }
@@ -190,6 +239,55 @@ export function buildAgentDAG(
     // If no edge was created from main, add default
     if (!edgeTargets.has(agentId)) {
       edges.push({ source: "main", target: agentId });
+    }
+  }
+
+  // Phase 3.5: synthetic nodes for Agent dispatches that have no own events
+  // and no descriptionToAgentId match. In this Claude Code variant, subagents
+  // don't emit sidechain events into the parent JSONL; the only signal that a
+  // dispatch occurred is the Agent tool_use itself, with completion detected
+  // via the matching tool_result.tool_use_id.
+  const syntheticAdded = new Set<string>();
+  for (const dispatch of mainAnalysis.agentDispatches) {
+    const realAgentId = descriptionToAgentId.get(dispatch.description);
+    if (realAgentId && subagentEvents.has(realAgentId)) {
+      // Real subagent already represented in the loop above; skip synthetic.
+      continue;
+    }
+    const syntheticId = toolUseIdToSyntheticAgent(dispatch.toolUseId);
+    if (syntheticAdded.has(syntheticId)) continue;
+    syntheticAdded.add(syntheticId);
+
+    const result = findToolResultForId(mainEvents, dispatch.toolUseId);
+    const status: AgentNode["status"] = result === null
+      ? "active"
+      : result.isError
+        ? "error"
+        : "completed";
+
+    nodes.push({
+      id: syntheticId,
+      type: dispatch.subagentType ?? "subagent",
+      description: dispatch.description,
+      parentId: "main",
+      // Token data is unavailable for synthetic agents — emit zeroes so the
+      // shape stays compatible; UI keys off the synthetic prefix to render "—".
+      tokenUsage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
+        totalCost: 0,
+      },
+      toolCalls: 0,
+      mcpToolCalls: 0,
+      status,
+      startTime: dispatch.timestamp,
+      endTime: result?.timestamp,
+    });
+    if (!edgeTargets.has(syntheticId)) {
+      edges.push({ source: "main", target: syntheticId });
+      edgeTargets.add(syntheticId);
     }
   }
 

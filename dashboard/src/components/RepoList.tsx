@@ -136,7 +136,8 @@ export function RepoList({
   const handleSetFilter = useCallback((filter: RepoFilter) => {
     setRepoFilter(filter);
     saveRepoFilter(filter);
-  }, []);
+    if (filter === "active") onRefresh?.();
+  }, [onRefresh]);
 
   const sortedRepos = useMemo(() => {
     const mapped = repos.map((repo) => {

@@ -378,9 +378,12 @@ const TraceRowComponent = memo(function TraceRowComponent({
   }, [onSelect, node.id]);
 
   const isActive = node.status === "active";
+  const isSynthetic = node.id.startsWith("synthetic:agent:");
   const label = node.description || node.type;
   const durationStr = durationMs > 0 ? formatDuration(durationMs) : "";
-  const costStr = formatCost(totalCost);
+  // Phase 3.5: synthetic agents have no token/cost data — render "—" instead
+  // of "$0.0000" to make the missing-data state explicit.
+  const costStr = isSynthetic ? "—" : formatCost(totalCost);
 
   const rowClass = `trace-row${isToolCall ? " trace-row-tool" : ""}${selected ? " trace-row-selected" : ""}`;
 

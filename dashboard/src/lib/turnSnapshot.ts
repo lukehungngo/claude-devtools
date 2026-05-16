@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { calculateTurnCost } from "./cost";
 import { mainEventsOnly } from "./turnEventFilters";
+import { SYNTHETIC_AGENT_PREFIX } from "./agentIds";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -232,7 +233,19 @@ function computeDispatchedAgentIds(
         if (candTs < mainTs) continue;
         if (candTs - mainTs > TEMPORAL_DISPATCH_WINDOW_MS) continue;
         result.add(candidate.agentId);
+        matched = true;
         break;
+      }
+
+      // 3. Synthetic-id fallback (Phase 3). Subagent has no events of its own
+      //    (Claude Code variant without sidechain emission). Bind a synthetic
+      //    agentId derived from the dispatching tool_use.id so the DAG still
+      //    represents the dispatch.
+      if (!matched && item.id) {
+        const syntheticId = `${SYNTHETIC_AGENT_PREFIX}${item.id}`;
+        if (!result.has(syntheticId)) {
+          result.add(syntheticId);
+        }
       }
     }
   }
