@@ -1237,6 +1237,58 @@
   white-space: nowrap;
 }
 
+/* ── Running-row animation (Phase 6) ──────────────────────────────
+   - 2px accent stripe on row's left edge, breathes opacity 1.0 ↔ 0.45
+   - Sweep highlight across the timeline bar
+   Both kick in when row's status is "active". GPU-only (transform/opacity).
+   prefers-reduced-motion: reduce already neutralizes via globals.css:1392.
+   ────────────────────────────────────────────────────────────────── */
+
+.trace-row-active {
+  position: relative;
+}
+.trace-row-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--acc);
+  pointer-events: none;
+  animation: trace-row-active-pulse 2s ease-in-out infinite;
+}
+@keyframes trace-row-active-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+.trace-bar-active {
+  position: relative;
+  overflow: hidden;
+}
+.trace-bar-active::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 30%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: trace-bar-sweep 1.8s ease-in-out infinite;
+  z-index: 0;
+}
+@keyframes trace-bar-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
 /* Name, Model, Duration, Cost & Tokens columns (fixed-width, right of label) */
 .trace-col-name,
 .trace-col-model,
