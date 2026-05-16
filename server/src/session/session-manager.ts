@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, statSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import type { PermissionResult, PermissionUpdate, Query, RewindFilesResult, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import { sessionLog } from "../logger.js";
 import { isToolAllowedForSession } from "../hooks/permission-handler.js";
+import { discoverSessions } from "../parser/session-discovery.js";
 
 /** Subset of the canUseTool options parameter we forward to the dashboard */
 export interface CanUseToolOptions {
@@ -459,6 +461,103 @@ export class SessionManager {
       sessionLog.error({ sessionId, userMessageId, error: String(err) }, "rewindFiles failed");
       return { canRewind: false, error: String(err) };
     }
+  }
+
+  /**
+   * Bound a "Summarize up to here" dispatch at a picked user message.
+   *
+   * Reads the session JSONL, locates the picked user event by `messageId`
+   * (uuid), counts the 1-indexed user-prompt turn number up to and
+   * including that message, and dispatches a `/compact` SDK message with
+   * a bounded summarization hint. Returns the turn number plus the SDK
+   * stream so the caller can drain it (typically the HTTP route does
+   * fire-and-forget while SSE delivers the compact_boundary).
+   *
+   * Throws when the session has no JSONL on disk yet or when `messageId`
+   * is not found in the JSONL.
+   *
+   * Async fs (`fs/promises.readFile`) — per project invariant "no sync
+   * I/O on request paths".
+   */
+  async summarizeUpTo(
+    sessionId: string,
+    messageId: string
+  ): Promise<{ turnNumber: number; stream: AsyncGenerator<unknown> }> {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) throw new Error(`Session ${sessionId} not found`);
+
+    const sessions = discoverSessions();
+    const info = sessions.find((s) => s.id === sessionId);
+    if (!info) {
+      throw new Error(`Session JSONL not found for ${sessionId}`);
+    }
+
+    const turnNumber = await SessionManager.countUserTurnUpTo(info.path, messageId);
+
+    const boundedPrompt =
+      `/compact Summarize the conversation up to and including user turn ${turnNumber}. ` +
+      `Preserve verbatim every turn after that point.`;
+
+    sessionLog.info(
+      { sessionId, messageId, turnNumber },
+      "summarizeUpTo: dispatching bounded /compact"
+    );
+    const stream = this.sendMessage(sessionId, boundedPrompt);
+    return { turnNumber, stream };
+  }
+
+  /**
+   * Read a session JSONL and return the 1-indexed user-prompt turn count
+   * up to and including the event whose uuid matches `messageId`.
+   *
+   * Counting rule (mirrors CC's notion of a "user turn"):
+   * - `type === "user"` events only
+   * - Skip events with `isMeta === true` (system-injected: command output,
+   *   skill expansions, image refs)
+   * - Skip events whose `message.content` is an array consisting only of
+   *   `tool_result` blocks (these are tool replies, not real prompts)
+   *
+   * Throws when the picked uuid is not found in the file.
+   */
+  static async countUserTurnUpTo(
+    jsonlPath: string,
+    messageId: string
+  ): Promise<number> {
+    const raw = await readFile(jsonlPath, "utf-8");
+    const lines = raw.split("\n");
+    let turnCount = 0;
+    for (const line of lines) {
+      if (!line) continue;
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(line) as Record<string, unknown>;
+      } catch {
+        // Skip malformed lines — fail-safe per invariant #3
+        continue;
+      }
+      if (event.type !== "user") continue;
+      if (event.isMeta === true) continue;
+
+      const message = event.message as { content?: unknown } | undefined;
+      const content = message?.content;
+      // Tool-result-only user events are tool replies, not prompts.
+      const isToolResultOnly =
+        Array.isArray(content) &&
+        content.length > 0 &&
+        content.every(
+          (block) =>
+            typeof block === "object" &&
+            block !== null &&
+            (block as { type?: string }).type === "tool_result"
+        );
+      if (isToolResultOnly) continue;
+
+      turnCount += 1;
+      if (event.uuid === messageId) {
+        return turnCount;
+      }
+    }
+    throw new Error(`Message ${messageId} not found in session JSONL`);
   }
 
   /** List all active sessions */

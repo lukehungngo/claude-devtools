@@ -759,10 +759,10 @@ export function createSessionRoutes({ state }: RouteContext): Router {
   });
 
   // Summarize earlier turns up to a selected user message (Rewind → "Summarize
-  // up to here", CC v2.1.143 line 73). Currently dispatches /compact to the
-  // active session; the dashboard's user picks a turn but the underlying
-  // compaction is the existing autocompact pipeline. A future iteration can
-  // bound the summarization at the picked messageId.
+  // up to here", CC v2.1.143 line 73). Counts the picked user turn from the
+  // session JSONL and dispatches a bounded `/compact` with a summarization
+  // hint pinned to that turn number. The dashboard receives the
+  // compact_boundary back via SSE.
   router.post("/sessions/:sessionId/summarize-up-to", async (req, res) => {
     const { messageId } = req.body;
     if (!messageId || typeof messageId !== "string") {
@@ -776,24 +776,30 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     if (!session) {
       return res.status(404).json({ error: "Session not found" });
     }
-    // Fire-and-forget: drain the SDK stream in the background so the HTTP
-    // response can return immediately. The compact_boundary event will flow
-    // back to the dashboard via SSE.
     try {
-      const stream = sessionManager.sendMessage(req.params.sessionId, "/compact");
+      const { turnNumber, stream } = await sessionManager.summarizeUpTo(
+        req.params.sessionId,
+        messageId
+      );
+      // Fire-and-forget: drain the SDK stream in the background so the HTTP
+      // response returns immediately. SSE handlers downstream do the work.
       (async () => {
         try {
           for await (const _ of stream) {
-            // intentionally drained; SSE handlers downstream do the work
+            // intentionally drained
           }
         } catch (err) {
           // sendMessage already logs; nothing more to do here
           void err;
         }
       })();
-      res.json({ ok: true, messageId, action: "compact-dispatched" });
+      res.json({ ok: true, messageId, action: "compact-dispatched", turnNumber });
     } catch (err) {
-      res.status(500).json({ error: "Summarize failed", detail: String(err) });
+      const detail = err instanceof Error ? err.message : String(err);
+      if (detail.startsWith("Message ") || detail.startsWith("Session JSONL ")) {
+        return res.status(404).json({ error: "Summarize failed", detail });
+      }
+      res.status(500).json({ error: "Summarize failed", detail });
     }
   });
 

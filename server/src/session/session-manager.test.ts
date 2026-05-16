@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 // Mock the SDK so sendMessage doesn't need a real Claude session
 const mockQuery = vi.fn();
@@ -13,6 +16,13 @@ vi.mock("../logger.js", () => ({
     error: vi.fn(),
     debug: vi.fn(),
   },
+}));
+
+// Mock session discovery so summarizeUpTo can resolve the JSONL path
+// to a tempfile we control in tests.
+const mockDiscoverSessions = vi.fn();
+vi.mock("../parser/session-discovery.js", () => ({
+  discoverSessions: () => mockDiscoverSessions(),
 }));
 
 import { SessionManager } from "./session-manager.js";
@@ -523,5 +533,136 @@ describe("SessionManager.sendMessage passes effortLevel to SDK query()", () => {
     expect(mockQuery).toHaveBeenCalledTimes(1);
     const callArgs = mockQuery.mock.calls[0][0];
     expect(callArgs.options.effort).toBeUndefined();
+  });
+});
+
+describe("SessionManager.summarizeUpTo bounds /compact at picked messageId", () => {
+  let manager: SessionManager;
+  let tmpDir: string;
+  let jsonlPath: string;
+
+  // Three real user prompts (string content) interleaved with an isMeta
+  // wrapper and a tool_result reply — both must be skipped by the counter.
+  const lines = [
+    JSON.stringify({ type: "user", uuid: "u1", message: { role: "user", content: "first prompt" } }),
+    JSON.stringify({ type: "assistant", uuid: "a1" }),
+    JSON.stringify({ type: "user", uuid: "meta1", isMeta: true, message: { role: "user", content: [{ type: "text", text: "skill expansion" }] } }),
+    JSON.stringify({ type: "user", uuid: "tr1", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "out" }] } }),
+    JSON.stringify({ type: "user", uuid: "u2", message: { role: "user", content: "second prompt" } }),
+    JSON.stringify({ type: "assistant", uuid: "a2" }),
+    JSON.stringify({ type: "user", uuid: "u3", message: { role: "user", content: "third prompt" } }),
+  ];
+
+  beforeEach(async () => {
+    manager = new SessionManager(vi.fn());
+    mockQuery.mockReset();
+    mockDiscoverSessions.mockReset();
+
+    tmpDir = mkdtempSync(join(tmpdir(), "summarize-up-to-"));
+    jsonlPath = join(tmpDir, "session.jsonl");
+    writeFileSync(jsonlPath, lines.join("\n") + "\n", "utf-8");
+  });
+
+  afterEach(() => {
+    manager.dispose();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("counts user turns and dispatches a bounded /compact prompt", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([
+      { id: sessionId, path: jsonlPath },
+    ]);
+
+    // Stub sendMessage to capture the bounded prompt without invoking the SDK.
+    async function* drainable() { /* no-op */ }
+    const sendMessageSpy = vi
+      .spyOn(manager, "sendMessage")
+      .mockImplementation((..._args: unknown[]) => drainable() as unknown as AsyncGenerator<unknown>);
+
+    // u2 is the 2nd real user prompt (meta + tool_result-only are skipped).
+    const { turnNumber, stream } = await manager.summarizeUpTo(sessionId, "u2");
+    expect(turnNumber).toBe(2);
+
+    // Drain the returned stream to satisfy the AsyncGenerator contract.
+    for await (const _ of stream) { /* drain */ }
+
+    expect(sendMessageSpy).toHaveBeenCalledTimes(1);
+    const [calledSessionId, calledPrompt] = sendMessageSpy.mock.calls[0] as [string, string];
+    expect(calledSessionId).toBe(sessionId);
+    expect(calledPrompt.startsWith("/compact ")).toBe(true);
+    expect(calledPrompt).toContain("user turn 2");
+    expect(calledPrompt).toContain("Preserve verbatim");
+  });
+
+  it("returns turnNumber=1 for the first real user prompt", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([{ id: sessionId, path: jsonlPath }]);
+
+    async function* drainable() { /* no-op */ }
+    vi.spyOn(manager, "sendMessage").mockImplementation(
+      (..._args: unknown[]) => drainable() as unknown as AsyncGenerator<unknown>
+    );
+
+    const { turnNumber } = await manager.summarizeUpTo(sessionId, "u1");
+    expect(turnNumber).toBe(1);
+  });
+
+  it("returns turnNumber=3 when picked uuid is the third real prompt", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([{ id: sessionId, path: jsonlPath }]);
+
+    async function* drainable() { /* no-op */ }
+    vi.spyOn(manager, "sendMessage").mockImplementation(
+      (..._args: unknown[]) => drainable() as unknown as AsyncGenerator<unknown>
+    );
+
+    const { turnNumber } = await manager.summarizeUpTo(sessionId, "u3");
+    expect(turnNumber).toBe(3);
+  });
+
+  it("throws when messageId is not found in the JSONL", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([{ id: sessionId, path: jsonlPath }]);
+
+    await expect(
+      manager.summarizeUpTo(sessionId, "does-not-exist")
+    ).rejects.toThrow(/Message does-not-exist not found/);
+  });
+
+  it("throws when the session has no JSONL on disk yet", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([]); // no JSONL discovered
+
+    await expect(
+      manager.summarizeUpTo(sessionId, "u1")
+    ).rejects.toThrow(/Session JSONL not found/);
+  });
+
+  it("throws when the session is not registered", async () => {
+    mockDiscoverSessions.mockReturnValue([]);
+    await expect(
+      manager.summarizeUpTo("unknown-session", "u1")
+    ).rejects.toThrow(/Session unknown-session not found/);
+  });
+
+  it("skips malformed JSONL lines without crashing", async () => {
+    const corrupted = [
+      JSON.stringify({ type: "user", uuid: "u1", message: { role: "user", content: "a" } }),
+      "{not valid json",
+      JSON.stringify({ type: "user", uuid: "u2", message: { role: "user", content: "b" } }),
+    ].join("\n") + "\n";
+    writeFileSync(jsonlPath, corrupted, "utf-8");
+
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([{ id: sessionId, path: jsonlPath }]);
+
+    async function* drainable() { /* no-op */ }
+    vi.spyOn(manager, "sendMessage").mockImplementation(
+      (..._args: unknown[]) => drainable() as unknown as AsyncGenerator<unknown>
+    );
+
+    const { turnNumber } = await manager.summarizeUpTo(sessionId, "u2");
+    expect(turnNumber).toBe(2);
   });
 });
