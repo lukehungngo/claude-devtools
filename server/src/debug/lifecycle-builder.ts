@@ -4,6 +4,7 @@ import type {
   AssistantEvent,
   ContentItem,
 } from "../types.js";
+import { isTerminalStopReason } from "../types.js";
 
 // ── Exported types ───────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ function extractPromptText(event: UserEvent): string {
 function deriveTurnStatus(lastEvent: SessionEvent): "running" | "completed" {
   if (lastEvent.type === "assistant") {
     const asst = lastEvent as AssistantEvent;
-    if (asst.message?.stop_reason === "end_turn") return "completed";
+    if (isTerminalStopReason(asst.message?.stop_reason)) return "completed";
   }
   return "running";
 }
@@ -177,7 +178,7 @@ function processEvent(ctx: ProcessingContext, event: SessionEvent): void {
   lifecycle.completedAt = event.timestamp;
   if (event.type === "assistant") {
     const asst = event as AssistantEvent;
-    if (asst.message?.stop_reason === "end_turn") {
+    if (isTerminalStopReason(asst.message?.stop_reason)) {
       lifecycle.status = "completed";
     }
   }

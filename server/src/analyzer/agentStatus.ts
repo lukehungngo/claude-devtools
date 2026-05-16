@@ -12,6 +12,7 @@ import type {
   SystemEvent,
   ContentItem,
 } from "../types.js";
+import { isTerminalStopReason } from "../types.js";
 
 /**
  * Window (ms) for temporal-proximity matching between a main Task/Agent
@@ -60,8 +61,8 @@ export function isAgentCompleted(
   for (let i = owned.length - 1; i >= 0; i--) {
     if (owned[i].type !== "assistant") continue;
     const stop = (owned[i] as AssistantEvent).message.stop_reason;
-    if (stop === "end_turn") return true;
-    // Last assistant found but not end_turn — fall through to other signals.
+    if (isTerminalStopReason(stop)) return true;
+    // Last assistant found but not terminal — fall through to other signals.
     break;
   }
 

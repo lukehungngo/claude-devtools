@@ -1,6 +1,7 @@
 import { openSync, readSync, closeSync, statSync, existsSync, readdirSync, type Stats } from "node:fs";
 import { basename, join } from "node:path";
 import type { SessionInfo } from "../types.js";
+import { isTerminalStopReason } from "../types.js";
 import { parserLog } from "../logger.js";
 
 /**
@@ -353,8 +354,11 @@ export class SessionCache {
 function isTerminalEvent(evt: Record<string, unknown>): boolean {
   if (evt["type"] === "assistant") {
     const msg = evt["message"];
-    if (msg && typeof msg === "object" && (msg as Record<string, unknown>)["stop_reason"] === "end_turn") {
-      return true;
+    if (msg && typeof msg === "object") {
+      const stopReason = (msg as Record<string, unknown>)["stop_reason"];
+      if (isTerminalStopReason(stopReason as Parameters<typeof isTerminalStopReason>[0])) {
+        return true;
+      }
     }
   }
   if (evt["type"] === "system" && evt["subtype"] === "turn_duration") {

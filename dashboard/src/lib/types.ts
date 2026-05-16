@@ -1,5 +1,34 @@
 // Mirrors server types — shared via API responses
 
+// === Stop reasons (Anthropic Messages API) ===
+
+/**
+ * stop_reason values emitted by the Messages API.
+ * - end_turn / max_tokens / stop_sequence / refusal: terminal (no more events without new user input).
+ * - tool_use: non-terminal (tool_result and follow-up assistant events expected).
+ * - pause_turn: non-terminal (extended thinking will resume automatically).
+ * - null: in-flight / streaming.
+ */
+export type StopReason =
+  | "end_turn"
+  | "tool_use"
+  | "max_tokens"
+  | "stop_sequence"
+  | "pause_turn"
+  | "refusal"
+  | null;
+
+const TERMINAL_STOP_REASONS = new Set<StopReason>([
+  "end_turn",
+  "max_tokens",
+  "stop_sequence",
+  "refusal",
+]);
+
+export function isTerminalStopReason(reason: StopReason | undefined): boolean {
+  return reason !== undefined && TERMINAL_STOP_REASONS.has(reason);
+}
+
 // === JSONL Event Types ===
 
 export interface BaseEvent {
@@ -45,7 +74,7 @@ export interface AssistantEvent extends BaseEvent {
     model: string;
     id: string;
     type: "message";
-    stop_reason: "end_turn" | "tool_use" | null;
+    stop_reason: StopReason;
     usage: TokenUsage;
   };
 }

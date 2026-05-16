@@ -15,7 +15,7 @@ function makeAssistantEvent(overrides: {
   timestamp?: string;
   agentId?: string;
   isSidechain?: boolean;
-  stopReason?: "end_turn" | "tool_use" | null;
+  stopReason?: "end_turn" | "tool_use" | "max_tokens" | "stop_sequence" | "pause_turn" | "refusal" | null;
   content?: ContentItem[];
 }): AssistantEvent {
   return {
@@ -552,6 +552,54 @@ describe("isAgentCompleted — edge cases", () => {
         isSidechain: true,
         timestamp: "2026-01-01T00:00:02Z",
         stopReason: null,
+      }),
+    ];
+    expect(isAgentCompleted("subA", events)).toBe(false);
+  });
+
+  it("T-EDGE-4 stop_reason 'max_tokens' is terminal → completed", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        agentId: "subA",
+        isSidechain: true,
+        timestamp: "2026-01-01T00:00:01Z",
+        stopReason: "max_tokens",
+      }),
+    ];
+    expect(isAgentCompleted("subA", events)).toBe(true);
+  });
+
+  it("T-EDGE-5 stop_reason 'stop_sequence' is terminal → completed", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        agentId: "subA",
+        isSidechain: true,
+        timestamp: "2026-01-01T00:00:01Z",
+        stopReason: "stop_sequence",
+      }),
+    ];
+    expect(isAgentCompleted("subA", events)).toBe(true);
+  });
+
+  it("T-EDGE-6 stop_reason 'refusal' is terminal → completed", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        agentId: "subA",
+        isSidechain: true,
+        timestamp: "2026-01-01T00:00:01Z",
+        stopReason: "refusal",
+      }),
+    ];
+    expect(isAgentCompleted("subA", events)).toBe(true);
+  });
+
+  it("T-EDGE-7 stop_reason 'pause_turn' is NOT terminal → not completed (extended thinking in flight)", () => {
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        agentId: "subA",
+        isSidechain: true,
+        timestamp: "2026-01-01T00:00:01Z",
+        stopReason: "pause_turn",
       }),
     ];
     expect(isAgentCompleted("subA", events)).toBe(false);
