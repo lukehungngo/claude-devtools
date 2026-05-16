@@ -13,26 +13,12 @@ import { buildAgentDAG } from "./dag-builder.js";
 import { buildToolStats } from "./tool-stats.js";
 import { normalizeContent } from "../lib/normalizeContent.js";
 import { getModelContextWindow } from "../cache/model-context-cache.js";
-
-// Fallback pricing per million tokens — used ONLY when SDK authoritative cost is unavailable
-// (e.g., historical sessions parsed from JSONL without a result event).
-// Prefer SDK `result.modelUsage[model].costUSD` or `result.total_cost_usd` when available.
-const FALLBACK_MODEL_PRICING: Record<
-  string,
-  { input: number; output: number; cacheWrite: number; cacheRead: number }
-> = {
-  "claude-opus-4-6": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
-  "claude-sonnet-4-6": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
-  "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheWrite: 1, cacheRead: 0.08 },
-};
-
-// Fallback context window sizes — prefer SDK `result.modelUsage[model].contextWindow`
-const FALLBACK_CONTEXT_WINDOW_SIZES: Record<string, number> = {
-  "claude-opus-4-7": 1_000_000,
-  "claude-opus-4-6": 200_000,
-  "claude-sonnet-4-6": 200_000,
-  "claude-haiku-4-5": 200_000,
-};
+import {
+  FALLBACK_MODEL_PRICING,
+  FALLBACK_CONTEXT_WINDOW_SIZES,
+  DEFAULT_CONTEXT_WINDOW,
+  ONE_MILLION_CONTEXT,
+} from "./modelPricing.js";
 
 export function calculateTokenCost(
   model: string,
@@ -55,12 +41,12 @@ function getContextWindowSize(model: string): number {
   const cached = getModelContextWindow(model);
   if (cached !== undefined) return cached;
   // 2. "1m" suffix heuristic (e.g., "claude-opus-4-6[1m]")
-  if (model.includes("1m") || model.includes("1M")) return 1_000_000;
+  if (model.includes("1m") || model.includes("1M")) return ONE_MILLION_CONTEXT;
   // 3. Static fallback map
   for (const [key, size] of Object.entries(FALLBACK_CONTEXT_WINDOW_SIZES)) {
     if (model.includes(key)) return size;
   }
-  return 200_000; // default
+  return DEFAULT_CONTEXT_WINDOW;
 }
 
 function extractTasks(events: SessionEvent[]): TaskSummary {

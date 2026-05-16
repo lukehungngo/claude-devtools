@@ -1,14 +1,9 @@
-/**
- * Fallback pricing table (per million tokens). March 2026.
- * Used ONLY for client-side turn-level cost estimates when server metrics are unavailable.
- * Prefer server's computeMetrics() or SDK's result.modelUsage[model].costUSD for authoritative costs.
- * Mirrors server/src/analyzer/metrics.ts FALLBACK_MODEL_PRICING.
- */
-const FALLBACK_MODEL_PRICING: Record<string, { input: number; output: number; cacheWrite: number; cacheRead: number }> = {
-  "claude-opus-4-6": { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
-  "claude-sonnet-4-6": { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
-  "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheWrite: 1, cacheRead: 0.08 },
-};
+import {
+  FALLBACK_MODEL_PRICING,
+  FALLBACK_CONTEXT_WINDOW_SIZES,
+  DEFAULT_CONTEXT_WINDOW,
+  ONE_MILLION_CONTEXT,
+} from "./modelPricing";
 
 const DEFAULT_PRICING = FALLBACK_MODEL_PRICING["claude-sonnet-4-6"];
 
@@ -38,20 +33,12 @@ export function calculateTurnCost(
   );
 }
 
-// Context window sizes — mirrors server FALLBACK_CONTEXT_WINDOW_SIZES
-const CONTEXT_WINDOW_SIZES: Record<string, number> = {
-  "claude-opus-4-7": 1_000_000,
-  "claude-opus-4-6": 200_000,
-  "claude-sonnet-4-6": 200_000,
-  "claude-haiku-4-5": 200_000,
-};
-
 function getContextWindowSize(model: string): number {
-  if (model.includes("1m") || model.includes("1M")) return 1_000_000;
-  for (const [key, size] of Object.entries(CONTEXT_WINDOW_SIZES)) {
+  if (model.includes("1m") || model.includes("1M")) return ONE_MILLION_CONTEXT;
+  for (const [key, size] of Object.entries(FALLBACK_CONTEXT_WINDOW_SIZES)) {
     if (model.includes(key)) return size;
   }
-  return 200_000;
+  return DEFAULT_CONTEXT_WINDOW;
 }
 
 export interface LiveMetrics {
