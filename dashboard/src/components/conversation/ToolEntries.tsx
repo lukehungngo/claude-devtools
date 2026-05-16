@@ -1,6 +1,6 @@
 import { memo, useState, useContext } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
-import type { SessionEvent, AssistantEvent, UserEvent, ContentItem, ToolUseContent, ToolResultContent } from "../../lib/types";
+import type { SessionEvent, AssistantEvent, UserEvent, ToolUseContent, ToolResultContent } from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
 import { groupIntoPhases } from "../../lib/phaseGrouping";
 import type { Phase } from "../../lib/phaseGrouping";
@@ -409,6 +409,11 @@ const ToolEntryRow = memo(function ToolEntryRow({
     if (setHighlightedHookId && entry.id) setHighlightedHookId(null);
   };
 
+  // Collapsed by default — only show one-line summary. Auto-expand errors.
+  // Hook must be called unconditionally (rules-of-hooks); only used in the
+  // non-agent-dispatch branch below.
+  const [isExpanded, setIsExpanded] = useState(entry.status === "error");
+
   // Agent dispatch entries render as AgentCard instead of normal tool row
   if (isAgentDispatch(entry.name)) {
     const agentName = extractAgentName(entry);
@@ -436,9 +441,6 @@ const ToolEntryRow = memo(function ToolEntryRow({
       </AgentCard>
     );
   }
-
-  // Collapsed by default — only show one-line summary. Auto-expand errors.
-  const [isExpanded, setIsExpanded] = useState(entry.status === "error");
 
   const icon = STATUS_ICONS[entry.status];
   const borderColor = getToolBorderColor(entry.name, entry.status);
