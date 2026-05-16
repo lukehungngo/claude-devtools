@@ -8,6 +8,8 @@ import type { StreamingState, CompactMetadata } from "../../lib/streaming-types"
 
 interface StreamingTurnAreaProps {
   state: StreamingState;
+  /** Live session ID — forwarded to StreamingToolCall so the "Background this task" button can POST. */
+  sessionId?: string;
 }
 
 /** Shows compact result for 3 seconds then fades out */
@@ -75,7 +77,7 @@ function CompactResultBanner({ result }: { result: CompactMetadata }): JSX.Eleme
   );
 }
 
-export function StreamingTurnArea({ state }: StreamingTurnAreaProps): JSX.Element | null {
+export function StreamingTurnArea({ state, sessionId }: StreamingTurnAreaProps): JSX.Element | null {
   const hasThinking = state.thinking.text.length > 0;
   const hasTools = state.toolOrder.length > 0;
   const hasResponse = state.responseText.length > 0;
@@ -123,7 +125,7 @@ export function StreamingTurnArea({ state }: StreamingTurnAreaProps): JSX.Elemen
           {state.toolOrder.map((toolId) => {
             const entry = state.tools.get(toolId);
             if (!entry) return null;
-            return <StreamingToolCall key={toolId} entry={entry} />;
+            return <StreamingToolCall key={toolId} entry={entry} sessionId={sessionId} />;
           })}
 
           {/* Compacting status */}

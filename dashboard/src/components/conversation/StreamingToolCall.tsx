@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Clock } from "lucide-react";
 import { ToolResultBlock } from "../viewer/ToolResultBlock";
 import { DiffBlock } from "../viewer/DiffBlock";
 import { extractToolTarget } from "../../lib/streaming-types";
@@ -7,6 +7,8 @@ import type { StreamingToolEntry } from "../../lib/streaming-types";
 
 interface StreamingToolCallProps {
   entry: StreamingToolEntry;
+  /** Live session ID — required to POST background-task. Button is hidden when absent. */
+  sessionId?: string;
 }
 
 const STATUS_ICONS: Record<string, { char: string; colorClass: string }> = {
@@ -23,13 +25,35 @@ function formatElapsed(ms: number): string {
   return `${mins}m ${String(secs).padStart(2, "0")}s`;
 }
 
-export function StreamingToolCall({ entry }: StreamingToolCallProps): JSX.Element {
+export function StreamingToolCall({ entry, sessionId }: StreamingToolCallProps): JSX.Element {
   const [elapsed, setElapsed] = useState(0);
   const [resultExpanded, setResultExpanded] = useState(entry.status === "error");
+  const [bgNotice, setBgNotice] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const target = extractToolTarget(entry.name, entry.input);
   const isRunning = entry.status === "running";
+
+  // NEW-5 — POST to background-task endpoint. Inline 3s notice on success
+  // (no global toast lib in repo). Button hidden when not running or no sessionId.
+  async function handleBackgroundClick(): Promise<void> {
+    if (!sessionId) return;
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/background-task`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toolUseId: entry.id }),
+      });
+      if (res.ok) {
+        setBgNotice("Backgrounded — turn continues");
+      } else {
+        setBgNotice("Could not background this task");
+      }
+    } catch {
+      setBgNotice("Could not background this task");
+    }
+    setTimeout(() => setBgNotice(null), 3000);
+  }
 
   useEffect(() => {
     if (isRunning) {
@@ -94,7 +118,31 @@ export function StreamingToolCall({ entry }: StreamingToolCallProps): JSX.Elemen
         >
           {formatElapsed(elapsed)}
         </span>
+
+        {/* NEW-5 — "Background this task" button (running tools, live sessions only) */}
+        {isRunning && sessionId && (
+          <button
+            type="button"
+            data-testid="background-task-btn"
+            onClick={handleBackgroundClick}
+            title="Background this task (Ctrl+B)"
+            aria-label="Background this task"
+            className="shrink-0 inline-flex items-center justify-center text-dt-text2 hover:text-dt-accent bg-transparent border-none cursor-pointer p-0.5"
+          >
+            <Clock size={12} />
+          </button>
+        )}
       </div>
+
+      {/* NEW-5 — inline background-task notice (3s auto-dismiss) */}
+      {bgNotice && (
+        <div
+          data-testid="background-task-notice"
+          className="ml-6 mt-0.5 text-xxs text-dt-text2 italic"
+        >
+          {bgNotice}
+        </div>
+      )}
 
       {/* Result area */}
       {entry.resultContent != null && (

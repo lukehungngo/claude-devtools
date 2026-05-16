@@ -83,6 +83,8 @@ interface VirtualizedTurnListProps {
   sessionIsRunning?: boolean;
   /** compact_boundary markers grouped by the turn they follow (turnNumber -> markers). */
   compactMarkersByTurn?: Map<number, CompactMarker[]>;
+  /** Live session ID — forwarded to StreamingTurnArea for the NEW-5 background-task button. */
+  sessionId?: string;
 }
 
 /** Props for TurnRow — pre-computed values to avoid per-row work */
@@ -228,6 +230,7 @@ function VirtualizedTurnList({
   tasksByTurn,
   sessionIsRunning,
   compactMarkersByTurn,
+  sessionId,
 }: VirtualizedTurnListProps) {
   const virtualizer = useVirtualizer({
     count: filteredTurns.length,
@@ -418,7 +421,7 @@ function VirtualizedTurnList({
           />
         ))}
       {/* Streaming turn area (visible during active SSE) */}
-      <StreamingTurnArea state={streamingState} />
+      <StreamingTurnArea state={streamingState} sessionId={sessionId} />
     </div>
   );
 }
@@ -782,6 +785,7 @@ export function ConversationView({
         streamingState={streamingState}
         tasksByTurn={tasksByTurn}
         compactMarkersByTurn={compactMarkersByTurn}
+        sessionId={activeSessionId || sessionId}
         sessionIsRunning={
           // Prefer authoritative SDK session_state_changed signal over mtime heuristic.
           // Fall back to isActive (12-hour mtime), NOT isRunning (2-minute mtime).

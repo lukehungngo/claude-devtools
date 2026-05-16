@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { render, cleanup, fireEvent } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { StreamingToolCall } from "./StreamingToolCall";
 import type { StreamingToolEntry } from "../../lib/streaming-types";
 
@@ -116,5 +116,56 @@ describe("StreamingToolCall", () => {
     const { container } = render(<StreamingToolCall entry={makeEntry()} />);
     const spinner = container.querySelector("[data-testid='tool-spinner']");
     expect(spinner?.getAttribute("aria-label")).toBe("Tool executing");
+  });
+});
+
+// NEW-5 — "Background this task" button
+describe("StreamingToolCall background-task button", () => {
+  it("shows the background button only while the tool is running", () => {
+    const { container, rerender } = render(
+      <StreamingToolCall entry={makeEntry({ status: "running" })} sessionId="sess-1" />
+    );
+    const btn = container.querySelector("[data-testid='background-task-btn']");
+    expect(btn).not.toBeNull();
+    expect(btn?.getAttribute("title")).toContain("Background this task");
+
+    rerender(
+      <StreamingToolCall
+        entry={makeEntry({ status: "success", resultContent: "ok", completedAt: Date.now() })}
+        sessionId="sess-1"
+      />
+    );
+    const btnAfter = container.querySelector("[data-testid='background-task-btn']");
+    expect(btnAfter).toBeNull();
+  });
+
+  it("POSTs to /api/sessions/:sessionId/background-task with toolUseId on click", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    } as Response);
+
+    const { container } = render(
+      <StreamingToolCall
+        entry={makeEntry({ id: "toolu_xyz", status: "running" })}
+        sessionId="sess-1"
+      />
+    );
+    const btn = container.querySelector("[data-testid='background-task-btn']");
+    expect(btn).not.toBeNull();
+    fireEvent.click(btn!);
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/sessions/sess-1/background-task",
+        expect.objectContaining({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ toolUseId: "toolu_xyz" }),
+        })
+      );
+    });
+
+    fetchSpy.mockRestore();
   });
 });
