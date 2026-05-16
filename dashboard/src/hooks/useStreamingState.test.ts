@@ -321,4 +321,102 @@ describe("useStreamingState", () => {
     expect(result.current.state.lastResultStopReason).toBe("tool_use");
     expect(result.current.state.lastResultFinishReasons).toEqual(["tool_use"]);
   });
+
+  describe("hook lifecycle reducer (NEW-8)", () => {
+    it("creates a LiveHookState on hook_started with startedAt and completed=false", () => {
+      const before = Date.now();
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({
+          type: "hook_started",
+          hook_id: "h-1",
+          hook_name: "PreToolUse:Bash",
+          hook_event: "PreToolUse",
+        });
+      });
+      const after = Date.now();
+      const entry = result.current.state.liveHooks.get("h-1");
+      expect(entry).toBeDefined();
+      expect(entry?.hook_id).toBe("h-1");
+      expect(entry?.hook_name).toBe("PreToolUse:Bash");
+      expect(entry?.hook_event).toBe("PreToolUse");
+      expect(entry?.completed).toBe(false);
+      expect(entry?.startedAt).toBeGreaterThanOrEqual(before);
+      expect(entry?.startedAt).toBeLessThanOrEqual(after);
+      expect(entry?.outcome).toBeUndefined();
+      expect(entry?.durationMs).toBeUndefined();
+    });
+
+    it("captures last output chunk on hook_progress without flipping completed", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({
+          type: "hook_started",
+          hook_id: "h-2",
+          hook_name: "PreToolUse:Bash",
+          hook_event: "PreToolUse",
+        });
+        result.current.actions.handleSSEEvent({
+          type: "hook_progress",
+          hook_id: "h-2",
+          hook_name: "PreToolUse:Bash",
+          hook_event: "PreToolUse",
+          output: "step 1 of 2",
+        });
+      });
+      const entry = result.current.state.liveHooks.get("h-2");
+      expect(entry?.completed).toBe(false);
+      expect(entry?.lastOutput).toBe("step 1 of 2");
+    });
+
+    it("marks completed and computes durationMs on hook_response", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({
+          type: "hook_started",
+          hook_id: "h-3",
+          hook_name: "PreToolUse:Bash",
+          hook_event: "PreToolUse",
+        });
+      });
+      // small synchronous gap to guarantee non-zero duration
+      const start = result.current.state.liveHooks.get("h-3")?.startedAt ?? 0;
+      act(() => {
+        result.current.actions.handleSSEEvent({
+          type: "hook_response",
+          hook_id: "h-3",
+          hook_name: "PreToolUse:Bash",
+          hook_event: "PreToolUse",
+          outcome: "success",
+          exit_code: 0,
+        });
+      });
+      const entry = result.current.state.liveHooks.get("h-3");
+      expect(entry?.completed).toBe(true);
+      expect(entry?.outcome).toBe("success");
+      expect(entry?.exit_code).toBe(0);
+      expect(entry?.durationMs).toBeGreaterThanOrEqual(0);
+      expect(entry?.durationMs).toBeLessThan(Date.now() - start + 5);
+    });
+
+    it("ignores hook_progress and hook_response for unknown hook_id (defensive)", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({
+          type: "hook_progress",
+          hook_id: "missing",
+          hook_name: "X",
+          hook_event: "X",
+        });
+        result.current.actions.handleSSEEvent({
+          type: "hook_response",
+          hook_id: "missing",
+          hook_name: "X",
+          hook_event: "X",
+          outcome: "success",
+        });
+      });
+      expect(result.current.state.liveHooks.size).toBe(0);
+    });
+  });
 });

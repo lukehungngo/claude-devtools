@@ -1,7 +1,8 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi, beforeEach } from "vitest";
+import { act, render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { HooksTab } from "./HooksTab";
 import type { SessionEvent, AttachmentEvent } from "../../lib/types";
+import type { LiveHookState } from "../../lib/streaming-types";
 
 function hookSuccess(
   uuid: string,
@@ -320,6 +321,93 @@ describe("HooksTab", () => {
     // The matching row uses cat-purple-bg background tint
     expect(row1.getAttribute("style")).toContain("cat-purple-bg");
     expect(row2.getAttribute("style") ?? "").not.toContain("cat-purple-bg");
+  });
+
+  describe("live hook progress (NEW-8)", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-05-16T10:00:00Z"));
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function liveHook(overrides: Partial<LiveHookState> & { hook_id: string }): LiveHookState {
+      return {
+        hook_id: overrides.hook_id,
+        hook_name: overrides.hook_name ?? "PreToolUse:Bash",
+        hook_event: overrides.hook_event ?? "PreToolUse",
+        startedAt: overrides.startedAt ?? Date.now(),
+        completed: overrides.completed ?? false,
+        outcome: overrides.outcome,
+        exit_code: overrides.exit_code,
+        durationMs: overrides.durationMs,
+        lastOutput: overrides.lastOutput,
+      };
+    }
+
+    it("renders an in-flight row with a spinner for each liveHooks entry", () => {
+      const liveHooks = new Map<string, LiveHookState>([
+        ["h-live-1", liveHook({ hook_id: "h-live-1" })],
+      ]);
+      render(<HooksTab events={[]} liveHooks={liveHooks} />);
+      const row = screen.getByTestId("hook-row-live-h-live-1");
+      expect(row).toBeDefined();
+      // Spinner uses lucide Loader2 with animate-spin — assert the spinner is present
+      // via a stable test id we render only for in-flight rows.
+      expect(
+        screen.getByTestId("hook-row-live-h-live-1-spinner"),
+      ).toBeDefined();
+    });
+
+    it("updates the elapsed time each second while a hook is in-flight", () => {
+      const startedAt = Date.now();
+      const liveHooks = new Map<string, LiveHookState>([
+        ["h-live-2", liveHook({ hook_id: "h-live-2", startedAt })],
+      ]);
+      render(<HooksTab events={[]} liveHooks={liveHooks} />);
+      // Initially the row shows "0s".
+      const initial = screen.getByTestId("hook-row-live-h-live-2-elapsed");
+      expect(initial.textContent).toBe("0s");
+      // Advance the fake clock past 3s — vitest's advanceTimersByTime moves
+      // both Date.now and any pending intervals, so the 1s tick interval
+      // re-renders and the LiveHookRow recomputes the elapsed counter.
+      act(() => {
+        vi.advanceTimersByTime(3_200);
+      });
+      expect(
+        screen.getByTestId("hook-row-live-h-live-2-elapsed").textContent,
+      ).toBe("3s");
+    });
+
+    it("keeps a completed live row visible briefly then drops it", () => {
+      const startedAt = Date.now();
+      const liveHooks = new Map<string, LiveHookState>([
+        [
+          "h-live-3",
+          liveHook({
+            hook_id: "h-live-3",
+            startedAt,
+            completed: true,
+            outcome: "success",
+            durationMs: 42,
+          }),
+        ],
+      ]);
+      render(<HooksTab events={[]} liveHooks={liveHooks} />);
+      // Completed row stays visible immediately after hook_response — no spinner,
+      // duration column populated from durationMs.
+      const row = screen.getByTestId("hook-row-live-h-live-3");
+      expect(row).toBeDefined();
+      expect(screen.queryByTestId("hook-row-live-h-live-3-spinner")).toBeNull();
+      expect(row.textContent).toContain("42");
+      // After the 3s hold window the row drops out of the DOM, avoiding a
+      // double-render flicker when the JSONL hook_success attachment lands.
+      act(() => {
+        vi.advanceTimersByTime(3_500);
+      });
+      expect(screen.queryByTestId("hook-row-live-h-live-3")).toBeNull();
+    });
   });
 
   it("source column distinguishes hooks from task-notifications", () => {

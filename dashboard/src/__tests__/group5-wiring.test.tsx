@@ -76,6 +76,8 @@ function makeLayoutCtx(overrides?: Partial<LayoutContextValue>): LayoutContextVa
     setLastResultFinishReasons: () => {},
     autoCompactThreshold: null,
     setAutoCompactThreshold: () => {},
+    liveHooks: null,
+    setLiveHooks: () => {},
     ...overrides,
   };
 }

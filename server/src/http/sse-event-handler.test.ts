@@ -330,40 +330,114 @@ describe("mapSdkMessageToSSEEvents", () => {
       ]);
     });
 
-    it("maps system hook_started to hook_started event", () => {
+    // NEW-8: hook lifecycle events use SDK field names (snake_case) so the
+    // dashboard can build a LiveHookState map keyed by hook_id and render
+    // in-flight rows. See sdk.d.ts:3080-3116 for the canonical shapes.
+    it("maps SDKHookStartedMessage with SDK field names (NEW-8)", () => {
       const result = mapSdkMessageToSSEEvents({
         type: "system",
         subtype: "hook_started",
-        hookName: "pre-commit",
-        hookId: "h-1",
+        hook_id: "h-1",
+        hook_name: "PreToolUse:Bash",
+        hook_event: "PreToolUse",
       });
       expect(result).toEqual([
-        { type: "hook_started", hookName: "pre-commit", hookId: "h-1" },
+        {
+          type: "hook_started",
+          hook_id: "h-1",
+          hook_name: "PreToolUse:Bash",
+          hook_event: "PreToolUse",
+        },
       ]);
     });
 
-    it("maps system hook_progress to hook_progress event", () => {
+    it("maps SDKHookProgressMessage including stdout/stderr/output (NEW-8)", () => {
       const result = mapSdkMessageToSSEEvents({
         type: "system",
         subtype: "hook_progress",
-        hookId: "h-1",
+        hook_id: "h-1",
+        hook_name: "PreToolUse:Bash",
+        hook_event: "PreToolUse",
         output: "linting...",
+        stdout: "lint pass",
+        stderr: "",
       });
       expect(result).toEqual([
-        { type: "hook_progress", hookId: "h-1", output: "linting..." },
+        {
+          type: "hook_progress",
+          hook_id: "h-1",
+          hook_name: "PreToolUse:Bash",
+          hook_event: "PreToolUse",
+          output: "linting...",
+          stdout: "lint pass",
+          stderr: "",
+        },
       ]);
     });
 
-    it("maps system hook_response to hook_response event", () => {
+    it("maps SDKHookResponseMessage carrying outcome and exit_code (NEW-8)", () => {
       const result = mapSdkMessageToSSEEvents({
         type: "system",
         subtype: "hook_response",
-        hookId: "h-1",
-        exitCode: 0,
+        hook_id: "h-1",
+        hook_name: "PreToolUse:Bash",
+        hook_event: "PreToolUse",
+        outcome: "success",
+        exit_code: 0,
+        output: "done",
       });
       expect(result).toEqual([
-        { type: "hook_response", hookId: "h-1", exitCode: 0 },
+        {
+          type: "hook_response",
+          hook_id: "h-1",
+          hook_name: "PreToolUse:Bash",
+          hook_event: "PreToolUse",
+          outcome: "success",
+          exit_code: 0,
+          output: "done",
+        },
       ]);
+    });
+
+    it("defaults hook_response outcome to 'success' when SDK omits it (NEW-8)", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "hook_response",
+        hook_id: "h-2",
+        hook_name: "PostToolUse:Write",
+        hook_event: "PostToolUse",
+      });
+      expect(result).toEqual([
+        {
+          type: "hook_response",
+          hook_id: "h-2",
+          hook_name: "PostToolUse:Write",
+          hook_event: "PostToolUse",
+          outcome: "success",
+        },
+      ]);
+    });
+
+    it("preserves error / cancelled outcome verbatim (NEW-8)", () => {
+      const errorEvt = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "hook_response",
+        hook_id: "h-3",
+        hook_name: "PreToolUse:Edit",
+        hook_event: "PreToolUse",
+        outcome: "error",
+        exit_code: 2,
+      });
+      const cancelledEvt = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "hook_response",
+        hook_id: "h-4",
+        hook_name: "PreToolUse:Read",
+        hook_event: "PreToolUse",
+        outcome: "cancelled",
+      });
+      expect(errorEvt[0]).toMatchObject({ outcome: "error", exit_code: 2 });
+      expect(cancelledEvt[0]).toMatchObject({ outcome: "cancelled" });
     });
 
     it("ignores unknown system subtypes", () => {

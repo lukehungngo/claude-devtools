@@ -167,22 +167,47 @@ export interface SSETaskNotificationEvent {
   message?: string;
 }
 
+/**
+ * NEW-8: SDK hook lifecycle events. Source-of-truth field names mirror the
+ * SDK shapes (`sdk.d.ts:3080-3116`) — `hook_id`, `hook_name`, `hook_event`,
+ * `outcome`, `exit_code`. The dashboard reducer uses these to build a live
+ * `LiveHookState` map so HooksTab can render in-flight rows with a spinner.
+ *
+ * Note: NEW-8 supersedes the earlier P0-5 stub shape that used camelCase
+ * (`hookName`/`hookId`/`exitCode`) and lacked `hookEvent`/`outcome`. The
+ * stub never reached a consumer — the existing HooksTab reads completed
+ * hooks straight from JSONL attachments. NEW-8 is the first real consumer
+ * and pins the contract to the SDK fields.
+ */
 export interface SSEHookStartedEvent {
   type: "hook_started";
-  hookName: string;
-  hookId: string;
+  hook_id: string;
+  hook_name: string;
+  hook_event: string;
 }
 
 export interface SSEHookProgressEvent {
   type: "hook_progress";
-  hookId: string;
+  hook_id: string;
+  hook_name: string;
+  hook_event: string;
+  /** Combined hook output emitted so far (SDK provides this as a single string). */
   output?: string;
+  stdout?: string;
+  stderr?: string;
 }
 
 export interface SSEHookResponseEvent {
   type: "hook_response";
-  hookId: string;
-  exitCode?: number;
+  hook_id: string;
+  hook_name: string;
+  hook_event: string;
+  /** SDK's terminal outcome: success | error | cancelled (sdk.d.ts:3103). */
+  outcome: "success" | "error" | "cancelled";
+  exit_code?: number;
+  output?: string;
+  stdout?: string;
+  stderr?: string;
 }
 
 export interface SSEPromptSuggestionEvent {
@@ -510,15 +535,45 @@ export function mapSdkMessageToSSEEvents(msg: {
     });
   }
 
-  // System hook events
+  // NEW-8: SDK hook lifecycle events. Field names mirror the SDK shapes
+  // (sdk.d.ts:3080-3116) — hook_id / hook_name / hook_event / outcome /
+  // exit_code in snake_case. The dashboard reducer maps these to a
+  // LiveHookState so HooksTab can render in-flight rows with a spinner.
   if (msg.type === "system" && msg.subtype === "hook_started") {
-    events.push({ type: "hook_started", hookName: msg.hookName, hookId: msg.hookId });
+    events.push({
+      type: "hook_started",
+      hook_id: msg.hook_id,
+      hook_name: msg.hook_name,
+      hook_event: msg.hook_event,
+    });
   }
   if (msg.type === "system" && msg.subtype === "hook_progress") {
-    events.push({ type: "hook_progress", hookId: msg.hookId, output: msg.output });
+    const progressEvent: SSEHookProgressEvent = {
+      type: "hook_progress",
+      hook_id: msg.hook_id,
+      hook_name: msg.hook_name,
+      hook_event: msg.hook_event,
+    };
+    if (typeof msg.output === "string") progressEvent.output = msg.output;
+    if (typeof msg.stdout === "string") progressEvent.stdout = msg.stdout;
+    if (typeof msg.stderr === "string") progressEvent.stderr = msg.stderr;
+    events.push(progressEvent);
   }
   if (msg.type === "system" && msg.subtype === "hook_response") {
-    events.push({ type: "hook_response", hookId: msg.hookId, exitCode: msg.exitCode });
+    const outcome: SSEHookResponseEvent["outcome"] =
+      msg.outcome === "error" || msg.outcome === "cancelled" ? msg.outcome : "success";
+    const responseEvent: SSEHookResponseEvent = {
+      type: "hook_response",
+      hook_id: msg.hook_id,
+      hook_name: msg.hook_name,
+      hook_event: msg.hook_event,
+      outcome,
+    };
+    if (typeof msg.exit_code === "number") responseEvent.exit_code = msg.exit_code;
+    if (typeof msg.output === "string") responseEvent.output = msg.output;
+    if (typeof msg.stdout === "string") responseEvent.stdout = msg.stdout;
+    if (typeof msg.stderr === "string") responseEvent.stderr = msg.stderr;
+    events.push(responseEvent);
   }
 
   // Tool use summary

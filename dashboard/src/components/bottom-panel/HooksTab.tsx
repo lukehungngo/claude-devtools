@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Bell } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Bell, Loader2 } from "lucide-react";
 import type {
   SessionEvent,
   AttachmentEvent,
@@ -8,6 +8,14 @@ import type {
   AsyncHookResponseAttachment,
   QueuedCommandAttachment,
 } from "../../lib/types";
+import type { LiveHookState } from "../../lib/streaming-types";
+
+/**
+ * NEW-8: how long a completed `LiveHookState` row stays visible after
+ * `hook_response`. Buys the JSONL-source `hook_success` attachment time to
+ * land without flickering the row in and out.
+ */
+const LIVE_HOOK_DROP_MS = 3_000;
 
 interface HooksTabProps {
   events?: SessionEvent[];
@@ -24,6 +32,15 @@ interface HooksTabProps {
    * Rows whose `toolUseID` matches get a subtle purple-dim background tint.
    */
   highlightedHookId?: string | null;
+  /**
+   * NEW-8: in-flight (and recently-completed) hooks streamed from the SDK
+   * via `useStreamingState`. Rendered above the JSONL-source rows with a
+   * spinner + live elapsed-time counter so the user sees hook activity
+   * before the `hook_success` attachment lands on disk. Completed entries
+   * stay visible for `LIVE_HOOK_DROP_MS` then drop, giving the JSONL row
+   * time to take over without a visible flicker.
+   */
+  liveHooks?: ReadonlyMap<string, LiveHookState>;
 }
 
 /** Origin of the row — drives the "Source" column. */
@@ -161,15 +178,151 @@ function toRow(e: AttachmentEvent): HookRow | null {
   return null;
 }
 
+/**
+ * NEW-8: derive the visible live-hook list from the reducer-owned map.
+ *
+ * Behavior:
+ * - In-flight rows (completed=false) are always visible.
+ * - Completed rows stay visible for `LIVE_HOOK_DROP_MS` after the response
+ *   landed (computed as `now - (startedAt + durationMs)`) and then drop —
+ *   giving the JSONL `hook_success` attachment time to take over without a
+ *   visible flicker.
+ *
+ * Triggers a 1-second re-render while any live-hook entries are present so
+ * the elapsed-time counter advances and the drop-window expires. Tears the
+ * interval down when there's nothing live to display — costs nothing in
+ * sessions with no hooks running.
+ */
+function useVisibleLiveHooks(
+  liveHooks: ReadonlyMap<string, LiveHookState> | undefined,
+): LiveHookState[] {
+  const [tick, setTick] = useState(0);
+
+  const hasAnyLive = liveHooks != null && liveHooks.size > 0;
+
+  useEffect(() => {
+    if (!hasAnyLive) return;
+    const intervalId = setInterval(() => {
+      setTick((t) => t + 1);
+    }, 1_000);
+    return () => clearInterval(intervalId);
+  }, [hasAnyLive]);
+
+  return useMemo(() => {
+    if (!liveHooks || liveHooks.size === 0) return [];
+    const now = Date.now();
+    const visible: LiveHookState[] = [];
+    for (const entry of liveHooks.values()) {
+      if (!entry.completed) {
+        visible.push(entry);
+        continue;
+      }
+      const finishedAt = entry.startedAt + (entry.durationMs ?? 0);
+      if (now - finishedAt <= LIVE_HOOK_DROP_MS) visible.push(entry);
+    }
+    return visible;
+    // `tick` is intentionally included so the memo re-runs every second
+    // even when `liveHooks` is the same reference — the drop window logic
+    // depends on `Date.now()`, not on map identity, so the hook would
+    // otherwise miss the LIVE_HOOK_DROP_MS expiry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveHooks, tick]);
+}
+
+interface LiveHookRowProps {
+  hook: LiveHookState;
+}
+
+/**
+ * NEW-8: a single in-flight or recently-completed hook row.
+ *
+ * Renders alongside the JSONL-source rows in the same table so columns stay
+ * aligned. Spinner + elapsed-time counter only while `completed === false`;
+ * completed rows show the SDK `durationMs` and `outcome` until the drop
+ * window expires.
+ */
+function LiveHookRow({ hook }: LiveHookRowProps): JSX.Element {
+  const isInFlight = !hook.completed;
+  const elapsedMs = isInFlight ? Date.now() - hook.startedAt : (hook.durationMs ?? 0);
+  const elapsedSeconds = Math.max(0, Math.floor(elapsedMs / 1_000));
+  const rowColor =
+    hook.outcome === "error"
+      ? "var(--err)"
+      : hook.outcome === "cancelled"
+      ? "var(--amb)"
+      : "var(--t1)";
+  const exitDisplay =
+    hook.outcome === "cancelled"
+      ? "cancel"
+      : hook.exit_code != null
+      ? String(hook.exit_code)
+      : "";
+  const outputPreview = truncate(hook.lastOutput);
+  const safeId = hook.hook_id.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return (
+    <tr
+      data-testid={`hook-row-live-${safeId}`}
+      style={{
+        borderBottom: "1px solid var(--bd)",
+        color: rowColor,
+        background: "var(--bg-h)",
+      }}
+    >
+      <td className="px-2 py-1" style={{ color: "var(--t3)" }}>
+        live
+      </td>
+      <td className="px-2 py-1" style={{ color: "var(--t2)" }}>
+        {hook.hook_event}
+      </td>
+      <td className="px-2 py-1">
+        <span className="inline-flex items-center gap-1">
+          {hook.hook_name}
+          {isInFlight && (
+            <Loader2
+              data-testid={`hook-row-live-${safeId}-spinner`}
+              size={11}
+              className="animate-spin"
+              style={{ color: "var(--t3)" }}
+              aria-label="hook running"
+            />
+          )}
+        </span>
+      </td>
+      <td className="px-2 py-1" style={{ color: "var(--t3)" }}>
+        {isInFlight ? (
+          <span data-testid={`hook-row-live-${safeId}-elapsed`}>
+            {elapsedSeconds}s
+          </span>
+        ) : (
+          ""
+        )}
+      </td>
+      <td className="px-2 py-1 text-right" style={{ color: "var(--t2)" }}>
+        {hook.durationMs ?? ""}
+      </td>
+      <td className="px-2 py-1 text-right">{exitDisplay}</td>
+      <td className="px-2 py-1" style={{ color: "var(--t2)" }}>
+        {outputPreview}
+      </td>
+    </tr>
+  );
+}
+
 export function HooksTab({
   events = [],
   activeTurnIndex: _,
   onHookHover,
   highlightedHookId = null,
+  liveHooks,
 }: HooksTabProps): JSX.Element {
   const rows = useMemo<HookRow[]>(() => {
     return events.filter(isHookAttachment).map(toRow).filter((r): r is HookRow => r !== null);
   }, [events]);
+
+  // NEW-8: surface in-flight (and recently-completed) live hooks above the
+  // JSONL-source rows. We render them in their own <tbody> so the existing
+  // row keys / hover wiring stay untouched.
+  const visibleLiveHooks = useVisibleLiveHooks(liveHooks);
 
   const [search, setSearch] = useState("");
   const [filterEvent, setFilterEvent] = useState<string>("");
@@ -223,7 +376,7 @@ export function HooksTab({
     return `${(ms / 60000).toFixed(1)}min`;
   };
 
-  if (rows.length === 0) {
+  if (rows.length === 0 && visibleLiveHooks.length === 0) {
     return (
       <div className="px-3 py-2 t-mono-sm" style={{ color: "var(--t3)" }}>
         No hook executions recorded for this session.
@@ -307,6 +460,11 @@ export function HooksTab({
               <th className="text-left px-2 py-1 font-normal">Output</th>
             </tr>
           </thead>
+          <tbody data-testid="hooks-live-tbody">
+            {visibleLiveHooks.map((h) => (
+              <LiveHookRow key={`live-${h.hook_id}`} hook={h} />
+            ))}
+          </tbody>
           <tbody>
             {filtered.map((r) => {
               const failed = r.exitCode != null && r.exitCode !== 0;

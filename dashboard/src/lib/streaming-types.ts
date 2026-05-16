@@ -50,6 +50,31 @@ export interface CompactMetadata {
   };
 }
 
+/**
+ * NEW-8: In-flight hook tracked from SDK hook_started → hook_response.
+ * Field names mirror the SDK shape (sdk.d.ts:3080-3116) — snake_case is
+ * the SDK contract, kept verbatim to make grep-trace one-step. `startedAt`
+ * and `durationMs` are computed dashboard-side because the SDK does not
+ * carry them on the lifecycle messages.
+ */
+export interface LiveHookState {
+  hook_id: string;
+  hook_name: string;
+  hook_event: string;
+  /** `Date.now()` captured when `hook_started` arrived. */
+  startedAt: number;
+  /** True once `hook_response` has been observed for this `hook_id`. */
+  completed: boolean;
+  /** Outcome from `hook_response.outcome` (sdk.d.ts:3103). */
+  outcome?: "success" | "error" | "cancelled";
+  /** Exit code from `hook_response.exit_code` when the SDK provides one. */
+  exit_code?: number;
+  /** Wall-clock duration in ms, computed at `hook_response` time. */
+  durationMs?: number;
+  /** Last `hook_progress.output` chunk observed (for tooltip preview). */
+  lastOutput?: string;
+}
+
 export interface StreamingState {
   tools: Map<string, StreamingToolEntry>;
   /** Ordered list of tool IDs (insertion order) */
@@ -78,6 +103,13 @@ export interface StreamingState {
    * result event (CC v2.1.143, P2-5). Null until the first result arrives.
    */
   lastResultFinishReasons: readonly string[] | null;
+  /**
+   * NEW-8: In-flight (and recently-completed) hooks keyed by SDK `hook_id`.
+   * Populated from `hook_started` / `hook_progress` / `hook_response` SSE
+   * events. HooksTab merges these on top of completed JSONL attachments so
+   * the user sees a spinner + elapsed time while hooks run.
+   */
+  liveHooks: Map<string, LiveHookState>;
 }
 
 export function createInitialStreamingState(): StreamingState {
@@ -94,6 +126,7 @@ export function createInitialStreamingState(): StreamingState {
     sdkContextWindow: null,
     lastResultStopReason: null,
     lastResultFinishReasons: null,
+    liveHooks: new Map(),
   };
 }
 
