@@ -79,37 +79,50 @@ argumentHint: "<low|medium|high>"
 
 Users cannot select xhigh/max/auto from the dashboard. The `EffortLevel` type union in `dashboard/src/lib/types.ts` needs widening too.
 
-#### P0-4 — `BaseEvent.type` union missing 16+ CC top-level event types
+#### P0-4 — Missing `attachment` event wrapper + sidecar metadata records
 
-**Devtools:** `server/src/types.ts` BaseEvent
+**Devtools:** `server/src/types.ts` BaseEvent listed only 5 types:
 ```ts
 type: "queue-operation" | "user" | "assistant" | "progress" | "system";
 ```
 
 **Devtools parser:** `server/src/parser/jsonl-reader.ts:35` does `events.push(parsed as unknown as SessionEvent)` — unknown types make it into the array but every downstream switch silently drops them.
 
-**CC truth (observed in 30 real session JSONLs in `~/.claude/projects/`):**
+**CC truth (strict line-start parse of 30 real session JSONLs in `~/.claude/projects/`):**
 
-| Type | Sampled freq | Likely purpose |
+Top-level types CC actually emits (by frequency):
+
+| Type | Sampled freq | Purpose |
 |---|---|---|
-| `hook_success` | 1175 | Hook execution result |
-| `async_hook_response` | 232 | Async hook output (TS hooks) |
-| `last-prompt` | 170 | Session resume state |
-| `permission-mode` | 83 | Permission-mode change marker |
-| `file-history-snapshot` | 37 | Rewind support |
-| `skill_listing` | 31 | Skill discovery output |
-| `deferred_tools_delta` | 26 | Tool deferral (ToolSearch) |
+| `attachment` | 795 | Wrapper for hook/skill/MCP/reminder runtime deltas |
+| `assistant` | 311 | ✅ have |
+| `user` | 209 | ✅ have |
+| `last-prompt` | 106 | Sidecar — resume state |
+| `queue-operation` | 84 | ✅ have |
+| `permission-mode` | 29 | Sidecar — permission-mode marker |
+| `system` | 19 | ✅ have |
+| `file-history-snapshot` | 18 | Sidecar — rewind support |
+| `worktree-state` | 12 | Sidecar — EnterWorktree state |
+| `ai-title` | 7 | Sidecar — auto-generated title |
+
+The `attachment` event carries an inner `attachment.type` discriminator. Inner type frequencies:
+
+| `attachment.type` | Sampled freq | Purpose |
+|---|---|---|
+| `hook_success` | 816 | Hook execution result |
+| `async_hook_response` | 182 | Async hook output |
+| `skill_listing` | 31 | Skill discovery |
+| `deferred_tools_delta` | 26 | Tool defer/load (ToolSearch) |
 | `mcp_instructions_delta` | 24 | MCP server-events stream |
 | `hook_additional_context` | 24 | Hook injecting context |
 | `hook_system_message` | 21 | Hook calling system msg |
-| `worktree-state` | 18 | EnterWorktree state |
-| `hook_cancelled` | 12 | Hook cancellation |
-| `task_reminder` | 9 | TodoWrite reminder |
-| `ai-title` | 8 | Auto-generated session title |
+| `hook_cancelled` | 7 | Hook cancellation |
 | `todo_reminder` | 6 | Todo-item reminder |
-| `command_permissions` | 3 | Per-command permission resolution |
+| `task_reminder` | 6 | TodoWrite reminder |
+| `command_permissions` | 2 | Per-command permission resolution |
+| `queued_command` | 1 | Slash-command queue entry |
 
-**Impact:** Devtools claims to be "JSONL is source of truth" but discards 16+ event types. Every one of these is potentially user-visible content (hook outputs, skill listings, worktree transitions, todo reminders). Many serve P1 features: hook_* events are the runtime side of P0-3 (HookEditor); permission-mode and worktree-state directly support `claude agents` (P1-1).
+**Impact:** Devtools claimed "JSONL is source of truth" but discarded the most common top-level event (attachment, 795 occurrences) and 5 sidecar record types. Every one of these is potentially user-visible content. Most importantly, **hook_success attachments (~816 per session)** are the runtime side of P0-3 (HookEditor) — devtools shows users where to configure hooks but never shows them what their hooks did.
 
 #### P0-3 — Hook event types incomplete (8 of 12 missing)
 
@@ -211,8 +224,34 @@ Capture a current CC session JSONL and grep for these before adding handlers:
 
 Phases run sequentially; within a phase, loop on remaining gaps until none left, then move to the next phase.
 
-**Phase 0 (P0):** widen enums, add missing hook types — pure type/data fixes
-**Phase 1 (P1):** dark features — `claude agents`, `/loop`, `/goal`, compaction taxonomy, context-pressure timeline
-**Phase 2 (P2):** polish
+**Phase 0 (P0):** widen enums, add missing hook types, model attachment+sidecar — pure type/data fixes.
+**Phase 1 (P1):** dark features — `claude agents`, `/loop`, `/goal`, compaction taxonomy, context-pressure timeline.
+**Phase 2 (P2):** polish.
 
 After each phase: run `pnpm -C server test && pnpm -C dashboard test` and `tsc --noEmit` in both. Failure of either is a P0.
+
+## Execution log
+
+### Phase 0 — complete (tag: `p0-complete`)
+
+| Gap | Status | Commit |
+|---|---|---|
+| P0-1 stop_reason enum | ✅ | b036cc9 |
+| P0-2 effort levels (xhigh/max) | ✅ | debdd34 |
+| P0-3 hook event types (12 of 12) | ✅ | 5f546e5 |
+| P0 cleanup (handler casts, error messages) | ✅ | 8a5f18a |
+| P0-4 unknown event types — first model | superseded | 3a0027e |
+| P0-4 corrected — attachment wrapper + sidecars | ✅ | 86d0e00 |
+
+### Phase 1 — pending
+
+Phase 1 items require either UI work (charts, panels, dashboard surfaces) or capturing a live CC session that exercises the feature. Out of scope for the type-system + enum pass that closed Phase 0; tracked for the next dedicated session:
+
+- P1-1 `claude agents` background-agents dashboard — needs new view + daemon-state model
+- P1-2 `/bg`, `←←` detach — needs fork-graph data model
+- P1-3 `/loop`, `CronCreate` wakeup markers — **need a live `/loop` JSONL to confirm marker shape**; not present in our 30 sampled sessions
+- P1-4 `/goal` evaluator panel — needs overlay + live elapsed/turns/tokens stream
+- P1-5 Compaction taxonomy — extend `sse-event-handler.ts:303` to classify by `compact_metadata.trigger`
+- P1-6 Context-pressure timeline — new chart component; uses existing `input_tokens` aggregation
+
+**Follow-up P0 spinoff:** with `AttachmentEvent` typed, the natural next step is to surface `hook_success` attachments in the conversation view (~816 per session of dark events). That belongs in P1 work alongside the rest.
