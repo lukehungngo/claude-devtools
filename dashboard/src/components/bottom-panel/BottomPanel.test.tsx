@@ -337,6 +337,57 @@ describe("BottomPanel", () => {
     expect(openBottomTabRef.current).toBeNull();
   });
 
+  // --- R2C1 follow-up: sessionId plumbed through to TasksTab so daemon fetch fires ---
+
+  it("forwards sessionId to TasksTab so the daemon-tasks endpoint is fetched", async () => {
+    localStorageMock.setItem("bottomPanel.collapsed", "false");
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ tasks: [] }),
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      render(<BottomPanel events={[]} sessionId="session-xyz" />);
+      // Switch to Tasks tab to mount TasksTab
+      fireEvent.click(screen.getByText("Tasks"));
+
+      // TasksTab fires its daemon fetch in a useEffect on mount when sessionId is set
+      await vi.waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/sessions/session-xyz/tasks/daemon",
+        );
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("does not fetch daemon tasks when sessionId is omitted", async () => {
+    localStorageMock.setItem("bottomPanel.collapsed", "false");
+
+    const fetchMock = vi.fn();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      render(<BottomPanel events={[]} />);
+      fireEvent.click(screen.getByText("Tasks"));
+
+      // Give TasksTab's effect a tick to (not) run
+      await new Promise((r) => setTimeout(r, 0));
+
+      const daemonCalls = fetchMock.mock.calls.filter((args) =>
+        String(args[0] ?? "").includes("/tasks/daemon"),
+      );
+      expect(daemonCalls.length).toBe(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   // --- B2-WIRE (TASK-R2A1): OTel result fields plumbed through to CostTab ---
 
   it("forwards stopReason and finishReasons to CostTab so OTel row renders", () => {

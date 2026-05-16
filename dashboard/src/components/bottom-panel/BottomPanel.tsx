@@ -81,7 +81,7 @@ export function BottomPanel({
   activeTurnIndex = null,
   selectedAgent = null,
   onSelectAgent,
-  sessionId: _sessionId,
+  sessionId,
   isLive,
   hasSubagents,
   viewingTurnNumber,
@@ -310,7 +310,7 @@ export function BottomPanel({
             ) : activeTab === "cost" ? (
               <CostTab metrics={metrics} stopReason={stopReason} finishReasons={finishReasons} />
             ) : activeTab === "tasks" ? (
-              <TasksTab tasks={sessionTasks} />
+              <TasksTab tasks={sessionTasks} sessionId={sessionId} />
             ) : activeTab === "hooks" ? (
               <HooksTab
                 events={events}
