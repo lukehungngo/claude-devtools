@@ -333,6 +333,7 @@ export function BottomPanel({
                 onSelectAgent={onSelectAgent}
                 isLive={isLive}
                 panelHeight={panelHeight}
+                sessionId={sessionId}
               />
             ) : activeTab === "tool-call" ? (
               <DetailTab turns={turns} allEvents={events} activeTurnIndex={activeTurnIndex} />

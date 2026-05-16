@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState, useCallback } from "react";
+import { memo, useMemo, useRef, useState, useCallback, useEffect } from "react";
 import type { AgentDAG, AgentNode } from "../../lib/types";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { filterDagForTurn } from "../../lib/filterDagForTurn";
@@ -28,6 +28,8 @@ export interface TraceTabProps {
   onSelectAgent?: (agentId: string) => void;
   isLive?: boolean;
   panelHeight: number;
+  /** Phase 4.2: live session id, enables keyboard hint row + `x` stop binding. */
+  sessionId?: string;
 }
 
 // ── Color mapping ──
@@ -444,8 +446,9 @@ function TraceTabInner({
   activeTurnIndex,
   selectedAgent,
   onSelectAgent,
-  isLive: _isLive,
+  isLive,
   panelHeight,
+  sessionId,
 }: TraceTabProps) {
   const prevFilteredRef = useRef<AgentDAG | null>(null);
   const [labelWidth, setLabelWidth] = useState(DEFAULT_LABEL_WIDTH);
@@ -543,6 +546,68 @@ function TraceTabInner({
   );
 
   const dataCols = nameWidth + modelWidth + durationWidth + costWidth + tokensWidth;
+
+  // Phase 4.2: flat ordered list of agent ids for arrow-key navigation.
+  const flatRowIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const group of groups) {
+      for (const row of group.rows) ids.push(row.node.id);
+    }
+    return ids;
+  }, [groups]);
+
+  // Phase 4.2: keyboard hint row visible when a live session is in scope and
+  // we have nodes to navigate. `x` calls the existing /sessions/:id/abort
+  // endpoint — coarse-grained but the only stop primitive available today.
+  const showHintRow = !!sessionId && isLive === true && flatRowIds.length > 0;
+  const focusedId = selectedAgent && flatRowIds.includes(selectedAgent) ? selectedAgent : null;
+  const focusedNode = useMemo(() => {
+    if (!focusedId || !filteredDag) return null;
+    return filteredDag.nodes.find((n) => n.id === focusedId) ?? null;
+  }, [focusedId, filteredDag]);
+
+  const abortSession = useCallback(async () => {
+    if (!sessionId) return;
+    try {
+      await fetch(`/api/sessions/${sessionId}/abort`, { method: "POST" });
+    } catch {
+      // best-effort; UI already reflects pending state from the existing flow
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!showHintRow) return;
+    function onKey(e: KeyboardEvent) {
+      // Skip when typing in an input
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable === true;
+      if (isTyping) return;
+
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        if (flatRowIds.length === 0) return;
+        e.preventDefault();
+        const currentIdx = focusedId ? flatRowIds.indexOf(focusedId) : -1;
+        const delta = e.key === "ArrowDown" ? 1 : -1;
+        const nextIdx =
+          currentIdx === -1
+            ? e.key === "ArrowDown"
+              ? 0
+              : flatRowIds.length - 1
+            : Math.max(0, Math.min(flatRowIds.length - 1, currentIdx + delta));
+        const nextId = flatRowIds[nextIdx];
+        if (nextId && onSelectAgent) onSelectAgent(nextId);
+      } else if (e.key === "x" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (!focusedId) return;
+        e.preventDefault();
+        void abortSession();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showHintRow, flatRowIds, focusedId, onSelectAgent, abortSession]);
 
   if (isEmpty || !timeline) {
     return (
@@ -673,8 +738,48 @@ function TraceTabInner({
           ));
         })}
       </div>
+      {showHintRow && (
+        <div
+          data-testid="trace-keyboard-hint-row"
+          className="trace-hint-row"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--sp-3)",
+            padding: "var(--sp-1_5) var(--sp-3)",
+            borderTop: "1px solid var(--bd)",
+            background: "var(--bg-s)",
+            fontSize: "var(--fs-sm)",
+            color: "var(--t3)",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          <span><kbd style={kbdStyle}>↑</kbd><kbd style={kbdStyle}>↓</kbd> navigate</span>
+          <span><kbd style={kbdStyle}>x</kbd> stop session</span>
+          {focusedNode && (
+            <span style={{ marginLeft: "auto", color: "var(--t2)" }}>
+              Focused: <b style={{ color: "var(--t1)" }}>{focusedNode.description ?? focusedNode.type}</b>
+              {focusedNode.model && <> · {focusedNode.model}</>}
+              {focusedNode.startTime && <> · spawned {new Date(focusedNode.startTime).toLocaleTimeString()}</>}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
+const kbdStyle: React.CSSProperties = {
+  display: "inline-block",
+  padding: "1px 5px",
+  marginRight: 4,
+  border: "1px solid var(--bd-s)",
+  borderRadius: "var(--r-xs)",
+  background: "var(--bg-e)",
+  color: "var(--t1)",
+  fontFamily: "var(--font-mono)",
+  fontSize: 9,
+  lineHeight: 1.2,
+};
 
 export const TraceTab = memo(TraceTabInner);
