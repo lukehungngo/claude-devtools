@@ -173,6 +173,85 @@ describe("RepoList", () => {
       expect(onResumeSession).toHaveBeenCalledWith("session-1", "/project/test");
     });
   });
+
+  describe("entrypoint badge (P1-1/P1-2)", () => {
+    it("renders 'bg' badge for sdk-cli entrypoint", () => {
+      const repo = makeRepoGroup({
+        sessions: [
+          {
+            id: "bg-session",
+            projectHash: "h1",
+            path: "/p",
+            startTime: "2026-01-01T00:00:00Z",
+            lastModified: new Date().toISOString(),
+            eventCount: 50,
+            subagentCount: 0,
+            cwd: "/project/test",
+            isActive: true,
+            isRunning: true,
+            entrypoint: "sdk-cli",
+          },
+        ],
+      });
+      render(
+        <RepoList repos={[repo]} loading={false} selected={null} onSelect={vi.fn()} />,
+      );
+      fireEvent.click(screen.getByText(/test-repo/));
+      const badge = screen.getByTestId("entrypoint-badge");
+      expect(badge.textContent).toBe("bg");
+      expect(badge.getAttribute("title")).toContain("sdk-cli");
+    });
+
+    it("hides badge for default cli entrypoint", () => {
+      const repo = makeRepoGroup({
+        sessions: [
+          {
+            id: "cli-session",
+            projectHash: "h1",
+            path: "/p",
+            startTime: "2026-01-01T00:00:00Z",
+            lastModified: new Date().toISOString(),
+            eventCount: 50,
+            subagentCount: 0,
+            cwd: "/project/test",
+            isActive: true,
+            isRunning: false,
+            entrypoint: "cli",
+          },
+        ],
+      });
+      render(
+        <RepoList repos={[repo]} loading={false} selected={null} onSelect={vi.fn()} />,
+      );
+      fireEvent.click(screen.getByText(/test-repo/));
+      expect(screen.queryByTestId("entrypoint-badge")).toBeNull();
+    });
+
+    it("renders 'desk' badge for claude-desktop entrypoint", () => {
+      const repo = makeRepoGroup({
+        sessions: [
+          {
+            id: "desk-session",
+            projectHash: "h1",
+            path: "/p",
+            startTime: "2026-01-01T00:00:00Z",
+            lastModified: new Date().toISOString(),
+            eventCount: 5,
+            subagentCount: 0,
+            cwd: "/project/test",
+            isActive: true,
+            isRunning: false,
+            entrypoint: "claude-desktop",
+          },
+        ],
+      });
+      render(
+        <RepoList repos={[repo]} loading={false} selected={null} onSelect={vi.fn()} />,
+      );
+      fireEvent.click(screen.getByText(/test-repo/));
+      expect(screen.getByTestId("entrypoint-badge").textContent).toBe("desk");
+    });
+  });
 });
 
 describe("RepoList REPOS header", () => {
@@ -199,22 +278,6 @@ describe("RepoList REPOS header", () => {
     const toggleBtn = screen.getByTitle("Toggle turn history panel");
     fireEvent.click(toggleBtn);
     expect(onToggle).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls onNewSession when + button clicked", () => {
-    const onNew = vi.fn();
-    render(
-      <RepoList
-        repos={[]}
-        loading={false}
-        selected={null}
-        onSelect={() => {}}
-        onNewSession={onNew}
-      />
-    );
-    const newBtn = screen.getByTitle("Start new session");
-    fireEvent.click(newBtn);
-    expect(onNew).toHaveBeenCalledTimes(1);
   });
 
   it("does not show toggle button when onToggleTurnHistory not provided", () => {

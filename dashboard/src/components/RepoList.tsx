@@ -1,9 +1,29 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Play, Settings, Copy, Check, Plus, LayoutList } from "lucide-react";
+import { Play, Settings, Copy, Check, LayoutList, RefreshCw } from "lucide-react";
 import type { RepoGroup } from "../lib/types";
 import { SourceBadge } from "./SourceBadge";
 
 const SESSION_NAMES_KEY = "session-names";
+const REPO_FILTER_KEY = "repo-filter";
+
+type RepoFilter = "all" | "active";
+
+function loadRepoFilter(): RepoFilter {
+  try {
+    const raw = localStorage.getItem(REPO_FILTER_KEY);
+    return raw === "active" ? "active" : "all";
+  } catch {
+    return "all";
+  }
+}
+
+function saveRepoFilter(filter: RepoFilter): void {
+  try {
+    localStorage.setItem(REPO_FILTER_KEY, filter);
+  } catch {
+    // ignore
+  }
+}
 
 function loadSessionNames(): Record<string, string> {
   try {
@@ -27,11 +47,11 @@ interface Props {
   loading: boolean;
   selected: { projectHash: string; sessionId: string } | null;
   onSelect: (s: { projectHash: string; sessionId: string }) => void;
-  onNewSession?: () => void;
   activeSessionId?: string | null;
   onResumeSession?: (sessionId: string, cwd: string) => void;
   onAddRepo?: (path: string) => void;
   onToggleTurnHistory?: () => void;
+  onRefresh?: () => void;
 }
 
 export function RepoList({
@@ -39,25 +59,45 @@ export function RepoList({
   loading,
   selected,
   onSelect,
-  onNewSession,
   activeSessionId,
   onResumeSession,
   onToggleTurnHistory,
+  onRefresh,
 }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [sessionNames] = useState<Record<string, string>>(() => loadSessionNames());
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [repoFilter, setRepoFilter] = useState<RepoFilter>(() => loadRepoFilter());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(() => {
+    if (!onRefresh) return;
+    setIsRefreshing(true);
+    onRefresh();
+    window.setTimeout(() => setIsRefreshing(false), 600);
+  }, [onRefresh]);
+
+  const handleSetFilter = useCallback((filter: RepoFilter) => {
+    setRepoFilter(filter);
+    saveRepoFilter(filter);
+  }, []);
 
   const sortedRepos = useMemo(() => {
-    return repos.map((repo) => ({
-      ...repo,
-      sessions: [...repo.sessions].sort((a, b) => {
+    const mapped = repos.map((repo) => {
+      const sessions = repoFilter === "active"
+        ? repo.sessions.filter((s) => s.isRunning)
+        : [...repo.sessions];
+      sessions.sort((a, b) => {
         if (a.isRunning && !b.isRunning) return -1;
         if (!a.isRunning && b.isRunning) return 1;
         return new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime();
-      }),
-    }));
-  }, [repos]);
+      });
+      return { ...repo, sessions };
+    });
+    return repoFilter === "active"
+      ? mapped.filter((repo) => repo.sessions.length > 0)
+      : mapped;
+  }, [repos, repoFilter]);
 
   const toggleExpand = useCallback((cwd: string) => {
     setExpanded((prev) => {
@@ -91,20 +131,32 @@ export function RepoList({
         }}
       >
         <span className="t-section flex-1">REPOS</span>
-        {onNewSession && (
+        {onRefresh && (
           <button
-            onClick={onNewSession}
-            className="flex items-center justify-center cursor-pointer border-none bg-transparent"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center justify-center cursor-pointer border-none bg-transparent disabled:cursor-not-allowed"
             style={{
               width: 20, height: 20, borderRadius: 4,
-              color: "var(--t3)", transition: "color .15s",
+              color: isRefreshing ? "var(--acc)" : "var(--t3)",
+              transition: "color .15s",
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--t1)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--t3)"; }}
-            title="Start new session"
-            aria-label="Start new session"
+            onMouseEnter={(e) => {
+              if (!isRefreshing) (e.currentTarget as HTMLElement).style.color = "var(--t1)";
+            }}
+            onMouseLeave={(e) => {
+              if (!isRefreshing) (e.currentTarget as HTMLElement).style.color = "var(--t3)";
+            }}
+            title="Refresh repos"
+            aria-label="Refresh repos"
           >
-            <Plus size={12} />
+            <RefreshCw
+              size={12}
+              style={{
+                animation: isRefreshing ? "spin 0.6s linear" : "none",
+                transformOrigin: "center",
+              }}
+            />
           </button>
         )}
         {onToggleTurnHistory && (
@@ -124,12 +176,53 @@ export function RepoList({
           </button>
         )}
       </div>
+      {/* Filter toggle */}
+      <div
+        className="flex items-center gap-[4px] shrink-0"
+        style={{
+          padding: "6px 14px",
+          borderBottom: "1px solid var(--bd)",
+        }}
+        role="tablist"
+        aria-label="Repo filter"
+      >
+        {(["all", "active"] as const).map((value) => {
+          const isActive = repoFilter === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              data-testid={`repo-filter-${value}`}
+              onClick={() => handleSetFilter(value)}
+              className="cursor-pointer"
+              style={{
+                fontSize: 10,
+                fontWeight: 500,
+                padding: "3px 8px",
+                borderRadius: 4,
+                border: `1px solid ${isActive ? "var(--acc)" : "var(--bd)"}`,
+                background: isActive ? "var(--acc-bg)" : "transparent",
+                color: isActive ? "var(--acc)" : "var(--t3)",
+                transition: "color .15s, background .15s, border-color .15s",
+              }}
+            >
+              {value === "all" ? "All" : "Active Only"}
+            </button>
+          );
+        })}
+      </div>
       {/* Repositories */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden dt-scrollbar">
         {loading ? (
           <p style={{ padding: "8px 14px", fontSize: 11, color: "var(--t3)" }}>Loading...</p>
-        ) : repos.length === 0 ? (
-          <p style={{ padding: "8px 14px", fontSize: 11, color: "var(--t3)" }}>No sessions found</p>
+        ) : sortedRepos.length === 0 ? (
+          <p style={{ padding: "8px 14px", fontSize: 11, color: "var(--t3)" }}>
+            {repos.length === 0
+              ? "No sessions found"
+              : "No active repos"}
+          </p>
         ) : (
           sortedRepos.map((repo) => {
             const isExpanded = expanded.has(repo.cwd);
@@ -233,6 +326,22 @@ export function RepoList({
                           {displayName}
                         </span>
                         <SourceBadge source={session.source} />
+                        {session.entrypoint && session.entrypoint !== "cli" ? (
+                          <span
+                            data-testid="entrypoint-badge"
+                            className="font-mono shrink-0"
+                            title={`Entrypoint: ${session.entrypoint}${session.entrypoint === "sdk-cli" ? " (background or SDK-launched)" : ""}`}
+                            style={{
+                              fontSize: 9,
+                              padding: "0px 4px",
+                              borderRadius: 2,
+                              color: session.entrypoint === "sdk-cli" ? "var(--purple)" : "var(--t3)",
+                              background: session.entrypoint === "sdk-cli" ? "var(--purple-dim)" : "var(--bg-h)",
+                            }}
+                          >
+                            {session.entrypoint === "sdk-cli" ? "bg" : session.entrypoint === "claude-desktop" ? "desk" : session.entrypoint}
+                          </span>
+                        ) : null}
                         <button
                           data-testid="copy-session-id"
                           data-session-id={session.id}

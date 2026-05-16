@@ -127,6 +127,7 @@ export class SessionCache {
     let model: string | undefined;
     let sessionName: string | undefined;
     let slug: string | undefined;
+    let entrypoint: string | undefined;
 
     for (let i = 0; i < Math.min(headLines.length, 10); i++) {
       try {
@@ -138,6 +139,10 @@ export class SessionCache {
         if (evt.message?.model && !model) model = evt.message.model;
         if (evt.type === "custom-title" && evt.customTitle) sessionName = evt.customTitle;
         if (evt.slug && !slug) slug = evt.slug;
+        // CC v2.1.143 emits `entrypoint` on every conversation event. The
+        // first head event is usually a queue-operation without entrypoint;
+        // subsequent attachment/assistant events carry it.
+        if (evt.entrypoint && !entrypoint) entrypoint = evt.entrypoint;
       } catch {
         // skip malformed lines
       }
@@ -220,6 +225,7 @@ export class SessionCache {
       isActive: ageMs < ACTIVE_THRESHOLD_MS,
       isRunning,
       sessionName,
+      entrypoint,
     };
   }
 

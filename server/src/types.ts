@@ -399,6 +399,16 @@ export interface SessionInfo {
   isRunning?: boolean;
   source?: string;
   sessionName?: string;
+  /**
+   * CC entrypoint that produced this session:
+   * - "cli" — interactive `claude` CLI (default)
+   * - "sdk-cli" — programmatic via SDK CLI, including `claude --bg` and
+   *   `claude agents` dispatched sessions
+   * - "sdk-ts" — TypeScript SDK
+   * - "claude-desktop" — Claude Desktop app
+   * Captured from the first conversation event in the session JSONL.
+   */
+  entrypoint?: string;
 }
 
 export interface AgentNode {

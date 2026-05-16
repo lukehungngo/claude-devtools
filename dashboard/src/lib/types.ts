@@ -323,6 +323,14 @@ export interface SessionInfo {
   isRunning?: boolean;
   source?: string;
   sessionName?: string;
+  /**
+   * CC entrypoint (P1-1/P1-2):
+   * - "cli" — interactive claude CLI
+   * - "sdk-cli" — claude --bg or `claude agents` dispatched session (background daemon)
+   * - "sdk-ts" — TypeScript SDK
+   * - "claude-desktop" — Claude Desktop app
+   */
+  entrypoint?: string;
 }
 
 export interface RepoGroup {
