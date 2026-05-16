@@ -26,7 +26,6 @@ vi.mock("../parser/session-discovery.js", () => ({
 }));
 
 import { SessionManager } from "./session-manager.js";
-import type { PermissionMode } from "./session-manager.js";
 
 describe("SessionManager permission mode", () => {
   let manager: SessionManager;
@@ -262,6 +261,7 @@ describe("SessionManager stores activeQuery on ActiveSession", () => {
 
   it("clears activeQuery on error", async () => {
     async function* errorStream() {
+      yield* [];
       throw new Error("SDK error");
     }
     mockQuery.mockReturnValue(errorStream());
@@ -296,6 +296,7 @@ describe("SessionManager.setModel calls SDK method mid-stream", () => {
     const yieldPromise = new Promise<void>((resolve) => { resolveYield = resolve; });
 
     async function* slowStream() {
+      yield* [];
       await yieldPromise;
     }
     const queryObj = slowStream();
@@ -365,6 +366,7 @@ describe("SessionManager.setPermissionMode with SDK modes", () => {
     const yieldPromise = new Promise<void>((resolve) => { resolveYield = resolve; });
 
     async function* slowStream() {
+      yield* [];
       await yieldPromise;
     }
     const queryObj = slowStream();
@@ -424,6 +426,7 @@ describe("SessionManager.rewindFiles", () => {
     const yieldPromise = new Promise<void>((resolve) => { resolveYield = resolve; });
 
     async function* slowStream() {
+      yield* [];
       await yieldPromise;
     }
     const queryObj = slowStream();
@@ -505,7 +508,6 @@ describe("SessionManager.sendMessage passes effortLevel to SDK query()", () => {
 
     // Consume the async generator
     const gen = manager.sendMessage(sessionId, "hello");
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for await (const _msg of gen) {
       // drain
     }
@@ -525,7 +527,6 @@ describe("SessionManager.sendMessage passes effortLevel to SDK query()", () => {
     // effortLevel is undefined by default
 
     const gen = manager.sendMessage(sessionId, "hello");
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for await (const _msg of gen) {
       // drain
     }
