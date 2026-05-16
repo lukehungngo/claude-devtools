@@ -254,6 +254,207 @@ describe("RepoList", () => {
   });
 });
 
+describe("RepoList daemon status indicators (NEW-1)", () => {
+  afterEach(() => { cleanup(); });
+
+  function findSessionDot(sessionId: string): HTMLElement | null {
+    // The session row contains a font-mono span with the session display name and the
+    // status dot is the previous sibling. Easier: walk by data-session-id attribute on
+    // the copy button, then back up to row, then query first .dot child.
+    const copyBtn = document.querySelector(
+      `[data-testid="copy-session-id"][data-session-id="${sessionId}"]`,
+    );
+    if (!copyBtn) return null;
+    const row = copyBtn.closest("div.group");
+    if (!row) return null;
+    return row.querySelector("div.dot") as HTMLElement | null;
+  }
+
+  it("shows pulsing green dot when daemonStatus is busy and daemon is alive", () => {
+    const repo = makeRepoGroup({
+      sessions: [
+        {
+          id: "busy-session",
+          projectHash: "h1",
+          path: "/p",
+          startTime: "2026-01-01T00:00:00Z",
+          lastModified: new Date().toISOString(),
+          eventCount: 1,
+          subagentCount: 0,
+          cwd: "/project/test",
+          isActive: true,
+          isRunning: true,
+          daemonStatus: "busy",
+          daemonAlive: true,
+          pid: 1234,
+        },
+      ],
+    });
+    render(<RepoList repos={[repo]} loading={false} selected={null} onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByText("test-repo"));
+
+    const dot = findSessionDot("busy-session");
+    expect(dot).not.toBeNull();
+    expect(dot!.style.background).toContain("var(--grn)");
+    expect(dot!.style.animation).toContain("pulse");
+    expect(dot!.getAttribute("title")).toMatch(/busy/i);
+  });
+
+  it("shows steady green dot when daemonStatus is idle and daemon is alive", () => {
+    const repo = makeRepoGroup({
+      sessions: [
+        {
+          id: "idle-session",
+          projectHash: "h1",
+          path: "/p",
+          startTime: "2026-01-01T00:00:00Z",
+          lastModified: new Date().toISOString(),
+          eventCount: 1,
+          subagentCount: 0,
+          cwd: "/project/test",
+          isActive: true,
+          isRunning: false,
+          daemonStatus: "idle",
+          daemonAlive: true,
+          pid: 1234,
+        },
+      ],
+    });
+    render(<RepoList repos={[repo]} loading={false} selected={null} onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByText("test-repo"));
+
+    const dot = findSessionDot("idle-session");
+    expect(dot).not.toBeNull();
+    expect(dot!.style.background).toContain("var(--grn)");
+    // No pulse animation in idle state
+    expect(dot!.style.animation === "" || dot!.style.animation === "none").toBe(true);
+    expect(dot!.getAttribute("title")).toMatch(/idle/i);
+  });
+
+  it("shows amber dot when daemon entry exists but process is stale (alive=false)", () => {
+    const repo = makeRepoGroup({
+      sessions: [
+        {
+          id: "stale-session",
+          projectHash: "h1",
+          path: "/p",
+          startTime: "2026-01-01T00:00:00Z",
+          lastModified: new Date().toISOString(),
+          eventCount: 1,
+          subagentCount: 0,
+          cwd: "/project/test",
+          isActive: true,
+          isRunning: false,
+          daemonStatus: "idle",
+          daemonAlive: false,
+          pid: 99999,
+        },
+      ],
+    });
+    render(<RepoList repos={[repo]} loading={false} selected={null} onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByText("test-repo"));
+
+    const dot = findSessionDot("stale-session");
+    expect(dot).not.toBeNull();
+    expect(dot!.style.background).toContain("var(--amb)");
+    expect(dot!.getAttribute("title")).toMatch(/no longer running|stale/i);
+  });
+
+  it("falls back to isRunning-based rendering when no daemon info", () => {
+    const repo = makeRepoGroup({
+      sessions: [
+        {
+          id: "no-daemon-running",
+          projectHash: "h1",
+          path: "/p",
+          startTime: "2026-01-01T00:00:00Z",
+          lastModified: new Date().toISOString(),
+          eventCount: 1,
+          subagentCount: 0,
+          cwd: "/project/test",
+          isActive: true,
+          isRunning: true,
+        },
+        {
+          id: "no-daemon-idle",
+          projectHash: "h1",
+          path: "/p2",
+          startTime: "2026-01-01T00:00:00Z",
+          lastModified: new Date().toISOString(),
+          eventCount: 1,
+          subagentCount: 0,
+          cwd: "/project/test",
+          isActive: true,
+          isRunning: false,
+        },
+      ],
+    });
+    render(<RepoList repos={[repo]} loading={false} selected={null} onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByText("test-repo"));
+
+    const runningDot = findSessionDot("no-daemon-running");
+    expect(runningDot).not.toBeNull();
+    expect(runningDot!.style.background).toContain("var(--grn)");
+    // No daemon ⇒ no pulse (treat as mtime heuristic)
+    expect(runningDot!.style.animation === "" || runningDot!.style.animation === "none").toBe(true);
+
+    const idleDot = findSessionDot("no-daemon-idle");
+    expect(idleDot).not.toBeNull();
+    expect(idleDot!.style.background).toContain("var(--t3)");
+  });
+
+  it("shows Radio icon when bridgeSessionId is set", () => {
+    const repo = makeRepoGroup({
+      sessions: [
+        {
+          id: "bridge-session",
+          projectHash: "h1",
+          path: "/p",
+          startTime: "2026-01-01T00:00:00Z",
+          lastModified: new Date().toISOString(),
+          eventCount: 1,
+          subagentCount: 0,
+          cwd: "/project/test",
+          isActive: true,
+          isRunning: true,
+          entrypoint: "claude-desktop",
+          bridgeSessionId: "bridge-abc",
+        },
+      ],
+    });
+    render(<RepoList repos={[repo]} loading={false} selected={null} onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByText("test-repo"));
+
+    const indicator = screen.getByTestId("bridge-indicator");
+    expect(indicator).toBeDefined();
+    expect(indicator.getAttribute("title")).toMatch(/remote control|claude\.ai/i);
+  });
+
+  it("hides Radio icon when bridgeSessionId is absent", () => {
+    const repo = makeRepoGroup({
+      sessions: [
+        {
+          id: "no-bridge-session",
+          projectHash: "h1",
+          path: "/p",
+          startTime: "2026-01-01T00:00:00Z",
+          lastModified: new Date().toISOString(),
+          eventCount: 1,
+          subagentCount: 0,
+          cwd: "/project/test",
+          isActive: true,
+          isRunning: true,
+          entrypoint: "cli",
+        },
+      ],
+    });
+    render(<RepoList repos={[repo]} loading={false} selected={null} onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByText("test-repo"));
+
+    expect(screen.queryByTestId("bridge-indicator")).toBeNull();
+  });
+});
+
 describe("RepoList REPOS header", () => {
   afterEach(() => { cleanup(); });
 

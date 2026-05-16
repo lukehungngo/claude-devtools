@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Play, Settings, Copy, Check, LayoutList, RefreshCw, Trash2 } from "lucide-react";
-import type { RepoGroup } from "../lib/types";
+import { Play, Settings, Copy, Check, LayoutList, RefreshCw, Trash2, Radio } from "lucide-react";
+import type { RepoGroup, SessionInfo } from "../lib/types";
 import { SourceBadge } from "./SourceBadge";
 import { PurgeConfirmModal } from "./PurgeConfirmModal";
 
@@ -41,6 +41,60 @@ function saveSessionName(sessionId: string, name: string): void {
   const names = loadSessionNames();
   names[sessionId] = name;
   localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names));
+}
+
+interface SessionDotState {
+  background: string;
+  animation: string;
+  title: string;
+}
+
+/**
+ * Resolve the session-row status dot from daemon state, falling back to the
+ * mtime-derived `isRunning` heuristic when no daemon entry is present.
+ *
+ * Priority:
+ * 1. daemon alive + busy   → pulsing green ("Claude is working")
+ * 2. daemon alive + idle   → steady green  ("daemon authoritatively idle")
+ * 3. daemon present but stale (alive=false) → amber dot (stale entry)
+ * 4. no daemon info        → mtime fallback (green if isRunning, gray otherwise)
+ */
+export function resolveSessionDotState(session: SessionInfo): SessionDotState {
+  const hasDaemonEntry = session.daemonStatus !== undefined || session.pid !== undefined;
+  if (hasDaemonEntry && session.daemonAlive === false) {
+    return {
+      background: "var(--amb)",
+      animation: "none",
+      title: "Daemon process is no longer running (stale entry)",
+    };
+  }
+  if (hasDaemonEntry && session.daemonAlive) {
+    if (session.daemonStatus === "busy") {
+      return {
+        background: "var(--grn)",
+        animation: "pulse 1.5s infinite",
+        title: "Daemon status: busy (Claude is working)",
+      };
+    }
+    if (session.daemonStatus === "idle") {
+      return {
+        background: "var(--grn)",
+        animation: "none",
+        title: "Daemon status: idle (waiting for input)",
+      };
+    }
+    return {
+      background: "var(--grn)",
+      animation: "none",
+      title: `Daemon status: ${session.daemonStatus ?? "unknown"}`,
+    };
+  }
+  // Fallback: mtime heuristic via isRunning
+  return {
+    background: session.isRunning ? "var(--grn)" : "var(--t3)",
+    animation: "none",
+    title: session.isRunning ? "Recently active (mtime heuristic)" : "Idle",
+  };
 }
 
 interface Props {
@@ -319,6 +373,7 @@ export function RepoList({
                       sessionNames[session.id] ||
                       session.sessionName ||
                       session.id.slice(0, 8);
+                    const dotState = resolveSessionDotState(session);
 
                     return (
                       <div
@@ -336,10 +391,12 @@ export function RepoList({
                       >
                         <div
                           className="dot"
+                          title={dotState.title}
                           style={{
                             width: 5,
                             height: 5,
-                            background: session.isRunning ? "var(--grn)" : "var(--t3)",
+                            background: dotState.background,
+                            animation: dotState.animation,
                           }}
                         />
                         <span
@@ -364,6 +421,16 @@ export function RepoList({
                             }}
                           >
                             {session.entrypoint === "sdk-cli" ? "bg" : session.entrypoint === "claude-desktop" ? "desk" : session.entrypoint}
+                          </span>
+                        ) : null}
+                        {session.bridgeSessionId ? (
+                          <span
+                            data-testid="bridge-indicator"
+                            className="shrink-0 flex items-center"
+                            title="Connected via Remote Control / claude.ai"
+                            style={{ color: "var(--cyan)" }}
+                          >
+                            <Radio size={9} />
                           </span>
                         ) : null}
                         <button
