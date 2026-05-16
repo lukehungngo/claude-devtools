@@ -14,7 +14,6 @@ import { RotateCcw } from "lucide-react";
 import { QuestionBlock } from "./QuestionBlock";
 import { PromptInput } from "./PromptInput";
 import { ContextWarningBanner } from "./ContextWarningBanner";
-import { ContextPressureChart } from "../insights/ContextPressureChart";
 import { MemoTurnCard } from "./TurnCard";
 import { TurnDivider } from "./TurnDivider";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
@@ -772,16 +771,6 @@ export function ConversationView({
         contextPercent={metrics?.contextPercent}
         onCompactNow={handleCompactNow}
       />
-
-      {/* Context-pressure timeline (P1-6) — only rendered when peak > 30% */}
-      {metrics?.contextWindowSize ? (
-        <div className="px-3 pt-1">
-          <ContextPressureChart
-            events={events}
-            contextWindowSize={metrics.contextWindowSize}
-          />
-        </div>
-      ) : null}
 
       {/* Turn list (virtualized, scrollable) */}
       <VirtualizedTurnList
