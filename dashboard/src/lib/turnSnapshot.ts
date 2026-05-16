@@ -59,6 +59,12 @@ export interface TurnSnapshot {
   inputTokens: number;
   /** Total output tokens across all agents in this turn */
   outputTokens: number;
+  /**
+   * Total cache-read tokens across all dispatched agents in this turn
+   * (sum of `cache_read_input_tokens` from each assistant event's usage).
+   * Optional: zero when no assistant events report cache reads.
+   */
+  cacheReadTokens?: number;
   startTime: string;
   endTime: string;
   /** Model used in this turn, e.g. "claude-sonnet-4-6". Last model seen wins. */
@@ -295,6 +301,7 @@ function buildTurn(
   let cost = 0;
   let totalInputCost = 0;
   let totalOutputCost = 0;
+  let turnCacheReadTokens = 0;
   let lastModel = "";
   const agentMap = new Map<
     string,
@@ -336,6 +343,7 @@ function buildTurn(
         cost += eventCost;
         totalInputCost += calculateTurnCost(model, eventTokensIn, 0, cacheWrite, cacheRead);
         totalOutputCost += calculateTurnCost(model, 0, eventTokensOut);
+        turnCacheReadTokens += cacheRead;
       }
       // Collect tool names from content
       const contentArr = asst.message?.content;
@@ -421,6 +429,7 @@ function buildTurn(
     },
     inputTokens: turnInputTokens,
     outputTokens: turnOutputTokens,
+    cacheReadTokens: turnCacheReadTokens,
     startTime: events[0]?.timestamp ?? "",
     endTime,
     model: lastModel || undefined,
@@ -452,6 +461,7 @@ function extendTurn(
   let cost = existing.cost;
   let totalInputCost = existing.costBreakdown.inputCost;
   let totalOutputCost = existing.costBreakdown.outputCost;
+  let turnCacheReadTokens = existing.cacheReadTokens ?? 0;
   let lastModel = existing.model ?? "";
 
   // P2-1: inherit the dispatched set and scan ONLY the delta. Restores the
@@ -505,6 +515,7 @@ function extendTurn(
         cost += eventCost;
         totalInputCost += calculateTurnCost(model, eventTokensIn, 0, cacheWrite, cacheRead);
         totalOutputCost += calculateTurnCost(model, 0, eventTokensOut);
+        turnCacheReadTokens += cacheRead;
       }
       const contentArr = asst.message?.content;
       if (Array.isArray(contentArr)) {
@@ -589,6 +600,7 @@ function extendTurn(
     },
     inputTokens: turnInputTokens,
     outputTokens: turnOutputTokens,
+    cacheReadTokens: turnCacheReadTokens,
     startTime: existing.startTime,
     endTime,
     model: lastModel || undefined,

@@ -1932,6 +1932,34 @@ describe("TurnSnapshot token totals", () => {
     expect(t2.inputTokens).toBe(500);
     expect(t2.outputTokens).toBe(150);
   });
+
+  it("sums cacheReadTokens from assistant events' cache_read_input_tokens", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "hello" }),
+      makeAssistantEvent({ cacheReadTokens: 1000 }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].cacheReadTokens).toBe(1000);
+  });
+
+  it("sums cacheReadTokens across multiple assistant events in the same turn", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "hello" }),
+      makeAssistantEvent({ cacheReadTokens: 1000 }),
+      makeAssistantEvent({ cacheReadTokens: 500 }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].cacheReadTokens).toBe(1500);
+  });
+
+  it("reports cacheReadTokens=0 when no assistant event has cache_read_input_tokens", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "hello" }),
+      makeAssistantEvent({ inputTokens: 100, outputTokens: 50 }),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0].cacheReadTokens).toBe(0);
+  });
 });
 
 // ─── eventAgentIds builder tests ────────────────────────────────────
