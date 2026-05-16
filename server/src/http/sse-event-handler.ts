@@ -353,7 +353,17 @@ export function mapSdkMessageToSSEEvents(msg: {
     }
   }
 
-  // Assistant message (complete) — extract text blocks and error field
+  // Assistant message (complete) — extract text blocks and error field.
+  //
+  // R-1 / Phase R3B: SDKAssistantMessage.parent_tool_use_id, .subagent_type,
+  // and .task_description (sdk.d.ts:2493/:2501/:2505) flow through to the
+  // typed AssistantEvent we broadcast on WebSocket via the
+  // `as unknown as SessionEvent` cast in session-routes.ts (currently around
+  // line 648 — `broadcast(state, buildNewEventsMessage(...))`). The top-level
+  // fields land on the broadcasted event verbatim because the cast preserves
+  // unknown keys. This mapper produces only stripped SSEEvent variants
+  // (stdout, thinking, etc.) that intentionally do NOT carry these fields —
+  // the dashboard reads them from the WS new-events broadcast instead.
   if (msg.type === "assistant" && msg.message?.content) {
     const content = msg.message.content;
     if (Array.isArray(content)) {

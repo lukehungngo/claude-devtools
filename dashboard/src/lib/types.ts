@@ -95,6 +95,12 @@ export interface UserEvent extends BaseEvent {
   permissionMode?: string;
   /** System-injected content (skill expansions, local command output, image refs) */
   isMeta?: boolean;
+  /**
+   * SDKUserMessage.parent_tool_use_id (sdk.d.ts:3229) — top-level on the SDK
+   * message, mirrored at top level here. JSONL persistence currently strips
+   * this field; only live SDK sessions carry it. R-1 / Phase R3B.
+   */
+  parent_tool_use_id?: string | null;
 }
 
 export interface AssistantEvent extends BaseEvent {
@@ -109,6 +115,18 @@ export interface AssistantEvent extends BaseEvent {
     stop_reason: StopReason;
     usage: TokenUsage;
   };
+  /**
+   * SDKAssistantMessage.parent_tool_use_id (sdk.d.ts:2493) — top-level on the
+   * SDK message, mirrored at top level here. When set, identifies the
+   * dispatching Task/Agent tool_use.id authoritatively (replaces the 5-second
+   * temporal heuristic). Null on main-thread events. JSONL strips it today;
+   * only live SDK sessions carry it. R-1 / Phase R3B.
+   */
+  parent_tool_use_id?: string | null;
+  /** SDKAssistantMessage.subagent_type (sdk.d.ts:2501). */
+  subagent_type?: string;
+  /** SDKAssistantMessage.task_description (sdk.d.ts:2505). */
+  task_description?: string;
 }
 
 export interface ProgressEvent extends BaseEvent {

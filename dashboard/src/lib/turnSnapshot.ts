@@ -189,6 +189,29 @@ function computeDispatchedAgentIds(
   const result = seed ? new Set(seed) : new Set<string>();
   result.add("main");
 
+  // R-1 (Phase R3B): build the structured-field index first.
+  // For every event carrying SDK's `parent_tool_use_id` (sdk.d.ts:2493 / :3229)
+  // remember the (tool_use_id → agentId) binding. The structured path is
+  // authoritative and replaces the 5-second temporal-proximity heuristic
+  // whenever the field is present, including the pathological case where the
+  // sidechain assistant flushes > 5s after the dispatching main tool_use.
+  // Multiple agentIds per dispatcher id are tolerated (defensive) by using a
+  // Set; in practice the SDK emits exactly one per tool_use.
+  const structuredByDispatcher = new Map<string, Set<string>>();
+  for (const e of events) {
+    if (e.type !== "assistant" && e.type !== "user") continue;
+    const ptui = (e as AssistantEvent | UserEvent).parent_tool_use_id;
+    if (!ptui) continue;
+    if (e.agentId === undefined || e.agentId === null) continue;
+    if (e.agentId === "main") continue;
+    let bucket = structuredByDispatcher.get(ptui);
+    if (!bucket) {
+      bucket = new Set();
+      structuredByDispatcher.set(ptui, bucket);
+    }
+    bucket.add(e.agentId);
+  }
+
   for (const event of mainEventsOnly(events)) {
     if (event.type !== "assistant") continue;
 
@@ -202,8 +225,21 @@ function computeDispatchedAgentIds(
       if (item.type !== "tool_use") continue;
       if (item.name !== "Task" && item.name !== "Agent") continue;
 
-      const description = (item.input as Record<string, unknown>)?.description;
       let matched = false;
+
+      // 0. R-1: SDK structured `parent_tool_use_id` — authoritative.
+      //    Skip already-bound agentIds so parallel dispatches stay distinct.
+      const structuredAgents = structuredByDispatcher.get(item.id);
+      if (structuredAgents && structuredAgents.size > 0) {
+        for (const agentId of structuredAgents) {
+          if (result.has(agentId)) continue;
+          result.add(agentId);
+          matched = true;
+        }
+        if (matched) continue;
+      }
+
+      const description = (item.input as Record<string, unknown>)?.description;
 
       // 1. Description match against subagentMeta. Symmetric with the
       //    temporal-proximity branch: skip agentIds already bound so two

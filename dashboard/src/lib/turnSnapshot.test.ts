@@ -2123,3 +2123,162 @@ describe("eventAgentIds in extendTurn", () => {
     expect(incremental[0].eventAgentIds).toEqual(new Set(["main", "sub-A"]));
   });
 });
+
+// ─── R-1: structured parent_tool_use_id replaces temporal heuristic ──
+//
+// Mirrors agentStatus.ts: computeDispatchedAgentIds must prefer the SDK
+// structured field over the 5s temporal-proximity scan. The stress test
+// proves the fix for the JSONL-flush-delay scenario where the temporal
+// scan would mis-attribute or miss entirely.
+
+describe("Turn membership by dispatch — structured parent_tool_use_id (R-1)", () => {
+  it("T-DISPATCH-STRUCT-1: structured field admits subagent even when sidechain ts is > 5s past main", () => {
+    // Sidechain arrives 10s after the dispatching main tool_use — outside
+    // TEMPORAL_DISPATCH_WINDOW_MS. Without the structured field, the
+    // temporal scan would NOT bind this subagent to the dispatch. With
+    // parent_tool_use_id set, the agent is admitted.
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "tu-struct",
+              name: "Task",
+              input: { description: "structured dispatch" },
+            },
+          ],
+          model: "claude-sonnet-4-20250514",
+          id: "msg-x",
+          type: "message",
+          stop_reason: "tool_use",
+          usage: { input_tokens: 1, output_tokens: 1 },
+        },
+      }),
+      {
+        ...makeAssistantEvent({
+          agentId: "sub-late",
+          stopReason: "end_turn",
+          timestamp: "2026-01-01T00:00:11Z", // T+10s — outside 5s window
+          isSidechain: true,
+        } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+        parent_tool_use_id: "tu-struct",
+      } as AssistantEvent,
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:12Z",
+      }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    const ids = turns[0].agents.map(a => a.agentId).sort();
+    expect(ids).toContain("sub-late");
+    expect(ids).toContain("main");
+  });
+
+  it("T-DISPATCH-STRUCT-2: mixed — one subagent via structured field, one via temporal, both admitted", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Go", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "tu-A", name: "Task", input: { description: "A" } },
+            { type: "tool_use", id: "tu-B", name: "Task", input: { description: "B" } },
+          ],
+          model: "claude-sonnet-4-20250514",
+          id: "msg-x",
+          type: "message",
+          stop_reason: "tool_use",
+          usage: { input_tokens: 1, output_tokens: 1 },
+        },
+      }),
+      // sub-A: structured field (timestamp outside temporal window)
+      {
+        ...makeAssistantEvent({
+          agentId: "sub-A",
+          stopReason: "end_turn",
+          timestamp: "2026-01-01T00:00:11Z",
+          isSidechain: true,
+        } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+        parent_tool_use_id: "tu-A",
+      } as AssistantEvent,
+      // sub-B: no structured field; sidechain at T+2s (inside temporal window)
+      makeAssistantEvent({
+        agentId: "sub-B",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:03Z",
+        isSidechain: true,
+      } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:13Z",
+      }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    const ids = turns[0].agents.map(a => a.agentId).sort();
+    expect(ids).toEqual(["main", "sub-A", "sub-B"]);
+  });
+
+  it("T-DISPATCH-STRUCT-3: stress — 3 concurrent dispatches, sidechain flush > 5s, structured field attributes correctly", () => {
+    // Three parallel Task dispatches in one main assistant message. Each
+    // sidechain assistant flushes > 5s later. Without parent_tool_use_id,
+    // ALL three sidechain timestamps fall outside the temporal window and
+    // none of them would be bound to any specific dispatch. With the
+    // structured field, all three get admitted to the turn.
+    const events: SessionEvent[] = [
+      makeUserEvent({ text: "Run parallel", timestamp: "2026-01-01T00:00:00Z" }),
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "tool_use",
+        timestamp: "2026-01-01T00:00:01Z",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "tu-A", name: "Task", input: { description: "A" } },
+            { type: "tool_use", id: "tu-B", name: "Task", input: { description: "B" } },
+            { type: "tool_use", id: "tu-C", name: "Task", input: { description: "C" } },
+          ],
+          model: "claude-sonnet-4-20250514",
+          id: "msg-x",
+          type: "message",
+          stop_reason: "tool_use",
+          usage: { input_tokens: 1, output_tokens: 1 },
+        },
+      }),
+      ...["A", "B", "C"].map((tag, i) => ({
+        ...makeAssistantEvent({
+          agentId: `sub-${tag}`,
+          stopReason: "end_turn",
+          // T+10s + i; well outside the 5s temporal window.
+          timestamp: `2026-01-01T00:00:${(11 + i).toString().padStart(2, "0")}Z`,
+          isSidechain: true,
+        } as Partial<AssistantEvent> & { stopReason: "end_turn" }),
+        parent_tool_use_id: `tu-${tag}`,
+      })) as AssistantEvent[],
+      makeAssistantEvent({
+        agentId: "main",
+        stopReason: "end_turn",
+        timestamp: "2026-01-01T00:00:20Z",
+      }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns).toHaveLength(1);
+    const ids = turns[0].agents.map(a => a.agentId).sort();
+    expect(ids).toEqual(["main", "sub-A", "sub-B", "sub-C"]);
+  });
+});

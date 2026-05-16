@@ -114,6 +114,16 @@ export interface UserEvent extends BaseEvent {
   permissionMode?: string;
   /** System-injected content (skill expansions, local command output, image refs) */
   isMeta?: boolean;
+  /**
+   * SDKUserMessage.parent_tool_use_id (sdk.d.ts:3229) — top-level on the SDK
+   * message, mirrored at top level here. When the SDK runtime emits an event
+   * dispatched by a Task/Agent tool_use (a subagent reply), the dispatching
+   * tool_use.id is set here. JSONL persistence currently strips this field
+   * (CC v2.1.143); only sessions consumed via the live SDK iterator carry it.
+   * Consumers prefer this when present and fall back to temporal-proximity
+   * dispatcher attribution otherwise (R-1, Phase R3B).
+   */
+  parent_tool_use_id?: string | null;
 }
 
 export interface AssistantEvent extends BaseEvent {
@@ -129,6 +139,28 @@ export interface AssistantEvent extends BaseEvent {
     stop_reason: StopReason;
     usage: TokenUsage;
   };
+  /**
+   * SDKAssistantMessage.parent_tool_use_id (sdk.d.ts:2493) — top-level on the
+   * SDK message, mirrored at top level here. Authoritative dispatcher
+   * attribution when present: replaces the 5-second temporal heuristic used
+   * for historical JSONL sessions. Null when the event is owned by the main
+   * thread (not dispatched by any Task/Agent tool_use). JSONL persistence
+   * currently strips this field; only sessions consumed via the live SDK
+   * iterator carry it (R-1, Phase R3B).
+   */
+  parent_tool_use_id?: string | null;
+  /**
+   * SDKAssistantMessage.subagent_type (sdk.d.ts:2501). Identifies the
+   * subagent kind that produced the message (e.g. "general-purpose",
+   * "engineer"). Optional; absent on main-thread assistant events.
+   */
+  subagent_type?: string;
+  /**
+   * SDKAssistantMessage.task_description (sdk.d.ts:2505). Human-readable
+   * description of the subagent task. Optional; absent on main-thread
+   * assistant events.
+   */
+  task_description?: string;
 }
 
 export interface ProgressEvent extends BaseEvent {

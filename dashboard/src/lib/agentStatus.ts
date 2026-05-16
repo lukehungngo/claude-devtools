@@ -125,13 +125,37 @@ function tryOtherSignals(
 }
 
 /**
+ * R-1 (Phase R3B): Resolve dispatching tool_use ids using the SDK's
+ * structured `parent_tool_use_id` field (sdk.d.ts:2493 / :3229). This is
+ * authoritative when present and replaces the 5-second temporal-proximity
+ * heuristic that the legacy path (`dispatchingToolUseIdsTemporal`) uses for
+ * historical JSONL sessions where the field is stripped.
+ *
+ * Returns the set of `tool_use.id` values that dispatched events for
+ * `targetAgentId`. Empty set ⇒ no event owned by the target carries a
+ * structured field; caller falls back to the temporal scan.
+ */
+function dispatchersFromStructuredField(
+  targetAgentId: string,
+  events: readonly SessionEvent[],
+): Set<string> {
+  const result = new Set<string>();
+  for (const e of events) {
+    if (e.agentId !== targetAgentId) continue;
+    if (e.type !== "assistant" && e.type !== "user") continue;
+    const ptui = (e as AssistantEvent | UserEvent).parent_tool_use_id;
+    if (ptui) result.add(ptui);
+  }
+  return result;
+}
+
+/**
  * Resolve the tool_use ids on main that DISPATCHED the target subagent.
  *
- * Mirrors the temporal-proximity logic in turnSnapshot.ts `computeDispatchedAgentIds`:
- * for each main assistant `tool_use` with name=="Task"|"Agent", find the FIRST
- * sidechain event whose agentId isn't already bound, within DISPATCH_WINDOW_MS
- * of the tool_use. That sidechain's agentId is considered dispatched by this
- * tool_use.
+ * R-1 (Phase R3B): prefers the SDK's structured `parent_tool_use_id` field
+ * (sdk.d.ts:2493) when ANY event for the target carries it. Falls back to the
+ * legacy 5-second temporal-proximity scan for historical JSONL sessions where
+ * the field is stripped.
  *
  * Returns the set of `tool_use.id` values that dispatched `targetAgentId`.
  * Empty set ⇒ no dispatching tool_use found (orphan subagent, or tool_use is
@@ -141,11 +165,19 @@ function dispatchingToolUseIds(
   targetAgentId: string,
   events: readonly SessionEvent[],
 ): Set<string> {
+  // Prefer the SDK's authoritative structured field. When ANY event owned by
+  // the target carries `parent_tool_use_id`, trust it and skip the temporal
+  // scan entirely — the structured path is correct even when JSONL flush
+  // timing pushes the sidechain past the 5-second temporal window.
+  const structured = dispatchersFromStructuredField(targetAgentId, events);
+  if (structured.size > 0) return structured;
+
+  // Fallback: temporal-proximity scan for historical JSONL sessions that
+  // lack the structured field. Walk main assistant events in order; for each
+  // Task/Agent tool_use, attribute the next available sidechain-agentId
+  // within DISPATCH_WINDOW_MS.
   const boundAgents = new Set<string>();
   const result = new Set<string>();
-
-  // Walk main assistant events in order. For each Task/Agent tool_use, attribute
-  // the next available sidechain-agentId within the temporal window.
   const mainEvts = mainEventsOnly(events);
   for (const e of mainEvts) {
     if (e.type !== "assistant") continue;

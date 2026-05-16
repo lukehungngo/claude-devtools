@@ -658,3 +658,172 @@ describe("getAgentStatus", () => {
     expect(getAgentStatus("subA", events, false)).toBe("indeterminate");
   });
 });
+
+// ─── R-1: structured parent_tool_use_id replaces temporal heuristic ──
+//
+// When the SDK sets parent_tool_use_id on the sidechain event, dispatcher
+// attribution becomes authoritative — no temporal window required. These
+// tests pin the contract:
+//   (a) structured field present → temporal scan is bypassed entirely.
+//   (b) mixed events → structured wins where present, temporal where absent.
+//   (c) stress (3 concurrent dispatches, sidechain timestamps > 5s past the
+//       main tool_use): temporal would mis-attribute; structured doesn't.
+
+describe("isAgentCompleted — Signal 3 structured parent_tool_use_id (R-1)", () => {
+  it("T-SIG3-STRUCT-1: parent_tool_use_id wins over temporal window (sidechain ts > 5s after main)", () => {
+    // Main tool_use at T=0; subA sidechain at T=10s (well outside the 5s
+    // temporal window). Without the structured field this would NOT bind to
+    // toolu-struct via the temporal scan. With parent_tool_use_id set, the
+    // dispatcher resolves and the matching tool_result acks subA.
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        timestamp: "2026-01-01T00:00:00Z",
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu-struct",
+            name: "Task",
+            input: { description: "structured dispatch" },
+          },
+        ],
+        stopReason: "tool_use",
+      }),
+      // Sidechain assistant 10s later (outside 5s temporal window) with
+      // structured parent_tool_use_id pointing at the dispatching tool_use.
+      {
+        ...makeAssistantEvent({
+          agentId: "subA",
+          isSidechain: true,
+          timestamp: "2026-01-01T00:00:10Z",
+          stopReason: "tool_use",
+        }),
+        parent_tool_use_id: "toolu-struct",
+      } as AssistantEvent,
+      // Main acks subA by tool_use_id=toolu-struct
+      makeUserEvent({
+        timestamp: "2026-01-01T00:00:11Z",
+        content: [makeToolResultContent("toolu-struct")],
+      }),
+    ];
+    expect(isAgentCompleted("subA", events)).toBe(true);
+  });
+
+  it("T-SIG3-STRUCT-2: mixed — structured wins for subA, temporal still works for subB", () => {
+    // Two dispatches in the same turn. subA has structured parent_tool_use_id.
+    // subB has none, but its sidechain arrives inside the 5s temporal window
+    // and gets attributed via the fallback. Both acks present → both completed.
+    const events: SessionEvent[] = [
+      // Main dispatches subA (structured-attributable)
+      makeAssistantEvent({
+        timestamp: "2026-01-01T00:00:00Z",
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu-A",
+            name: "Task",
+            input: { description: "A work" },
+          },
+          {
+            type: "tool_use",
+            id: "toolu-B",
+            name: "Task",
+            input: { description: "B work" },
+          },
+        ],
+        stopReason: "tool_use",
+      }),
+      // subA: structured field 10s later (outside temporal window)
+      {
+        ...makeAssistantEvent({
+          agentId: "subA",
+          isSidechain: true,
+          timestamp: "2026-01-01T00:00:10Z",
+          stopReason: "tool_use",
+        }),
+        parent_tool_use_id: "toolu-A",
+      } as AssistantEvent,
+      // subB: no structured field, sidechain at T=2s (inside 5s window)
+      makeAssistantEvent({
+        agentId: "subB",
+        isSidechain: true,
+        timestamp: "2026-01-01T00:00:02Z",
+        stopReason: "tool_use",
+      }),
+      // Acks for both
+      makeUserEvent({
+        timestamp: "2026-01-01T00:00:15Z",
+        content: [makeToolResultContent("toolu-A")],
+      }),
+      makeUserEvent({
+        timestamp: "2026-01-01T00:00:16Z",
+        content: [makeToolResultContent("toolu-B")],
+      }),
+    ];
+    expect(isAgentCompleted("subA", events)).toBe(true);
+    expect(isAgentCompleted("subB", events)).toBe(true);
+  });
+
+  it("T-SIG3-STRUCT-3: stress — 3 concurrent dispatches with > 5s flush delay, structured field disambiguates", () => {
+    // Three Task dispatches in one main assistant turn. JSONL flush is delayed
+    // > 5s for every sidechain (timestamps T+10s..T+12s), so the temporal scan
+    // would bind each sidechain to no dispatcher (all main tool_uses are > 5s
+    // away). Concretely: the temporal path's `result` set for any of subA/B/C
+    // would be empty — Signal 3 strict form would fail and fall to the weak
+    // postdating ack, which would mis-attribute (any ack would close any
+    // subagent).
+    //
+    // With the structured field, every sidechain carries the exact dispatching
+    // tool_use.id, so each subagent's `dispatchingToolUseIds` resolves
+    // correctly. Only the matching ack closes the matching subagent.
+    const events: SessionEvent[] = [
+      // Main dispatches A, B, C simultaneously
+      makeAssistantEvent({
+        timestamp: "2026-01-01T00:00:00Z",
+        content: [
+          { type: "tool_use", id: "tu-A", name: "Task", input: { description: "A" } },
+          { type: "tool_use", id: "tu-B", name: "Task", input: { description: "B" } },
+          { type: "tool_use", id: "tu-C", name: "Task", input: { description: "C" } },
+        ],
+        stopReason: "tool_use",
+      }),
+      // All sidechains flush > 5s later (outside the temporal window)
+      {
+        ...makeAssistantEvent({
+          agentId: "subA",
+          isSidechain: true,
+          timestamp: "2026-01-01T00:00:10Z",
+          stopReason: "tool_use",
+        }),
+        parent_tool_use_id: "tu-A",
+      } as AssistantEvent,
+      {
+        ...makeAssistantEvent({
+          agentId: "subB",
+          isSidechain: true,
+          timestamp: "2026-01-01T00:00:11Z",
+          stopReason: "tool_use",
+        }),
+        parent_tool_use_id: "tu-B",
+      } as AssistantEvent,
+      {
+        ...makeAssistantEvent({
+          agentId: "subC",
+          isSidechain: true,
+          timestamp: "2026-01-01T00:00:12Z",
+          stopReason: "tool_use",
+        }),
+        parent_tool_use_id: "tu-C",
+      } as AssistantEvent,
+      // Only A and C are acked; B is still in flight.
+      makeUserEvent({
+        timestamp: "2026-01-01T00:00:20Z",
+        content: [makeToolResultContent("tu-A"), makeToolResultContent("tu-C")],
+      }),
+    ];
+    expect(isAgentCompleted("subA", events)).toBe(true);
+    expect(isAgentCompleted("subC", events)).toBe(true);
+    // subB has NO matching ack — structured form must NOT fall back to the
+    // weak postdating ack (which would let tu-A or tu-C's ack close subB).
+    expect(isAgentCompleted("subB", events)).toBe(false);
+  });
+});
