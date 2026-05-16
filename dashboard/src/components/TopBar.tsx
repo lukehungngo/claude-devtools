@@ -318,18 +318,45 @@ function ViewingTurnPill({
   );
 }
 
+/**
+ * Compact model identifier → display label.
+ *
+ * Known Anthropic families render as "Family Maj.Min" (e.g. "Sonnet 4.7").
+ * Unknown families fall back to a Title-cased family name + version,
+ * preserving the [1m] 1M-context suffix when present (CC v2.1.143).
+ *
+ * Examples:
+ *   claude-opus-4-7              → "Opus 4.7"
+ *   claude-opus-4-6[1m]          → "Opus 4.6 (1M)"
+ *   claude-sonnet-4-6            → "Sonnet 4.6"
+ *   claude-haiku-4-5-20251001    → "Haiku 4.5"
+ *   claude-sonnet-5-0-preview    → "Sonnet 5.0"  (unknown subversion ignored)
+ *   anthropic-future-1-0         → "Future 1.0"  (unknown family, title-cased)
+ *   anything-else                → "anything-else" (unchanged)
+ */
 function formatModelShort(model: string): string {
-  const stripped = model.replace("claude-", "");
-  for (const family of ["opus", "sonnet", "haiku"]) {
-    if (stripped.startsWith(family)) {
-      const rest = stripped.slice(family.length + 1);
-      const ver = rest
-        .split("-")
-        .filter((p) => /^\d+$/.test(p))
-        .slice(0, 2)
-        .join(".");
-      return `${family.charAt(0).toUpperCase() + family.slice(1)} ${ver}`;
-    }
-  }
-  return stripped;
+  // Preserve and re-attach the [1m]/[1M] context-window suffix.
+  const m1m = model.match(/\[1[mM]\]$/);
+  const oneMSuffix = m1m ? " (1M)" : "";
+  const base = m1m ? model.slice(0, -m1m[0].length) : model;
+
+  // Drop the "claude-" or "anthropic-" prefix if present.
+  const stripped = base.replace(/^(claude|anthropic)-/, "");
+  const parts = stripped.split("-");
+  if (parts.length < 2) return model;
+
+  const family = parts[0].toLowerCase();
+  const versionDigits = parts
+    .slice(1)
+    .filter((p) => /^\d+$/.test(p))
+    .slice(0, 2);
+
+  if (versionDigits.length === 0) return model;
+
+  const ver = versionDigits.join(".");
+  const familyLabel = family.charAt(0).toUpperCase() + family.slice(1);
+  return `${familyLabel} ${ver}${oneMSuffix}`;
 }
+
+// Exported for unit tests.
+export const __test__ = { formatModelShort };

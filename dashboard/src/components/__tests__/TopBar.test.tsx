@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { TopBar } from "../TopBar";
+import { TopBar, __test__ as topBarTestExports } from "../TopBar";
 import type { SessionMetrics } from "../../lib/types";
 
 function renderTopBar(props: {
@@ -237,6 +237,32 @@ describe("TopBar", () => {
       );
       const pencilIcon = container.querySelector('[data-testid="branch-edit-icon"]');
       expect(pencilIcon).toBeNull();
+    });
+  });
+
+  describe("formatModelShort (P2-8)", () => {
+    const formatModelShort = topBarTestExports.formatModelShort;
+
+    it("formats known Anthropic families with version", () => {
+      expect(formatModelShort("claude-opus-4-7")).toBe("Opus 4.7");
+      expect(formatModelShort("claude-sonnet-4-6")).toBe("Sonnet 4.6");
+      expect(formatModelShort("claude-haiku-4-5-20251001")).toBe("Haiku 4.5");
+    });
+
+    it("appends (1M) when the [1m] context-window suffix is present", () => {
+      expect(formatModelShort("claude-opus-4-6[1m]")).toBe("Opus 4.6 (1M)");
+      expect(formatModelShort("claude-sonnet-4-6[1M]")).toBe("Sonnet 4.6 (1M)");
+    });
+
+    it("title-cases unknown family names rather than dropping them", () => {
+      expect(formatModelShort("claude-sonnet-5-0-preview")).toBe("Sonnet 5.0");
+      expect(formatModelShort("anthropic-future-1-0")).toBe("Future 1.0");
+      expect(formatModelShort("claude-newfamily-2-3")).toBe("Newfamily 2.3");
+    });
+
+    it("returns the model id unchanged when no version is parseable", () => {
+      expect(formatModelShort("custom-model")).toBe("custom-model");
+      expect(formatModelShort("local")).toBe("local");
     });
   });
 });
