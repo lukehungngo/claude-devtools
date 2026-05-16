@@ -21,6 +21,24 @@ function CompactResultBanner({ result }: { result: CompactMetadata }): JSX.Eleme
 
   if (!visible) return null;
 
+  // PreCompact hook BLOCKED this compaction (CC v2.1.143, P2-9).
+  // Render a distinct amber banner — no token info because nothing happened.
+  if (result.attributedTo?.cancelled === true) {
+    const hookName = result.attributedTo.hookName;
+    const reason = result.attributedTo.reason;
+    const reasonSuffix = reason ? ` (${reason})` : "";
+    return (
+      <div
+        className="flex items-center gap-2 py-1 text-sm text-dt-yellow italic"
+        data-testid="compact-blocked"
+      >
+        <span className="inline-block w-2 h-2 rounded-full bg-dt-yellow" />
+        Compaction blocked by PreCompact hook {hookName}
+        {reasonSuffix}
+      </div>
+    );
+  }
+
   const parts: string[] = [];
   if (result.preTokens > 0) {
     if (result.postTokens != null && result.postTokens > 0) {
@@ -42,11 +60,17 @@ function CompactResultBanner({ result }: { result: CompactMetadata }): JSX.Eleme
       ? "compacted via /compact"
       : `compacted (${result.trigger})`;
   const details = parts.length > 0 ? ` — ${parts.join(", ")}` : "";
+  // Successful PreCompact hook attribution: prepend the hook name.
+  const prefix = result.attributedTo?.hookName
+    ? `Pre-compacted by ${result.attributedTo.hookName}: `
+    : "Context ";
 
   return (
     <div className="flex items-center gap-2 py-1 text-sm text-dt-green italic" data-testid="compact-result">
       <span className="inline-block w-2 h-2 rounded-full bg-dt-green" />
-      Context {triggerLabel}{details}
+      {prefix}
+      {triggerLabel}
+      {details}
     </div>
   );
 }

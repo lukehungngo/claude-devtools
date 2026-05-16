@@ -55,4 +55,66 @@ describe("StreamingTurnArea", () => {
     const { container } = render(<StreamingTurnArea state={state} />);
     expect(container.textContent).toContain("Compacting conversation context...");
   });
+
+  describe("CompactResultBanner attribution (P2-9)", () => {
+    it("prepends 'Pre-compacted by <hookName>' when attributedTo set (success)", () => {
+      const state = makeState({
+        compactResult: {
+          trigger: "auto",
+          preTokens: 168470,
+          postTokens: 8759,
+          durationMs: 60791,
+          attributedTo: { hookName: "check-rotate.sh" },
+        },
+      });
+      const { container } = render(<StreamingTurnArea state={state} />);
+      const banner = container.querySelector('[data-testid="compact-result"]');
+      expect(banner).not.toBeNull();
+      expect(banner!.textContent).toContain("Pre-compacted by check-rotate.sh");
+      // Token info still rendered
+      expect(banner!.textContent).toContain("168,470");
+      expect(banner!.textContent).toContain("8,759");
+    });
+
+    it("renders blocked-by-hook banner when attributedTo.cancelled is true", () => {
+      const state = makeState({
+        compactResult: {
+          trigger: "auto",
+          preTokens: 100000,
+          postTokens: 5000,
+          attributedTo: {
+            hookName: "guard-precompact.sh",
+            cancelled: true,
+            reason: "context still warm",
+          },
+        },
+      });
+      const { container } = render(<StreamingTurnArea state={state} />);
+      const blocked = container.querySelector('[data-testid="compact-blocked"]');
+      expect(blocked).not.toBeNull();
+      expect(blocked!.textContent).toContain("Compaction blocked by PreCompact hook");
+      expect(blocked!.textContent).toContain("guard-precompact.sh");
+      expect(blocked!.textContent).toContain("context still warm");
+      // No green compacted banner and no token info
+      expect(container.querySelector('[data-testid="compact-result"]')).toBeNull();
+      expect(blocked!.textContent).not.toContain("100,000");
+    });
+
+    it("renders blocked banner without reason when reason is absent", () => {
+      const state = makeState({
+        compactResult: {
+          trigger: "auto",
+          preTokens: 50,
+          attributedTo: { hookName: "noisy-block.sh", cancelled: true },
+        },
+      });
+      const { container } = render(<StreamingTurnArea state={state} />);
+      const blocked = container.querySelector('[data-testid="compact-blocked"]');
+      expect(blocked).not.toBeNull();
+      expect(blocked!.textContent).toContain("Compaction blocked by PreCompact hook");
+      expect(blocked!.textContent).toContain("noisy-block.sh");
+      // No parenthesized reason segment
+      expect(blocked!.textContent).not.toMatch(/\(\s*\)/);
+    });
+  });
 });

@@ -1,5 +1,10 @@
-import { describe, it, expect } from "vitest";
-import { mapSdkMessageToSSEEvents } from "./sse-event-handler.js";
+import { describe, it, expect, beforeEach } from "vitest";
+import {
+  mapSdkMessageToSSEEvents,
+  __resetPreCompactBufferForTest,
+  __setPreCompactBufferTtlForTest,
+  PRE_COMPACT_BUFFER_DEFAULT_TTL_MS,
+} from "./sse-event-handler.js";
 
 describe("mapSdkMessageToSSEEvents", () => {
   describe("stream_event: content_block_delta", () => {
@@ -538,6 +543,203 @@ describe("mapSdkMessageToSSEEvents", () => {
         type: "stream_event",
       });
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("PreCompact hook attribution on compact events (P2-9)", () => {
+    beforeEach(() => {
+      __resetPreCompactBufferForTest();
+      __setPreCompactBufferTtlForTest(PRE_COMPACT_BUFFER_DEFAULT_TTL_MS);
+    });
+
+    it("does not emit SSE events for attachment messages", () => {
+      const out = mapSdkMessageToSSEEvents({
+        type: "attachment",
+        attachment: {
+          type: "hook_success",
+          hookName: "check-rotate.sh",
+          hookEvent: "PreCompact",
+          command: "check-rotate.sh",
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          content: "",
+          durationMs: 12,
+        },
+      });
+      expect(out).toEqual([]);
+    });
+
+    it("attributes compact_boundary to the most recent PreCompact hook_success", () => {
+      mapSdkMessageToSSEEvents({
+        type: "attachment",
+        attachment: {
+          type: "hook_success",
+          hookName: "check-rotate.sh",
+          hookEvent: "PreCompact",
+          command: "check-rotate.sh",
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          content: "",
+          durationMs: 12,
+        },
+      });
+
+      const out = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "compact_boundary",
+        compactMetadata: {
+          trigger: "auto",
+          preTokens: 168470,
+          postTokens: 8759,
+          durationMs: 60791,
+        },
+      });
+
+      expect(out).toHaveLength(1);
+      expect(out[0]).toMatchObject({
+        type: "compact",
+        metadata: {
+          trigger: "auto",
+          attributedTo: { hookName: "check-rotate.sh" },
+        },
+      });
+      const attribution = (out[0] as {
+        metadata: { attributedTo?: { cancelled?: boolean } };
+      }).metadata.attributedTo;
+      expect(attribution?.cancelled).toBeUndefined();
+    });
+
+    it("attributes compact_boundary to PreCompact hook_cancelled with reason", () => {
+      mapSdkMessageToSSEEvents({
+        type: "attachment",
+        attachment: {
+          type: "hook_cancelled",
+          hookName: "guard-precompact.sh",
+          hookEvent: "PreCompact",
+          reason: "context still warm",
+        },
+      });
+
+      const out = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "compact_boundary",
+        compactMetadata: { trigger: "auto", preTokens: 100, postTokens: 50 },
+      });
+
+      expect(out).toHaveLength(1);
+      expect(out[0]).toMatchObject({
+        type: "compact",
+        metadata: {
+          attributedTo: {
+            hookName: "guard-precompact.sh",
+            cancelled: true,
+            reason: "context still warm",
+          },
+        },
+      });
+    });
+
+    it("leaves attributedTo undefined when no recent PreCompact attachment exists", () => {
+      const out = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "compact_boundary",
+        compactMetadata: { trigger: "auto", preTokens: 100, postTokens: 50 },
+      });
+      expect(out).toHaveLength(1);
+      const meta = (out[0] as { metadata: { attributedTo?: unknown } }).metadata;
+      expect(meta.attributedTo).toBeUndefined();
+    });
+
+    it("ignores non-PreCompact hookEvent attachments", () => {
+      mapSdkMessageToSSEEvents({
+        type: "attachment",
+        attachment: {
+          type: "hook_success",
+          hookName: "PreToolUse:Read",
+          hookEvent: "PreToolUse",
+          command: "noop",
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          content: "",
+          durationMs: 1,
+        },
+      });
+
+      const out = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "compact_boundary",
+        compactMetadata: { trigger: "auto", preTokens: 100, postTokens: 50 },
+      });
+      const meta = (out[0] as { metadata: { attributedTo?: unknown } }).metadata;
+      expect(meta.attributedTo).toBeUndefined();
+    });
+
+    it("does not attribute a PreCompact attachment older than the TTL", () => {
+      __setPreCompactBufferTtlForTest(0); // any non-zero age is stale
+      mapSdkMessageToSSEEvents({
+        type: "attachment",
+        attachment: {
+          type: "hook_success",
+          hookName: "stale-hook.sh",
+          hookEvent: "PreCompact",
+          command: "stale-hook.sh",
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          content: "",
+          durationMs: 12,
+        },
+      });
+
+      // Force a measurable gap — the next push/compare will see ts < now
+      const start = Date.now();
+      while (Date.now() === start) {
+        /* spin one millisecond */
+      }
+
+      const out = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "compact_boundary",
+        compactMetadata: { trigger: "auto", preTokens: 100, postTokens: 50 },
+      });
+      const meta = (out[0] as { metadata: { attributedTo?: unknown } }).metadata;
+      expect(meta.attributedTo).toBeUndefined();
+    });
+
+    it("consumes the attribution so the next compact is not double-attributed", () => {
+      mapSdkMessageToSSEEvents({
+        type: "attachment",
+        attachment: {
+          type: "hook_success",
+          hookName: "rotate-once.sh",
+          hookEvent: "PreCompact",
+          command: "rotate-once.sh",
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          content: "",
+          durationMs: 5,
+        },
+      });
+
+      const firstOut = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "compact_boundary",
+        compactMetadata: { trigger: "auto", preTokens: 100, postTokens: 50 },
+      });
+      expect((firstOut[0] as { metadata: { attributedTo?: { hookName: string } } })
+        .metadata.attributedTo?.hookName).toBe("rotate-once.sh");
+
+      const secondOut = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "compact_boundary",
+        compactMetadata: { trigger: "auto", preTokens: 100, postTokens: 50 },
+      });
+      const meta = (secondOut[0] as { metadata: { attributedTo?: unknown } }).metadata;
+      expect(meta.attributedTo).toBeUndefined();
     });
   });
 });

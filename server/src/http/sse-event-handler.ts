@@ -75,6 +75,20 @@ export interface SSECompactEvent {
     durationMs?: number;
     /** Tools the model knew about pre-compaction; lost after. */
     preCompactDiscoveredTools?: string[];
+    /**
+     * Attribution to a PreCompact hook that fired immediately before this
+     * compact event (CC v2.1.143, P2-9). Populated when a hook_success or
+     * hook_cancelled attachment with `hookEvent === "PreCompact"` arrived in
+     * the SDK stream within the last `PRE_COMPACT_BUFFER_DEFAULT_TTL_MS`.
+     * `cancelled === true` means the PreCompact hook blocked the compaction
+     * (exit 2 or returned `{decision: "block"}`); the UI then renders a
+     * "blocked by hook" banner instead of the usual compacted banner.
+     */
+    attributedTo?: {
+      hookName: string;
+      cancelled?: boolean;
+      reason?: string;
+    };
   };
 }
 
@@ -228,6 +242,64 @@ export type SSEEvent =
   | SSEApiRetryEvent;
 
 /**
+ * Default time-to-live for buffered PreCompact hook attachments, in ms.
+ * Any PreCompact entry older than this is treated as unrelated to a later
+ * compact_boundary and silently dropped from attribution lookups.
+ */
+export const PRE_COMPACT_BUFFER_DEFAULT_TTL_MS = 60_000;
+
+const PRE_COMPACT_BUFFER_MAX = 32;
+
+interface PreCompactBufferEntry {
+  kind: "success" | "cancelled";
+  hookName: string;
+  reason?: string;
+  ts: number;
+}
+
+let preCompactBuffer: PreCompactBufferEntry[] = [];
+let preCompactBufferTtlMs = PRE_COMPACT_BUFFER_DEFAULT_TTL_MS;
+
+function pushPreCompactEntry(entry: PreCompactBufferEntry): void {
+  const cutoff = entry.ts - preCompactBufferTtlMs;
+  preCompactBuffer = preCompactBuffer.filter((e) => e.ts >= cutoff);
+  preCompactBuffer.push(entry);
+  if (preCompactBuffer.length > PRE_COMPACT_BUFFER_MAX) {
+    preCompactBuffer.splice(0, preCompactBuffer.length - PRE_COMPACT_BUFFER_MAX);
+  }
+}
+
+/**
+ * Consume the most recent PreCompact entry still inside the TTL window.
+ * Returns `undefined` when no in-window entry exists. The entry is removed
+ * from the buffer so back-to-back compact_boundary events do not both
+ * attribute to the same hook.
+ */
+function consumeRecentPreCompactEntry(now: number): PreCompactBufferEntry | undefined {
+  const cutoff = now - preCompactBufferTtlMs;
+  for (let i = preCompactBuffer.length - 1; i >= 0; i -= 1) {
+    const entry = preCompactBuffer[i];
+    if (entry.ts >= cutoff) {
+      preCompactBuffer.splice(i, 1);
+      return entry;
+    }
+  }
+  // Trim everything stale while we're here.
+  preCompactBuffer = preCompactBuffer.filter((e) => e.ts >= cutoff);
+  return undefined;
+}
+
+/** Test-only: clear the PreCompact buffer between tests. */
+export function __resetPreCompactBufferForTest(): void {
+  preCompactBuffer = [];
+}
+
+/** Test-only: override the TTL window (use 0 to make every entry stale). */
+export function __setPreCompactBufferTtlForTest(ms: number): void {
+  preCompactBufferTtlMs = ms;
+}
+
+/**
  * Maps an SDK message to zero or more SSE events.
  * Returns an array because a single SDK message (e.g. assistant with multiple content blocks)
  * can produce multiple SSE events.
@@ -336,19 +408,43 @@ export function mapSdkMessageToSSEEvents(msg: {
       (msg as { compactMetadata?: Record<string, unknown> }).compactMetadata ??
       (msg as { compact_metadata?: Record<string, unknown> }).compact_metadata ??
       {};
-    events.push({
-      type: "compact",
-      metadata: {
-        trigger: (rawMeta.trigger as string) ?? "auto",
-        preTokens: ((rawMeta.preTokens ?? rawMeta.pre_tokens) as number) ?? 0,
-        postTokens: (rawMeta.postTokens ?? rawMeta.post_tokens) as number | undefined,
-        durationMs: (rawMeta.durationMs ?? rawMeta.duration_ms) as number | undefined,
-        preCompactDiscoveredTools:
-          (rawMeta.preCompactDiscoveredTools ?? rawMeta.pre_compact_discovered_tools) as
-            | string[]
-            | undefined,
-      },
-    });
+    const attribution = consumeRecentPreCompactEntry(Date.now());
+    const metadata: SSECompactEvent["metadata"] = {
+      trigger: (rawMeta.trigger as string) ?? "auto",
+      preTokens: ((rawMeta.preTokens ?? rawMeta.pre_tokens) as number) ?? 0,
+      postTokens: (rawMeta.postTokens ?? rawMeta.post_tokens) as number | undefined,
+      durationMs: (rawMeta.durationMs ?? rawMeta.duration_ms) as number | undefined,
+      preCompactDiscoveredTools:
+        (rawMeta.preCompactDiscoveredTools ?? rawMeta.pre_compact_discovered_tools) as
+          | string[]
+          | undefined,
+    };
+    if (attribution) {
+      metadata.attributedTo = {
+        hookName: attribution.hookName,
+        ...(attribution.kind === "cancelled" ? { cancelled: true } : {}),
+        ...(attribution.reason != null ? { reason: attribution.reason } : {}),
+      };
+    }
+    events.push({ type: "compact", metadata });
+  }
+
+  // Attachment messages carry hook results, skill listings, queued commands, etc.
+  // We do NOT emit SSE for them — HooksTab reads attachments straight from JSONL.
+  // The one side-effect: track PreCompact hook attachments so the next
+  // compact_boundary can be attributed to the hook that fired before it.
+  if (msg.type === "attachment" && msg.attachment) {
+    const inner = msg.attachment as { type?: string; [key: string]: unknown };
+    if (inner.type === "hook_success" && inner.hookEvent === "PreCompact") {
+      const hookName = typeof inner.hookName === "string" ? inner.hookName : "";
+      if (hookName) {
+        pushPreCompactEntry({ kind: "success", hookName, ts: Date.now() });
+      }
+    } else if (inner.type === "hook_cancelled" && inner.hookEvent === "PreCompact") {
+      const hookName = typeof inner.hookName === "string" ? inner.hookName : "<unknown>";
+      const reason = typeof inner.reason === "string" ? inner.reason : undefined;
+      pushPreCompactEntry({ kind: "cancelled", hookName, reason, ts: Date.now() });
+    }
   }
 
   // System init

@@ -32,6 +32,18 @@ export interface CompactMetadata {
   postTokens?: number;
   /** Wall-clock duration of the compaction call, ms. */
   durationMs?: number;
+  /**
+   * Attribution to a PreCompact hook (CC v2.1.143, P2-9). Set when the server
+   * matched a recent hook_success / hook_cancelled attachment with
+   * `hookEvent === "PreCompact"` to this compact_boundary.
+   * `cancelled === true` means the hook BLOCKED compaction — render the
+   * blocked banner instead of the green compacted banner.
+   */
+  attributedTo?: {
+    hookName: string;
+    cancelled?: boolean;
+    reason?: string;
+  };
 }
 
 export interface StreamingState {

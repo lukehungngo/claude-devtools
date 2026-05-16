@@ -161,8 +161,23 @@ export function useStreamingState(): UseStreamingStateReturn {
                 pre_tokens?: number;
                 postTokens?: number;
                 durationMs?: number;
+                attributedTo?: {
+                  hookName?: string;
+                  cancelled?: boolean;
+                  reason?: string;
+                };
               }
             | undefined;
+          let attributedTo: { hookName: string; cancelled?: boolean; reason?: string } | undefined;
+          if (metadata?.attributedTo && typeof metadata.attributedTo.hookName === "string") {
+            attributedTo = {
+              hookName: metadata.attributedTo.hookName,
+              ...(metadata.attributedTo.cancelled === true ? { cancelled: true } : {}),
+              ...(typeof metadata.attributedTo.reason === "string"
+                ? { reason: metadata.attributedTo.reason }
+                : {}),
+            };
+          }
           return {
             ...prev,
             isCompacting: false,
@@ -172,6 +187,7 @@ export function useStreamingState(): UseStreamingStateReturn {
                   preTokens: metadata.preTokens ?? metadata.pre_tokens ?? 0,
                   postTokens: metadata.postTokens,
                   durationMs: metadata.durationMs,
+                  ...(attributedTo ? { attributedTo } : {}),
                 }
               : null,
           };
