@@ -243,15 +243,21 @@ After each phase: run `pnpm -C server test && pnpm -C dashboard test` and `tsc -
 | P0-4 unknown event types — first model | superseded | 3a0027e |
 | P0-4 corrected — attachment wrapper + sidecars | ✅ | 86d0e00 |
 
-### Phase 1 — pending
+### Phase 1 — in progress (tag: `p1-partial`)
 
-Phase 1 items require either UI work (charts, panels, dashboard surfaces) or capturing a live CC session that exercises the feature. Out of scope for the type-system + enum pass that closed Phase 0; tracked for the next dedicated session:
+| Gap | Status | Commit |
+|---|---|---|
+| P1-5 Compaction taxonomy | ✅ | 304d0ae |
+| P1-6 Context-pressure timeline | ✅ | d647143 |
+| P1-3 `/loop` & `CronCreate` wakeup markers | ⏸ deferred — need live `/loop` JSONL |
+| P1-4 `/goal` evaluator panel | ⏸ pending |
+| P1-1 `claude agents` background-agents view | ⏸ pending |
+| P1-2 `/bg`, `←←` detach fork relationships | ⏸ pending |
 
-- P1-1 `claude agents` background-agents dashboard — needs new view + daemon-state model
-- P1-2 `/bg`, `←←` detach — needs fork-graph data model
-- P1-3 `/loop`, `CronCreate` wakeup markers — **need a live `/loop` JSONL to confirm marker shape**; not present in our 30 sampled sessions
-- P1-4 `/goal` evaluator panel — needs overlay + live elapsed/turns/tokens stream
-- P1-5 Compaction taxonomy — extend `sse-event-handler.ts:303` to classify by `compact_metadata.trigger`
-- P1-6 Context-pressure timeline — new chart component; uses existing `input_tokens` aggregation
+P1-5 closed a silent data bug: the SSE handler read `compact_metadata` (snake_case) but real CC v2.1.143 JSONLs write `compactMetadata` (camelCase). Every compaction event reached the dashboard with `metadata=undefined`. Now surfaces real preTokens → postTokens compression, duration, and trigger taxonomy.
 
-**Follow-up P0 spinoff:** with `AttachmentEvent` typed, the natural next step is to surface `hook_success` attachments in the conversation view (~816 per session of dark events). That belongs in P1 work alongside the rest.
+P1-6 ships a small SVG chart above the conversation view showing per-turn context% with vertical compaction markers. Suppressed for sessions under 30% peak pressure or fewer than 2 turns.
+
+**Follow-up P0 spinoff (P0-5):** with `AttachmentEvent` typed, surface `hook_success` attachments in the conversation view (~816 per session of dark events). Deferred — needs deeper changes to turn rendering than fit this session.
+
+The remaining P1 items all need substantial new UI surfaces or live CC session capture; planned for the next dedicated session, branching from tag `p1-partial`.
