@@ -236,10 +236,10 @@ function SecondaryTile({ label, value, delta, deltaTestId, testId }: SecondaryTi
 }
 
 function modelColor(model: string): string {
-  if (model.includes("sonnet")) return "var(--accent)";
-  if (model.includes("opus")) return "var(--purple)";
+  if (model.includes("sonnet")) return "var(--acc)";
+  if (model.includes("opus")) return "var(--cat-purple)";
   if (model.includes("haiku")) return "var(--teal)";
-  return "var(--text-2)";
+  return "var(--t3)";
 }
 
 function formatTok(n: number): string {
@@ -577,11 +577,11 @@ export function InsightsPage(): JSX.Element {
                     <div className="flex flex-col gap-0.5 px-3">
                       <div
                         className="text-sm font-mono font-bold uppercase flex items-center gap-1"
-                        style={{ letterSpacing: "0.5px", color: "var(--purple)" }}
+                        style={{ letterSpacing: "0.5px", color: "var(--cat-purple)" }}
                       >
                         <span
                           className="inline-block rounded-full"
-                          style={{ width: 6, height: 6, background: "var(--purple)" }}
+                          style={{ width: 6, height: 6, background: "var(--cat-purple)" }}
                         />
                         TOKENS OUT
                       </div>
@@ -633,8 +633,8 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="min-w-0">
                       <div className="text-md font-semibold text-dt-text0 truncate">{item.repo}</div>
-                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
-                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--purple)" }} />
+                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--bd)" }}>
+                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--cat-purple)" }} />
                       </div>
                     </div>
                     <div className="text-right">
@@ -675,8 +675,8 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="min-w-0">
                       <div className="text-md font-semibold text-dt-text0 truncate">{`${item.repo} · ${item.date}`}</div>
-                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
-                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--accent)" }} />
+                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--bd)" }}>
+                        <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--acc)" }} />
                       </div>
                     </div>
                     <div className="text-right">
@@ -717,7 +717,7 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="min-w-0">
                       <div className="text-md font-semibold text-dt-text0 truncate">{item.name}</div>
-                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--border)" }}>
+                      <div className="mt-1 rounded overflow-hidden" style={{ height: 3, background: "var(--bd)" }}>
                         <div className="h-full rounded" style={{ width: `${item.share * 100}%`, background: "var(--teal)" }} />
                       </div>
                     </div>
@@ -779,7 +779,7 @@ export function InsightsPage(): JSX.Element {
                           <div className="flex-1 min-w-0">
                             <div
                               className="rounded overflow-hidden"
-                              style={{ height: 3, background: "var(--border)" }}
+                              style={{ height: 3, background: "var(--bd)" }}
                               role="progressbar"
                               aria-valuenow={Math.round(item.share * 100)}
                               aria-valuemin={0}
@@ -870,7 +870,7 @@ export function InsightsPage(): JSX.Element {
                             <div className="flex-1 min-w-0">
                               <div
                                 className="rounded overflow-hidden"
-                                style={{ height: 3, background: "var(--border)" }}
+                                style={{ height: 3, background: "var(--bd)" }}
                                 role="progressbar"
                                 aria-valuenow={Math.round(item.share * 100)}
                                 aria-valuemin={0}
@@ -958,7 +958,7 @@ export function InsightsPage(): JSX.Element {
                           <div className="flex-1 min-w-0">
                             <div
                               className="rounded overflow-hidden"
-                              style={{ height: 3, background: "var(--border)" }}
+                              style={{ height: 3, background: "var(--bd)" }}
                               role="progressbar"
                               aria-valuenow={Math.round(item.share * 100)}
                               aria-valuemin={0}

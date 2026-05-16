@@ -602,23 +602,23 @@ describe("getToolBadgeColors", () => {
   });
 
   it("returns accent colors for grep", () => {
-    expect(getToolBadgeColors("grep")).toEqual({ bg: "var(--accent-dim)", text: "var(--accent)" });
+    expect(getToolBadgeColors("grep")).toEqual({ bg: "var(--acc-bg)", text: "var(--acc)" });
   });
 
   it("returns accent colors for websearch", () => {
-    expect(getToolBadgeColors("websearch")).toEqual({ bg: "var(--accent-dim)", text: "var(--accent)" });
+    expect(getToolBadgeColors("websearch")).toEqual({ bg: "var(--acc-bg)", text: "var(--acc)" });
   });
 
   it("returns yellow colors for bash", () => {
-    expect(getToolBadgeColors("bash")).toEqual({ bg: "var(--yellow-dim)", text: "var(--yellow)" });
+    expect(getToolBadgeColors("bash")).toEqual({ bg: "var(--amb-bg)", text: "var(--amb)" });
   });
 
   it("returns green colors for edit", () => {
-    expect(getToolBadgeColors("edit")).toEqual({ bg: "var(--green-dim)", text: "var(--green)" });
+    expect(getToolBadgeColors("edit")).toEqual({ bg: "var(--grn-bg)", text: "var(--grn)" });
   });
 
   it("returns green colors for Write", () => {
-    expect(getToolBadgeColors("Write")).toEqual({ bg: "var(--green-dim)", text: "var(--green)" });
+    expect(getToolBadgeColors("Write")).toEqual({ bg: "var(--grn-bg)", text: "var(--grn)" });
   });
 
   it("returns default colors for unknown tool", () => {
@@ -671,8 +671,8 @@ describe("ToolEntries - CollapsedGroupRow badge colors", () => {
     const spans = groupRow!.querySelectorAll("span.font-mono");
     const badge = Array.from(spans).find((s) => s.textContent === "3") as HTMLElement | undefined;
     expect(badge).not.toBeUndefined();
-    expect(badge!.style.background).toBe("var(--accent-dim)");
-    expect(badge!.style.color).toBe("var(--accent)");
+    expect(badge!.style.background).toBe("var(--acc-bg)");
+    expect(badge!.style.color).toBe("var(--acc)");
   });
 });
 

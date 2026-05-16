@@ -334,7 +334,7 @@ export function HooksTab({
                   style={{
                     borderBottom: "1px solid var(--bd)",
                     color: rowColor,
-                    background: isHighlighted ? "var(--purple-dim)" : undefined,
+                    background: isHighlighted ? "var(--cat-purple-bg)" : undefined,
                   }}
                 >
                   <td className="px-2 py-1" style={{ color: "var(--t3)" }}>

@@ -208,15 +208,15 @@ export function getLayoutedElements(
       animated: frozen ? false : isActive,
       style: {
         stroke: isActive
-          ? "var(--accent)"
-          : "var(--border-active)",
+          ? "var(--acc)"
+          : "var(--bd-s)",
         strokeWidth: 1.5,
         strokeDasharray: frozen ? undefined : (isActive ? "5 3" : undefined),
         ...(isEdgeDimmed ? { opacity: 0.2 } : {}),
       },
       markerEnd: {
         type: "arrowclosed" as const,
-        color: isActive ? "var(--accent)" : "var(--border-active)",
+        color: isActive ? "var(--acc)" : "var(--bd-s)",
         width: 16,
         height: 12,
       },
@@ -278,14 +278,14 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
         target: e.target,
         animated: frozen ? false : isActive,
         style: {
-          stroke: isActive ? "var(--accent)" : "var(--border-active)",
+          stroke: isActive ? "var(--acc)" : "var(--bd-s)",
           strokeWidth: 1.5,
           strokeDasharray: frozen ? undefined : (isActive ? "5 3" : undefined),
           ...(isEdgeDimmed ? { opacity: 0.2 } : {}),
         },
         markerEnd: {
           type: "arrowclosed" as const,
-          color: isActive ? "var(--accent)" : "var(--border-active)",
+          color: isActive ? "var(--acc)" : "var(--bd-s)",
           width: 16,
           height: 12,
         },
@@ -345,7 +345,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
   }, [dag.nodes]);
 
   const defaultEdgeOptions: DefaultEdgeOptions = {
-    style: { stroke: "var(--border-active)", strokeWidth: 1.5 },
+    style: { stroke: "var(--bd-s)", strokeWidth: 1.5 },
   };
 
   return (
@@ -363,7 +363,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
             <path d="M1.5 1.75V13.5h13.75a.75.75 0 010 1.5H.75a.75.75 0 01-.75-.75V1.75a.75.75 0 011.5 0zm14.28 2.53l-5.25 5.25a.75.75 0 01-1.06 0L7 7.06 4.28 9.78a.75.75 0 01-1.06-1.06l3.25-3.25a.75.75 0 011.06 0L10 8.94l4.72-4.72a.75.75 0 111.06 1.06z" />
           </svg>
           Agent Graph
-          <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${frozen ? "bg-dt-bg4 text-dt-text2" : "bg-dt-accent-dim text-dt-accent shadow-[0_0_8px_var(--accent-dim)]"}`}>
+          <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${frozen ? "bg-dt-bg4 text-dt-text2" : "bg-dt-accent-dim text-dt-accent shadow-[0_0_8px_var(--acc-bg)]"}`}>
             {frozen ? "snapshot" : "real-time"}
           </span>
         </div>
@@ -383,7 +383,7 @@ function GraphInner({ dag, selectedAgent, onSelectAgent, frozen = false, onViewI
         className="flex-1 relative overflow-hidden"
         style={{
           background:
-            "radial-gradient(circle at 50% 50%, var(--bg-2) 0%, var(--bg-1) 100%)",
+            "radial-gradient(circle at 50% 50%, var(--bg-e) 0%, var(--bg-s) 100%)",
         }}
       >
         <ReactFlow

@@ -417,8 +417,8 @@ export function RepoList({
                               fontSize: 9,
                               padding: "0px 4px",
                               borderRadius: 2,
-                              color: session.entrypoint === "sdk-cli" ? "var(--purple)" : "var(--t3)",
-                              background: session.entrypoint === "sdk-cli" ? "var(--purple-dim)" : "var(--bg-h)",
+                              color: session.entrypoint === "sdk-cli" ? "var(--cat-purple)" : "var(--t3)",
+                              background: session.entrypoint === "sdk-cli" ? "var(--cat-purple-bg)" : "var(--bg-h)",
                             }}
                           >
                             {session.entrypoint === "sdk-cli" ? "bg" : session.entrypoint === "claude-desktop" ? "desk" : session.entrypoint}
@@ -429,7 +429,7 @@ export function RepoList({
                             data-testid="bridge-indicator"
                             className="shrink-0 flex items-center"
                             title="Connected via Remote Control / claude.ai"
-                            style={{ color: "var(--cyan)" }}
+                            style={{ color: "var(--cat-cyan)" }}
                           >
                             <Radio size={9} />
                           </span>

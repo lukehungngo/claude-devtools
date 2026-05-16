@@ -60,8 +60,8 @@ function formatToolOutput(
 function renderEditDiff(lines: string[]) {
   return lines.map((line, i) => {
     const trimmed = line;
-    let color = "var(--text-2)";
-    if (trimmed.startsWith("+")) color = "var(--green)";
+    let color = "var(--t3)";
+    if (trimmed.startsWith("+")) color = "var(--grn)";
     else if (trimmed.startsWith("-")) color = "var(--red)";
 
     return (
@@ -118,7 +118,7 @@ export function ToolCallBlock({
   //   - mouseenter/leave handlers that bubble the id back up so the Hooks tab
   //     can tint its matching row.
   const toolUseId = toolUse.id ?? "";
-  const wrapperOutline = highlighted ? "2px solid var(--purple)" : undefined;
+  const wrapperOutline = highlighted ? "2px solid var(--cat-purple)" : undefined;
   const handleMouseEnter = (): void => {
     if (onToolHover && toolUseId) onToolHover(toolUseId);
   };
@@ -189,7 +189,7 @@ export function ToolCallBlock({
             }}
             style={{
               background: "var(--bg-4)",
-              color: "var(--cyan)",
+              color: "var(--cat-cyan)",
             }}
             className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-dt-xs text-xxs cursor-pointer transition-[text-decoration]"
             onMouseEnter={(e) => {
@@ -230,7 +230,7 @@ export function ToolCallBlock({
           {isEdit ? (
             renderEditDiff(lines)
           ) : (
-            <div style={{ color: hasError ? "var(--red)" : "var(--text-2)" }}>
+            <div style={{ color: hasError ? "var(--red)" : "var(--t3)" }}>
               {lines.map((line, i) => (
                 <div key={i}>{line}</div>
               ))}

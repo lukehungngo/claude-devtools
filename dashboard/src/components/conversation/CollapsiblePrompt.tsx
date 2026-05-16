@@ -119,7 +119,7 @@ function IntentBlobRenderer({
       {isExpanded && (
         <pre
           data-testid="blob-content"
-          className="mt-1 px-2.5 py-2 bg-[var(--bg-h)] border border-[var(--border)] rounded-[var(--radius-sm)] font-mono text-[11px] text-[var(--t2)] whitespace-pre-wrap max-h-[320px] overflow-y-auto"
+          className="mt-1 px-2.5 py-2 bg-[var(--bg-h)] border border-[var(--bd)] rounded-[var(--radius-sm)] font-mono text-[11px] text-[var(--t2)] whitespace-pre-wrap max-h-[320px] overflow-y-auto"
         >
           {fullText}
         </pre>

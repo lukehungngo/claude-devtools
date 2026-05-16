@@ -226,7 +226,7 @@ export function McpManager({ servers: propServers, sessionId, projectPath }: Mcp
             >
               <div className="flex items-center gap-2.5">
                 <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${statusDotClass(server.status)} ${server.status === "connected" ? "shadow-[0_0_6px_var(--green)]" : ""}`}
+                  className={`w-2 h-2 rounded-full shrink-0 ${statusDotClass(server.status)} ${server.status === "connected" ? "shadow-[0_0_6px_var(--grn)]" : ""}`}
                   title={server.status}
                 />
                 <span className="text-sm font-semibold text-dt-text0">{server.name}</span>

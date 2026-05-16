@@ -33,7 +33,7 @@ describe("Sparkline", () => {
   it("uses purple color when specified via stroke attribute", () => {
     const { container } = render(<Sparkline data={[1, 2, 3]} color="purple" />);
     const polyline = container.querySelector("polyline");
-    expect(polyline!.getAttribute("stroke")).toBe("var(--purple)");
+    expect(polyline!.getAttribute("stroke")).toBe("var(--cat-purple)");
   });
 
   it("applies className prop to SVG", () => {

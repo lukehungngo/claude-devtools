@@ -6,34 +6,34 @@
 
 /** Fixed colors for well-known agent types */
 const KNOWN_COLORS: Record<string, string> = {
-  main: "var(--accent)",
-  Explore: "var(--cyan)",
-  Plan: "var(--yellow)",
-  "general-purpose": "var(--green)",
-  General: "var(--green)",
-  orchestrator: "var(--orange)",
+  main: "var(--acc)",
+  Explore: "var(--cat-cyan)",
+  Plan: "var(--amb)",
+  "general-purpose": "var(--grn)",
+  General: "var(--grn)",
+  orchestrator: "var(--cat-orange)",
   engineer: "var(--teal)",
-  reviewer: "var(--purple)",
-  "bug-fixer": "var(--rose)",
+  reviewer: "var(--cat-purple)",
+  "bug-fixer": "var(--cat-rose)",
   researcher: "var(--sky)",
-  "differential-reviewer": "var(--pink)",
-  "ui-ux-designer": "var(--pink)",
+  "differential-reviewer": "var(--cat-pink)",
+  "ui-ux-designer": "var(--cat-pink)",
 };
 
 /** Fixed dim colors for well-known agent types (used in badges) */
 const KNOWN_DIM_COLORS: Record<string, string> = {
-  main: "var(--accent-dim)",
-  Explore: "var(--cyan-dim)",
-  Plan: "var(--yellow-dim)",
-  "general-purpose": "var(--green-dim)",
-  General: "var(--green-dim)",
-  orchestrator: "var(--orange-dim)",
+  main: "var(--acc-bg)",
+  Explore: "var(--cat-cyan-bg)",
+  Plan: "var(--amb-bg)",
+  "general-purpose": "var(--grn-bg)",
+  General: "var(--grn-bg)",
+  orchestrator: "var(--cat-orange-bg)",
   engineer: "var(--teal-dim)",
-  reviewer: "var(--purple-dim)",
-  "bug-fixer": "var(--rose-dim)",
-  researcher: "var(--sky-dim)",
-  "differential-reviewer": "var(--pink-dim)",
-  "ui-ux-designer": "var(--pink-dim)",
+  reviewer: "var(--cat-purple-bg)",
+  "bug-fixer": "var(--cat-rose-bg)",
+  researcher: "var(--sky-bg)",
+  "differential-reviewer": "var(--cat-pink-bg)",
+  "ui-ux-designer": "var(--cat-pink-bg)",
 };
 
 /** Simple string hash → number */

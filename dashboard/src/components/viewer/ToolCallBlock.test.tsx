@@ -31,7 +31,7 @@ describe("ToolCallBlock — FU-3 hover correlation", () => {
     expect(wrapper).not.toBeNull();
     const outline = wrapper.style.outline;
     expect(outline).toContain("2px");
-    expect(outline).toContain("var(--purple)");
+    expect(outline).toContain("var(--cat-purple)");
   });
 
   it("does not apply outline when highlighted is false or undefined", () => {
@@ -39,7 +39,7 @@ describe("ToolCallBlock — FU-3 hover correlation", () => {
     const wrapper = container.querySelector(
       '[data-testid="tool-call-toolu_01ABC"]',
     ) as HTMLElement;
-    expect(wrapper.style.outline ?? "").not.toContain("var(--purple)");
+    expect(wrapper.style.outline ?? "").not.toContain("var(--cat-purple)");
   });
 
   it("fires onToolHover with toolUseId on mouseenter and null on mouseleave", () => {

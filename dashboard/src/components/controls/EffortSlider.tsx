@@ -14,7 +14,7 @@ const LEVEL_COLORS: Record<EffortLevel, string> = {
   medium: "var(--teal)",
   high: "var(--grn)",
   xhigh: "var(--amb)",
-  max: "var(--orange)",
+  max: "var(--cat-orange)",
 };
 
 export function EffortSlider({ level, onChange }: EffortSliderProps) {

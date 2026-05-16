@@ -317,9 +317,9 @@ describe("HooksTab", () => {
     render(<HooksTab events={events} highlightedHookId="toolu_01ABC" />);
     const row1 = screen.getByTestId("hook-row-h1");
     const row2 = screen.getByTestId("hook-row-h2");
-    // The matching row uses purple-dim background tint
-    expect(row1.getAttribute("style")).toContain("purple-dim");
-    expect(row2.getAttribute("style") ?? "").not.toContain("purple-dim");
+    // The matching row uses cat-purple-bg background tint
+    expect(row1.getAttribute("style")).toContain("cat-purple-bg");
+    expect(row2.getAttribute("style") ?? "").not.toContain("cat-purple-bg");
   });
 
   it("source column distinguishes hooks from task-notifications", () => {

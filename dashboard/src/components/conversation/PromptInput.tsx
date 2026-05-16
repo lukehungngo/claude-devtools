@@ -655,7 +655,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         {/* SSE status indicator */}
         {running && sseStatus === "streaming" && (
           <span
-            className="w-2 h-2 rounded-full bg-dt-green animate-pulse-opacity shadow-[0_0_6px_var(--green)] shrink-0"
+            className="w-2 h-2 rounded-full bg-dt-green animate-pulse-opacity shadow-[0_0_6px_var(--grn)] shrink-0"
             title="Streaming response..."
           />
         )}

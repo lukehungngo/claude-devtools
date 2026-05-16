@@ -118,19 +118,19 @@ export function StatsPanel(): JSX.Element {
           <div aria-label="Sessions per day bar chart" className="w-full h-[200px]">
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="var(--text-2)" />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="var(--text-2)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--bd)" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="var(--t3)" />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="var(--t3)" />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "var(--bg-3)",
-                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--bg-h)",
+                    border: "1px solid var(--bd)",
                     borderRadius: "8px",
-                    color: "var(--text-0)",
+                    color: "var(--t1)",
                     boxShadow: "var(--shadow-md)",
                   }}
                 />
-                <Bar dataKey="count" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill="var(--acc)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -342,13 +342,13 @@ export function getToolBadgeColors(toolName: string): { bg: string; text: string
     return { bg: "var(--teal-dim)", text: "var(--teal)" };
   }
   if (name === "grep" || name === "websearch" || name === "webfetch") {
-    return { bg: "var(--accent-dim)", text: "var(--accent)" };
+    return { bg: "var(--acc-bg)", text: "var(--acc)" };
   }
   if (name === "bash" || name === "execute") {
-    return { bg: "var(--yellow-dim)", text: "var(--yellow)" };
+    return { bg: "var(--amb-bg)", text: "var(--amb)" };
   }
   if (name === "edit" || name === "write") {
-    return { bg: "var(--green-dim)", text: "var(--green)" };
+    return { bg: "var(--grn-bg)", text: "var(--grn)" };
   }
   return { bg: "var(--bg-h)", text: "var(--t3)" };
 }
@@ -469,7 +469,7 @@ const ToolEntryRow = memo(function ToolEntryRow({
           borderLeft: `3px solid ${borderColor}`,
           borderBottom: isLast && !isExpanded ? "none" : "1px solid var(--bd)",
           transition: "background .1s",
-          outline: isHighlighted ? "2px solid var(--purple)" : undefined,
+          outline: isHighlighted ? "2px solid var(--cat-purple)" : undefined,
           borderRadius: isHighlighted ? 4 : undefined,
         }}
       >

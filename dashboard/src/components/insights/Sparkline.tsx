@@ -53,7 +53,7 @@ export function Sparkline({
   height = DEFAULT_H,
 }: SparklineProps): JSX.Element {
   const points = computeSparkPoints(data, width, height);
-  const colorVar = color === "purple" ? "var(--purple)" : "var(--teal)";
+  const colorVar = color === "purple" ? "var(--cat-purple)" : "var(--teal)";
   const gradId = `spark-grad-${color}-${width}`;
 
   return (

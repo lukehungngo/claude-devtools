@@ -12,7 +12,7 @@ interface StaticCompactMarkerProps {
  * equivalent that persists in the scrollback so the user can see WHERE a
  * compaction occurred when scrolling back through an old session.
  *
- * Visual contract: one short line, ~28px tall, accent var(--purple),
+ * Visual contract: one short line, ~28px tall, accent var(--cat-purple),
  * hairline rules either side to visually separate the surrounding turns.
  */
 export function StaticCompactMarker({ marker }: StaticCompactMarkerProps): JSX.Element {
@@ -35,7 +35,7 @@ export function StaticCompactMarker({ marker }: StaticCompactMarkerProps): JSX.E
       title={title}
       className="flex items-center gap-2 text-xs italic select-none"
       style={{
-        color: "var(--purple)",
+        color: "var(--cat-purple)",
         padding: "6px 0",
         minHeight: 28,
       }}

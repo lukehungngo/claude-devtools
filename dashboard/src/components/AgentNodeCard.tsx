@@ -6,8 +6,8 @@ import { getAgentColor } from "../lib/agentColors";
 
 /** Status dot color */
 const statusDotColors: Record<string, string> = {
-  active: "var(--cyan)",
-  completed: "var(--green)",
+  active: "var(--cat-cyan)",
+  completed: "var(--grn)",
   error: "var(--red)",
 };
 
@@ -22,7 +22,7 @@ function computeNodeDuration(node: AgentNode): number | null {
 export const AgentNodeCard = memo(function AgentNodeCard({ data }: NodeProps) {
   const node = data.agent as AgentNode;
   const borderColor = getAgentColor(node.type);
-  const dotColor = statusDotColors[node.status] || "var(--text-2)";
+  const dotColor = statusDotColors[node.status] || "var(--t3)";
   const isRunning = node.status === "active";
   const isMain = node.type === "main";
   const isSelected = data.selected as boolean | undefined;
@@ -76,8 +76,8 @@ export const AgentNodeCard = memo(function AgentNodeCard({ data }: NodeProps) {
               style={{
                 marginTop: "4px",
                 paddingTop: "4px",
-                borderTop: "1px solid var(--border)",
-                color: "var(--accent)",
+                borderTop: "1px solid var(--bd)",
+                color: "var(--acc)",
                 cursor: "pointer",
                 fontSize: "10px",
                 fontWeight: 600,
@@ -97,7 +97,7 @@ export const AgentNodeCard = memo(function AgentNodeCard({ data }: NodeProps) {
       <Handle
         type="target"
         position={Position.Top}
-        style={{ background: "var(--border-active)", width: 6, height: 6 }}
+        style={{ background: "var(--bd-s)", width: 6, height: 6 }}
       />
 
       {/* Row 1: status dot + label */}
@@ -132,7 +132,7 @@ export const AgentNodeCard = memo(function AgentNodeCard({ data }: NodeProps) {
       <Handle
         type="source"
         position={Position.Bottom}
-        style={{ background: "var(--border-active)", width: 6, height: 6 }}
+        style={{ background: "var(--bd-s)", width: 6, height: 6 }}
       />
     </div>
   );

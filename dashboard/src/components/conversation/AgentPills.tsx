@@ -20,12 +20,12 @@ interface AgentPillsProps {
 }
 
 const AGENT_COLORS: Record<string, { bg: string; color: string }> = {
-  main: { bg: "var(--accent-dim)", color: "var(--accent)" },
-  Explore: { bg: "var(--cyan-dim)", color: "var(--cyan)" },
-  Plan: { bg: "var(--yellow-dim)", color: "var(--yellow)" },
-  "general-purpose": { bg: "var(--green-dim)", color: "var(--green)" },
-  General: { bg: "var(--green-dim)", color: "var(--green)" },
-  researcher: { bg: "var(--purple-dim, rgba(168,85,247,0.15))", color: "var(--purple, #a855f7)" },
+  main: { bg: "var(--acc-bg)", color: "var(--acc)" },
+  Explore: { bg: "var(--cat-cyan-bg)", color: "var(--cat-cyan)" },
+  Plan: { bg: "var(--amb-bg)", color: "var(--amb)" },
+  "general-purpose": { bg: "var(--grn-bg)", color: "var(--grn)" },
+  General: { bg: "var(--grn-bg)", color: "var(--grn)" },
+  researcher: { bg: "var(--cat-purple-bg, rgba(168,85,247,0.15))", color: "var(--cat-purple, #a855f7)" },
   bugfixer: { bg: "var(--red-dim)", color: "var(--red)" },
 };
 
@@ -33,7 +33,7 @@ function getAgentColor(agentType: string): { bg: string; color: string } {
   return (
     AGENT_COLORS[agentType] || {
       bg: "var(--bg-4)",
-      color: "var(--text-2)",
+      color: "var(--t3)",
     }
   );
 }
