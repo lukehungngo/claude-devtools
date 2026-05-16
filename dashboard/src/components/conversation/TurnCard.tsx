@@ -99,14 +99,23 @@ function computeFallbackDuration(startTime: string, endTime: string): number | n
 function TurnFooter({
   turn,
   turnEvents,
+  allEvents,
   sessionIsRunning,
 }: {
   turn: TurnSnapshot;
   turnEvents: SessionEvent[];
+  allEvents: SessionEvent[];
   sessionIsRunning?: boolean;
 }) {
   // Three-state status via the single-source-of-truth predicate.
   //   - completed     → main has a terminal signal (end_turn / turn_duration)
+  //                     AND every Agent dispatched in this turn has been
+  //                     acknowledged via task-notification or non-ack
+  //                     tool_result. The async-dispatch fix in
+  //                     docs/bugs/synthetic-agent-instant-completion.md
+  //                     requires this second condition — otherwise the
+  //                     footer flips to "Completed" the moment main's
+  //                     end_turn fires, while subagents are still running.
   //   - running       → no signal AND the session is still active
   //   - indeterminate → no signal AND the session is closed (truncated,
   //                     aborted, or historical without completion marker).
@@ -118,7 +127,34 @@ function TurnFooter({
   //   - undefined = safe default "not running". ConversationView passes false
   //     for all non-last turns; only the last turn receives the real flag.
   const sessionIsActive = sessionIsRunning === true;
-  const status = getAgentStatus("main", turnEvents, sessionIsActive);
+  const mainStatus = getAgentStatus("main", turnEvents, sessionIsActive);
+
+  // Detect Agent/Task dispatches made in this turn and check whether each has
+  // a completion signal anywhere in allEvents (notifications often arrive
+  // many turns later for async dispatches).
+  const hasInflightSubagent = useMemo(() => {
+    for (const evt of turnEvents) {
+      if (evt.isSidechain) continue;
+      if (evt.type !== "assistant") continue;
+      const content = normalizeContent((evt as AssistantEvent).message?.content);
+      for (const c of content) {
+        if (c.type !== "tool_use") continue;
+        if (c.name !== "Agent" && c.name !== "Task") continue;
+        if (!c.id) continue;
+        if (findAgentCompletion(allEvents, c.id) === null) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }, [turnEvents, allEvents]);
+
+  // Override main's completion when subagents are still running.
+  // If session is closed we keep main's status (avoids flashing forever).
+  const status =
+    mainStatus === "completed" && hasInflightSubagent && sessionIsActive
+      ? "running"
+      : mainStatus;
   const [elapsed, setElapsed] = useState<number>(0);
 
   useEffect(() => {
@@ -421,7 +457,7 @@ export function TurnCard({
           )}
 
           {/* Completion indicator */}
-          <TurnFooter turn={turn} turnEvents={turnEvents} sessionIsRunning={sessionIsRunning} />
+          <TurnFooter turn={turn} turnEvents={turnEvents} allEvents={allEvents} sessionIsRunning={sessionIsRunning} />
         </div>
       )}
     </div>
