@@ -11,6 +11,9 @@ import { normalizeContent } from "../../lib/normalizeContent";
 import { formatDuration } from "../../lib/cost";
 import { formatModelName } from "../../lib/formatModelName";
 import { AgentPills } from "./AgentPills";
+import { BackgroundAgentGroup } from "./BackgroundAgentGroup";
+import { toolUseIdToSyntheticAgent } from "../../lib/agentIds";
+import type { AgentNode } from "../../lib/types";
 import { CollapsiblePrompt } from "./CollapsiblePrompt";
 import { ThinkingGroup } from "../viewer/ThinkingBlock";
 import { NarrationGroup } from "./NarrationGroup";
@@ -237,6 +240,77 @@ export function TurnCard({
     [turn.agents],
   );
 
+  // Background agents (Phase 4.1): synthesize AgentNodes from this turn's
+  // Agent tool_use entries. Subagents in this Claude Code variant emit no own
+  // events; presence of a matching tool_result determines completion.
+  const backgroundAgents = useMemo<AgentNode[]>(() => {
+    const dispatches: Array<{
+      toolUseId: string;
+      description: string;
+      subagentType?: string;
+      timestamp: string;
+    }> = [];
+    const toolResults = new Map<string, { ts: string; isError: boolean }>();
+
+    for (const evt of turnEvents) {
+      if (evt.isSidechain) continue;
+      if (evt.type === "assistant") {
+        const content = normalizeContent((evt as AssistantEvent).message?.content);
+        for (const c of content) {
+          if (c.type !== "tool_use") continue;
+          if (c.name !== "Agent" && c.name !== "Task") continue;
+          const input = c.input as Record<string, unknown>;
+          const desc = typeof input.description === "string" ? input.description : "";
+          if (!c.id || !desc) continue;
+          dispatches.push({
+            toolUseId: c.id,
+            description: desc,
+            subagentType: typeof input.subagent_type === "string" ? input.subagent_type : undefined,
+            timestamp: evt.timestamp,
+          });
+        }
+      } else if (evt.type === "user") {
+        const content = normalizeContent(evt.message?.content);
+        for (const c of content) {
+          if (c.type !== "tool_result") continue;
+          const tid = (c as { tool_use_id?: string }).tool_use_id;
+          if (!tid) continue;
+          toolResults.set(tid, {
+            ts: evt.timestamp,
+            isError: !!(c as { is_error?: boolean }).is_error,
+          });
+        }
+      }
+    }
+
+    return dispatches.map((d): AgentNode => {
+      const result = toolResults.get(d.toolUseId);
+      const status: AgentNode["status"] = result === undefined
+        ? "active"
+        : result.isError
+          ? "error"
+          : "completed";
+      return {
+        id: toolUseIdToSyntheticAgent(d.toolUseId),
+        type: d.subagentType ?? "subagent",
+        description: d.description,
+        parentId: "main",
+        tokenUsage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheWriteTokens: 0,
+          cacheReadTokens: 0,
+          totalCost: 0,
+        },
+        toolCalls: 0,
+        mcpToolCalls: 0,
+        status,
+        startTime: d.timestamp,
+        endTime: result?.ts,
+      };
+    });
+  }, [turnEvents]);
+
   return (
     <div
       className={`conv-turn flex flex-col gap-5 ${isHighlighted ? "highlighted" : ""}`}
@@ -289,6 +363,15 @@ export function TurnCard({
 
           {/* Tool entries (grouped card) -- click opens bottom panel tool-call tab */}
           <ToolEntries events={turnEvents} onToolClick={onToolClick} agentSummaries={turn.agents} />
+
+          {/* Phase 4: Background agents dispatch block — collapsible group
+              with one row per dispatched Agent tool_use, status from
+              matching tool_result. */}
+          <BackgroundAgentGroup
+            agents={backgroundAgents}
+            isLive={sessionIsRunning === true}
+            onSelect={onAgentPillClick}
+          />
 
           {/* Final response text — only non-narration text blocks */}
           {responseContent
