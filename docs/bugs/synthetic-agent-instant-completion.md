@@ -91,7 +91,39 @@ The existing dispatch-ack `tool_result` match remains valid for **sync** Agent d
 
 ## Knock-on effects
 
-- **Turn completion logic** treats main `end_turn` as turn-done. With Agent dispatches in flight, turn footer should remain "running". Today it flips to "Completed in Xm Xs" the moment main finishes its assistant text — even though 2+ subagents are still working.
+- **Turn completion logic** treats main `end_turn` as turn-done. With Agent dispatches in flight, turn footer should remain "running". Pre-fix it flips to "Completed in Xm Xs" the moment main finishes its assistant text — even though 2+ subagents are still working.
+
+### Verified end-to-end from session `23ba0306` at 14:17:12 UTC (screenshot moment)
+
+| Step | Event | Timestamp |
+|---|---|---|
+| 1 | User prompt | 14:14:23.239 |
+| 2a | Agent("Reuse review — Wave 2") tool_use, `run_in_background: true` | 14:15:10.708 |
+| 2b | tool_result ack ("Async agent launched successfully…") | 14:15:11.035 |
+| 3a | Agent("Quality review — Wave 2") tool_use | 14:15:34.674 |
+| 3b | tool_result ack | 14:15:34.953 |
+| 4a | Agent("Efficiency review — Wave 2") tool_use | 14:16:00.894 |
+| 4b | tool_result ack | 14:16:01.230 |
+| 5 | Main agent assistant text "3 review agents running in parallel. Awaiting all findings before fixing." + `stop_reason: "end_turn"` | 14:16:11.370 |
+| 6 | `system/turn_duration` event | 14:16:14.897 |
+
+`turn_duration = 14:16:14.897 − 14:14:23.239 = 1m 51.66s` → matches the screenshot's "Completed in 1m 51s" exactly. At 14:17:12 (screenshot moment), no `<task-notification>` has fired for any of the 3 toolUseIds. All 3 subagents still running.
+
+Simulated TurnFooter logic against full event window (4146 events up to screenshot, 32 in this turn):
+
+```
+mainStatus              = completed   (end_turn + turn_duration both fired)
+hasInflightSubagent     = true        (3/3 dispatches: only ack tool_results, no notification)
+sessionIsActive         = true        (session still being written until 14:26)
+→ post-fix status       = "running"   (display: "Generating… 2m 49s")
+→ pre-fix status        = "completed" (display: "Completed in 1m 51s")
+```
+
+## Why the underlying data is correct but the pre-fix UI is wrong
+
+The SDK's `system/turn_duration` event represents **main agent's wall-time**, not the wall-time including in-flight background subagents. In Claude Code variants without async agents, main's turn-duration == user's turn duration. With `run_in_background: true` dispatches, the two diverge by the subagent's runtime (often many minutes).
+
+Pre-fix `TurnFooter` derived status purely from `getAgentStatus("main", ...)` — true to main's lifecycle, but doesn't reflect what the user expects ("my prompt + all work it triggered").
 - **DAG status** ("active"/"completed"/"error") on synthetic nodes is wrong → Agent Graph timeline bars don't pulse, look stale.
 - **Background Agents block** counts "done" with `✓` icon → user thinks work is finished, closes the dashboard, comes back later to find it stale.
 
