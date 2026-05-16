@@ -14,6 +14,7 @@ function hookSuccess(
     durationMs: number;
     stdout: string;
     stderr: string;
+    terminalSequence: string;
   }> = {},
 ): AttachmentEvent {
   return {
@@ -39,6 +40,7 @@ function hookSuccess(
       exitCode: overrides.exitCode ?? 0,
       content: "",
       durationMs: overrides.durationMs ?? 24,
+      terminalSequence: overrides.terminalSequence,
     },
   };
 }
@@ -234,6 +236,43 @@ describe("HooksTab", () => {
     expect(row.textContent ?? "").not.toContain("Running 2 tests using 1 worker");
     // Stats include the task-notification in the hook count.
     expect(container.textContent).toContain("1 hook");
+  });
+
+  it("renders bell indicator when hook_success carries terminalSequence (P2-4)", () => {
+    const events: SessionEvent[] = [
+      hookSuccess("ts1", {
+        hookName: "PostToolUse:Build",
+        terminalSequence: "\\x1b]9;1;Build complete\\x07",
+      }),
+    ];
+    render(<HooksTab events={events} />);
+    const bell = screen.getByTestId("hook-row-ts1-terminal-bell");
+    expect(bell).toBeDefined();
+    expect(bell.getAttribute("title")).toBe("\\x1b]9;1;Build complete\\x07");
+  });
+
+  it("does not render bell when terminalSequence is absent (P2-4)", () => {
+    const events: SessionEvent[] = [
+      hookSuccess("ts2", { hookName: "PostToolUse:Build" }),
+    ];
+    render(<HooksTab events={events} />);
+    expect(screen.queryByTestId("hook-row-ts2-terminal-bell")).toBeNull();
+  });
+
+  it("truncates terminalSequence tooltip to 80 chars (P2-4)", () => {
+    const longSeq = "\\x1b]9;1;" + "A".repeat(200) + "\\x07";
+    const events: SessionEvent[] = [
+      hookSuccess("ts3", {
+        hookName: "PostToolUse:Build",
+        terminalSequence: longSeq,
+      }),
+    ];
+    render(<HooksTab events={events} />);
+    const bell = screen.getByTestId("hook-row-ts3-terminal-bell");
+    const title = bell.getAttribute("title") ?? "";
+    expect(title.length).toBeLessThanOrEqual(80);
+    // Confirm truncation actually happened (last char is the ellipsis).
+    expect(title.endsWith("…")).toBe(true);
   });
 
   it("source column distinguishes hooks from task-notifications", () => {

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Bell } from "lucide-react";
 import type {
   SessionEvent,
   AttachmentEvent,
@@ -31,6 +32,8 @@ interface HookRow {
   stderrPreview: string;
   cancelled: boolean;
   cancelReason?: string;
+  /** Literal terminal escape sequence (CC v2.1.143 hook output field). */
+  terminalSequence?: string;
 }
 
 function isHookAttachment(e: SessionEvent): e is AttachmentEvent {
@@ -88,6 +91,7 @@ function toRow(e: AttachmentEvent): HookRow | null {
       stdoutPreview: truncate(a.stdout),
       stderrPreview: truncate(a.stderr),
       cancelled: false,
+      terminalSequence: a.terminalSequence,
     };
   }
   if (inner.type === "hook_cancelled") {
@@ -307,7 +311,22 @@ export function HooksTab({ events = [], activeTurnIndex: _ }: HooksTabProps): JS
                   <td className="px-2 py-1" style={{ color: "var(--t2)" }}>
                     {r.hookEvent}
                   </td>
-                  <td className="px-2 py-1">{r.hookName}</td>
+                  <td className="px-2 py-1">
+                    <span className="inline-flex items-center gap-1">
+                      {r.hookName}
+                      {r.terminalSequence && r.terminalSequence.length > 0 && (
+                        <span
+                          data-testid={`hook-row-${r.uuid}-terminal-bell`}
+                          title={truncate(r.terminalSequence, 80)}
+                          style={{ color: "var(--t3)", display: "inline-flex" }}
+                          aria-label="terminal sequence emitted"
+                          role="img"
+                        >
+                          <Bell size={11} />
+                        </span>
+                      )}
+                    </span>
+                  </td>
                   <td className="px-2 py-1" style={{ color: "var(--t3)" }}>
                     {r.toolUseID ?? ""}
                   </td>

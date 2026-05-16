@@ -173,6 +173,12 @@ export interface HookSuccessAttachment {
   exitCode: number;
   content: string;
   durationMs: number;
+  /**
+   * Optional terminal escape sequence emitted by the hook (CC v2.1.143
+   * CHANGELOG line 68 — `terminalSequence` hook output field). When set,
+   * the dashboard surfaces a bell indicator on the hook row.
+   */
+  terminalSequence?: string;
 }
 
 export interface HookCancelledAttachment {
