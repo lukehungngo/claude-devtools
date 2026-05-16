@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { HOOK_EVENTS } from "@anthropic-ai/claude-agent-sdk";
+import { HOOK_EVENTS_LOCAL } from "../../../lib/hookEvents";
 import { HookEditor } from "../HookEditor";
 
 describe("HookEditor", () => {
@@ -35,6 +36,13 @@ describe("HookEditor", () => {
   // Devtools must surface all of them so users can attach hooks to any.
   it("SDK HOOK_EVENTS contains 29 entries", () => {
     expect(HOOK_EVENTS.length).toBe(29);
+  });
+
+  // Drift guard: dashboard ships a local mirror of HOOK_EVENTS to keep the
+  // SDK out of the Vite bundle (sdk.mjs has a shebang Vite cannot parse).
+  // If the SDK adds or removes an event, this test fails loudly.
+  it("HOOK_EVENTS_LOCAL mirrors the SDK list", () => {
+    expect([...HOOK_EVENTS_LOCAL]).toEqual([...HOOK_EVENTS]);
   });
 
   it("lists all 29 SDK HOOK_EVENTS in the editor", async () => {

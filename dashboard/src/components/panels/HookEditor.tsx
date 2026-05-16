@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Trash2, ChevronDown, ChevronRight, Save, Loader2, X } from "lucide-react";
-import { HOOK_EVENTS } from "@anthropic-ai/claude-agent-sdk";
+import { HOOK_EVENTS_LOCAL as HOOK_EVENTS } from "../../lib/hookEvents";
 
 type HookType = "command" | "http" | "prompt" | "agent";
 
