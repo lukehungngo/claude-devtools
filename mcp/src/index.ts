@@ -1,3 +1,16 @@
 #!/usr/bin/env node
-// Bootstrap added in Task 3.
-process.stderr.write("claude-devtools-mcp: stub\n");
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { buildServer } from "./server.js";
+import { logger } from "./logger.js";
+
+async function main(): Promise<void> {
+  const srv = buildServer();
+  const transport = new StdioServerTransport();
+  await srv.connect(transport);
+  logger.info("claude-devtools-mcp ready");
+}
+
+main().catch((err: unknown) => {
+  logger.error({ err }, "fatal");
+  process.exit(1);
+});

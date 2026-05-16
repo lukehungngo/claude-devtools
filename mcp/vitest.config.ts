@@ -1,6 +1,12 @@
 import { defineConfig } from "vitest/config";
+import path from "node:path";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "claude-devtools-server": path.resolve(__dirname, "../server"),
+    },
+  },
   test: {
     globals: false,
     environment: "node",

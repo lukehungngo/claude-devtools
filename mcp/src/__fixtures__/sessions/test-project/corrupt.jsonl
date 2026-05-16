@@ -1,0 +1,14 @@
+{"type":"user","uuid":"c-u1","timestamp":"2026-05-10T10:00:00Z","sessionId":"corrupt","message":{"role":"user","content":"hello"},"userType":"external"}
+{"type":"assistant","uuid":"c-a1","timestamp":"2026-05-10T10:00:01Z","sessionId":"corrupt","message":{"role":"assistant","content":[{"type":"text","text":"Hi!"}],"model":"claude-sonnet-4-6","id":"cm1","type":"message","stop_reason":"end_turn","usage":{"input_tokens":100,"output_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+{"type":"user","uuid":"c-u2","timestamp":"2026-05-10T10:01:00Z","sessionId":"corrupt","message":{"role":"user","content":"next"},"userType":"external"}
+{"type":"assistant","uuid":"c-a2","timestamp":"2026-05-10T10:01:01Z","sessionId":"corrupt","message":{"role":"assistant","content":[{"type":"text","text":"OK"}],"model":"claude-sonnet-4-6","id":"cm2","type":"message","stop_reason":"end_turn","usage":{"input_tokens":120,"output_tokens":5,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+{"type":"user","uuid":"c-u3","timestamp":"2026-05-10T10:02:00Z","sessionId":"corrupt","message":{"role":"user","content":"more"},"userType":"external"}
+{"type":"assistant","uuid":"c-a3","timestamp":"2026-05-10T10:02:01Z","sessionId":"corrupt","message":{"role":"assistant","content":[{"type":"text","text":"Sure"}],"model":"claude-sonnet-4-6","id":"cm3","type":"message","stop_reason":"end_turn","usage":{"input_tokens":130,"output_tokens":5,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+this is not valid json at all - corrupted line 7
+{"type":"user","uuid":"c-u4","timestamp":"2026-05-10T10:03:00Z","sessionId":"corrupt","message":{"role":"user","content":"continue"},"userType":"external"}
+{"type":"assistant","uuid":"c-a4","timestamp":"2026-05-10T10:03:01Z","sessionId":"corrupt","message":{"role":"assistant","content":[{"type":"text","text":"Continuing"}],"model":"claude-sonnet-4-6","id":"cm4","type":"message","stop_reason":"end_turn","usage":{"input_tokens":140,"output_tokens":5,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+{"type":"user","uuid":"c-u5","timestamp":"2026-05-10T10:04:00Z","sessionId":"corrupt","message":{"role":"user","content":"test"},"userType":"external"}
+{"type":"assistant","uuid":"c-a5","timestamp":"2026-05-10T10:04:01Z","sessionId":"corrupt","message":{"role":"assistant
+another corrupted line - truncated json
+{"type":"user","uuid":"c-u6","timestamp":"2026-05-10T10:05:00Z","sessionId":"corrupt","message":{"role":"user","content":"final"},"userType":"external"}
+{"type":"assistant","uuid":"c-a6","timestamp":"2026-05-10T10:05:01Z","sessionId":"corrupt","message":{"role":"assistant","content":[{"type":"text","text":"Done"}],"model":"claude-sonnet-4-6","id":"cm6","type":"message","stop_reason":"end_turn","usage":{"input_tokens":160,"output_tokens":5,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
