@@ -11,25 +11,88 @@ import { getAgentStatus } from "./agentStatus.js";
 import { toolUseIdToSyntheticAgent } from "../lib/agentIds.js";
 
 /**
- * Walk events for a `tool_result` block keyed by `toolUseId`.
- * Server-side mirror of dashboard/src/lib/agentStatus.ts#findToolResultForId.
+ * Async `Agent` dispatches (`run_in_background: true`) get a tool_result
+ * within ~300ms whose content begins with this literal — Claude Code uses
+ * it to mark a DISPATCH HANDLE, not a completion. Verified 26/26 dispatches
+ * in screenshot session 23ba0306. See
+ * docs/bugs/synthetic-agent-instant-completion.md.
  */
-function findToolResultForId(
+const ASYNC_DISPATCH_ACK_PREFIX = "Async agent launched successfully";
+
+function isAsyncDispatchAck(item: unknown): boolean {
+  if (typeof item !== "object" || item === null) return false;
+  const content = (item as { content?: unknown }).content;
+  if (typeof content === "string") return content.startsWith(ASYNC_DISPATCH_ACK_PREFIX);
+  if (Array.isArray(content)) {
+    for (const c of content) {
+      if (
+        typeof c === "object" && c !== null &&
+        (c as { type?: string }).type === "text" &&
+        typeof (c as { text?: string }).text === "string"
+      ) {
+        return (c as { text: string }).text.startsWith(ASYNC_DISPATCH_ACK_PREFIX);
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Find the `<task-notification>` event whose `<tool-use-id>` matches the
+ * original async `Agent` dispatch. This is the authoritative completion
+ * signal for `run_in_background: true` subagents (verified 30/33 in session
+ * 23ba0306 — the 3 unmatched were still running at session close).
+ *
+ * Carried in either:
+ *   - `queue-operation` event with `content` set to a `<task-notification>…` string
+ *   - `user` event with `message.content` set to the same string
+ */
+function findTaskNotificationForToolUseId(
   events: SessionEvent[],
   toolUseId: string,
 ): { timestamp: string; isError: boolean } | null {
+  const marker = `<tool-use-id>${toolUseId}</tool-use-id>`;
+  for (const e of events) {
+    let raw: unknown;
+    if (e.type === "user" && !e.isSidechain) {
+      raw = e.message?.content;
+    } else if (e.type === "queue-operation") {
+      raw = (e as { content?: unknown }).content;
+    } else {
+      continue;
+    }
+    const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+    if (!text || !text.includes("<task-notification>")) continue;
+    if (!text.includes(marker)) continue;
+    return { timestamp: e.timestamp, isError: false };
+  }
+  return null;
+}
+
+/**
+ * Find completion for an Agent dispatch. Prefers the `<task-notification>`
+ * (authoritative for async); falls back to any non-dispatch-ack tool_result
+ * (sync dispatch). Returns null when only a dispatch-ack tool_result is
+ * present — subagent is still running.
+ */
+function findAgentCompletion(
+  events: SessionEvent[],
+  toolUseId: string,
+): { timestamp: string; isError: boolean } | null {
+  const notif = findTaskNotificationForToolUseId(events, toolUseId);
+  if (notif) return notif;
   for (const e of events) {
     if (e.type !== "user") continue;
     if (e.isSidechain) continue;
     const content = normalizeContent(e.message.content);
     for (const c of content) {
       if (c.type !== "tool_result") continue;
-      if ((c as { tool_use_id?: string }).tool_use_id === toolUseId) {
-        return {
-          timestamp: e.timestamp,
-          isError: !!(c as { is_error?: boolean }).is_error,
-        };
-      }
+      if ((c as { tool_use_id?: string }).tool_use_id !== toolUseId) continue;
+      if (isAsyncDispatchAck(c)) continue;
+      return {
+        timestamp: e.timestamp,
+        isError: !!(c as { is_error?: boolean }).is_error,
+      };
     }
   }
   return null;
@@ -258,7 +321,10 @@ export function buildAgentDAG(
     if (syntheticAdded.has(syntheticId)) continue;
     syntheticAdded.add(syntheticId);
 
-    const result = findToolResultForId(mainEvents, dispatch.toolUseId);
+    // Phase 3.5 → fixed: prefer authoritative <task-notification> over the
+    // dispatch-ack tool_result that fires ~300ms after every async Agent
+    // dispatch. See docs/bugs/synthetic-agent-instant-completion.md.
+    const result = findAgentCompletion(mainEvents, dispatch.toolUseId);
     const status: AgentNode["status"] = result === null
       ? "active"
       : result.isError

@@ -45,11 +45,45 @@ function userToolResult(toolUseId: string, ts: string, isError = false): Session
         {
           type: "tool_result",
           tool_use_id: toolUseId,
-          content: "done",
+          // Non-ack content — sync dispatch shape. Async ack would start with
+          // "Async agent launched successfully".
+          content: [{ type: "text", text: "Subagent finished normally." }],
           is_error: isError,
         },
       ],
     },
+  } as unknown as SessionEvent;
+}
+
+function asyncDispatchAck(toolUseId: string, ts: string): SessionEvent {
+  return {
+    type: "user",
+    uuid: `ack-${toolUseId}`,
+    timestamp: ts,
+    sessionId: "s1",
+    userType: "external",
+    message: {
+      role: "user",
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: toolUseId,
+          content: [{ type: "text", text: "Async agent launched successfully.\nagentId: abc" }],
+          is_error: false,
+        },
+      ],
+    },
+  } as unknown as SessionEvent;
+}
+
+function taskNotificationQueueOp(toolUseId: string, ts: string): SessionEvent {
+  return {
+    type: "queue-operation",
+    uuid: `q-${toolUseId}`,
+    timestamp: ts,
+    sessionId: "s1",
+    operation: "enqueue",
+    content: `<task-notification>\n<task-id>abc</task-id>\n<tool-use-id>${toolUseId}</tool-use-id>\n</task-notification>`,
   } as unknown as SessionEvent;
 }
 
@@ -136,5 +170,40 @@ describe("buildAgentDAG synthetic nodes (Phase 3.5)", () => {
     const dag = buildAgentDAG([evt, evt], new Map(), new Map(), true);
     const matches = dag.nodes.filter((n) => n.id === "synthetic:agent:t1");
     expect(matches).toHaveLength(1);
+  });
+
+  // === Async dispatch fix (docs/bugs/synthetic-agent-instant-completion.md) ===
+
+  it("async dispatch + ack-only tool_result → status=active (NOT completed)", () => {
+    const mainEvents: SessionEvent[] = [
+      mainDispatch("tA", "async task", "2026-05-16T12:07:51Z"),
+      asyncDispatchAck("tA", "2026-05-16T12:07:52Z"),
+    ];
+    const dag = buildAgentDAG(mainEvents, new Map(), new Map(), true);
+    const node = dag.nodes.find((n) => n.id === "synthetic:agent:tA");
+    expect(node?.status).toBe("active");
+    expect(node?.endTime).toBeUndefined();
+  });
+
+  it("async dispatch + ack + task-notification queue-op → status=completed; endTime = notification ts", () => {
+    const mainEvents: SessionEvent[] = [
+      mainDispatch("tA", "async task", "2026-05-16T12:07:51Z"),
+      asyncDispatchAck("tA", "2026-05-16T12:07:52Z"),
+      taskNotificationQueueOp("tA", "2026-05-16T12:14:36Z"),
+    ];
+    const dag = buildAgentDAG(mainEvents, new Map(), new Map(), true);
+    const node = dag.nodes.find((n) => n.id === "synthetic:agent:tA");
+    expect(node?.status).toBe("completed");
+    expect(node?.endTime).toBe("2026-05-16T12:14:36Z");
+  });
+
+  it("sync dispatch (real tool_result, no ack prefix) → status=completed", () => {
+    const mainEvents: SessionEvent[] = [
+      mainDispatch("tS", "sync task", "2026-05-16T10:00:00Z"),
+      userToolResult("tS", "2026-05-16T10:00:05Z"),
+    ];
+    const dag = buildAgentDAG(mainEvents, new Map(), new Map(), true);
+    const node = dag.nodes.find((n) => n.id === "synthetic:agent:tS");
+    expect(node?.status).toBe("completed");
   });
 });

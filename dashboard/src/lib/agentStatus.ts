@@ -3,11 +3,121 @@ import type {
   AssistantEvent,
   UserEvent,
   SystemEvent,
+  QueueOperationEvent,
   ContentItem,
 } from "./types";
 import { isTerminalStopReason } from "./types";
 import { eventsForAgent, mainEventsOnly } from "./turnEventFilters";
 import { isSyntheticAgentId, syntheticToToolUseId } from "./agentIds";
+
+/**
+ * The tool_result that comes back ~300ms after an async `Agent` tool_use
+ * (`run_in_background: true`) is a dispatch HANDLE, not a completion. Its
+ * content always begins with the literal string below — Claude Code uses it
+ * to identify dispatch acknowledgements (verified 26/26 in the screenshot
+ * session 23ba0306).
+ *
+ * Treating that tool_result as "completed" was the root cause of the
+ * "Background agents show ✓ done 0s while still running" bug.
+ */
+const ASYNC_DISPATCH_ACK_PREFIX = "Async agent launched successfully";
+
+function getToolResultText(item: unknown): string {
+  if (typeof item !== "object" || item === null) return "";
+  const content = (item as { content?: unknown }).content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    for (const c of content) {
+      if (
+        typeof c === "object" && c !== null &&
+        (c as { type?: string }).type === "text" &&
+        typeof (c as { text?: string }).text === "string"
+      ) {
+        return (c as { text: string }).text;
+      }
+    }
+  }
+  return "";
+}
+
+function isAsyncDispatchAck(item: unknown): boolean {
+  return getToolResultText(item).startsWith(ASYNC_DISPATCH_ACK_PREFIX);
+}
+
+/**
+ * Find the `<task-notification>` event whose embedded `<tool-use-id>` matches
+ * the original async-dispatched `Agent` tool_use. This is the AUTHORITATIVE
+ * completion signal for `run_in_background: true` subagents (verified
+ * 30/33 dispatches in session 23ba0306 — the 3 unmatched were still
+ * running at session close).
+ *
+ * Notifications appear in two event forms — both carry the same payload:
+ *   - `queue-operation` with `content` set to a `<task-notification>…` string
+ *   - `user` event with `message.content` set to the same string
+ */
+export function findTaskNotificationForToolUseId(
+  events: readonly SessionEvent[],
+  toolUseId: string,
+): { timestamp: string; isError: boolean } | null {
+  const marker = `<tool-use-id>${toolUseId}</tool-use-id>`;
+  for (const e of events) {
+    let raw: unknown;
+    if (e.type === "user" && !e.isSidechain) {
+      raw = (e as UserEvent).message?.content;
+    } else if (e.type === "queue-operation") {
+      raw = (e as QueueOperationEvent).content;
+    } else {
+      continue;
+    }
+    const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+    if (!text || !text.includes("<task-notification>")) continue;
+    if (!text.includes(marker)) continue;
+    // Conservative: treat notification presence as completed; explicit error
+    // pattern detection deferred until we have a verified failure-case sample.
+    return { timestamp: e.timestamp, isError: false };
+  }
+  return null;
+}
+
+/**
+ * Find the completion signal for an async Agent dispatch.
+ *
+ * Priority:
+ *   1. `<task-notification>` matching the dispatching tool_use.id —
+ *      authoritative for `run_in_background: true` dispatches.
+ *   2. tool_result whose content is NOT the "Async agent launched
+ *      successfully" handshake — handles sync Agent dispatches and any
+ *      future variant where the tool_result IS the real result.
+ *
+ * Returns null when only a dispatch-ack tool_result is present (subagent
+ * is still running).
+ */
+export function findAgentCompletion(
+  events: readonly SessionEvent[],
+  toolUseId: string,
+): { timestamp: string; isError: boolean } | null {
+  const notif = findTaskNotificationForToolUseId(events, toolUseId);
+  if (notif) return notif;
+
+  // Fallback: tool_result that isn't a dispatch ack.
+  for (const e of events) {
+    if (e.type !== "user") continue;
+    if (e.isSidechain) continue;
+    const content = (e as UserEvent).message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const c of content) {
+      if (typeof c !== "object" || c === null) continue;
+      if ((c as { type?: string }).type !== "tool_result") continue;
+      if ((c as { tool_use_id?: string }).tool_use_id !== toolUseId) continue;
+      if (isAsyncDispatchAck(c)) continue; // dispatch handle, not a completion
+      return {
+        timestamp: e.timestamp,
+        isError: !!(c as { is_error?: boolean }).is_error,
+      };
+    }
+  }
+  return null;
+}
 
 /**
  * Walk main `user` events for a `tool_result` block matching `toolUseId`.
@@ -80,14 +190,15 @@ export function isAgentCompleted(
   agentId: string,
   events: readonly SessionEvent[],
 ): boolean {
-  // Phase 3: synthetic agents have no own events. Completion is determined
-  // purely by the presence of a matching `tool_result` keyed by the
-  // dispatching `tool_use.id`. Must be first — `eventsForAgent` returns []
-  // for synthetic ids and `hasParentToolResultAck` bails at length === 0.
+  // Phase 3: synthetic agents have no own events.
+  // Phase 3 → fixed: tool_result fires within ~300ms of an async Agent
+  // dispatch as a HANDLE, not a completion. Use `findAgentCompletion` which
+  // prefers the authoritative `<task-notification>` event and ignores
+  // dispatch-ack tool_results.
   if (isSyntheticAgentId(agentId)) {
     const toolUseId = syntheticToToolUseId(agentId);
     if (!toolUseId) return false;
-    return findToolResultForId(events, toolUseId) !== null;
+    return findAgentCompletion(events, toolUseId) !== null;
   }
 
   // Signal 1: last owned assistant event's stop_reason
