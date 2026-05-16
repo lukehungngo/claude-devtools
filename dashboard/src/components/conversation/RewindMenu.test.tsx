@@ -198,6 +198,51 @@ describe("RewindMenu", () => {
     });
   });
 
+  it("renders 'Summarize up to here' button when a turn is selected (P2-1, CC v2.1.143)", async () => {
+    const { turn, events } = makeTurnAndEvents({ turnNumber: 1, promptText: "First turn", userUuid: "msg-1" });
+    render(
+      <RewindMenu
+        turns={[turn]}
+        allEvents={events}
+        sessionId="sess-1"
+        onClose={vi.fn()}
+        onRewind={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByText(/First turn/));
+    const summarizeBtn = await screen.findByTestId("rewind-summarize-up-to-here");
+    expect(summarizeBtn).toBeTruthy();
+    expect(summarizeBtn.textContent).toContain("Summarize up to here");
+  });
+
+  it("POSTs to /api/sessions/:id/summarize-up-to with the user message UUID", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ ok: true }) });
+    const onClose = vi.fn();
+    const { turn, events } = makeTurnAndEvents({ turnNumber: 1, promptText: "First turn", userUuid: "msg-1" });
+    render(
+      <RewindMenu
+        turns={[turn]}
+        allEvents={events}
+        sessionId="sess-1"
+        onClose={onClose}
+        onRewind={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByText(/First turn/));
+    const summarizeBtn = await screen.findByTestId("rewind-summarize-up-to-here");
+    fireEvent.click(summarizeBtn);
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/sessions/sess-1/summarize-up-to",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ messageId: "msg-1" }),
+        }),
+      );
+    });
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
   it("renders Fork session button", () => {
     const { turn, events } = makeTurnAndEvents();
     render(

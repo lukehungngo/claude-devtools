@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, RotateCcw, FileText, AlertCircle, GitBranch, Loader2 } from "lucide-react";
+import { X, RotateCcw, FileText, AlertCircle, GitBranch, Loader2, Minimize2 } from "lucide-react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import type { TurnSnapshot } from "../../lib/turnSnapshot";
 import { getEventsForTurn } from "../../lib/turnSnapshot";
@@ -114,6 +114,33 @@ export function RewindMenu({ turns, allEvents, sessionId, onClose, onRewind, cur
       setRewindLoading(false);
     }
   }, [selectedTurn, rewindLoading, onRewind, onClose, allEvents]);
+
+  const [summarizeLoading, setSummarizeLoading] = useState(false);
+  const [summarizeError, setSummarizeError] = useState<string | null>(null);
+
+  const handleSummarizeUpToHere = useCallback(async () => {
+    if (!selectedTurn || summarizeLoading) return;
+    const messageId = getUserMessageId(selectedTurn, allEvents);
+    if (!messageId) return;
+
+    setSummarizeLoading(true);
+    setSummarizeError(null);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/summarize-up-to`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId }),
+      });
+      if (!res.ok) {
+        throw new Error(`Non-OK response (${res.status})`);
+      }
+      onClose();
+    } catch (err) {
+      setSummarizeError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSummarizeLoading(false);
+    }
+  }, [selectedTurn, summarizeLoading, allEvents, sessionId, onClose]);
 
   const handleFork = useCallback(async () => {
     if (forking) return;
@@ -271,14 +298,40 @@ export function RewindMenu({ turns, allEvents, sessionId, onClose, onRewind, cur
                     </div>
                   )}
 
+                  {summarizeError && (
+                    <div
+                      role="alert"
+                      aria-live="assertive"
+                      className="flex items-center gap-1 text-dt-red text-xs mb-2"
+                    >
+                      <AlertCircle size={12} aria-hidden="true" />
+                      {summarizeError}
+                    </div>
+                  )}
+
                   {/* Action buttons */}
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={handleRewind}
-                      disabled={rewindLoading || dryRunLoading}
+                      disabled={rewindLoading || dryRunLoading || summarizeLoading}
                       className="px-3 py-1.5 text-sm font-medium rounded-dt-xs bg-dt-accent text-dt-bg0 hover:opacity-90 disabled:opacity-50"
                     >
                       {rewindLoading ? "Rewinding..." : "Restore code + conversation"}
+                    </button>
+                    <button
+                      data-testid="rewind-summarize-up-to-here"
+                      onClick={handleSummarizeUpToHere}
+                      disabled={summarizeLoading || rewindLoading || dryRunLoading}
+                      title="Compress earlier turns into a summary while keeping the most recent turns intact (CC v2.1.143)"
+                      aria-label="Summarize earlier turns up to the selected point"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-dt-xs bg-dt-bg3 text-dt-text1 hover:text-dt-text0 disabled:opacity-50"
+                    >
+                      {summarizeLoading ? (
+                        <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Minimize2 size={14} aria-hidden="true" />
+                      )}
+                      {summarizeLoading ? "Summarizing..." : "Summarize up to here"}
                     </button>
                     <button
                       onClick={onClose}

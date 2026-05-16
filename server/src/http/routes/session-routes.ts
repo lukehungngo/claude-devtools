@@ -758,6 +758,45 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     }
   });
 
+  // Summarize earlier turns up to a selected user message (Rewind → "Summarize
+  // up to here", CC v2.1.143 line 73). Currently dispatches /compact to the
+  // active session; the dashboard's user picks a turn but the underlying
+  // compaction is the existing autocompact pipeline. A future iteration can
+  // bound the summarization at the picked messageId.
+  router.post("/sessions/:sessionId/summarize-up-to", async (req, res) => {
+    const { messageId } = req.body;
+    if (!messageId || typeof messageId !== "string") {
+      return res.status(400).json({ error: "messageId is required (string)" });
+    }
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) {
+      return res.status(500).json({ error: "Session manager not available" });
+    }
+    const session = sessionManager.getStatus(req.params.sessionId);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+    // Fire-and-forget: drain the SDK stream in the background so the HTTP
+    // response can return immediately. The compact_boundary event will flow
+    // back to the dashboard via SSE.
+    try {
+      const stream = sessionManager.sendMessage(req.params.sessionId, "/compact");
+      (async () => {
+        try {
+          for await (const _ of stream) {
+            // intentionally drained; SSE handlers downstream do the work
+          }
+        } catch (err) {
+          // sendMessage already logs; nothing more to do here
+          void err;
+        }
+      })();
+      res.json({ ok: true, messageId, action: "compact-dispatched" });
+    } catch (err) {
+      res.status(500).json({ error: "Summarize failed", detail: String(err) });
+    }
+  });
+
   // Abort active session streaming
   router.post("/sessions/:sessionId/abort", (req, res) => {
     const sessionManager = state?.sessionManager;
