@@ -174,6 +174,27 @@ export interface AsyncHookResponseAttachment {
   type: "async_hook_response";
   hookName?: string;
   hookEvent?: string;
+  processId?: string;
+  /**
+   * PostToolUse async-hook response (CC v2.1.143). `response.duration_ms`
+   * is the underlying tool execution time, per CHANGELOG line 524.
+   */
+  response?: {
+    session_id?: string;
+    transcript_path?: string;
+    cwd?: string;
+    permission_mode?: string;
+    hook_event_name?: string;
+    tool_name?: string;
+    tool_input?: Record<string, unknown>;
+    tool_response?: {
+      stdout?: string;
+      stderr?: string;
+      [key: string]: unknown;
+    };
+    duration_ms?: number;
+    [key: string]: unknown;
+  };
 }
 
 export interface SkillListingAttachment {

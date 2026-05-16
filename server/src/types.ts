@@ -200,6 +200,30 @@ export interface AsyncHookResponseAttachment {
   type: "async_hook_response";
   hookName?: string;
   hookEvent?: string;
+  /** Background process id assigned to the hook run. */
+  processId?: string;
+  /**
+   * Real CC v2.1.143 PostToolUse async-hook response payload.
+   * The `duration_ms` here is the underlying TOOL execution time
+   * (excluding permission prompts and PreToolUse hooks), per CC
+   * CHANGELOG line 524. Critical for performance visibility.
+   */
+  response?: {
+    session_id?: string;
+    transcript_path?: string;
+    cwd?: string;
+    permission_mode?: string;
+    hook_event_name?: string;
+    tool_name?: string;
+    tool_input?: Record<string, unknown>;
+    tool_response?: {
+      stdout?: string;
+      stderr?: string;
+      [key: string]: unknown;
+    };
+    duration_ms?: number;
+    [key: string]: unknown;
+  };
 }
 
 export interface SkillListingAttachment {

@@ -141,6 +141,45 @@ describe("HooksTab", () => {
     expect(screen.getByTestId("hook-row-h2")).toBeDefined();
   });
 
+  it("surfaces async_hook_response with tool execution duration (P2-3)", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "attachment",
+        uuid: "ah1",
+        parentUuid: "p1",
+        timestamp: "2026-05-16T10:00:00Z",
+        sessionId: "s1",
+        attachment: {
+          type: "async_hook_response",
+          hookEvent: "PostToolUse",
+          hookName: "PostToolUse:Bash",
+          processId: "async_hook_53285",
+          response: {
+            tool_name: "Bash",
+            duration_ms: 3587,
+            tool_input: { command: "ls" },
+            tool_response: { stdout: "file.txt\n", stderr: "" },
+          },
+        },
+      } as AttachmentEvent,
+    ];
+    const { getByTestId, container } = render(<HooksTab events={events} />);
+    const row = getByTestId("hook-row-ah1");
+    expect(row.textContent).toContain("PostToolUse");
+    expect(row.textContent).toContain("Bash");
+    expect(row.textContent).toContain("3587");
+    expect(container.textContent).toContain("avg 3587ms");
+  });
+
+  it("shows total time spent in hooks across session", () => {
+    const events: SessionEvent[] = [
+      hookSuccess("h1", { durationMs: 1000 }),
+      hookSuccess("h2", { durationMs: 2500 }),
+    ];
+    const { container } = render(<HooksTab events={events} />);
+    expect(container.textContent).toContain("total 3.5s");
+  });
+
   it("ignores non-hook attachments and other event types", () => {
     const events: SessionEvent[] = [
       hookSuccess("h1"),

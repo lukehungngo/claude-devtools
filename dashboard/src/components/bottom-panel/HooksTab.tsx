@@ -4,6 +4,7 @@ import type {
   AttachmentEvent,
   HookSuccessAttachment,
   HookCancelledAttachment,
+  AsyncHookResponseAttachment,
 } from "../../lib/types";
 
 interface HooksTabProps {
@@ -71,16 +72,27 @@ function toRow(e: AttachmentEvent): HookRow | null {
       cancelReason: a.reason,
     };
   }
-  // async_hook_response — passthrough as opaque event
-  return {
-    uuid: e.uuid,
-    timestamp: e.timestamp,
-    hookEvent: (inner as { hookEvent?: string }).hookEvent ?? "async_hook_response",
-    hookName: (inner as { hookName?: string }).hookName ?? "<async>",
-    stdoutPreview: "",
-    stderrPreview: "",
-    cancelled: false,
-  };
+  // async_hook_response — PostToolUse with full tool execution payload
+  if (inner.type === "async_hook_response") {
+    const a = inner as AsyncHookResponseAttachment;
+    return {
+      uuid: e.uuid,
+      timestamp: e.timestamp,
+      hookEvent: a.hookEvent ?? "PostToolUse",
+      hookName: a.hookName ?? "<async>",
+      // Surface the underlying tool name so the row tells the operator
+      // which tool the hook reported on (Bash, Read, etc.).
+      toolUseID: a.response?.tool_name
+        ? `${a.response.tool_name}`
+        : undefined,
+      durationMs: a.response?.duration_ms,
+      stdoutPreview: truncate(a.response?.tool_response?.stdout),
+      stderrPreview: truncate(a.response?.tool_response?.stderr),
+      cancelled: false,
+    };
+  }
+
+  return null;
 }
 
 export function HooksTab({ events = [], activeTurnIndex: _ }: HooksTabProps): JSX.Element {
@@ -130,8 +142,15 @@ export function HooksTab({ events = [], activeTurnIndex: _ }: HooksTabProps): JS
       nonzeroExit,
       cancelled,
       avgMs: withDuration > 0 ? totalMs / withDuration : 0,
+      totalMs,
     };
   }, [rows]);
+
+  const fmtTotal = (ms: number): string => {
+    if (ms < 1000) return `${Math.round(ms)}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    return `${(ms / 60000).toFixed(1)}min`;
+  };
 
   if (rows.length === 0) {
     return (
@@ -158,7 +177,12 @@ export function HooksTab({ events = [], activeTurnIndex: _ }: HooksTabProps): JS
           <span style={{ color: "var(--amb)" }}>{stats.cancelled} cancelled</span>
         )}
         {stats.avgMs > 0 && (
-          <span>avg {stats.avgMs.toFixed(0)}ms</span>
+          <span title="Average hook duration">avg {stats.avgMs.toFixed(0)}ms</span>
+        )}
+        {stats.totalMs > 0 && (
+          <span title="Total time spent in hooks across the session">
+            total {fmtTotal(stats.totalMs)}
+          </span>
         )}
         <div className="ml-auto flex items-center gap-2">
           <select
