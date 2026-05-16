@@ -50,6 +50,27 @@ export interface CompactMetadata {
   };
 }
 
+/**
+ * NEW-7: live task state aggregated from the 4 SDKTask* SSE event types
+ * (task_started, task_progress, task_updated, task_notification). The
+ * dashboard merges this onto the daemon-snapshot rows in TasksTab so the
+ * UI can surface running token/tool counters, paused/backgrounded state,
+ * and the most recent tool name while the task is in flight.
+ */
+export interface LiveTaskState {
+  task_id: string;
+  tool_use_id?: string;
+  status: "pending" | "running" | "completed" | "failed" | "killed" | "paused" | "stopped";
+  description: string;
+  subagent_type?: string;
+  totalTokens?: number;
+  toolUses?: number;
+  durationMs?: number;
+  lastToolName?: string;
+  summary?: string;
+  isBackgrounded?: boolean;
+}
+
 export interface StreamingState {
   tools: Map<string, StreamingToolEntry>;
   /** Ordered list of tool IDs (insertion order) */
@@ -78,6 +99,12 @@ export interface StreamingState {
    * result event (CC v2.1.143, P2-5). Null until the first result arrives.
    */
   lastResultFinishReasons: readonly string[] | null;
+  /**
+   * NEW-7: live structured Task lifecycle state keyed by task_id.
+   * Populated from task_started / task_progress / task_updated /
+   * task_notification SSE events. TasksTab merges this onto daemon rows.
+   */
+  liveTasks: Map<string, LiveTaskState>;
 }
 
 export function createInitialStreamingState(): StreamingState {
@@ -94,6 +121,7 @@ export function createInitialStreamingState(): StreamingState {
     sdkContextWindow: null,
     lastResultStopReason: null,
     lastResultFinishReasons: null,
+    liveTasks: new Map(),
   };
 }
 

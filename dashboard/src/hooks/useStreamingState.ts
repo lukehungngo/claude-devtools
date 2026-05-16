@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { SDKStatus } from "@anthropic-ai/claude-agent-sdk";
-import type { StreamingToolEntry, StreamingState } from "../lib/streaming-types";
+import type { LiveTaskState, StreamingToolEntry, StreamingState } from "../lib/streaming-types";
 import { createInitialStreamingState } from "../lib/streaming-types";
 
 type SessionStateValue = StreamingState["sessionState"];
@@ -11,6 +11,22 @@ function narrowSessionState(value: unknown): SessionStateValue {
 
 function narrowSdkStatus(value: unknown): SDKStatus {
   return value === "compacting" || value === "requesting" ? value : null;
+}
+
+const LIVE_TASK_STATUS_VALUES: ReadonlySet<LiveTaskState["status"]> = new Set([
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "killed",
+  "paused",
+  "stopped",
+]);
+
+function narrowLiveTaskStatus(value: unknown): LiveTaskState["status"] | undefined {
+  return typeof value === "string" && LIVE_TASK_STATUS_VALUES.has(value as LiveTaskState["status"])
+    ? (value as LiveTaskState["status"])
+    : undefined;
 }
 
 export interface StreamingStateActions {
@@ -250,6 +266,124 @@ export function useStreamingState(): UseStreamingStateReturn {
             lastResultFinishReasons:
               incomingFinish !== undefined ? incomingFinish : prev.lastResultFinishReasons,
           };
+        }
+
+        // NEW-7: structured Task lifecycle SSE events. Keyed by task_id.
+        case "task_started": {
+          const taskId = data.task_id as string | undefined;
+          if (!taskId) return prev;
+          const next = new Map(prev.liveTasks);
+          const existing = next.get(taskId);
+          const entry: LiveTaskState = {
+            ...(existing ?? {
+              task_id: taskId,
+              status: "running",
+              description: "",
+            }),
+            task_id: taskId,
+            status: existing?.status ?? "running",
+            description: (data.description as string) ?? existing?.description ?? "",
+          };
+          if (typeof data.tool_use_id === "string") entry.tool_use_id = data.tool_use_id;
+          if (typeof data.subagent_type === "string") entry.subagent_type = data.subagent_type;
+          next.set(taskId, entry);
+          return { ...prev, liveTasks: next };
+        }
+
+        case "task_progress": {
+          const taskId = data.task_id as string | undefined;
+          if (!taskId) return prev;
+          const next = new Map(prev.liveTasks);
+          const existing = next.get(taskId);
+          const usage = data.usage as
+            | { total_tokens?: number; tool_uses?: number; duration_ms?: number }
+            | undefined;
+          const entry: LiveTaskState = {
+            ...(existing ?? {
+              task_id: taskId,
+              status: "running",
+              description: (data.description as string) ?? "",
+            }),
+            task_id: taskId,
+            description: (data.description as string) ?? existing?.description ?? "",
+          };
+          if (typeof data.tool_use_id === "string") entry.tool_use_id = data.tool_use_id;
+          if (typeof data.subagent_type === "string") entry.subagent_type = data.subagent_type;
+          if (usage) {
+            entry.totalTokens = usage.total_tokens ?? entry.totalTokens;
+            entry.toolUses = usage.tool_uses ?? entry.toolUses;
+            entry.durationMs = usage.duration_ms ?? entry.durationMs;
+          }
+          if (typeof data.last_tool_name === "string") entry.lastToolName = data.last_tool_name;
+          if (typeof data.summary === "string") entry.summary = data.summary;
+          next.set(taskId, entry);
+          return { ...prev, liveTasks: next };
+        }
+
+        case "task_updated": {
+          const taskId = data.task_id as string | undefined;
+          if (!taskId) return prev;
+          const patch = (data.patch ?? {}) as {
+            status?: unknown;
+            description?: unknown;
+            end_time?: unknown;
+            total_paused_ms?: unknown;
+            error?: unknown;
+            is_backgrounded?: unknown;
+          };
+          const next = new Map(prev.liveTasks);
+          const existing = next.get(taskId);
+          const entry: LiveTaskState = {
+            ...(existing ?? {
+              task_id: taskId,
+              status: "running",
+              description: "",
+            }),
+            task_id: taskId,
+          };
+          const narrowed = narrowLiveTaskStatus(patch.status);
+          if (narrowed) entry.status = narrowed;
+          if (typeof patch.description === "string") entry.description = patch.description;
+          if (typeof patch.is_backgrounded === "boolean") entry.isBackgrounded = patch.is_backgrounded;
+          // `end_time`, `total_paused_ms`, `error` aren't surfaced in
+          // LiveTaskState today; keep them server-side for future use.
+          next.set(taskId, entry);
+          return { ...prev, liveTasks: next };
+        }
+
+        case "task_notification": {
+          const taskId = data.task_id as string | undefined;
+          if (!taskId) return prev;
+          const rawStatus = data.status as string | undefined;
+          const status: LiveTaskState["status"] =
+            rawStatus === "failed"
+              ? "failed"
+              : rawStatus === "stopped"
+              ? "stopped"
+              : "completed";
+          const next = new Map(prev.liveTasks);
+          const existing = next.get(taskId);
+          const usage = data.usage as
+            | { total_tokens?: number; tool_uses?: number; duration_ms?: number }
+            | undefined;
+          const entry: LiveTaskState = {
+            ...(existing ?? {
+              task_id: taskId,
+              status,
+              description: "",
+            }),
+            task_id: taskId,
+            status,
+          };
+          if (typeof data.tool_use_id === "string") entry.tool_use_id = data.tool_use_id;
+          if (typeof data.summary === "string") entry.summary = data.summary;
+          if (usage) {
+            entry.totalTokens = usage.total_tokens ?? entry.totalTokens;
+            entry.toolUses = usage.tool_uses ?? entry.toolUses;
+            entry.durationMs = usage.duration_ms ?? entry.durationMs;
+          }
+          next.set(taskId, entry);
+          return { ...prev, liveTasks: next };
         }
 
         default:

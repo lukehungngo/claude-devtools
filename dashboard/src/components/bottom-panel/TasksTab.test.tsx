@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, act, fireEvent } from "@testing-library/react";
 import { TasksTab } from "./TasksTab";
 import type { SessionTask } from "../../lib/sessionTasks";
+import type { LiveTaskState } from "../../lib/streaming-types";
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -269,5 +270,110 @@ describe("TasksTab kill button (NEW-6)", () => {
     const init = postCall![1] as RequestInit;
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({ taskId: "task-99" });
+  });
+});
+
+// NEW-7 — merge structured live task state on top of daemon rows.
+describe("TasksTab live SDK state overlay (NEW-7)", () => {
+  it("overrides daemon status with the live status when task_id matches", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          tasks: [
+            { id: "task-1", subject: "Investigate bug", status: "in_progress", blocks: [], blockedBy: [] },
+          ],
+        }),
+    });
+
+    const liveTasks = new Map<string, LiveTaskState>([
+      [
+        "task-1",
+        {
+          task_id: "task-1",
+          status: "completed",
+          description: "Investigate bug",
+          totalTokens: 1000,
+          toolUses: 5,
+          durationMs: 12000,
+        },
+      ],
+    ]);
+
+    render(<TasksTab tasks={[]} sessionId="abc-123" liveTasks={liveTasks} />);
+    await act(async () => {});
+
+    const row = screen.getByText("Investigate bug").closest("tr");
+    expect(row).not.toBeNull();
+    // Live status "completed" should show as "done" in the daemon palette.
+    expect(row?.textContent?.toLowerCase()).toContain("done");
+    expect(row?.textContent?.toLowerCase()).not.toContain("running");
+  });
+
+  it("renders a moon icon for backgrounded live tasks", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          tasks: [
+            { id: "task-1", subject: "Long task", status: "in_progress", blocks: [], blockedBy: [] },
+          ],
+        }),
+    });
+
+    const liveTasks = new Map<string, LiveTaskState>([
+      [
+        "task-1",
+        {
+          task_id: "task-1",
+          status: "running",
+          description: "Long task",
+          isBackgrounded: true,
+        },
+      ],
+    ]);
+
+    render(<TasksTab tasks={[]} sessionId="abc-123" liveTasks={liveTasks} />);
+    await act(async () => {});
+
+    const row = screen.getByText("Long task").closest("tr");
+    expect(row?.querySelector('[data-live-backgrounded="task-1"]')).not.toBeNull();
+  });
+
+  it("renders a tokens/duration counter and last_tool_name for live tasks", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          tasks: [
+            { id: "task-1", subject: "Crunching", status: "in_progress", blocks: [], blockedBy: [] },
+          ],
+        }),
+    });
+
+    const liveTasks = new Map<string, LiveTaskState>([
+      [
+        "task-1",
+        {
+          task_id: "task-1",
+          status: "running",
+          description: "Crunching",
+          totalTokens: 1234,
+          toolUses: 7,
+          durationMs: 4500,
+          lastToolName: "Read",
+        },
+      ],
+    ]);
+
+    render(<TasksTab tasks={[]} sessionId="abc-123" liveTasks={liveTasks} />);
+    await act(async () => {});
+
+    const counter = screen.getByTestId("live-counter-task-1");
+    expect(counter).toBeDefined();
+    expect(counter.textContent).toContain("1234");
+    expect(counter.textContent).toContain("7");
+    const lastTool = screen.getByTestId("live-last-tool-task-1");
+    expect(lastTool.textContent).toContain("Read");
   });
 });

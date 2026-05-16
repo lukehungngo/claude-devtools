@@ -1,6 +1,7 @@
 import { Fragment, memo, useCallback, useEffect, useState } from "react";
-import { Link2, Trash2 } from "lucide-react";
+import { Link2, Moon, Trash2 } from "lucide-react";
 import type { SessionTask } from "../../lib/sessionTasks";
+import type { LiveTaskState } from "../../lib/streaming-types";
 
 /**
  * Mirrors the server-side `DaemonTaskRecord` shape returned by
@@ -28,6 +29,13 @@ interface TasksTabProps {
    * (e.g. when no active session is selected).
    */
   sessionId?: string;
+  /**
+   * NEW-7: live task state from SDK task lifecycle messages, keyed by
+   * task_id. When a daemon row's id matches a key in this map the live
+   * fields (status, tokens/duration, is_backgrounded, last_tool_name)
+   * override the daemon snapshot.
+   */
+  liveTasks?: ReadonlyMap<string, LiveTaskState>;
 }
 
 const STATUS_DISPLAY: Record<
@@ -50,15 +58,21 @@ function daemonStatusDisplay(status: string): {
     case "completed":
       return STATUS_DISPLAY.done;
     case "in_progress":
+    case "running":
       return STATUS_DISPLAY.in_progress;
     case "pending":
       return STATUS_DISPLAY.pending;
     case "deleted":
       return { label: "deleted", color: "var(--t3)", symbol: "—" };
+    case "failed":
+      return STATUS_DISPLAY.error;
+    case "paused":
+      return { label: "paused", color: "var(--t3)", symbol: "❚❚" };
+    case "stopped":
+      return { label: "stopped", color: "var(--t3)", symbol: "✗" };
     case "killed":
       // Optimistic local-only status surfaced after a successful stop-task
-      // POST. The server-side authoritative status will arrive on the next
-      // daemon refresh (NEW-7 will stream the SDKTaskUpdatedMessage).
+      // POST. NEW-7 also maps SDKTaskUpdatedMessage `killed` to this label.
       return { label: "killed", color: "var(--t3)", symbol: "✗" };
     default:
       // Unknown daemon status — render the raw string so it's visible in the
@@ -67,9 +81,46 @@ function daemonStatusDisplay(status: string): {
   }
 }
 
+/**
+ * NEW-7: map a LiveTaskState.status (SDK union) onto the daemon status
+ * vocabulary that `daemonStatusDisplay` understands. The two unions overlap
+ * but use different spellings — "running" vs "in_progress", "failed" is
+ * SDK-only, etc.
+ */
+function liveStatusToDaemonStatus(live: LiveTaskState["status"]): string {
+  switch (live) {
+    case "running":
+      return "in_progress";
+    case "pending":
+      return "pending";
+    case "completed":
+      return "completed";
+    case "failed":
+      return "failed";
+    case "killed":
+      return "killed";
+    case "paused":
+      return "paused";
+    case "stopped":
+      return "stopped";
+    default:
+      return live;
+  }
+}
+
+function formatDurationMs(ms: number | undefined): string {
+  if (!ms || ms < 0) return "0s";
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}m ${rem}s`;
+}
+
 export const TasksTab = memo(function TasksTab({
   tasks,
   sessionId,
+  liveTasks,
 }: TasksTabProps) {
   const [daemonTasks, setDaemonTasks] = useState<DaemonTaskRecord[] | null>(
     null,
@@ -106,7 +157,13 @@ export const TasksTab = memo(function TasksTab({
   const useDaemon = daemonTasks !== null && daemonTasks.length > 0;
 
   if (useDaemon) {
-    return <DaemonTasksTable tasks={daemonTasks} sessionId={sessionId} />;
+    return (
+      <DaemonTasksTable
+        tasks={daemonTasks}
+        sessionId={sessionId}
+        liveTasks={liveTasks}
+      />
+    );
   }
 
   if (tasks.length === 0) {
@@ -263,6 +320,8 @@ function SessionTasksTable({ tasks }: SessionTasksTableProps) {
 interface DaemonTasksTableProps {
   tasks: DaemonTaskRecord[];
   sessionId?: string;
+  /** NEW-7: live task lifecycle overlay keyed by task_id. */
+  liveTasks?: ReadonlyMap<string, LiveTaskState>;
 }
 
 /**
@@ -275,7 +334,7 @@ const STOPPABLE_DAEMON_STATUSES: ReadonlySet<string> = new Set([
   "running",
 ]);
 
-function DaemonTasksTable({ tasks, sessionId }: DaemonTasksTableProps) {
+function DaemonTasksTable({ tasks, sessionId, liveTasks }: DaemonTasksTableProps) {
   const completedCount = tasks.filter((t) => t.status === "completed").length;
   const [killedIds, setKilledIds] = useState<Set<string>>(() => new Set());
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -393,17 +452,37 @@ function DaemonTasksTable({ tasks, sessionId }: DaemonTasksTableProps) {
           <tbody>
             {tasks.map((task) => {
               const isKilled = killedIds.has(task.id);
-              const effectiveStatus = isKilled ? "killed" : task.status;
+              // NEW-7: live SDK state takes precedence over the daemon snapshot
+              // when both reference the same task_id.
+              const live = liveTasks?.get(task.id);
+              const liveDaemonStatus = live
+                ? liveStatusToDaemonStatus(live.status)
+                : undefined;
+              const effectiveStatus = isKilled
+                ? "killed"
+                : liveDaemonStatus ?? task.status;
               const status = daemonStatusDisplay(effectiveStatus);
-              const isDone = effectiveStatus === "completed";
+              const isDone =
+                effectiveStatus === "completed" ||
+                effectiveStatus === "failed" ||
+                effectiveStatus === "stopped";
               const isStoppable =
-                !isKilled && STOPPABLE_DAEMON_STATUSES.has(task.status);
+                !isKilled &&
+                !isDone &&
+                STOPPABLE_DAEMON_STATUSES.has(task.status);
               const isConfirming = confirmingId === task.id;
               const blockedByCount = task.blockedBy.length;
               const blockedByTitle =
                 blockedByCount > 0
                   ? `Blocked by: ${task.blockedBy.join(", ")}`
                   : undefined;
+              const showLiveCounter =
+                live && (live.totalTokens != null || live.durationMs != null);
+              const counterTokens = live?.totalTokens ?? 0;
+              const counterToolUses = live?.toolUses ?? 0;
+              const counterDuration = formatDurationMs(live?.durationMs);
+              const lastTool = live?.lastToolName;
+              const isBackgrounded = live?.isBackgrounded === true;
               return (
                 <Fragment key={task.id}>
                   <tr
@@ -429,8 +508,51 @@ function DaemonTasksTable({ tasks, sessionId }: DaemonTasksTableProps) {
                         padding: "5px 12px",
                       }}
                     >
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                         <span>{task.subject}</span>
+                        {isBackgrounded ? (
+                          <span
+                            data-live-backgrounded={task.id}
+                            title="Backgrounded (running in the background)"
+                            aria-label="Backgrounded"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              color: "var(--t3)",
+                            }}
+                          >
+                            <Moon size={11} aria-hidden="true" />
+                          </span>
+                        ) : null}
+                        {lastTool ? (
+                          <span
+                            data-testid={`live-last-tool-${task.id}`}
+                            title={`Last tool: ${lastTool}`}
+                            style={{
+                              fontFamily: "var(--font-mono, monospace)",
+                              fontSize: 10,
+                              color: "var(--t3)",
+                              padding: "0 4px",
+                              border: "1px solid var(--bd)",
+                              borderRadius: 3,
+                            }}
+                          >
+                            {lastTool}
+                          </span>
+                        ) : null}
+                        {showLiveCounter ? (
+                          <span
+                            data-testid={`live-counter-${task.id}`}
+                            title="Live: tokens · tool uses · duration"
+                            style={{
+                              fontFamily: "var(--font-mono, monospace)",
+                              fontSize: 10,
+                              color: "var(--t3)",
+                            }}
+                          >
+                            {counterTokens}t · {counterToolUses}× · {counterDuration}
+                          </span>
+                        ) : null}
                         {blockedByCount > 0 && blockedByTitle ? (
                           <span
                             data-blocked-by={blockedByCount}

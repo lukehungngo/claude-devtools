@@ -321,4 +321,156 @@ describe("useStreamingState", () => {
     expect(result.current.state.lastResultStopReason).toBe("tool_use");
     expect(result.current.state.lastResultFinishReasons).toEqual(["tool_use"]);
   });
+
+  // NEW-7 — structured Task lifecycle messages.
+  describe("live task lifecycle (NEW-7)", () => {
+    it("task_started creates a running LiveTaskState entry", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({
+          type: "task_started",
+          task_id: "task-1",
+          tool_use_id: "toolu_x",
+          description: "Investigate bug",
+          subagent_type: "general-purpose",
+        });
+      });
+      const task = result.current.state.liveTasks.get("task-1");
+      expect(task).toBeDefined();
+      expect(task?.status).toBe("running");
+      expect(task?.description).toBe("Investigate bug");
+      expect(task?.subagent_type).toBe("general-purpose");
+      expect(task?.tool_use_id).toBe("toolu_x");
+    });
+
+    it("task_progress merges usage + last_tool_name onto existing entry", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({
+          type: "task_started",
+          task_id: "task-1",
+          description: "Work",
+        });
+        result.current.actions.handleSSEEvent({
+          type: "task_progress",
+          task_id: "task-1",
+          description: "Work",
+          usage: { total_tokens: 250, tool_uses: 3, duration_ms: 4500 },
+          last_tool_name: "Read",
+          summary: "Read 3 files",
+        });
+      });
+      const task = result.current.state.liveTasks.get("task-1");
+      expect(task?.totalTokens).toBe(250);
+      expect(task?.toolUses).toBe(3);
+      expect(task?.durationMs).toBe(4500);
+      expect(task?.lastToolName).toBe("Read");
+      expect(task?.summary).toBe("Read 3 files");
+      // Status remains running because no notification arrived yet.
+      expect(task?.status).toBe("running");
+    });
+
+    it("task_progress without a prior task_started creates an entry", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({
+          type: "task_progress",
+          task_id: "task-2",
+          description: "Orphan progress",
+          usage: { total_tokens: 10, tool_uses: 1, duration_ms: 100 },
+        });
+      });
+      const task = result.current.state.liveTasks.get("task-2");
+      expect(task).toBeDefined();
+      expect(task?.totalTokens).toBe(10);
+      expect(task?.description).toBe("Orphan progress");
+      expect(task?.status).toBe("running");
+    });
+
+    it("task_updated applies the patch (status + is_backgrounded)", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({
+          type: "task_started",
+          task_id: "task-1",
+          description: "Work",
+        });
+        result.current.actions.handleSSEEvent({
+          type: "task_updated",
+          task_id: "task-1",
+          patch: { status: "paused", is_backgrounded: true },
+        });
+      });
+      const task = result.current.state.liveTasks.get("task-1");
+      expect(task?.status).toBe("paused");
+      expect(task?.isBackgrounded).toBe(true);
+      // Description should not be wiped when patch omits it.
+      expect(task?.description).toBe("Work");
+    });
+
+    it("task_notification sets terminal status (completed/failed/stopped)", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({
+          type: "task_started",
+          task_id: "task-1",
+          description: "Work",
+        });
+        result.current.actions.handleSSEEvent({
+          type: "task_notification",
+          task_id: "task-1",
+          status: "completed",
+          output_file: "/tmp/out.txt",
+          summary: "All done",
+        });
+      });
+      const task = result.current.state.liveTasks.get("task-1");
+      expect(task?.status).toBe("completed");
+      expect(task?.summary).toBe("All done");
+    });
+
+    it("full lifecycle: started → progress → updated → notification", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({
+          type: "task_started",
+          task_id: "task-1",
+          tool_use_id: "toolu_a",
+          description: "Investigate",
+          subagent_type: "general-purpose",
+        });
+        result.current.actions.handleSSEEvent({
+          type: "task_progress",
+          task_id: "task-1",
+          description: "Investigate",
+          usage: { total_tokens: 100, tool_uses: 1, duration_ms: 1000 },
+          last_tool_name: "Grep",
+        });
+        result.current.actions.handleSSEEvent({
+          type: "task_updated",
+          task_id: "task-1",
+          patch: { is_backgrounded: true },
+        });
+        result.current.actions.handleSSEEvent({
+          type: "task_notification",
+          task_id: "task-1",
+          status: "failed",
+          output_file: "/tmp/err.txt",
+          summary: "Boom",
+          usage: { total_tokens: 250, tool_uses: 4, duration_ms: 5000 },
+        });
+      });
+      const task = result.current.state.liveTasks.get("task-1");
+      expect(task?.status).toBe("failed");
+      // The notification carries fresh usage that overrides progress numbers.
+      expect(task?.totalTokens).toBe(250);
+      expect(task?.toolUses).toBe(4);
+      expect(task?.durationMs).toBe(5000);
+      expect(task?.isBackgrounded).toBe(true);
+      expect(task?.lastToolName).toBe("Grep");
+      expect(task?.description).toBe("Investigate");
+      expect(task?.subagent_type).toBe("general-purpose");
+      expect(task?.summary).toBe("Boom");
+    });
+  });
 });
