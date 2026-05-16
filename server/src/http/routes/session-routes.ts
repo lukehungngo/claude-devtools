@@ -8,6 +8,7 @@ import {
   discoverSessions,
   loadFullSession,
 } from "../../parser/session-discovery.js";
+import { loadDaemonTasks } from "../../parser/daemon-task-discovery.js";
 import { collectorBuffer } from "../../collector/buffer.js";
 import { computeMetrics } from "../../analyzer/metrics.js";
 import { getAgentEvents } from "../../analyzer/agent-events.js";
@@ -1184,6 +1185,24 @@ export function createSessionRoutes({ state }: RouteContext): Router {
       res.json({ success: true, directory: resolved, total: dirs.length });
     } catch (err) {
       res.status(500).json({ error: "Failed to add directory" });
+    }
+  });
+
+  // NEW-2 — Authoritative task state from the CC daemon's per-session task
+  // store at `~/.claude/tasks/<sessionId>/<id>.json`. Returns an empty array
+  // (not 404) when the directory does not exist so the dashboard can fall
+  // back to the JSONL-derived task list without branching on HTTP status.
+  router.get("/sessions/:sessionId/tasks/daemon", (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const tasks = loadDaemonTasks(sessionId);
+      res.json({ tasks });
+    } catch (err) {
+      logger.error(
+        { error: String(err) },
+        "Failed to load daemon tasks",
+      );
+      res.status(500).json({ error: "Failed to load daemon tasks" });
     }
   });
 
