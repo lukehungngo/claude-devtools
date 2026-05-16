@@ -300,3 +300,13 @@ describe("GET /sessions/:sessionId/mcp-status", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ servers: null });
   });
+
+  it("returns { servers: [] } with 200 when SDK returns empty list", async () => {
+    vi.spyOn(sessionManager, "getMcpServerStatus").mockResolvedValue([]);
+
+    const res = await request(app).get("/sessions/live-sess/mcp-status");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ servers: [] });
+  });
+});
