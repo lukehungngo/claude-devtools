@@ -141,3 +141,66 @@ describe("GET /sessions/:sessionId/model", () => {
     expect(res.body).toEqual({ model: null });
   });
 });
+
+describe("GET /sessions/:sessionId/context-usage", () => {
+  let app: express.Express;
+  let sessionManager: SessionManager;
+
+  beforeEach(() => {
+    sessionManager = new SessionManager(vi.fn());
+    const state = {
+      clients: new Set(),
+      sessionManager,
+    } as unknown as import("../server.js").ServerState;
+
+    app = express();
+    app.use(setupRoutes(state));
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    sessionManager.dispose();
+  });
+
+  it("returns the SDK usage payload for a live session", async () => {
+    const fakeUsage = {
+      totalTokens: 12345,
+      maxTokens: 200000,
+      percentage: 6.17,
+      autoCompactThreshold: 0.92,
+      isAutoCompactEnabled: true,
+      categories: [],
+      gridRows: [],
+      model: "claude-sonnet-4-6",
+      memoryFiles: [],
+      mcpTools: [{ name: "search", serverName: "exa", tokens: 800 }],
+      agents: [{ agentType: "general", source: "user", tokens: 400 }],
+      apiUsage: null,
+    };
+    vi.spyOn(sessionManager, "getContextUsage").mockResolvedValue(
+      fakeUsage as unknown as Awaited<ReturnType<typeof sessionManager.getContextUsage>>,
+    );
+
+    const res = await request(app).get("/sessions/live-sess/context-usage");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ usage: fakeUsage });
+  });
+
+  it("returns { usage: null } with 200 when the session is not live", async () => {
+    // No activeQuery → manager method resolves to null by design.
+    const res = await request(app).get("/sessions/cold-sess/context-usage");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ usage: null });
+  });
+
+  it("returns 500 when sessionManager.getContextUsage throws", async () => {
+    vi.spyOn(sessionManager, "getContextUsage").mockRejectedValue(new Error("boom"));
+
+    const res = await request(app).get("/sessions/any/context-usage");
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/context usage/i);
+  });
+});

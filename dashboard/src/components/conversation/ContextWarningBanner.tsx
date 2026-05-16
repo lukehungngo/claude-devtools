@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useContext } from "react";
+import { LayoutContext } from "../../contexts/LayoutContext";
 
 interface ContextWarningBannerProps {
   contextPercent: number | undefined;
@@ -11,6 +12,13 @@ export function ContextWarningBanner({
 }: ContextWarningBannerProps): JSX.Element | null {
   const [dismissedAtPercent, setDismissedAtPercent] = useState<number | null>(null);
   const prevPercent = useRef<number | undefined>(contextPercent);
+
+  // Optional LayoutContext — read with useContext (not useLayoutContext) so
+  // standalone tests that render the banner without a Provider still work.
+  // R-4: the SDK's getContextUsage publishes autoCompactThreshold (fraction)
+  // here via UsageTab; banner shows the real number when known.
+  const layoutCtx = useContext(LayoutContext);
+  const autoCompactThreshold = layoutCtx?.autoCompactThreshold ?? null;
 
   // Reset dismissed state when context increases beyond the dismissed level
   useEffect(() => {
@@ -38,9 +46,20 @@ export function ContextWarningBanner({
     ? "bg-dt-red-dim text-dt-red"
     : "bg-dt-yellow-dim text-dt-yellow";
 
-  const message = isCritical
-    ? `Context almost full (${contextPercent}%). Compacting recommended.`
-    : `Context window is ${contextPercent}% full. Use /compact to free space.`;
+  // Compose copy. When the SDK threshold is known, show "X% full — autocompact
+  // fires at Y%". Otherwise keep the legacy "/compact" hint so behavior is
+  // unchanged for historical / non-live sessions.
+  let message: string;
+  if (autoCompactThreshold !== null && autoCompactThreshold > 0) {
+    const thresholdPct = Math.round(autoCompactThreshold * 100);
+    message = isCritical
+      ? `Context almost full (${contextPercent}%). Autocompact fires at ${thresholdPct}%.`
+      : `Context is ${contextPercent}% full — autocompact fires at ${thresholdPct}%.`;
+  } else {
+    message = isCritical
+      ? `Context almost full (${contextPercent}%). Compacting recommended.`
+      : `Context window is ${contextPercent}% full. Use /compact to free space.`;
+  }
 
   return (
     <div
@@ -62,7 +81,7 @@ export function ContextWarningBanner({
           aria-label="Dismiss"
           className="bg-transparent border-none cursor-pointer text-current text-base px-1 leading-none"
         >
-          {"\u00d7"}
+          {"×"}
         </button>
       </div>
     </div>

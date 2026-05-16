@@ -110,6 +110,23 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     res.json({ model: activeSession?.model ?? null });
   });
 
+  // R-3 + R-4: authoritative SDK context-usage breakdown for live sessions.
+  // Returns { usage: SDKControlGetContextUsageResponse | null }. Non-live
+  // sessions get `usage: null` with HTTP 200 so the dashboard falls back to
+  // /api/usage/breakdown without branching on status code.
+  // Registered BEFORE /sessions/:projectHash/:sessionId so Express does not
+  // match the 2-param route with sessionId="context-usage".
+  router.get("/sessions/:sessionId/context-usage", async (req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) return res.status(500).json({ error: "Session manager not available" });
+    try {
+      const usage = await sessionManager.getContextUsage(req.params.sessionId);
+      res.json({ usage });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch context usage", detail: String(err) });
+    }
+  });
+
   // Get session detail + metrics
   router.get("/sessions/:projectHash/:sessionId", (req, res) => {
     try {

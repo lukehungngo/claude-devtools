@@ -101,6 +101,13 @@ export interface LayoutContextValue {
   setLastResultStopReason: (reason: string | null) => void;
   lastResultFinishReasons: readonly string[] | null;
   setLastResultFinishReasons: (reasons: readonly string[] | null) => void;
+
+  // R-4 — authoritative autocompact threshold (fraction, e.g. 0.92) from the
+  // SDK's getContextUsage. Written by UsageTab when a live session fetch
+  // returns a usage object, consumed by ContextWarningBanner to show the real
+  // threshold instead of the hard-coded "/compact" copy.
+  autoCompactThreshold: number | null;
+  setAutoCompactThreshold: (n: number | null) => void;
 }
 
 export const LayoutContext = createContext<LayoutContextValue | null>(null);

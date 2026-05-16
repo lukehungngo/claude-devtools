@@ -1,10 +1,46 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, fireEvent, cleanup, within } from "@testing-library/react";
 import { ContextWarningBanner } from "./ContextWarningBanner";
+import { LayoutContext } from "../../contexts/LayoutContext";
+import type { LayoutContextValue } from "../../contexts/LayoutContext";
 
 afterEach(() => {
   cleanup();
 });
+
+function makeLayoutCtx(overrides?: Partial<LayoutContextValue>): LayoutContextValue {
+  return {
+    repos: [], reposLoading: false, refreshRepos: () => {},
+    permissions: [], decidePermission: async () => {}, decidePermissionSession: async () => {},
+    usage: null, costs: null, isLive: false, registerSessionHandlers: () => {},
+    currentMetrics: null, setCurrentMetrics: () => {},
+    toolFilter: null, setToolFilter: () => {},
+    questions: [], submitAnswer: async () => {},
+    activeSessionId: null, setActiveSessionId: () => {},
+    selected: null, setSelected: () => {},
+    slugMap: new Map(), reverseSlugMap: new Map(),
+    currentEvents: [], setCurrentEvents: () => {},
+    currentLiveEvents: [], setCurrentLiveEvents: () => {},
+    currentTurns: [], setCurrentTurns: () => {},
+    currentDag: null, setCurrentDag: () => {},
+    currentActiveTurnIndex: null, setCurrentActiveTurnIndex: () => {},
+    currentSelectedAgent: null, setCurrentSelectedAgent: () => {},
+    hasSubagents: false, setHasSubagents: () => {},
+    currentSubagentMeta: null, setCurrentSubagentMeta: () => {},
+    permissionMode: "default", setPermissionMode: () => {},
+    turnHistoryOpen: true, setTurnHistoryOpen: () => {},
+    viewingTurnNumber: undefined, setViewingTurnNumber: () => {},
+    onClearViewingTurnRef: { current: null },
+    onTurnClickRef: { current: null },
+    openBottomTabRef: { current: null },
+    highlightedToolUseId: null, setHighlightedToolUseId: () => {},
+    highlightedHookId: null, setHighlightedHookId: () => {},
+    lastResultStopReason: null, setLastResultStopReason: () => {},
+    lastResultFinishReasons: null, setLastResultFinishReasons: () => {},
+    autoCompactThreshold: null, setAutoCompactThreshold: () => {},
+    ...overrides,
+  };
+}
 
 describe("ContextWarningBanner", () => {
   it("does not render when contextPercent is below 90", () => {
@@ -73,5 +109,31 @@ describe("ContextWarningBanner", () => {
       <ContextWarningBanner contextPercent={undefined} />
     );
     expect(container.querySelector("[data-testid='context-warning']")).toBeNull();
+  });
+
+  it("includes the real autocompact threshold when LayoutContext provides one", () => {
+    const ctx = makeLayoutCtx({ autoCompactThreshold: 0.92 });
+    const { container } = render(
+      <LayoutContext.Provider value={ctx}>
+        <ContextWarningBanner contextPercent={91} />
+      </LayoutContext.Provider>
+    );
+    const banner = container.querySelector("[data-testid='context-warning']")!;
+    expect(banner.textContent).toContain("91%");
+    // Threshold rendered as integer percent ("92%"), not "0.92".
+    expect(banner.textContent).toContain("92%");
+    expect(banner.textContent).toMatch(/autocompact|auto-compact/i);
+  });
+
+  it("falls back to /compact copy when no threshold is provided", () => {
+    const ctx = makeLayoutCtx({ autoCompactThreshold: null });
+    const { container } = render(
+      <LayoutContext.Provider value={ctx}>
+        <ContextWarningBanner contextPercent={91} />
+      </LayoutContext.Provider>
+    );
+    const banner = container.querySelector("[data-testid='context-warning']")!;
+    expect(banner.textContent).toContain("/compact");
+    expect(banner.textContent).not.toMatch(/autocompact fires/i);
   });
 });

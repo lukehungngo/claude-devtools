@@ -119,6 +119,9 @@ export function AppLayout() {
   // ConversationView when the session id changes.
   const [lastResultStopReason, setLastResultStopReason] = useState<string | null>(null);
   const [lastResultFinishReasons, setLastResultFinishReasons] = useState<readonly string[] | null>(null);
+  // R-4 — authoritative SDK autocompact threshold (fraction). Written by
+  // UsageTab on live-session fetch, consumed by ContextWarningBanner.
+  const [autoCompactThreshold, setAutoCompactThreshold] = useState<number | null>(null);
 
   const handleTurnSelect = useCallback((turnIndex: number) => {
     onTurnClickRef.current?.(turnIndex);
@@ -305,6 +308,8 @@ export function AppLayout() {
     setLastResultStopReason,
     lastResultFinishReasons,
     setLastResultFinishReasons,
+    autoCompactThreshold,
+    setAutoCompactThreshold,
   };
 
   return (

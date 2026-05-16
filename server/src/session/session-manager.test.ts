@@ -403,6 +403,99 @@ describe("SessionManager.setPermissionMode with SDK modes", () => {
   });
 });
 
+describe("SessionManager.getContextUsage", () => {
+  let manager: SessionManager;
+
+  beforeEach(() => {
+    manager = new SessionManager(vi.fn());
+    mockQuery.mockReset();
+  });
+
+  afterEach(() => {
+    manager.dispose();
+  });
+
+  it("delegates to activeQuery.getContextUsage() when session is live", async () => {
+    const fakeUsage = {
+      totalTokens: 12345,
+      maxTokens: 200000,
+      percentage: 6.1,
+      autoCompactThreshold: 0.92,
+      isAutoCompactEnabled: true,
+      categories: [],
+      gridRows: [],
+      model: "claude-sonnet-4-6",
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      apiUsage: null,
+    } as const;
+    const mockGetContextUsage = vi.fn().mockResolvedValue(fakeUsage);
+    let resolveYield: (() => void) | null = null;
+    const yieldPromise = new Promise<void>((resolve) => { resolveYield = resolve; });
+
+    async function* slowStream() {
+      yield* [];
+      await yieldPromise;
+    }
+    const queryObj = slowStream();
+    (queryObj as unknown as Record<string, unknown>).getContextUsage = mockGetContextUsage;
+    mockQuery.mockReturnValue(queryObj);
+
+    const sessionId = await manager.startSession("/tmp");
+    const gen = manager.sendMessage(sessionId, "hello");
+    const iterPromise = (async () => {
+      for await (const _msg of gen) { /* drain */ }
+    })();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const result = await manager.getContextUsage(sessionId);
+    expect(mockGetContextUsage).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(fakeUsage);
+
+    resolveYield!();
+    await iterPromise;
+  });
+
+  it("returns null when session has no activeQuery (not live)", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    const result = await manager.getContextUsage(sessionId);
+    expect(result).toBeNull();
+  });
+
+  it("returns null when session is unknown", async () => {
+    const result = await manager.getContextUsage("nonexistent");
+    expect(result).toBeNull();
+  });
+
+  it("returns null when SDK getContextUsage throws", async () => {
+    const mockGetContextUsage = vi.fn().mockRejectedValue(new Error("SDK boom"));
+    let resolveYield: (() => void) | null = null;
+    const yieldPromise = new Promise<void>((resolve) => { resolveYield = resolve; });
+
+    async function* slowStream() {
+      yield* [];
+      await yieldPromise;
+    }
+    const queryObj = slowStream();
+    (queryObj as unknown as Record<string, unknown>).getContextUsage = mockGetContextUsage;
+    mockQuery.mockReturnValue(queryObj);
+
+    const sessionId = await manager.startSession("/tmp");
+    const gen = manager.sendMessage(sessionId, "hello");
+    const iterPromise = (async () => {
+      for await (const _msg of gen) { /* drain */ }
+    })();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const result = await manager.getContextUsage(sessionId);
+    expect(result).toBeNull();
+
+    resolveYield!();
+    await iterPromise;
+  });
+});
+
 describe("SessionManager.rewindFiles", () => {
   let manager: SessionManager;
 

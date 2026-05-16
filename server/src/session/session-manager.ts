@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import type { PermissionResult, PermissionUpdate, Query, RewindFilesResult, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
+import type { PermissionResult, PermissionUpdate, Query, RewindFilesResult, SDKControlGetContextUsageResponse, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import { sessionLog } from "../logger.js";
 import { isToolAllowedForSession } from "../hooks/permission-handler.js";
 import { discoverSessions } from "../parser/session-discovery.js";
@@ -588,6 +588,24 @@ export class SessionManager {
   /** Get the stored context window for a session, if available */
   getContextWindow(sessionId: string): number | undefined {
     return this.activeSessions.get(sessionId)?.contextWindow;
+  }
+
+  /**
+   * Get the authoritative context usage breakdown from the SDK for a live
+   * session. Returns null when the session is not live (no activeQuery) or
+   * when the SDK call fails — callers should fall back to JSONL aggregation.
+   *
+   * Replaces R-3 / R-4 manual aggregation in the dashboard's Usage tab.
+   */
+  async getContextUsage(sessionId: string): Promise<SDKControlGetContextUsageResponse | null> {
+    const session = this.activeSessions.get(sessionId);
+    if (!session?.activeQuery?.getContextUsage) return null;
+    try {
+      return await session.activeQuery.getContextUsage();
+    } catch (err) {
+      sessionLog.warn({ sessionId, err: String(err) }, "getContextUsage failed");
+      return null;
+    }
   }
 
   /** Remove a session from tracking */
