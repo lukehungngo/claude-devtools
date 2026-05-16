@@ -403,17 +403,178 @@ Defined in `server/src/cache/session-cache.ts:32-45`. Used in fallback paths (`s
 
 ---
 
-## Bonus SDK APIs we don't yet use (new gaps to track)
+## Bonus SDK APIs (NEW-3..NEW-9 — full per-item specs)
 
-| SDK API | What it unlocks | Suggested follow-up gap ID |
-|---|---|---|
-| `query.supportedAgents(): Promise<AgentInfo[]>` (`sdk.d.ts:2139`) | Replace AgentManager filesystem scan with the authoritative SDK list | NEW-3 |
-| `query.mcpServerStatus()` (`sdk.d.ts:2146`) | New "MCP Status" panel: connected / failed / needs-auth / pending | NEW-4 |
-| `query.backgroundTasks(toolUseId?)` (`sdk.d.ts:2269`) | "Background this task" button — programmatic Ctrl+B from dashboard | NEW-5 |
-| `query.stopTask(taskId)` (`sdk.d.ts:2256`) | Kill button in TasksTab | NEW-6 |
-| `SDKTaskStartedMessage` / `TaskProgressMessage` / `TaskNotificationMessage` / `TaskUpdatedMessage` (`sdk.d.ts:3503-3580`) | Structured task lifecycle — extends our current `queued_command` rendering with subagent_type, usage stats, status transitions | NEW-7 |
-| `SDKHookStartedMessage` / `HookProgressMessage` / `HookResponseMessage` | Live hook lifecycle on stream — Hooks tab can show in-flight hooks with progress | NEW-8 |
-| `SDKPermissionDeniedMessage` (`sdk.d.ts:3175`) | Distinct UI for explicit denials | NEW-9 |
+### NEW-3 — `query.supportedAgents()` replaces AgentManager filesystem scan
+
+**SDK evidence:** `sdk.d.ts:2139`
+```ts
+supportedAgents(): Promise<AgentInfo[]>;
+```
+`AgentInfo` at `sdk.d.ts:97-111`:
+```ts
+export declare type AgentInfo = {
+  name: string;          // e.g. "Explore"
+  description: string;   // when to use this agent
+  model?: string;        // model alias (inherits parent's if omitted)
+};
+```
+
+**Current guesswork:** `dashboard/src/components/panels/AgentManager.tsx` says "Create agents in .claude/agents/<name>/CLAUDE.md" — implies a filesystem scan. Doesn't include plugin-contributed agents.
+
+**Replacement plan:**
+1. Server: `GET /api/sessions/:sessionId/supported-agents` calling `query.supportedAgents()` for live sessions; returns `[]` for historical.
+2. AgentManager fetches the route; prefers SDK list when non-empty; falls back to filesystem scan otherwise.
+3. Surface `model` field when present (we currently don't show per-agent model).
+
+**Acceptance criteria:**
+- Live sessions show plugin-contributed agents previously missed.
+- Each agent row shows name, description, model (when set).
+
+---
+
+### NEW-4 — `query.mcpServerStatus()` new MCP Status panel
+
+**SDK evidence:** `sdk.d.ts:2146` returns `McpServerStatus[]`. `McpServerStatus` at `sdk.d.ts:986-1029`:
+```ts
+{
+  name: string;
+  status: 'connected' | 'failed' | 'needs-auth' | 'pending' | 'disabled';
+  serverInfo?: { name, version };
+  error?: string;                  // when status === 'failed'
+  config?: McpServerStatusConfig;  // URL for HTTP/SSE servers
+  scope?: string;                  // 'project' | 'user' | 'local' | 'claudeai' | 'managed'
+  // tools array also present when connected
+}
+```
+
+**Current state:** Devtools has no MCP status surface. Users with broken MCP configs see tool failures with no diagnostic.
+
+**Replacement plan:**
+1. Server: `GET /api/sessions/:sessionId/mcp-status` proxying `query.mcpServerStatus()`.
+2. Dashboard: new BottomPanel tab "MCP" rendering one row per server:
+   - Status icon (✓ connected, ⚠ pending, ✗ failed, 🔒 needs-auth, ⏸ disabled)
+   - Name, version, scope, transport (from `config`)
+   - Error message inline when failed
+   - Quick-action: "Authenticate" button when needs-auth (calls `SDKControlMcpAuthenticateRequest`)
+
+**Acceptance criteria:**
+- All 5 status values render with distinct styling.
+- Failed servers show the error message.
+- Test asserting each status badge renders.
+
+---
+
+### NEW-5 — `query.backgroundTasks(toolUseId?)` "background this task" action
+
+**SDK evidence:** `sdk.d.ts:2257-2269`
+```ts
+backgroundTasks(toolUseId?: string): Promise<boolean>;
+```
+> "With `toolUseId`, targets the single task started by that tool_use block; without it, backgrounds all foreground tasks — equivalent to pressing Ctrl+B in the terminal."
+
+**Current state:** No way to background a long-running tool from the dashboard.
+
+**Replacement plan:**
+1. Server: `POST /api/sessions/:sessionId/background-task` with optional `{ toolUseId }` body.
+2. Dashboard: on hover over a long-running Bash tool call OR subagent dispatch row, show a "Background" button (Clock icon). Click → POST.
+3. Toast/banner confirms the action.
+
+**Acceptance criteria:**
+- Button appears only on running tools (status = "running", `is_backgrounded` false).
+- Successful background reflected by next SDKTaskUpdatedMessage with `is_backgrounded: true`.
+
+---
+
+### NEW-6 — `query.stopTask(taskId)` kill button on TasksTab
+
+**SDK evidence:** `sdk.d.ts:2256`
+```ts
+stopTask(taskId: string): Promise<void>;
+```
+
+**Current state:** TasksTab (NEW-2) renders task rows but offers no kill action.
+
+**Replacement plan:**
+1. Server: `POST /api/sessions/:sessionId/stop-task` with `{ taskId }`.
+2. Dashboard: trash icon at the end of each running task row in TasksTab. Confirmation modal: "Stop task: ${subject}?".
+3. On success, optimistically mark the row as 'killed' until next refresh.
+
+**Acceptance criteria:**
+- Button hidden for already-completed/failed tasks.
+- Confirmation modal mandatory.
+- Test asserting POST body is `{ taskId }`.
+
+---
+
+### NEW-7 — Structured Task lifecycle messages
+
+**SDK evidence:** `sdk.d.ts:3503-3580`:
+- `SDKTaskStartedMessage` — `{task_id, tool_use_id?, description, subagent_type?, task_type?, workflow_name?, prompt?, skip_transcript?}`
+- `SDKTaskProgressMessage` — `{task_id, tool_use_id?, description, subagent_type?, usage{total_tokens, tool_uses, duration_ms}, last_tool_name?, summary?}`
+- `SDKTaskNotificationMessage` — `{task_id, tool_use_id?, status: 'completed' | 'failed' | 'stopped', output_file, summary, usage?}`
+- `SDKTaskUpdatedMessage` — `{task_id, patch: { status?: 'pending'|'running'|'completed'|'failed'|'killed'|'paused', description?, end_time?, total_paused_ms?, error?, is_backgrounded? }}`
+
+**Current state:** Our TasksTab (NEW-2 commit `d939772`) reads `~/.claude/tasks/<sid>/<id>.json` for historical state. Live progress (tokens spent, last tool used, paused state) isn't surfaced.
+
+**Replacement plan:**
+1. SSE handler: forward the 4 SDKTask* message types to dashboard as new SSE event types.
+2. `useStreamingState` reducer: maintain a `Map<task_id, LiveTaskState>` with `status, description, subagent_type, totalTokens, toolUses, durationMs, lastToolName, summary, isBackgrounded`.
+3. TasksTab: for live sessions, merge live state on top of daemon-file state — show running tokens/duration counter, pause indicator, last tool name.
+
+**Acceptance criteria:**
+- Status transitions animate (pending → running → completed).
+- `is_backgrounded` shown with a moon icon.
+- Tests for each message-to-state transition.
+
+---
+
+### NEW-8 — Live hook progress in HooksTab
+
+**SDK evidence:** `sdk.d.ts:3108` `SDKHookStartedMessage`; also `SDKHookProgressMessage`, `SDKHookResponseMessage` (in the SDKMessage union at `:3175`).
+
+**Current state:** HooksTab (P0-5 commit `2d109d6`) renders completed `hook_success` / `hook_cancelled` attachments only. In-flight hooks invisible until they complete.
+
+**Replacement plan:**
+1. SSE handler: forward `SDKHookStartedMessage` / `HookProgressMessage` / `HookResponseMessage`.
+2. `useStreamingState`: live hook map by `tool_use_id` + `hook_name`.
+3. HooksTab: when a hook is in-flight, render a row with a spinning loader and elapsed time; replace with the completed row when `HookResponseMessage` arrives.
+
+**Acceptance criteria:**
+- In-flight rows show spinner + elapsed time updating each second.
+- Replaced cleanly when complete (no flicker).
+- Tests for the lifecycle transitions.
+
+---
+
+### NEW-9 — `SDKPermissionDeniedMessage` distinct UI
+
+**SDK evidence:** `sdk.d.ts:3244-3268`:
+```ts
+{
+  type: 'system';
+  subtype: 'permission_denied';
+  tool_name: string;
+  tool_use_id: string;
+  agent_id?: string;          // subagent that triggered
+  decision_reason_type?: string;  // 'classifier' | 'asyncAgent' | 'mode' | 'rule'
+  decision_reason?: string;
+  message: string;            // rejection message sent back to the model
+  uuid; session_id;
+}
+```
+
+**Current state:** PermissionBlock handles approve/deny flow for pending requests. Explicit auto-denials (rule-based, classifier-based) emit `permission_denied` messages we currently ignore.
+
+**Replacement plan:**
+1. SSE handler: forward `permission_denied` system messages as a new SSE event.
+2. Conversation view: render a distinct red-bordered row showing `tool_name`, `decision_reason_type`, `decision_reason`, the rejection message returned to the model. Distinct from PermissionBlock (which is interactive).
+3. Hooks tab "Source" column already supports "Monitor" — add "Permission" as a third source for denied entries if they should also appear there.
+
+**Acceptance criteria:**
+- Auto-denied tool calls render distinctly from user-denied (existing PermissionBlock).
+- `decision_reason_type` badge with color per category.
+- Tests for each decision_reason_type value.
 
 ---
 
