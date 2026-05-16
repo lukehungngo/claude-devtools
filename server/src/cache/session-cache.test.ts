@@ -285,6 +285,104 @@ describe("SessionCache", () => {
     expect(info!.gitBranch).toBe("master");
   });
 
+  // FU-2: entrypoint reflects the MOST RECENT seen value, not the first.
+  // A session retired as `cli` and resumed as `sdk-cli` must report `sdk-cli`.
+  it("FU-2: entrypoint reflects most-recent tail value when head and tail differ", () => {
+    const projectDir = path.join(tmpDir, "proj-fu2");
+    const filePath = path.join(projectDir, "session-fu2.jsonl");
+
+    const events: string[] = [];
+    // Head event carries the original entrypoint.
+    events.push(
+      JSON.stringify({
+        type: "user",
+        uuid: "u0",
+        timestamp: "2026-05-15T09:00:00Z",
+        sessionId: "session-fu2",
+        cwd: "/Users/soh/proj",
+        gitBranch: "main",
+        entrypoint: "cli",
+        message: { role: "user", content: [{ type: "text", text: "first" }] },
+        userType: "external",
+      })
+    );
+    // Filler events pushing past HEAD_BYTES (4096) so the tail scan must run.
+    for (let i = 1; i <= 30; i++) {
+      events.push(
+        JSON.stringify({
+          type: "user",
+          uuid: `u${i}`,
+          timestamp: "2026-05-15T09:01:00Z",
+          sessionId: "session-fu2",
+          cwd: "/Users/soh/proj",
+          gitBranch: "main",
+          entrypoint: "cli",
+          message: { role: "user", content: [{ type: "text", text: "padding content repeated to ensure we exceed four kilobytes of head data so entrypoint detection falls through to the tail scan" }] },
+          userType: "external",
+        })
+      );
+    }
+    // Most-recent event: resumed under a different entrypoint.
+    events.push(
+      JSON.stringify({
+        type: "user",
+        uuid: "u-last",
+        timestamp: "2026-05-15T11:00:00Z",
+        sessionId: "session-fu2",
+        cwd: "/Users/soh/proj",
+        gitBranch: "main",
+        entrypoint: "sdk-cli",
+        message: { role: "user", content: [{ type: "text", text: "newest" }] },
+        userType: "external",
+      })
+    );
+    writeJsonlFile(filePath, events);
+
+    const info = cache.getSessionInfo(filePath, "proj-fu2");
+    expect(info!.entrypoint).toBe("sdk-cli");
+  });
+
+  it("FU-2: falls back to head entrypoint when tail has none (back-compat)", () => {
+    const projectDir = path.join(tmpDir, "proj-fu2b");
+    const filePath = path.join(projectDir, "session-fu2b.jsonl");
+
+    const events: string[] = [];
+    // Head event carries the entrypoint.
+    events.push(
+      JSON.stringify({
+        type: "user",
+        uuid: "u0",
+        timestamp: "2026-05-15T09:00:00Z",
+        sessionId: "session-fu2b",
+        cwd: "/Users/soh/proj",
+        gitBranch: "main",
+        entrypoint: "cli",
+        message: { role: "user", content: [{ type: "text", text: "first" }] },
+        userType: "external",
+      })
+    );
+    // Filler events (no entrypoint) pushing past HEAD_BYTES so the tail scan runs
+    // but finds no entrypoint value.
+    for (let i = 1; i <= 30; i++) {
+      events.push(
+        JSON.stringify({
+          type: "user",
+          uuid: `u${i}`,
+          timestamp: "2026-05-15T09:01:00Z",
+          sessionId: "session-fu2b",
+          cwd: "/Users/soh/proj",
+          gitBranch: "main",
+          message: { role: "user", content: [{ type: "text", text: "padding content repeated to ensure we exceed four kilobytes of head data so tail scan executes but finds no entrypoint" }] },
+          userType: "external",
+        })
+      );
+    }
+    writeJsonlFile(filePath, events);
+
+    const info = cache.getSessionInfo(filePath, "proj-fu2b");
+    expect(info!.entrypoint).toBe("cli");
+  });
+
   it("extracts cwd from tail when head has no cwd-bearing events", () => {
     const projectDir = path.join(tmpDir, "proj10");
     const filePath = path.join(projectDir, "session10.jsonl");

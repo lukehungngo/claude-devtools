@@ -149,17 +149,23 @@ export class SessionCache {
     }
 
     // Backward tail scan (most recent first) for fields where we prefer the
-    // most recent value (gitBranch) and for fallback fields (sessionName, model,
-    // cwd) that may be absent from the head slice.
+    // most recent value (gitBranch, entrypoint) and for fallback fields
+    // (sessionName, model, cwd) that may be absent from the head slice.
     // We always walk the tail (not gated on missing fields) so that gitBranch
-    // reflects the session's current branch, not whatever it was at session start.
+    // and entrypoint reflect the session's current state, not whatever they
+    // were at session start (e.g. a session retired as `cli` and resumed as
+    // `sdk-cli` must show `sdk-cli`).
     let tailGitBranch: string | undefined;
+    let tailEntrypoint: string | undefined;
     if (stat.size > HEAD_BYTES) {
       this.scanBackwardLines(filePath, stat.size, (line) => {
         try {
           const evt = JSON.parse(line);
           if (!tailGitBranch && evt.gitBranch) {
             tailGitBranch = evt.gitBranch;
+          }
+          if (!tailEntrypoint && evt.entrypoint) {
+            tailEntrypoint = evt.entrypoint;
           }
           if (!sessionName && evt.type === "custom-title" && evt.customTitle) {
             sessionName = evt.customTitle;
@@ -173,15 +179,18 @@ export class SessionCache {
         } catch {
           // skip malformed lines (fail-safe parsing — invariant #3)
         }
-        // Stop as soon as all target fields are satisfied. `gitBranch` is the
-        // load-bearing field for the Honeywell-style bug; `cwd` is the load-
-        // bearing field for repo grouping. `sessionName` and `model` are
+        // Stop as soon as all target fields are satisfied. `gitBranch` and
+        // `entrypoint` are load-bearing for staleness fixes; `cwd` is the
+        // load-bearing field for repo grouping. `sessionName` and `model` are
         // best-effort — the cap will end the scan if they never appear.
-        return Boolean(tailGitBranch && cwd && sessionName && model);
+        return Boolean(tailGitBranch && tailEntrypoint && cwd && sessionName && model);
       });
     }
     // Tail (most-recent) branch wins over head (session-start) branch.
     if (tailGitBranch) gitBranch = tailGitBranch;
+    // Tail (most-recent) entrypoint wins over head (session-start) entrypoint —
+    // matters for sessions retired+resumed with a different entrypoint.
+    if (tailEntrypoint) entrypoint = tailEntrypoint;
 
     // Fallback: use slug as session name
     if (!sessionName && slug) sessionName = slug;
