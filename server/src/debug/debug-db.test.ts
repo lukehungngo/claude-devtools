@@ -16,7 +16,25 @@ function createTestDB(): DebugDB {
   return db!;
 }
 
-describe("DebugDB", () => {
+/**
+ * Probe whether the better-sqlite3 native module is loadable in this environment.
+ * If not (e.g. pnpm approve-builds has not been run locally), skip the entire
+ * DebugDB suite — the production code already returns null in that case.
+ * Run `pnpm approve-builds` and select better-sqlite3 to opt into these tests.
+ */
+function probeDebugDb(): boolean {
+  const prev = process.env.NODE_ENV;
+  process.env.NODE_ENV = "development";
+  const probe = DebugDB.open(":memory:");
+  process.env.NODE_ENV = prev;
+  if (probe == null) return false;
+  probe.close();
+  return true;
+}
+
+const DEBUG_DB_AVAILABLE = probeDebugDb();
+
+describe.skipIf(!DEBUG_DB_AVAILABLE)("DebugDB", () => {
   let db: DebugDB;
 
   beforeEach(() => {

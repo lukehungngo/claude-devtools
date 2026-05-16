@@ -44,6 +44,20 @@ function createTestDB(): DebugDB {
   return db!;
 }
 
+function probeDebugDb(): boolean {
+  const prev = process.env.NODE_ENV;
+  process.env.NODE_ENV = "development";
+  const probe = DebugDB.open(":memory:");
+  process.env.NODE_ENV = prev;
+  if (probe == null) return false;
+  probe.close();
+  return true;
+}
+
+// Skip when better-sqlite3 native module is not built locally.
+// Run `pnpm approve-builds` and select better-sqlite3 to opt in.
+const DEBUG_DB_AVAILABLE = probeDebugDb();
+
 function createApp(state?: ServerState) {
   const app = express();
   app.use("/api", setupRoutes(state));
@@ -85,7 +99,7 @@ function makeAssistantEvent(uuid: string, timestamp: string): SessionEvent {
   } as unknown as SessionEvent;
 }
 
-describe("Session fetch stores lifecycle data in debug DB", () => {
+describe.skipIf(!DEBUG_DB_AVAILABLE)("Session fetch stores lifecycle data in debug DB", () => {
   let db: DebugDB;
   let state: ServerState;
   let app: ReturnType<typeof express>;
