@@ -32,8 +32,9 @@ export function isTerminalStopReason(reason: StopReason | undefined): boolean {
 // === JSONL Event Types ===
 
 /**
- * All top-level event `type` values observed in real CC session JSONLs (v2.1.143).
- * See docs/spec/cc-parity-gaps.md P0-4 for the full catalog.
+ * All top-level `type` values observed in real CC v2.1.143 session JSONLs.
+ * See docs/spec/cc-parity-gaps.md P0-4. The `attachment` event wraps hook,
+ * skill, MCP, and reminder runtime deltas (discriminated by attachment.type).
  */
 export type SessionEventType =
   | "queue-operation"
@@ -41,6 +42,14 @@ export type SessionEventType =
   | "assistant"
   | "progress"
   | "system"
+  | "attachment"
+  | "ai-title"
+  | "last-prompt"
+  | "permission-mode"
+  | "file-history-snapshot"
+  | "worktree-state";
+
+export type AttachmentInnerType =
   | "hook_success"
   | "hook_cancelled"
   | "hook_system_message"
@@ -52,12 +61,7 @@ export type SessionEventType =
   | "task_reminder"
   | "todo_reminder"
   | "command_permissions"
-  // Sidecar metadata (filtered out of the events array by the parser)
-  | "ai-title"
-  | "last-prompt"
-  | "permission-mode"
-  | "file-history-snapshot"
-  | "worktree-state";
+  | "queued_command";
 
 export interface BaseEvent {
   type: SessionEventType;
@@ -128,83 +132,108 @@ export interface SystemEvent extends BaseEvent {
 }
 
 /**
- * Conversation-shape events that share the full BaseEvent layout. Devtools
- * currently treats them as opaque (no UI surface) but they MUST be parsed
- * and counted so the user-facing event count stays accurate.
+ * Top-level `attachment` event — CC v2.1.143's wrapper for hook, skill,
+ * MCP, reminder, and queued-command runtime deltas. The inner attachment.type
+ * discriminates the payload class (see AttachmentInnerType).
  */
-export interface HookSuccessEvent extends BaseEvent {
+export interface HookSuccessAttachment {
   type: "hook_success";
-  attachment?: Record<string, unknown>;
-  entrypoint?: string;
-  userType?: "external" | "internal";
+  hookName: string;
+  hookEvent: string;
+  toolUseID?: string;
+  command: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  content: string;
+  durationMs: number;
 }
 
-export interface HookCancelledEvent extends BaseEvent {
+export interface HookCancelledAttachment {
   type: "hook_cancelled";
-  attachment?: Record<string, unknown>;
-  entrypoint?: string;
-  userType?: "external" | "internal";
+  hookName?: string;
+  hookEvent?: string;
+  reason?: string;
 }
 
-export interface HookSystemMessageEvent extends BaseEvent {
+export interface HookSystemMessageAttachment {
   type: "hook_system_message";
-  attachment?: Record<string, unknown>;
-  entrypoint?: string;
-  userType?: "external" | "internal";
+  hookName?: string;
+  hookEvent?: string;
+  message?: string;
 }
 
-export interface HookAdditionalContextEvent extends BaseEvent {
+export interface HookAdditionalContextAttachment {
   type: "hook_additional_context";
-  attachment?: Record<string, unknown>;
-  entrypoint?: string;
-  userType?: "external" | "internal";
+  hookName?: string;
+  hookEvent?: string;
+  context?: string;
 }
 
-export interface AsyncHookResponseEvent extends BaseEvent {
+export interface AsyncHookResponseAttachment {
   type: "async_hook_response";
-  attachment?: Record<string, unknown>;
-  entrypoint?: string;
-  userType?: "external" | "internal";
+  hookName?: string;
+  hookEvent?: string;
 }
 
-export interface SkillListingEvent extends BaseEvent {
+export interface SkillListingAttachment {
   type: "skill_listing";
-  attachment?: Record<string, unknown>;
-  entrypoint?: string;
-  userType?: "external" | "internal";
+  skills?: unknown[];
 }
 
-export interface DeferredToolsDeltaEvent extends BaseEvent {
+export interface DeferredToolsDeltaAttachment {
   type: "deferred_tools_delta";
-  attachment?: Record<string, unknown>;
-  entrypoint?: string;
-  userType?: "external" | "internal";
+  added?: string[];
+  removed?: string[];
 }
 
-export interface McpInstructionsDeltaEvent extends BaseEvent {
+export interface McpInstructionsDeltaAttachment {
   type: "mcp_instructions_delta";
-  attachment?: Record<string, unknown>;
-  entrypoint?: string;
-  userType?: "external" | "internal";
+  serverName?: string;
+  instructions?: string;
 }
 
-export interface TaskReminderEvent extends BaseEvent {
+export interface TaskReminderAttachment {
   type: "task_reminder";
-  attachment?: Record<string, unknown>;
-  entrypoint?: string;
-  userType?: "external" | "internal";
+  taskId?: string;
+  message?: string;
 }
 
-export interface TodoReminderEvent extends BaseEvent {
+export interface TodoReminderAttachment {
   type: "todo_reminder";
-  attachment?: Record<string, unknown>;
-  entrypoint?: string;
-  userType?: "external" | "internal";
+  todoId?: string;
+  message?: string;
 }
 
-export interface CommandPermissionsEvent extends BaseEvent {
+export interface CommandPermissionsAttachment {
   type: "command_permissions";
-  attachment?: Record<string, unknown>;
+  permissions?: unknown[];
+}
+
+export interface QueuedCommandAttachment {
+  type: "queued_command";
+  prompt: string;
+  commandMode: string;
+}
+
+export type AttachmentPayload =
+  | HookSuccessAttachment
+  | HookCancelledAttachment
+  | HookSystemMessageAttachment
+  | HookAdditionalContextAttachment
+  | AsyncHookResponseAttachment
+  | SkillListingAttachment
+  | DeferredToolsDeltaAttachment
+  | McpInstructionsDeltaAttachment
+  | TaskReminderAttachment
+  | TodoReminderAttachment
+  | CommandPermissionsAttachment
+  | QueuedCommandAttachment
+  | { type: string; [key: string]: unknown };
+
+export interface AttachmentEvent extends BaseEvent {
+  type: "attachment";
+  attachment: AttachmentPayload;
   entrypoint?: string;
   userType?: "external" | "internal";
 }
@@ -215,17 +244,7 @@ export type SessionEvent =
   | AssistantEvent
   | ProgressEvent
   | SystemEvent
-  | HookSuccessEvent
-  | HookCancelledEvent
-  | HookSystemMessageEvent
-  | HookAdditionalContextEvent
-  | AsyncHookResponseEvent
-  | SkillListingEvent
-  | DeferredToolsDeltaEvent
-  | McpInstructionsDeltaEvent
-  | TaskReminderEvent
-  | TodoReminderEvent
-  | CommandPermissionsEvent;
+  | AttachmentEvent;
 
 // === Content Types ===
 

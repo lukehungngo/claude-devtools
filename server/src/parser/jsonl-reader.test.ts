@@ -138,11 +138,12 @@ describe("parseJsonlFile", () => {
     expect(result[0].type).toBe("user");
   });
 
-  it("passes through conversation-shape hook/runtime events (P0-4)", () => {
-    const filePath = join(TEST_DIR, "hook-events.jsonl");
-    // Real CC v2.1.143 conversation-shape events that devtools previously
-    // had no typed interface for. The parser must keep them in the array
-    // so user-facing event counts remain accurate.
+  it("passes through attachment events with hook/runtime inner payloads (P0-4)", () => {
+    const filePath = join(TEST_DIR, "attachment-events.jsonl");
+    // Real CC v2.1.143 attachment shape: top-level type "attachment" wraps
+    // hook lifecycle (~1k per session), skill_listing, MCP deltas, etc.
+    // Devtools must keep them in the array so counts and downstream
+    // surfaces can layer on top.
     const baseFields = {
       sessionId: "s1",
       parentUuid: "p1",
@@ -150,29 +151,55 @@ describe("parseJsonlFile", () => {
       version: "2.1.143",
       gitBranch: "main",
       userType: "external",
-      attachment: { ok: true },
+      entrypoint: "sdk-cli",
+      isSidechain: false,
+      type: "attachment",
     };
-    const conversationEvents = [
-      { ...baseFields, type: "hook_success", uuid: "h1", timestamp: "2026-03-23T10:00:01Z" },
-      { ...baseFields, type: "hook_cancelled", uuid: "h2", timestamp: "2026-03-23T10:00:02Z" },
-      { ...baseFields, type: "hook_system_message", uuid: "h3", timestamp: "2026-03-23T10:00:03Z" },
-      { ...baseFields, type: "hook_additional_context", uuid: "h4", timestamp: "2026-03-23T10:00:04Z" },
-      { ...baseFields, type: "async_hook_response", uuid: "h5", timestamp: "2026-03-23T10:00:05Z" },
-      { ...baseFields, type: "skill_listing", uuid: "h6", timestamp: "2026-03-23T10:00:06Z" },
-      { ...baseFields, type: "deferred_tools_delta", uuid: "h7", timestamp: "2026-03-23T10:00:07Z" },
-      { ...baseFields, type: "mcp_instructions_delta", uuid: "h8", timestamp: "2026-03-23T10:00:08Z" },
-      { ...baseFields, type: "task_reminder", uuid: "h9", timestamp: "2026-03-23T10:00:09Z" },
-      { ...baseFields, type: "todo_reminder", uuid: "h10", timestamp: "2026-03-23T10:00:10Z" },
-      { ...baseFields, type: "command_permissions", uuid: "h11", timestamp: "2026-03-23T10:00:11Z" },
+    const attachments = [
+      {
+        ...baseFields,
+        uuid: "h1",
+        timestamp: "2026-03-23T10:00:01Z",
+        attachment: {
+          type: "hook_success",
+          hookName: "PreToolUse:Read",
+          hookEvent: "PreToolUse",
+          toolUseID: "Read_0",
+          command: "node hook.js",
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          content: "",
+          durationMs: 24,
+        },
+      },
+      {
+        ...baseFields,
+        uuid: "h2",
+        timestamp: "2026-03-23T10:00:02Z",
+        attachment: { type: "skill_listing", skills: [] },
+      },
+      {
+        ...baseFields,
+        uuid: "h3",
+        timestamp: "2026-03-23T10:00:03Z",
+        attachment: { type: "deferred_tools_delta", added: ["Read"], removed: [] },
+      },
+      {
+        ...baseFields,
+        uuid: "h4",
+        timestamp: "2026-03-23T10:00:04Z",
+        attachment: { type: "queued_command", prompt: "/ctx-stats", commandMode: "prompt" },
+      },
     ];
-    writeFileSync(filePath, conversationEvents.map((e) => JSON.stringify(e)).join("\n") + "\n");
+    writeFileSync(filePath, attachments.map((e) => JSON.stringify(e)).join("\n") + "\n");
 
     const result = parseJsonlFile(filePath);
 
-    expect(result).toHaveLength(11);
-    expect(result.map((r) => r.type).sort()).toEqual(
-      conversationEvents.map((r) => r.type).sort(),
-    );
+    expect(result).toHaveLength(4);
+    expect(result.every((r) => r.type === "attachment")).toBe(true);
+    const inner = result.map((r) => (r as unknown as { attachment: { type: string } }).attachment.type);
+    expect(inner).toEqual(["hook_success", "skill_listing", "deferred_tools_delta", "queued_command"]);
   });
 
   it("passes through new/unrecognized SDK event types (deny-list not allow-list)", () => {
