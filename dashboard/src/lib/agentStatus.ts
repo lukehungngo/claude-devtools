@@ -28,8 +28,8 @@ export type AgentStatus = "running" | "completed" | "indeterminate";
  * An agent is COMPLETED iff any of these three terminal signals is present
  * in the event stream:
  *
- * 1. Own end_turn — the agent's last owned assistant event has
- *    stop_reason === "end_turn".
+ * 1. Own terminal stop_reason — the agent's last owned assistant event has
+ *    a terminal stop_reason (end_turn, max_tokens, stop_sequence, refusal).
  * 2. Turn duration — a system event with subtype === "turn_duration"
  *    (authoritative for main only; SDK emits one per main turn).
  * 3. Parent ack — the parent emitted a user event with a tool_result whose

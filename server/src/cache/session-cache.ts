@@ -308,7 +308,8 @@ export class SessionCache {
   /**
    * Read the last TERMINAL_SCAN_BYTES of the file and check whether any
    * parsed JSONL line contains a terminal signal:
-   *   - type === "assistant" AND message.stop_reason === "end_turn"
+   *   - type === "assistant" AND isTerminalStopReason(message.stop_reason)
+   *     (end_turn / max_tokens / stop_sequence / refusal)
    *   - type === "system"    AND subtype === "turn_duration"
    *
    * Uses a single openSync/readSync call (cheap tail read) — never re-reads

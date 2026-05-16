@@ -21,6 +21,7 @@ import {
 } from "../../hooks/permission-handler.js";
 import { buildLifecycleRecords } from "../../debug/lifecycle-builder.js";
 import { SessionManager } from "../../session/session-manager.js";
+import type { EffortLevel } from "../../session/session-manager.js";
 import type { SessionEvent } from "../../types.js";
 import { broadcast } from "../server.js";
 import { buildNewEventsMessage } from "../watcher.js";
@@ -716,15 +717,15 @@ export function createSessionRoutes({ state }: RouteContext): Router {
   // Set effort level for an active session
   router.post("/sessions/:sessionId/effort", (req, res) => {
     const { level } = req.body;
-    const validLevels = new Set(["low", "medium", "high"]);
+    const validLevels = new Set(["low", "medium", "high", "xhigh", "max"]);
     if (!level || typeof level !== "string" || !validLevels.has(level)) {
-      return res.status(400).json({ error: "level is required (low | medium | high)" });
+      return res.status(400).json({ error: "level is required (low | medium | high | xhigh | max)" });
     }
     const sessionManager = state?.sessionManager;
     if (!sessionManager) {
       return res.status(500).json({ error: "Session manager not available" });
     }
-    const success = sessionManager.setEffortLevel(req.params.sessionId, level as "low" | "medium" | "high");
+    const success = sessionManager.setEffortLevel(req.params.sessionId, level as EffortLevel);
     if (!success) {
       return res.status(404).json({ error: "Session not found" });
     }

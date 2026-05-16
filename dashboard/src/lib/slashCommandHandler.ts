@@ -170,15 +170,15 @@ export async function handleSlashCommand(
   if (command === "/effort") {
     const parts = trimmed.split(/\s+/);
     const levelArg = parts[1]?.toLowerCase();
-    const validLevels = new Set(["low", "medium", "high"]);
+    const validLevels = new Set(["low", "medium", "high", "xhigh", "max"]);
 
     if (!levelArg) {
-      showOutput("Usage: /effort low | medium | high (sets effort level for the session)");
+      showOutput("Usage: /effort low | medium | high | xhigh | max (sets effort level for the session)");
       return true;
     }
 
     if (!validLevels.has(levelArg)) {
-      showOutput("Invalid effort level. Use: /effort low | medium | high");
+      showOutput("Invalid effort level. Use: /effort low | medium | high | xhigh | max");
       return true;
     }
 
