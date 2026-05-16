@@ -6,14 +6,16 @@ import { TraceTab } from "./TraceTab";
 import { CostTab } from "./CostTab";
 import { DetailTab } from "./DetailTab";
 import { TasksTab } from "./TasksTab";
-import { extractTasks } from "../../lib/extractTasks";
-export type BottomTab = "agent-graph" | "tool-call" | "cost" | "tasks";
+import { HooksTab } from "./HooksTab";
+import { deriveSessionTasks } from "../../lib/sessionTasks";
+export type BottomTab = "agent-graph" | "tool-call" | "cost" | "tasks" | "hooks";
 
 const TABS: { id: BottomTab; label: string }[] = [
   { id: "agent-graph", label: "Agent Graph" },
   { id: "tool-call", label: "Tool Call" },
   { id: "cost", label: "Cost" },
   { id: "tasks", label: "Tasks" },
+  { id: "hooks", label: "Hooks" },
 ];
 
 export interface BottomPanelProps {
@@ -81,7 +83,7 @@ export function BottomPanel({
     }
   });
   const dragStartRef = useRef<{ y: number; height: number } | null>(null);
-  const sessionTasks = useMemo(() => extractTasks(events), [events]);
+  const sessionTasks = useMemo(() => deriveSessionTasks(events), [events]);
 
   // TASK-010: track previous hasSubagents to detect false->true transition
   const prevHasSubagentsRef = useRef(hasSubagents ?? false);
@@ -276,6 +278,8 @@ export function BottomPanel({
               <CostTab metrics={metrics} />
             ) : activeTab === "tasks" ? (
               <TasksTab tasks={sessionTasks} />
+            ) : activeTab === "hooks" ? (
+              <HooksTab events={events} activeTurnIndex={activeTurnIndex} />
             ) : null}
           </div>
         )}
