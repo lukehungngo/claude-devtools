@@ -3,15 +3,21 @@ import type { SessionEvent } from "../types.js";
 import { parserLog } from "../logger.js";
 
 /**
- * Event types that are NOT session conversation events (metadata, snapshots, bookmarks).
- * We skip these to avoid inflating event counts and confusing the parser.
- * Everything else is passed through — the SDK may add new event types and we should not
- * silently drop them.
+ * Sidecar metadata records that are NOT conversation events. These persist
+ * session-level state (titles, last prompts, file snapshots, worktree state,
+ * permission-mode changes) in the same JSONL stream. Excluded from the event
+ * array so counts/UI stay accurate.
+ *
+ * See docs/spec/cc-parity-gaps.md P0-4 for the full catalog observed in
+ * `~/.claude/projects/` JSONLs (CC v2.1.143).
  */
 const IGNORED_EVENT_TYPES = new Set([
+  "ai-title",
   "file-history-snapshot",
   "last-prompt",
+  "permission-mode",
   "pr-link",
+  "worktree-state",
 ]);
 
 function isRelevantEvent(parsed: Record<string, unknown>): boolean {

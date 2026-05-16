@@ -79,6 +79,38 @@ argumentHint: "<low|medium|high>"
 
 Users cannot select xhigh/max/auto from the dashboard. The `EffortLevel` type union in `dashboard/src/lib/types.ts` needs widening too.
 
+#### P0-4 — `BaseEvent.type` union missing 16+ CC top-level event types
+
+**Devtools:** `server/src/types.ts` BaseEvent
+```ts
+type: "queue-operation" | "user" | "assistant" | "progress" | "system";
+```
+
+**Devtools parser:** `server/src/parser/jsonl-reader.ts:35` does `events.push(parsed as unknown as SessionEvent)` — unknown types make it into the array but every downstream switch silently drops them.
+
+**CC truth (observed in 30 real session JSONLs in `~/.claude/projects/`):**
+
+| Type | Sampled freq | Likely purpose |
+|---|---|---|
+| `hook_success` | 1175 | Hook execution result |
+| `async_hook_response` | 232 | Async hook output (TS hooks) |
+| `last-prompt` | 170 | Session resume state |
+| `permission-mode` | 83 | Permission-mode change marker |
+| `file-history-snapshot` | 37 | Rewind support |
+| `skill_listing` | 31 | Skill discovery output |
+| `deferred_tools_delta` | 26 | Tool deferral (ToolSearch) |
+| `mcp_instructions_delta` | 24 | MCP server-events stream |
+| `hook_additional_context` | 24 | Hook injecting context |
+| `hook_system_message` | 21 | Hook calling system msg |
+| `worktree-state` | 18 | EnterWorktree state |
+| `hook_cancelled` | 12 | Hook cancellation |
+| `task_reminder` | 9 | TodoWrite reminder |
+| `ai-title` | 8 | Auto-generated session title |
+| `todo_reminder` | 6 | Todo-item reminder |
+| `command_permissions` | 3 | Per-command permission resolution |
+
+**Impact:** Devtools claims to be "JSONL is source of truth" but discards 16+ event types. Every one of these is potentially user-visible content (hook outputs, skill listings, worktree transitions, todo reminders). Many serve P1 features: hook_* events are the runtime side of P0-3 (HookEditor); permission-mode and worktree-state directly support `claude agents` (P1-1).
+
 #### P0-3 — Hook event types incomplete (8 of 12 missing)
 
 **Devtools:** `dashboard/src/components/panels/HookEditor.tsx:27`

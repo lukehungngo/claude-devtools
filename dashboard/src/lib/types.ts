@@ -31,8 +31,36 @@ export function isTerminalStopReason(reason: StopReason | undefined): boolean {
 
 // === JSONL Event Types ===
 
+/**
+ * All top-level event `type` values observed in real CC session JSONLs (v2.1.143).
+ * See docs/spec/cc-parity-gaps.md P0-4 for the full catalog.
+ */
+export type SessionEventType =
+  | "queue-operation"
+  | "user"
+  | "assistant"
+  | "progress"
+  | "system"
+  | "hook_success"
+  | "hook_cancelled"
+  | "hook_system_message"
+  | "hook_additional_context"
+  | "async_hook_response"
+  | "skill_listing"
+  | "deferred_tools_delta"
+  | "mcp_instructions_delta"
+  | "task_reminder"
+  | "todo_reminder"
+  | "command_permissions"
+  // Sidecar metadata (filtered out of the events array by the parser)
+  | "ai-title"
+  | "last-prompt"
+  | "permission-mode"
+  | "file-history-snapshot"
+  | "worktree-state";
+
 export interface BaseEvent {
-  type: "queue-operation" | "user" | "assistant" | "progress" | "system";
+  type: SessionEventType;
   uuid: string;
   parentUuid?: string;
   timestamp: string;
@@ -99,12 +127,105 @@ export interface SystemEvent extends BaseEvent {
   isMeta?: boolean;
 }
 
+/**
+ * Conversation-shape events that share the full BaseEvent layout. Devtools
+ * currently treats them as opaque (no UI surface) but they MUST be parsed
+ * and counted so the user-facing event count stays accurate.
+ */
+export interface HookSuccessEvent extends BaseEvent {
+  type: "hook_success";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface HookCancelledEvent extends BaseEvent {
+  type: "hook_cancelled";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface HookSystemMessageEvent extends BaseEvent {
+  type: "hook_system_message";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface HookAdditionalContextEvent extends BaseEvent {
+  type: "hook_additional_context";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface AsyncHookResponseEvent extends BaseEvent {
+  type: "async_hook_response";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface SkillListingEvent extends BaseEvent {
+  type: "skill_listing";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface DeferredToolsDeltaEvent extends BaseEvent {
+  type: "deferred_tools_delta";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface McpInstructionsDeltaEvent extends BaseEvent {
+  type: "mcp_instructions_delta";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface TaskReminderEvent extends BaseEvent {
+  type: "task_reminder";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface TodoReminderEvent extends BaseEvent {
+  type: "todo_reminder";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface CommandPermissionsEvent extends BaseEvent {
+  type: "command_permissions";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
 export type SessionEvent =
   | QueueOperationEvent
   | UserEvent
   | AssistantEvent
   | ProgressEvent
-  | SystemEvent;
+  | SystemEvent
+  | HookSuccessEvent
+  | HookCancelledEvent
+  | HookSystemMessageEvent
+  | HookAdditionalContextEvent
+  | AsyncHookResponseEvent
+  | SkillListingEvent
+  | DeferredToolsDeltaEvent
+  | McpInstructionsDeltaEvent
+  | TaskReminderEvent
+  | TodoReminderEvent
+  | CommandPermissionsEvent;
 
 // === Content Types ===
 

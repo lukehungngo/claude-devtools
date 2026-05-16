@@ -34,8 +34,48 @@ export function isTerminalStopReason(reason: StopReason | undefined): boolean {
 
 // === JSONL Event Types ===
 
+/**
+ * All top-level event `type` values observed in real CC session JSONL files
+ * (as of v2.1.143). Devtools previously listed only 5; the missing 16 were
+ * silently dropped by every downstream switch — see P0-4 in docs/spec/cc-parity-gaps.md.
+ *
+ * Two shapes:
+ * - "Conversation" events (most): share the BaseEvent shape (uuid, timestamp,
+ *   parentUuid, isSidechain, cwd, version, gitBranch).
+ * - "Sidecar metadata" events: minimal records (sessionId-only or sessionId +
+ *   small payload). These are produced by `last-prompt`, `permission-mode`,
+ *   `file-history-snapshot`, `worktree-state`, `ai-title`. They are session-
+ *   level state markers, not conversation turn data. Devtools must tolerate
+ *   them in the JSONL stream without crashing or warning.
+ */
+export type SessionEventType =
+  | "queue-operation"
+  | "user"
+  | "assistant"
+  | "progress"
+  | "system"
+  // Hook lifecycle (CC v2.1.143)
+  | "hook_success"
+  | "hook_cancelled"
+  | "hook_system_message"
+  | "hook_additional_context"
+  | "async_hook_response"
+  // Runtime context deltas
+  | "skill_listing"
+  | "deferred_tools_delta"
+  | "mcp_instructions_delta"
+  | "task_reminder"
+  | "todo_reminder"
+  | "command_permissions"
+  // Sidecar metadata (minimal shape)
+  | "ai-title"
+  | "last-prompt"
+  | "permission-mode"
+  | "file-history-snapshot"
+  | "worktree-state";
+
 export interface BaseEvent {
-  type: "queue-operation" | "user" | "assistant" | "progress" | "system";
+  type: SessionEventType;
   uuid: string;
   parentUuid?: string;
   timestamp: string;
@@ -104,12 +144,163 @@ export interface SystemEvent extends BaseEvent {
   isMeta?: boolean;
 }
 
+/**
+ * Conversation-shape events that share the full BaseEvent layout
+ * (uuid, timestamp, parentUuid, cwd, version, gitBranch, isSidechain).
+ * Devtools currently treats them as opaque — no UI surfaces them — but
+ * they MUST be parsed and counted so the user-facing event count and
+ * cache invariants stay correct. Future P1/P2 work adds per-type UI.
+ */
+export interface HookSuccessEvent extends BaseEvent {
+  type: "hook_success";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface HookCancelledEvent extends BaseEvent {
+  type: "hook_cancelled";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface HookSystemMessageEvent extends BaseEvent {
+  type: "hook_system_message";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface HookAdditionalContextEvent extends BaseEvent {
+  type: "hook_additional_context";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface AsyncHookResponseEvent extends BaseEvent {
+  type: "async_hook_response";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface SkillListingEvent extends BaseEvent {
+  type: "skill_listing";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface DeferredToolsDeltaEvent extends BaseEvent {
+  type: "deferred_tools_delta";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface McpInstructionsDeltaEvent extends BaseEvent {
+  type: "mcp_instructions_delta";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface TaskReminderEvent extends BaseEvent {
+  type: "task_reminder";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface TodoReminderEvent extends BaseEvent {
+  type: "todo_reminder";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+export interface CommandPermissionsEvent extends BaseEvent {
+  type: "command_permissions";
+  attachment?: Record<string, unknown>;
+  entrypoint?: string;
+  userType?: "external" | "internal";
+}
+
+/**
+ * Sidecar metadata records — NOT conversation events.
+ * Minimal shape, no uuid/timestamp. Persist session-level state.
+ * Devtools must tolerate them in the JSONL stream; UI is opt-in.
+ */
+export interface AiTitleRecord {
+  type: "ai-title";
+  sessionId: string;
+  aiTitle: string;
+}
+
+export interface LastPromptRecord {
+  type: "last-prompt";
+  sessionId: string;
+  leafUuid?: string;
+  lastPrompt: string;
+}
+
+export interface PermissionModeRecord {
+  type: "permission-mode";
+  sessionId: string;
+  permissionMode: string;
+}
+
+export interface FileHistorySnapshotRecord {
+  type: "file-history-snapshot";
+  messageId: string;
+  isSnapshotUpdate?: boolean;
+  snapshot: Record<string, unknown>;
+}
+
+export interface WorktreeStateRecord {
+  type: "worktree-state";
+  sessionId: string;
+  worktreeSession: Record<string, unknown>;
+}
+
+export type SessionMetadataRecord =
+  | AiTitleRecord
+  | LastPromptRecord
+  | PermissionModeRecord
+  | FileHistorySnapshotRecord
+  | WorktreeStateRecord;
+
+const SIDECAR_METADATA_TYPES = new Set<string>([
+  "ai-title",
+  "last-prompt",
+  "permission-mode",
+  "file-history-snapshot",
+  "worktree-state",
+]);
+
+export function isSidecarMetadataType(type: string): boolean {
+  return SIDECAR_METADATA_TYPES.has(type);
+}
+
 export type SessionEvent =
   | QueueOperationEvent
   | UserEvent
   | AssistantEvent
   | ProgressEvent
-  | SystemEvent;
+  | SystemEvent
+  | HookSuccessEvent
+  | HookCancelledEvent
+  | HookSystemMessageEvent
+  | HookAdditionalContextEvent
+  | AsyncHookResponseEvent
+  | SkillListingEvent
+  | DeferredToolsDeltaEvent
+  | McpInstructionsDeltaEvent
+  | TaskReminderEvent
+  | TodoReminderEvent
+  | CommandPermissionsEvent;
 
 // === Content Types ===
 

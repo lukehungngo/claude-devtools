@@ -109,7 +109,7 @@ describe("parseJsonlFile", () => {
     expect(result).toEqual([]);
   });
 
-  it("filters out metadata event types (file-history-snapshot, last-prompt, pr-link)", () => {
+  it("filters out all CC sidecar metadata records (P0-4)", () => {
     const filePath = join(TEST_DIR, "unknown-types.jsonl");
     const knownEvent = {
       type: "user",
@@ -119,18 +119,60 @@ describe("parseJsonlFile", () => {
       userType: "external",
       message: { role: "user", content: [] },
     };
-    const unknownEvents = [
-      { type: "file-history-snapshot", uuid: "fhs1", timestamp: "2026-03-23T10:00:01Z", sessionId: "s1" },
-      { type: "last-prompt", uuid: "lp1", timestamp: "2026-03-23T10:00:02Z", sessionId: "s1" },
-      { type: "pr-link", uuid: "pr1", timestamp: "2026-03-23T10:00:03Z", sessionId: "s1" },
+    // Real CC v2.1.143 sidecar records observed in ~/.claude/projects/.
+    // These lack uuid/timestamp and must not pollute the events array.
+    const sidecarRecords = [
+      { type: "file-history-snapshot", messageId: "m1", snapshot: {} },
+      { type: "last-prompt", sessionId: "s1", lastPrompt: "hi" },
+      { type: "pr-link", sessionId: "s1" },
+      { type: "ai-title", sessionId: "s1", aiTitle: "My session" },
+      { type: "permission-mode", sessionId: "s1", permissionMode: "auto" },
+      { type: "worktree-state", sessionId: "s1", worktreeSession: {} },
     ];
-    const lines = [knownEvent, ...unknownEvents].map((e) => JSON.stringify(e)).join("\n") + "\n";
+    const lines = [knownEvent, ...sidecarRecords].map((e) => JSON.stringify(e)).join("\n") + "\n";
     writeFileSync(filePath, lines);
 
     const result = parseJsonlFile(filePath);
 
     expect(result).toHaveLength(1);
     expect(result[0].type).toBe("user");
+  });
+
+  it("passes through conversation-shape hook/runtime events (P0-4)", () => {
+    const filePath = join(TEST_DIR, "hook-events.jsonl");
+    // Real CC v2.1.143 conversation-shape events that devtools previously
+    // had no typed interface for. The parser must keep them in the array
+    // so user-facing event counts remain accurate.
+    const baseFields = {
+      sessionId: "s1",
+      parentUuid: "p1",
+      cwd: "/home/u",
+      version: "2.1.143",
+      gitBranch: "main",
+      userType: "external",
+      attachment: { ok: true },
+    };
+    const conversationEvents = [
+      { ...baseFields, type: "hook_success", uuid: "h1", timestamp: "2026-03-23T10:00:01Z" },
+      { ...baseFields, type: "hook_cancelled", uuid: "h2", timestamp: "2026-03-23T10:00:02Z" },
+      { ...baseFields, type: "hook_system_message", uuid: "h3", timestamp: "2026-03-23T10:00:03Z" },
+      { ...baseFields, type: "hook_additional_context", uuid: "h4", timestamp: "2026-03-23T10:00:04Z" },
+      { ...baseFields, type: "async_hook_response", uuid: "h5", timestamp: "2026-03-23T10:00:05Z" },
+      { ...baseFields, type: "skill_listing", uuid: "h6", timestamp: "2026-03-23T10:00:06Z" },
+      { ...baseFields, type: "deferred_tools_delta", uuid: "h7", timestamp: "2026-03-23T10:00:07Z" },
+      { ...baseFields, type: "mcp_instructions_delta", uuid: "h8", timestamp: "2026-03-23T10:00:08Z" },
+      { ...baseFields, type: "task_reminder", uuid: "h9", timestamp: "2026-03-23T10:00:09Z" },
+      { ...baseFields, type: "todo_reminder", uuid: "h10", timestamp: "2026-03-23T10:00:10Z" },
+      { ...baseFields, type: "command_permissions", uuid: "h11", timestamp: "2026-03-23T10:00:11Z" },
+    ];
+    writeFileSync(filePath, conversationEvents.map((e) => JSON.stringify(e)).join("\n") + "\n");
+
+    const result = parseJsonlFile(filePath);
+
+    expect(result).toHaveLength(11);
+    expect(result.map((r) => r.type).sort()).toEqual(
+      conversationEvents.map((r) => r.type).sort(),
+    );
   });
 
   it("passes through new/unrecognized SDK event types (deny-list not allow-list)", () => {
