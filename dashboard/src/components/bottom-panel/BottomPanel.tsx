@@ -75,6 +75,12 @@ export interface BottomPanelProps {
    * views where no SDK stream is connected.
    */
   liveHooks?: ReadonlyMap<string, import("../../lib/streaming-types").LiveHookState>;
+  /**
+   * NEW-7 — live structured Task lifecycle map keyed by SDK `task_id`.
+   * Forwarded into TasksTab so DaemonTasksTable can overlay running token/
+   * tool counters and Moon backgrounded badges on top of daemon snapshots.
+   */
+  liveTasks?: ReadonlyMap<string, import("../../lib/streaming-types").LiveTaskState>;
 }
 
 const COLLAPSED_KEY = "bottomPanel.collapsed";
@@ -101,6 +107,7 @@ export function BottomPanel({
   stopReason,
   finishReasons,
   liveHooks,
+  liveTasks,
 }: BottomPanelProps) {
   const [activeTab, setActiveTab] = useState<BottomTab>("agent-graph");
   const [panelHeight, setPanelHeight] = useState(() => {
@@ -349,7 +356,7 @@ export function BottomPanel({
             ) : activeTab === "cost" ? (
               <CostTab metrics={metrics} stopReason={stopReason} finishReasons={finishReasons} />
             ) : activeTab === "tasks" ? (
-              <TasksTab tasks={sessionTasks} sessionId={sessionId} />
+              <TasksTab tasks={sessionTasks} sessionId={sessionId} liveTasks={liveTasks} />
             ) : activeTab === "hooks" ? (
               <HooksTab
                 events={events}

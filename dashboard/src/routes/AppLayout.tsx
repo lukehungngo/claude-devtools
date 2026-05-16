@@ -129,6 +129,9 @@ export function AppLayout() {
   // elapsed-time counter before the JSONL hook_success attachment lands.
   const [liveHooks, setLiveHooks] = useState<ReadonlyMap<string, import("../lib/streaming-types").LiveHookState> | null>(null);
 
+  // NEW-7 — live structured Task lifecycle, same bridge as liveHooks.
+  const [liveTasks, setLiveTasks] = useState<ReadonlyMap<string, import("../lib/streaming-types").LiveTaskState> | null>(null);
+
   const handleTurnSelect = useCallback((turnIndex: number) => {
     onTurnClickRef.current?.(turnIndex);
   }, []);
@@ -318,6 +321,8 @@ export function AppLayout() {
     setAutoCompactThreshold,
     liveHooks,
     setLiveHooks,
+    liveTasks,
+    setLiveTasks,
   };
 
   return (
@@ -407,6 +412,7 @@ export function AppLayout() {
               stopReason={lastResultStopReason ?? undefined}
               finishReasons={lastResultFinishReasons ?? undefined}
               liveHooks={liveHooks ?? undefined}
+              liveTasks={liveTasks ?? undefined}
             />
           </Suspense>
         )}

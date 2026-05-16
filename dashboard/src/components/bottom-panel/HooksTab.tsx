@@ -9,6 +9,7 @@ import type {
   QueuedCommandAttachment,
 } from "../../lib/types";
 import type { LiveHookState } from "../../lib/streaming-types";
+import { formatDuration } from "../../lib/cost";
 
 /**
  * NEW-8: how long a completed `LiveHookState` row stays visible after
@@ -370,12 +371,6 @@ export function HooksTab({
     };
   }, [rows]);
 
-  const fmtTotal = (ms: number): string => {
-    if (ms < 1000) return `${Math.round(ms)}ms`;
-    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-    return `${(ms / 60000).toFixed(1)}min`;
-  };
-
   if (rows.length === 0 && visibleLiveHooks.length === 0) {
     return (
       <div className="px-3 py-2 t-mono-sm" style={{ color: "var(--t3)" }}>
@@ -405,7 +400,7 @@ export function HooksTab({
         )}
         {stats.totalMs > 0 && (
           <span title="Total time spent in hooks across the session">
-            total {fmtTotal(stats.totalMs)}
+            total {formatDuration(stats.totalMs)}
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">

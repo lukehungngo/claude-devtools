@@ -14,6 +14,7 @@
 import type { SessionEvent, SystemEvent } from "./types";
 import type { TurnSnapshot } from "./turnSnapshot";
 import type { PermissionDeniedRecord } from "./streaming-types";
+import { asString } from "./narrowing";
 
 /** Replayed auto-denial row, anchored to a turn for layout. */
 export interface PermissionDenialMarker extends PermissionDeniedRecord {
@@ -48,10 +49,6 @@ function isPermissionDenied(event: SessionEvent): event is PermissionDeniedSyste
   return (
     event.type === "system" && (event as SystemEvent).subtype === "permission_denied"
   );
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
 }
 
 /**

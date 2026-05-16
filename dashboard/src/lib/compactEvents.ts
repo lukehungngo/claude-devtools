@@ -15,6 +15,7 @@
 
 import type { SessionEvent, SystemEvent } from "./types";
 import type { TurnSnapshot } from "./turnSnapshot";
+import { asNumber, asString, asStringArray } from "./narrowing";
 
 /** Single inline marker row to render between turns. */
 export interface CompactMarker {
@@ -50,22 +51,6 @@ function isCompactBoundary(event: SessionEvent): event is CompactBoundaryEvent {
   return event.type === "system" && (event as SystemEvent).subtype === "compact_boundary";
 }
 
-function asNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function asStringArray(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const out: string[] = [];
-  for (const v of value) {
-    if (typeof v === "string") out.push(v);
-  }
-  return out;
-}
 
 /**
  * Walk events once; for each compact_boundary, attribute it to the turn it

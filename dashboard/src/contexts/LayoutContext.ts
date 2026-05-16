@@ -3,7 +3,7 @@ import type { MutableRefObject } from "react";
 import type { RepoGroup, PermissionRequest, UsageInfo, CostSummary, SessionEvent, SessionMetrics, AgentDAG, SubagentMeta } from "../lib/types";
 import type { TurnSnapshot } from "../lib/turnSnapshot";
 import type { PermissionMode } from "../components/conversation/permissionModeTypes";
-import type { LiveHookState } from "../lib/streaming-types";
+import type { LiveHookState, LiveTaskState } from "../lib/streaming-types";
 
 /** Maps repoSlug -> projectHash */
 export type SlugMap = Map<string, string>;
@@ -117,6 +117,12 @@ export interface LayoutContextValue {
   // attachment lands. Null when no live session is active.
   liveHooks: ReadonlyMap<string, LiveHookState> | null;
   setLiveHooks: (hooks: ReadonlyMap<string, LiveHookState> | null) => void;
+
+  // NEW-7 — live structured Task lifecycle map keyed by SDK `task_id`.
+  // Same plumbing as liveHooks; consumed by TasksTab's DaemonTasksTable
+  // overlay (live status / token+duration counter / Moon backgrounded badge).
+  liveTasks: ReadonlyMap<string, LiveTaskState> | null;
+  setLiveTasks: (tasks: ReadonlyMap<string, LiveTaskState> | null) => void;
 }
 
 export const LayoutContext = createContext<LayoutContextValue | null>(null);

@@ -24,6 +24,7 @@ import {
   extractPermissionDenials,
   type PermissionDenialMarker,
 } from "../../lib/permissionDenials";
+import { buildAgentCompletionMap } from "../../lib/agentStatus";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useStreamingState } from "../../hooks/useStreamingState";
 import { StreamingTurnArea } from "./StreamingTurnArea";
@@ -92,6 +93,12 @@ interface VirtualizedTurnListProps {
   sessionId?: string;
   /** permission_denied (auto-denial) markers grouped by the turn they follow. */
   permissionDenialsByTurn?: Map<number, PermissionDenialMarker[]>;
+  /**
+   * Pre-built `toolUseId → completion` map (Invariant #8 / Agent 3 efficiency
+   * finding E1). Computed once in ConversationView from `events` and passed
+   * down so TurnCard.backgroundAgents skips the per-dispatch O(events) scan.
+   */
+  agentCompletions?: ReadonlyMap<string, { timestamp: string; isError: boolean }>;
 }
 
 /** Props for TurnRow — pre-computed values to avoid per-row work */
@@ -115,6 +122,8 @@ interface TurnRowProps {
   compactMarkers: CompactMarker[];
   /** auto-denial markers to render AFTER this turn (between it and the next). */
   permissionDenials: PermissionDenialMarker[];
+  /** Pre-built toolUseId → completion map for TurnCard.backgroundAgents lookups. */
+  agentCompletions?: ReadonlyMap<string, { timestamp: string; isError: boolean }>;
 }
 
 /** Render a single turn with its permissions and questions */
@@ -136,6 +145,7 @@ function TurnRow({
   sessionIsRunning,
   compactMarkers,
   permissionDenials,
+  agentCompletions,
 }: TurnRowProps) {
   return (
     <>
@@ -156,6 +166,7 @@ function TurnRow({
         onToolClick={onToolClick}
         tasks={tasks}
         sessionIsRunning={sessionIsRunning}
+        agentCompletions={agentCompletions}
       />
       {turnPerms.map((perm) => (
         <PermissionBlock
@@ -216,7 +227,8 @@ function turnRowAreEqual(prev: Readonly<TurnRowProps>, next: Readonly<TurnRowPro
     prev.turnPerms.length === next.turnPerms.length &&
     prev.turnQuestions.length === next.turnQuestions.length &&
     prev.tasks === next.tasks &&
-    prev.sessionIsRunning === next.sessionIsRunning
+    prev.sessionIsRunning === next.sessionIsRunning &&
+    prev.agentCompletions === next.agentCompletions
   );
 }
 
@@ -250,6 +262,7 @@ function VirtualizedTurnList({
   compactMarkersByTurn,
   sessionId,
   permissionDenialsByTurn,
+  agentCompletions,
 }: VirtualizedTurnListProps) {
   const virtualizer = useVirtualizer({
     count: filteredTurns.length,
@@ -385,6 +398,7 @@ function VirtualizedTurnList({
                   permissionDenials={
                     permissionDenialsByTurn?.get(turn.turnNumber) || emptyPermissionDenials
                   }
+                  agentCompletions={agentCompletions}
                 />
               </div>
             );
@@ -416,6 +430,7 @@ function VirtualizedTurnList({
                 permissionDenials={
                   permissionDenialsByTurn?.get(turn.turnNumber) || emptyPermissionDenials
                 }
+                agentCompletions={agentCompletions}
               />
             </div>
           );
@@ -521,6 +536,12 @@ export function ConversationView({
     setLiveHooks?.(streamingState.liveHooks);
   }, [streamingState.liveHooks, setLiveHooks]);
 
+  // NEW-7 — same bridge for the live task lifecycle map.
+  const setLiveTasks = layoutCtx?.setLiveTasks;
+  useEffect(() => {
+    setLiveTasks?.(streamingState.liveTasks);
+  }, [streamingState.liveTasks, setLiveTasks]);
+
   const [showRewindMenu, setShowRewindMenu] = useState(false);
 
   // Build search index incrementally
@@ -606,6 +627,15 @@ export function ConversationView({
     }
     return byTurn;
   }, [events, turns]);
+
+  // E1 fix: pre-build the toolUseId → completion map once. Without this,
+  // TurnCard.backgroundAgents calls findAgentCompletion(allEvents, id)
+  // per dispatch, scanning the full event stream up to twice for each one
+  // on every WS event → O(visibleTurns × dispatches × |events|).
+  const agentCompletions = useMemo(
+    () => buildAgentCompletionMap(events),
+    [events],
+  );
 
   // Scroll to highlighted turn is handled by VirtualizedTurnList via virtualizer.scrollToIndex
 
@@ -838,6 +868,7 @@ export function ConversationView({
         compactMarkersByTurn={compactMarkersByTurn}
         sessionId={activeSessionId || sessionId}
         permissionDenialsByTurn={permissionDenialsByTurn}
+        agentCompletions={agentCompletions}
         sessionIsRunning={
           // Prefer authoritative SDK session_state_changed signal over mtime heuristic.
           // Fall back to isActive (12-hour mtime), NOT isRunning (2-minute mtime).

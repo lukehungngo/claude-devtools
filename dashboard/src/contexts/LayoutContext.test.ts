@@ -67,6 +67,8 @@ function createMockContextValue(overrides?: Partial<LayoutContextValue>): Layout
     setAutoCompactThreshold: () => {},
     liveHooks: null,
     setLiveHooks: () => {},
+    liveTasks: null,
+    setLiveTasks: () => {},
     ...overrides,
   };
 }

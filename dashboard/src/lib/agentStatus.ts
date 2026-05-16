@@ -120,6 +120,69 @@ export function findAgentCompletion(
 }
 
 /**
+ * Build a `toolUseId → completion signal` map in a single pass over events.
+ *
+ * Equivalent to calling `findAgentCompletion(events, toolUseId)` for every
+ * id; produces the same result for keys present in the returned map.
+ * Absent keys mean no completion signal exists (subagent still active).
+ *
+ * Lets `TurnCard.backgroundAgents` look up completions in O(1) instead of
+ * O(events) per dispatch — Architecture Invariant #8 (O(1) per event).
+ *
+ * Performance: O(events). `<task-notification>` markers take priority over
+ * raw tool_result fallbacks, matching `findAgentCompletion` semantics.
+ */
+export function buildAgentCompletionMap(
+  events: readonly SessionEvent[],
+): Map<string, { timestamp: string; isError: boolean }> {
+  const out = new Map<string, { timestamp: string; isError: boolean }>();
+  const notifIds = new Set<string>(); // ids whose entry came from a task-notification (don't downgrade)
+
+  for (const e of events) {
+    // Pass 1 candidates: task-notification text in queue-operation OR user
+    let raw: unknown;
+    if (e.type === "user" && !e.isSidechain) {
+      raw = (e as UserEvent).message?.content;
+    } else if (e.type === "queue-operation") {
+      raw = (e as QueueOperationEvent).content;
+    } else {
+      continue;
+    }
+    const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+    if (text && text.includes("<task-notification>")) {
+      const re = /<tool-use-id>([^<]+)<\/tool-use-id>/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        const id = m[1];
+        if (!notifIds.has(id)) {
+          out.set(id, { timestamp: e.timestamp, isError: false });
+          notifIds.add(id);
+        }
+      }
+    }
+
+    // Pass 2 candidates (same loop): tool_result blocks in user events
+    if (e.type !== "user" || e.isSidechain) continue;
+    const content = (e as UserEvent).message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const c of content) {
+      if (typeof c !== "object" || c === null) continue;
+      if ((c as { type?: string }).type !== "tool_result") continue;
+      const id = (c as { tool_use_id?: string }).tool_use_id;
+      if (!id) continue;
+      if (notifIds.has(id)) continue;       // notification already wins
+      if (out.has(id)) continue;            // first non-ack wins (matches findAgentCompletion)
+      if (isAsyncDispatchAck(c)) continue;  // dispatch handle, not a completion
+      out.set(id, {
+        timestamp: e.timestamp,
+        isError: !!(c as { is_error?: boolean }).is_error,
+      });
+    }
+  }
+  return out;
+}
+
+/**
  * Walk main `user` events for a `tool_result` block matching `toolUseId`.
  * Phase 3: extracted helper used by both `hasParentToolResultAck` (real-agent
  * acknowledgment chain) and the synthetic-agent short-circuit in `isAgentCompleted`.
