@@ -555,6 +555,56 @@ describe("mapSdkMessageToSSEEvents", () => {
       expect(cancelledEvt[0]).toMatchObject({ outcome: "cancelled" });
     });
 
+    // NEW-9: SDKPermissionDeniedMessage — auto-denials (classifier / rule /
+    // mode / asyncAgent) emit a system permission_denied message that we used
+    // to silently drop. The dashboard's AutoDenialBlock relies on this SSE
+    // event to render a distinct row from PermissionBlock.
+    it("maps system permission_denied to permission_denied event with all fields", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "permission_denied",
+        tool_name: "Bash",
+        tool_use_id: "toolu_x1",
+        agent_id: "subagent-7",
+        decision_reason_type: "classifier",
+        decision_reason: "auto-mode flagged risky write",
+        message: "Tool call blocked by classifier",
+      });
+      expect(result).toEqual([
+        {
+          type: "permission_denied",
+          tool_name: "Bash",
+          tool_use_id: "toolu_x1",
+          agent_id: "subagent-7",
+          decision_reason_type: "classifier",
+          decision_reason: "auto-mode flagged risky write",
+          message: "Tool call blocked by classifier",
+        },
+      ]);
+    });
+
+    it("maps system permission_denied without optional agent_id / decision_reason", () => {
+      const result = mapSdkMessageToSSEEvents({
+        type: "system",
+        subtype: "permission_denied",
+        tool_name: "Write",
+        tool_use_id: "toolu_x2",
+        decision_reason_type: "rule",
+        message: "Blocked by deny rule",
+      });
+      expect(result).toEqual([
+        {
+          type: "permission_denied",
+          tool_name: "Write",
+          tool_use_id: "toolu_x2",
+          agent_id: undefined,
+          decision_reason_type: "rule",
+          decision_reason: undefined,
+          message: "Blocked by deny rule",
+        },
+      ]);
+    });
+
     it("ignores unknown system subtypes", () => {
       const result = mapSdkMessageToSSEEvents({
         type: "system",

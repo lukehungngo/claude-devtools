@@ -284,6 +284,26 @@ export interface SSEApiRetryEvent {
   errorStatus?: number;
 }
 
+/**
+ * NEW-9: SDK auto-denied a tool call (classifier / rule / mode / asyncAgent).
+ * Distinct from PermissionBlock which renders the interactive ask path; this
+ * one is fire-and-forget — the model already received the rejection message
+ * in the tool_result. See sdk.d.ts:3244-3268 (SDKPermissionDeniedMessage).
+ */
+export interface SSEPermissionDeniedEvent {
+  type: "permission_denied";
+  tool_name: string;
+  tool_use_id: string;
+  /** Subagent that triggered the denied tool call, when applicable. */
+  agent_id?: string;
+  /** Discriminator from PermissionDecisionReason: 'classifier' | 'asyncAgent' | 'mode' | 'rule'. */
+  decision_reason_type?: string;
+  /** Human-readable reason from the deciding component, when available. */
+  decision_reason?: string;
+  /** The rejection message returned to the model in the tool_result. */
+  message: string;
+}
+
 export type SSEEvent =
   | SSETextEvent
   | SSEThinkingEvent
@@ -310,7 +330,8 @@ export type SSEEvent =
   | SSECommandOutputEvent
   | SSESessionStateChangedEvent
   | SSEAuthStatusEvent
-  | SSEApiRetryEvent;
+  | SSEApiRetryEvent
+  | SSEPermissionDeniedEvent;
 
 /**
  * Default time-to-live for buffered PreCompact/PostCompact hook attachments,
@@ -687,6 +708,22 @@ export function mapSdkMessageToSSEEvents(msg: {
     if (typeof msg.stdout === "string") responseEvent.stdout = msg.stdout;
     if (typeof msg.stderr === "string") responseEvent.stderr = msg.stderr;
     events.push(responseEvent);
+  }
+
+  // NEW-9: SDKPermissionDeniedMessage — auto-denials (classifier / rule /
+  // mode / asyncAgent) emit a system permission_denied message that the
+  // dashboard's AutoDenialBlock renders distinctly from PermissionBlock
+  // (which is for the interactive ask path).
+  if (msg.type === "system" && msg.subtype === "permission_denied") {
+    events.push({
+      type: "permission_denied",
+      tool_name: msg.tool_name,
+      tool_use_id: msg.tool_use_id,
+      agent_id: msg.agent_id,
+      decision_reason_type: msg.decision_reason_type,
+      decision_reason: msg.decision_reason,
+      message: msg.message,
+    });
   }
 
   // Tool use summary

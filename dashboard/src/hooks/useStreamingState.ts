@@ -236,6 +236,29 @@ export function useStreamingState(): UseStreamingStateReturn {
           };
         }
 
+        case "permission_denied": {
+          // NEW-9: SDK auto-denial (classifier / rule / mode / asyncAgent).
+          // Dedupe by tool_use_id (first wins) — auto-denial is one-shot per
+          // tool call; any repeat is a transport-layer re-delivery.
+          const toolUseId = data.tool_use_id as string;
+          if (!toolUseId) return prev;
+          if (prev.permissionDenials.some((d) => d.tool_use_id === toolUseId)) {
+            return prev;
+          }
+          const record = {
+            tool_name: data.tool_name as string,
+            tool_use_id: toolUseId,
+            agent_id: data.agent_id as string | undefined,
+            decision_reason_type: data.decision_reason_type as string | undefined,
+            decision_reason: data.decision_reason as string | undefined,
+            message: data.message as string,
+          };
+          return {
+            ...prev,
+            permissionDenials: [...prev.permissionDenials, record],
+          };
+        }
+
         case "result": {
           // Result is the terminal event from the SDK — session is idle.
           // Extract authoritative context window from modelUsage if present.
