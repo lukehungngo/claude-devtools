@@ -13,7 +13,7 @@ import { formatModelName } from "../../lib/formatModelName";
 import { AgentPills } from "./AgentPills";
 import { BackgroundAgentGroup } from "./BackgroundAgentGroup";
 import { toolUseIdToSyntheticAgent } from "../../lib/agentIds";
-import { findAgentCompletion } from "../../lib/agentStatus";
+import { buildAgentCompletionMap } from "../../lib/agentStatus";
 import type { AgentNode } from "../../lib/types";
 import { CollapsiblePrompt } from "./CollapsiblePrompt";
 import { ThinkingGroup } from "../viewer/ThinkingBlock";
@@ -40,6 +40,13 @@ interface TurnCardProps {
   tasks?: TaskItem[];
   /** Server-side session.isActive (12-hour mtime). When false, suppresses "Generating..." on closed/stale turns. */
   sessionIsRunning?: boolean;
+  /**
+   * Session-wide `tool_use.id → completion signal` map built once at
+   * `ConversationView` scope via `buildAgentCompletionMap`. Optional: if
+   * omitted, TurnCard builds its own from `allEvents` (correctness identical,
+   * just less efficient). Architecture invariant #8 (O(1) per event).
+   */
+  agentCompletions?: ReadonlyMap<string, { timestamp: string; isError: boolean }>;
 }
 
 // ─── Content renderers ───────────────────────────────────────────────
@@ -99,12 +106,13 @@ function computeFallbackDuration(startTime: string, endTime: string): number | n
 function TurnFooter({
   turn,
   turnEvents,
-  allEvents,
+  completionsByToolUseId,
   sessionIsRunning,
 }: {
   turn: TurnSnapshot;
   turnEvents: SessionEvent[];
-  allEvents: SessionEvent[];
+  /** Pre-built from allEvents in TurnCard — avoids O(events) scan per dispatch. */
+  completionsByToolUseId: ReadonlyMap<string, { timestamp: string; isError: boolean }>;
   sessionIsRunning?: boolean;
 }) {
   // Three-state status via the single-source-of-truth predicate.
@@ -130,8 +138,9 @@ function TurnFooter({
   const mainStatus = getAgentStatus("main", turnEvents, sessionIsActive);
 
   // Detect Agent/Task dispatches made in this turn and check whether each has
-  // a completion signal anywhere in allEvents (notifications often arrive
-  // many turns later for async dispatches).
+  // a completion signal. `completionsByToolUseId` is built once at TurnCard
+  // scope from the full event stream — O(1) lookups per dispatch here.
+  // (Architecture invariant #8: O(1) per event.)
   const hasInflightSubagent = useMemo(() => {
     for (const evt of turnEvents) {
       if (evt.isSidechain) continue;
@@ -141,13 +150,13 @@ function TurnFooter({
         if (c.type !== "tool_use") continue;
         if (c.name !== "Agent" && c.name !== "Task") continue;
         if (!c.id) continue;
-        if (findAgentCompletion(allEvents, c.id) === null) {
+        if (!completionsByToolUseId.has(c.id)) {
           return true;
         }
       }
     }
     return false;
-  }, [turnEvents, allEvents]);
+  }, [turnEvents, completionsByToolUseId]);
 
   // Override main's completion when subagents are still running.
   // If session is closed we keep main's status (avoids flashing forever).
@@ -247,7 +256,8 @@ export function turnCardAreEqual(
     prev.onTurnClick === next.onTurnClick &&
     prev.onToolClick === next.onToolClick &&
     prev.tasks?.length === next.tasks?.length &&
-    prev.sessionIsRunning === next.sessionIsRunning
+    prev.sessionIsRunning === next.sessionIsRunning &&
+    prev.agentCompletions === next.agentCompletions
   );
 }
 
@@ -260,6 +270,7 @@ export function TurnCard({
   onToolClick,
   tasks,
   sessionIsRunning,
+  agentCompletions,
 }: TurnCardProps) {
   const turnEvents = useMemo(() => getEventsForTurn(turn, allEvents), [turn, allEvents]);
   // Three-state status for the body "Working..." block. We only show the
@@ -277,18 +288,24 @@ export function TurnCard({
     [turn.agents],
   );
 
+  // Single-pass completion map for every Agent/Task dispatch in this session.
+  // Prefer the session-wide map built by ConversationView (one per session);
+  // fall back to a local build when used outside that context (tests, isolated
+  // renders). Architecture invariant #8 (O(1) per event).
+  const localCompletions = useMemo(
+    () => (agentCompletions ? null : buildAgentCompletionMap(allEvents)),
+    [agentCompletions, allEvents],
+  );
+  const completionsByToolUseId = agentCompletions ?? localCompletions!;
+
   // Background agents (Phase 4.1, fixed for async dispatch): synthesize
   // AgentNodes from this turn's Agent tool_use entries.
   //
   // Subagents dispatched with `run_in_background: true` emit a tool_result
-  // within ~300ms that's a HANDLE, not a completion. We use
-  // `findAgentCompletion` which prefers the authoritative `<task-notification>`
-  // event and ignores dispatch-ack tool_results. See
+  // within ~300ms that's a HANDLE, not a completion. `completionsByToolUseId`
+  // (built above) prefers the authoritative `<task-notification>` event and
+  // ignores dispatch-ack tool_results. See
   // docs/bugs/synthetic-agent-instant-completion.md.
-  //
-  // Scan the FULL allEvents stream (not just turnEvents) because the
-  // task-notification often arrives in a later turn, long after the dispatch
-  // that lives in this turn.
   const backgroundAgents = useMemo<AgentNode[]>(() => {
     const dispatches: Array<{
       toolUseId: string;
@@ -317,7 +334,7 @@ export function TurnCard({
     }
 
     return dispatches.map((d): AgentNode => {
-      const completion = findAgentCompletion(allEvents, d.toolUseId);
+      const completion = completionsByToolUseId.get(d.toolUseId) ?? null;
       const status: AgentNode["status"] = completion === null
         ? "active"
         : completion.isError
@@ -342,7 +359,7 @@ export function TurnCard({
         endTime: completion?.timestamp,
       };
     });
-  }, [turnEvents, allEvents]);
+  }, [turnEvents, completionsByToolUseId]);
 
   return (
     <div
@@ -457,7 +474,12 @@ export function TurnCard({
           )}
 
           {/* Completion indicator */}
-          <TurnFooter turn={turn} turnEvents={turnEvents} allEvents={allEvents} sessionIsRunning={sessionIsRunning} />
+          <TurnFooter
+            turn={turn}
+            turnEvents={turnEvents}
+            completionsByToolUseId={completionsByToolUseId}
+            sessionIsRunning={sessionIsRunning}
+          />
         </div>
       )}
     </div>
