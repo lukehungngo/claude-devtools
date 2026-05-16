@@ -42,6 +42,7 @@ export function useSessionMetrics(
         return r.json();
       })
       .then((data) => {
+        if (controller.signal.aborted) return;
         setMetrics(data.metrics || null);
         setEvents(data.events || []);
         setSubagentMeta(data.subagentMeta || {});

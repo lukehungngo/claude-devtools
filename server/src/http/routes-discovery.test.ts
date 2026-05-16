@@ -44,6 +44,7 @@ vi.mock("../analyzer/cost-aggregator.js", () => ({
 }));
 vi.mock("../analyzer/usage-breakdown.js", () => ({
   aggregatePerModelUsage: vi.fn(() => ({ perModel: [], totalCost: 0 })),
+  aggregateEventsPerModel: vi.fn(() => ({ perModel: [], totalCost: 0 })),
 }));
 vi.mock("../analyzer/agent-events.js", () => ({
   getAgentEvents: vi.fn(),
@@ -178,6 +179,333 @@ describe("Discovery endpoints", () => {
       const res = await request(app).get("/usage/breakdown");
       expect(res.status).toBe(500);
       expect(res.body.error).toBeDefined();
+    });
+
+    // Regression — Bug E: per-session Usage tab fallback was hitting
+    // /api/usage/breakdown with no params and the server ignored req.query,
+    // returning account-wide aggregate (every project on disk). For a
+    // $2.5k session, users saw $48k inflated by other projects/models.
+    describe("?sessionId scoping (regression)", () => {
+      function makeSession(id: string): import("../types.js").SessionInfo {
+        return {
+          id,
+          projectHash: "ph",
+          path: `/tmp/${id}.jsonl`,
+          startTime: "2026-05-01T00:00:00Z",
+          lastModified: "2026-05-01T00:00:00Z",
+          eventCount: 1,
+          subagentCount: 0,
+        };
+      }
+
+      it("without sessionId, aggregates across ALL sessions (back-compat)", async () => {
+        const {
+          discoverSessions,
+        } = await import("../parser/session-discovery.js");
+        const {
+          aggregatePerModelUsage,
+        } = await import("../analyzer/usage-breakdown.js");
+        const sessA = makeSession("sess-A");
+        const sessB = makeSession("sess-B");
+        vi.mocked(discoverSessions).mockReturnValue([sessA, sessB]);
+        const aggMock = vi.mocked(aggregatePerModelUsage);
+        aggMock.mockReset().mockReturnValue({
+          perModel: [],
+          totalCost: 0,
+        });
+
+        const res = await request(app).get("/usage/breakdown");
+        expect(res.status).toBe(200);
+        // aggregator received BOTH sessions
+        expect(aggMock).toHaveBeenCalledTimes(1);
+        const passed = aggMock.mock.calls[0][0] as import("../types.js").SessionInfo[];
+        expect(passed.map((s) => s.id).sort()).toEqual(["sess-A", "sess-B"]);
+      });
+
+      it("with sessionId, aggregates ONLY the matching session", async () => {
+        const {
+          discoverSessions,
+        } = await import("../parser/session-discovery.js");
+        const {
+          aggregatePerModelUsage,
+        } = await import("../analyzer/usage-breakdown.js");
+        const sessA = makeSession("sess-A");
+        const sessB = makeSession("sess-B");
+        vi.mocked(discoverSessions).mockReturnValue([sessA, sessB]);
+        const aggMock = vi.mocked(aggregatePerModelUsage);
+        aggMock.mockReset().mockReturnValue({
+          perModel: [
+            {
+              model: "claude-sonnet-4-6",
+              inputTokens: 10,
+              outputTokens: 5,
+              cacheCreationTokens: 0,
+              cacheReadTokens: 0,
+              cacheHitRatio: 0,
+              totalCost: 0.001,
+            },
+          ],
+          totalCost: 0.001,
+        });
+
+        const res = await request(app).get("/usage/breakdown?sessionId=sess-A");
+        expect(res.status).toBe(200);
+        // aggregator received ONLY sess-A — filtering happened server-side.
+        expect(aggMock).toHaveBeenCalledTimes(1);
+        const passed = aggMock.mock.calls[0][0] as import("../types.js").SessionInfo[];
+        expect(passed.map((s) => s.id)).toEqual(["sess-A"]);
+      });
+
+      it("with sessionId that matches nothing, passes empty list (no leak)", async () => {
+        const {
+          discoverSessions,
+        } = await import("../parser/session-discovery.js");
+        const {
+          aggregatePerModelUsage,
+        } = await import("../analyzer/usage-breakdown.js");
+        vi.mocked(discoverSessions).mockReturnValue([
+          makeSession("sess-A"),
+          makeSession("sess-B"),
+        ]);
+        const aggMock = vi.mocked(aggregatePerModelUsage);
+        aggMock.mockReset().mockReturnValue({
+          perModel: [],
+          totalCost: 0,
+        });
+
+        const res = await request(app).get("/usage/breakdown?sessionId=none");
+        expect(res.status).toBe(200);
+        expect(aggMock).toHaveBeenCalledTimes(1);
+        const passed = aggMock.mock.calls[0][0] as import("../types.js").SessionInfo[];
+        expect(passed).toEqual([]);
+      });
+    });
+
+    // Bug H: per-turn scoping. When the Usage tab is anchored on a single
+    // turn, the dashboard passes `?sessionId=…&fromTs=…&toTs=…` (ISO-8601
+    // timestamps from the TurnSnapshot's startTime/endTime — frame-
+    // independent so dashboard/server event orderings can't desync).
+    // The server loads ONLY that one session via loadFullSession, slices
+    // events by timestamp range, and aggregates the slice via the sibling
+    // `aggregateEventsPerModel`. The whole-session `aggregatePerModelUsage`
+    // path is bypassed when the range is supplied.
+    describe("?fromTs/?toTs turn scoping (Bug H regression)", () => {
+      function makeSession(id: string): import("../types.js").SessionInfo {
+        return {
+          id,
+          projectHash: "ph",
+          path: `/tmp/${id}.jsonl`,
+          startTime: "2026-05-01T00:00:00Z",
+          lastModified: "2026-05-01T00:00:00Z",
+          eventCount: 1,
+          subagentCount: 0,
+        };
+      }
+
+      function makeAssistantEvent(
+        uuid: string,
+        timestamp: string,
+        model: string,
+      ): import("../types.js").SessionEvent {
+        return {
+          type: "assistant",
+          uuid,
+          timestamp,
+          sessionId: "sess-T",
+          message: {
+            id: `msg-${uuid}`,
+            type: "message",
+            role: "assistant",
+            model,
+            content: [],
+            usage: {
+              input_tokens: 100,
+              output_tokens: 50,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0,
+            },
+          },
+        } as unknown as import("../types.js").SessionEvent;
+      }
+
+      it("with sessionId + fromTs + toTs, slices events by [fromTs, toTs) and aggregates only that slice", async () => {
+        const {
+          discoverSessions,
+          loadFullSession,
+        } = await import("../parser/session-discovery.js");
+        const {
+          aggregateEventsPerModel,
+          aggregatePerModelUsage,
+        } = await import("../analyzer/usage-breakdown.js");
+        const sess = makeSession("sess-T");
+        vi.mocked(discoverSessions).mockReturnValue([sess]);
+
+        // Three events spanning three "turns" by timestamp window.
+        const e1 = makeAssistantEvent("u1", "2026-05-01T00:00:00.000Z", "claude-sonnet-4-6"); // before window
+        const e2 = makeAssistantEvent("u2", "2026-05-01T00:01:00.000Z", "claude-sonnet-4-6"); // IN window
+        const e3 = makeAssistantEvent("u3", "2026-05-01T00:02:00.000Z", "claude-sonnet-4-6"); // after window (toTs is exclusive)
+        vi.mocked(loadFullSession).mockReturnValue({
+          mainEvents: [e1, e2, e3],
+          subagentEvents: new Map(),
+          subagentMeta: new Map(),
+        });
+
+        const sliceMock = vi.mocked(aggregateEventsPerModel);
+        sliceMock.mockReset().mockReturnValue({
+          perModel: [
+            {
+              model: "claude-sonnet-4-6",
+              inputTokens: 100,
+              outputTokens: 50,
+              cacheCreationTokens: 0,
+              cacheReadTokens: 0,
+              cacheHitRatio: 0,
+              totalCost: 0.001,
+            },
+          ],
+          totalCost: 0.001,
+        });
+        const wholeMock = vi.mocked(aggregatePerModelUsage);
+        wholeMock.mockReset();
+
+        const res = await request(app).get(
+          "/usage/breakdown?sessionId=sess-T&fromTs=2026-05-01T00:00:30.000Z&toTs=2026-05-01T00:01:30.000Z",
+        );
+        expect(res.status).toBe(200);
+        // Whole-session aggregator MUST NOT be called when the turn slice is requested.
+        expect(wholeMock).not.toHaveBeenCalled();
+        // The slice aggregator was called with ONLY the in-window event(s).
+        expect(sliceMock).toHaveBeenCalledTimes(1);
+        const slicedEvents = sliceMock.mock.calls[0][0] as import("../types.js").SessionEvent[];
+        expect(slicedEvents.map((e) => e.uuid)).toEqual(["u2"]);
+        expect(res.body.breakdown.totalCost).toBe(0.001);
+      });
+
+      it("fromTs/toTs without sessionId is ignored (back-compat: whole-session aggregator runs)", async () => {
+        // Range params only have meaning together with a sessionId — the
+        // dashboard always sends them as a triplet. If only the range
+        // arrives, fall back to the legacy whole-session path so the
+        // back-compat global aggregate is preserved.
+        const {
+          discoverSessions,
+        } = await import("../parser/session-discovery.js");
+        const {
+          aggregateEventsPerModel,
+          aggregatePerModelUsage,
+        } = await import("../analyzer/usage-breakdown.js");
+        vi.mocked(discoverSessions).mockReturnValue([makeSession("sess-A")]);
+        const sliceMock = vi.mocked(aggregateEventsPerModel);
+        sliceMock.mockReset();
+        const wholeMock = vi.mocked(aggregatePerModelUsage);
+        wholeMock.mockReset().mockReturnValue({ perModel: [], totalCost: 0 });
+
+        const res = await request(app).get(
+          "/usage/breakdown?fromTs=2026-05-01T00:00:00.000Z&toTs=2026-05-01T01:00:00.000Z",
+        );
+        expect(res.status).toBe(200);
+        expect(sliceMock).not.toHaveBeenCalled();
+        expect(wholeMock).toHaveBeenCalledTimes(1);
+      });
+
+      it("sessionId + range with no events in the window returns empty breakdown (no error)", async () => {
+        const {
+          discoverSessions,
+          loadFullSession,
+        } = await import("../parser/session-discovery.js");
+        const {
+          aggregateEventsPerModel,
+        } = await import("../analyzer/usage-breakdown.js");
+        const sess = makeSession("sess-T");
+        vi.mocked(discoverSessions).mockReturnValue([sess]);
+        vi.mocked(loadFullSession).mockReturnValue({
+          mainEvents: [
+            makeAssistantEvent("u1", "2026-04-01T00:00:00.000Z", "claude-sonnet-4-6"),
+          ],
+          subagentEvents: new Map(),
+          subagentMeta: new Map(),
+        });
+        const sliceMock = vi.mocked(aggregateEventsPerModel);
+        sliceMock.mockReset().mockReturnValue({ perModel: [], totalCost: 0 });
+
+        const res = await request(app).get(
+          "/usage/breakdown?sessionId=sess-T&fromTs=2026-05-01T00:00:00.000Z&toTs=2026-05-01T01:00:00.000Z",
+        );
+        expect(res.status).toBe(200);
+        // Slice aggregator was still called — with an empty array.
+        expect(sliceMock).toHaveBeenCalledTimes(1);
+        const slicedEvents = sliceMock.mock.calls[0][0] as import("../types.js").SessionEvent[];
+        expect(slicedEvents).toEqual([]);
+        expect(res.body.breakdown).toEqual({ perModel: [], totalCost: 0 });
+      });
+
+      // Boundary regression: TurnSnapshot.endTime IS the timestamp of the
+      // turn's last event (often the assistant's end_turn message — the one
+      // that carries the bulk of the per-turn cost). A strict `<` upper bound
+      // would drop it and undercount the turn. The server window is closed
+      // on both ends: [fromTs, toTs].
+      it("includes events whose timestamp equals toTs (CLOSED upper bound)", async () => {
+        const {
+          discoverSessions,
+          loadFullSession,
+        } = await import("../parser/session-discovery.js");
+        const {
+          aggregateEventsPerModel,
+        } = await import("../analyzer/usage-breakdown.js");
+        const sess = makeSession("sess-T");
+        vi.mocked(discoverSessions).mockReturnValue([sess]);
+
+        // Two events: the first sits exactly on fromTs, the second exactly
+        // on toTs. Both must be included (TurnSnapshot.startTime = first
+        // event's ts, endTime = last event's ts — closed on both ends).
+        const eFirst = makeAssistantEvent("u-first", "2026-05-01T00:00:30.000Z", "claude-sonnet-4-6");
+        const eLast = makeAssistantEvent("u-last", "2026-05-01T00:01:00.000Z", "claude-sonnet-4-6");
+        vi.mocked(loadFullSession).mockReturnValue({
+          mainEvents: [eFirst, eLast],
+          subagentEvents: new Map(),
+          subagentMeta: new Map(),
+        });
+        const sliceMock = vi.mocked(aggregateEventsPerModel);
+        sliceMock.mockReset().mockReturnValue({ perModel: [], totalCost: 0 });
+
+        const res = await request(app).get(
+          "/usage/breakdown?sessionId=sess-T&fromTs=2026-05-01T00:00:30.000Z&toTs=2026-05-01T00:01:00.000Z",
+        );
+        expect(res.status).toBe(200);
+        expect(sliceMock).toHaveBeenCalledTimes(1);
+        const slicedEvents = sliceMock.mock.calls[0][0] as import("../types.js").SessionEvent[];
+        expect(slicedEvents.map((e) => e.uuid)).toEqual(["u-first", "u-last"]);
+      });
+
+      it("sessionId + range with unknown sessionId returns empty (no leak to other sessions)", async () => {
+        const {
+          discoverSessions,
+          loadFullSession,
+        } = await import("../parser/session-discovery.js");
+        const {
+          aggregateEventsPerModel,
+          aggregatePerModelUsage,
+        } = await import("../analyzer/usage-breakdown.js");
+        vi.mocked(discoverSessions).mockReturnValue([makeSession("sess-A")]);
+        const sliceMock = vi.mocked(aggregateEventsPerModel);
+        sliceMock.mockReset().mockReturnValue({ perModel: [], totalCost: 0 });
+        const wholeMock = vi.mocked(aggregatePerModelUsage);
+        wholeMock.mockReset();
+        const loadMock = vi.mocked(loadFullSession);
+        loadMock.mockReset();
+
+        const res = await request(app).get(
+          "/usage/breakdown?sessionId=none&fromTs=2026-05-01T00:00:00.000Z&toTs=2026-05-01T01:00:00.000Z",
+        );
+        expect(res.status).toBe(200);
+        // No JSONL load attempted for an unknown sessionId.
+        expect(loadMock).not.toHaveBeenCalled();
+        // No whole-session leak.
+        expect(wholeMock).not.toHaveBeenCalled();
+        // Slice aggregator called with empty list (explicit "no leak").
+        expect(sliceMock).toHaveBeenCalledTimes(1);
+        const slicedEvents = sliceMock.mock.calls[0][0] as import("../types.js").SessionEvent[];
+        expect(slicedEvents).toEqual([]);
+      });
     });
   });
 

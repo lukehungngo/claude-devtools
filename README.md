@@ -97,7 +97,13 @@ By default, claude-devtools reads sessions from `~/.claude/projects/` on your lo
 
 ### Docker (automatic)
 
-If Docker is running on your machine, claude-devtools auto-detects containers that have Claude Code installed and injects a collector agent. No extra steps needed.
+If Docker is running on your machine, claude-devtools auto-detects containers whose `~/.claude/projects` directory exists and injects a collector. Once detected, sessions inside the container appear in the sidebar with a `docker:<name>` source badge (see [Source badges](#source-badges) below). New containers are picked up on the next scan (within 60 seconds).
+
+**Requirements:**
+
+- Docker socket at `/var/run/docker.sock` (Docker Desktop, native Docker Engine). Colima, OrbStack, rootless Docker, and Podman users with sockets at non-standard paths are not yet auto-detected — use the [Remote server](#remote-server) flow below.
+- On **Linux Docker Engine**, containers must be started with `--add-host=host.docker.internal:host-gateway` so the collector can reach the host. Docker Desktop on macOS/Windows handles this automatically.
+- The container must have `npx` available (any image with Node.js; usually true when Claude Code is installed inside).
 
 ### Remote server
 

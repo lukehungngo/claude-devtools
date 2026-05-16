@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { deriveSessionTasks, deriveTasksByTurn, getTasksAtTurn } from "./sessionTasks";
+import {
+  deriveSessionTasks,
+  deriveTasksByTurn,
+  deriveTasksTouchedInTurn,
+  getTasksAtTurn,
+} from "./sessionTasks";
 import type { SessionEvent, AssistantEvent } from "./types";
 import type { TurnSnapshot } from "./turnSnapshot";
 
@@ -210,5 +215,116 @@ describe("deriveTasksByTurn (Phase 1)", () => {
     expect(getTasksAtTurn(byTurn, 4)).toEqual(byTurn.get(3));
     expect(getTasksAtTurn(byTurn, 2)).toEqual(byTurn.get(1));
     expect(getTasksAtTurn(byTurn, 0)).toEqual([]);
+  });
+});
+
+describe("deriveTasksTouchedInTurn (Bug D — per-turn DELTA)", () => {
+  function turn(turnNumber: number, startIndex: number, endIndex: number): TurnSnapshot {
+    return {
+      turnNumber,
+      turnIndex: turnNumber - 1,
+      userEventUuid: `user-${turnNumber}`,
+      startIndex,
+      endIndex,
+    } as unknown as TurnSnapshot;
+  }
+
+  it("scopes each turn to only the tasks Created or Updated in that turn", () => {
+    // T1: TaskCreate "a"
+    // T2: TaskCreate "b"
+    // T3: TaskUpdate(taskId=1, status=completed)
+    // T4: no tool uses
+    // T5: TaskList only
+    const a1 = assistant({
+      ts: "t1",
+      toolUses: [{ name: "TaskCreate", input: { subject: "a" } }],
+    });
+    a1.uuid = "a1";
+    const a2 = assistant({
+      ts: "t2",
+      toolUses: [{ name: "TaskCreate", input: { subject: "b" } }],
+    });
+    a2.uuid = "a2";
+    const a3 = assistant({
+      ts: "t3",
+      toolUses: [{ name: "TaskUpdate", input: { taskId: "1", status: "completed" } }],
+    });
+    a3.uuid = "a3";
+    const a4 = assistant({ ts: "t4", toolUses: [] });
+    a4.uuid = "a4";
+    const a5 = assistant({
+      ts: "t5",
+      toolUses: [{ name: "TaskList", input: {} }],
+    });
+    a5.uuid = "a5";
+
+    const events: SessionEvent[] = [a1, a2, a3, a4, a5];
+    const turns = [turn(1, 0, 1), turn(2, 1, 2), turn(3, 2, 3), turn(4, 3, 4), turn(5, 4, 5)];
+
+    const result = deriveTasksTouchedInTurn(events, turns);
+
+    // T1 — created "a" only.
+    const t1 = result.get(1);
+    expect(t1).toBeDefined();
+    expect(t1).toHaveLength(1);
+    expect(t1![0].name).toBe("a");
+    expect(t1![0].status).toBe("pending");
+
+    // T2 — created "b" only (NOT "a", even though "a" exists in cumulative state).
+    const t2 = result.get(2);
+    expect(t2).toBeDefined();
+    expect(t2).toHaveLength(1);
+    expect(t2![0].name).toBe("b");
+    expect(t2![0].status).toBe("pending");
+
+    // T3 — updated "a" only; post-turn status is "done".
+    const t3 = result.get(3);
+    expect(t3).toBeDefined();
+    expect(t3).toHaveLength(1);
+    expect(t3![0].name).toBe("a");
+    expect(t3![0].status).toBe("done");
+
+    // T4 — no tool uses → absent.
+    expect(result.get(4)).toBeUndefined();
+
+    // T5 — TaskList only → absent (no touch).
+    expect(result.get(5)).toBeUndefined();
+  });
+
+  it("same-turn Create+Update collapses into one entry with the final status", () => {
+    const a = assistant({
+      ts: "t1",
+      toolUses: [
+        { name: "TaskCreate", input: { subject: "A" } },
+        { name: "TaskUpdate", input: { taskId: "1", status: "completed" } },
+      ],
+    });
+    a.uuid = "a1";
+    const events: SessionEvent[] = [a];
+    const turns = [turn(1, 0, 1)];
+
+    const result = deriveTasksTouchedInTurn(events, turns);
+    const t1 = result.get(1);
+    expect(t1).toHaveLength(1);
+    expect(t1![0].status).toBe("done");
+  });
+
+  it("TaskUpdate against an unknown taskId does not mark the turn as touched", () => {
+    const a1 = assistant({
+      ts: "t1",
+      toolUses: [{ name: "TaskCreate", input: { subject: "A" } }],
+    });
+    a1.uuid = "a1";
+    const a2 = assistant({
+      ts: "t2",
+      toolUses: [{ name: "TaskUpdate", input: { taskId: "99", status: "completed" } }],
+    });
+    a2.uuid = "a2";
+    const events: SessionEvent[] = [a1, a2];
+    const turns = [turn(1, 0, 1), turn(2, 1, 2)];
+
+    const result = deriveTasksTouchedInTurn(events, turns);
+    expect(result.get(1)).toHaveLength(1);
+    expect(result.get(2)).toBeUndefined();
   });
 });

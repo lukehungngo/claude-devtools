@@ -1,5 +1,5 @@
 import { statSync } from "node:fs";
-import type { SessionInfo } from "../types.js";
+import type { SessionEvent, SessionInfo } from "../types.js";
 import { parseJsonlIncremental } from "../parser/jsonl-reader.js";
 import { calculateTokenCost } from "./metrics.js";
 
@@ -164,6 +164,85 @@ export function aggregatePerModelUsage(
   );
 
   // Sort descending by total tokens so the heaviest model is first.
+  perModel.sort((a, b) => {
+    const ta =
+      a.inputTokens + a.outputTokens + a.cacheCreationTokens + a.cacheReadTokens;
+    const tb =
+      b.inputTokens + b.outputTokens + b.cacheCreationTokens + b.cacheReadTokens;
+    return tb - ta;
+  });
+
+  const totalCost = perModel.reduce((sum, row) => sum + row.totalCost, 0);
+  return { perModel, totalCost };
+}
+
+/**
+ * Aggregate per-model usage from an already-parsed event slice (e.g. one
+ * turn's events). Bug H — Usage tab turn scoping. Mirrors the per-assistant-
+ * event accumulation in `computeSessionBuckets` but operates on the event
+ * array directly, with no file I/O and no cache (a single turn is cheap to
+ * recompute and is dominated by the JSONL load that happens once per
+ * request).
+ *
+ * Same semantics as `aggregatePerModelUsage`:
+ *   - skip non-assistant events
+ *   - skip events without `usage`
+ *   - skip synthetic models (those whose name starts with "<")
+ *   - cacheHitRatio = cache_read / (input + cache_read + cache_create)
+ *   - rows sorted descending by total tokens
+ */
+export function aggregateEventsPerModel(
+  events: SessionEvent[],
+): UsageBreakdown {
+  const byModel = new Map<string, ModelBucket>();
+
+  for (const event of events) {
+    if (event.type !== "assistant") continue;
+    const usage = event.message.usage;
+    if (!usage) continue;
+    const model = event.message.model || "unknown";
+    if (model.startsWith("<")) continue;
+
+    const input = usage.input_tokens || 0;
+    const output = usage.output_tokens || 0;
+    const cacheCreate = usage.cache_creation_input_tokens || 0;
+    const cacheRead = usage.cache_read_input_tokens || 0;
+
+    const cost = calculateTokenCost(model, {
+      inputTokens: input,
+      outputTokens: output,
+      cacheWriteTokens: cacheCreate,
+      cacheReadTokens: cacheRead,
+    });
+
+    let bucket = byModel.get(model);
+    if (!bucket) {
+      bucket = emptyBucket();
+      byModel.set(model, bucket);
+    }
+    bucket.inputTokens += input;
+    bucket.outputTokens += output;
+    bucket.cacheCreationTokens += cacheCreate;
+    bucket.cacheReadTokens += cacheRead;
+    bucket.totalCost += cost;
+  }
+
+  const perModel: PerModelUsage[] = Array.from(byModel.entries()).map(
+    ([model, b]) => {
+      const denom = b.inputTokens + b.cacheReadTokens + b.cacheCreationTokens;
+      const cacheHitRatio = denom > 0 ? b.cacheReadTokens / denom : 0;
+      return {
+        model,
+        inputTokens: b.inputTokens,
+        outputTokens: b.outputTokens,
+        cacheCreationTokens: b.cacheCreationTokens,
+        cacheReadTokens: b.cacheReadTokens,
+        cacheHitRatio,
+        totalCost: b.totalCost,
+      };
+    },
+  );
+
   perModel.sort((a, b) => {
     const ta =
       a.inputTokens + a.outputTokens + a.cacheCreationTokens + a.cacheReadTokens;

@@ -10,6 +10,8 @@ import type {
 } from "../../lib/types";
 import type { LiveHookState } from "../../lib/streaming-types";
 import { formatDuration } from "../../lib/cost";
+import { getEventsForTurn } from "../../lib/turnSnapshot";
+import type { TurnSnapshot } from "../../lib/turnSnapshot";
 
 /**
  * NEW-8: how long a completed `LiveHookState` row stays visible after
@@ -20,6 +22,12 @@ const LIVE_HOOK_DROP_MS = 3_000;
 
 interface HooksTabProps {
   events?: SessionEvent[];
+  /**
+   * Turn snapshots used to scope the hooks list to a single turn when
+   * `activeTurnIndex` resolves to a valid index. Absent / empty falls back
+   * to the whole-session view (Bug G — same pattern other tabs use).
+   */
+  turns?: TurnSnapshot[];
   /** Currently viewed turn — filters hooks to that turn when set. */
   activeTurnIndex?: number | null;
   /**
@@ -311,14 +319,26 @@ function LiveHookRow({ hook }: LiveHookRowProps): JSX.Element {
 
 export function HooksTab({
   events = [],
-  activeTurnIndex: _,
+  turns = [],
+  activeTurnIndex,
   onHookHover,
   highlightedHookId = null,
   liveHooks,
 }: HooksTabProps): JSX.Element {
   const rows = useMemo<HookRow[]>(() => {
-    return events.filter(isHookAttachment).map(toRow).filter((r): r is HookRow => r !== null);
-  }, [events]);
+    // Bug G — scope JSONL hook rows to the active turn when one is selected.
+    // Falls back to the whole session when turns/activeTurnIndex are absent
+    // or out of range. liveHooks are merged separately below so in-flight
+    // entries attach to whatever scope view is current.
+    const scopedEvents =
+      activeTurnIndex != null && turns[activeTurnIndex]
+        ? getEventsForTurn(turns[activeTurnIndex], events)
+        : events;
+    return scopedEvents
+      .filter(isHookAttachment)
+      .map(toRow)
+      .filter((r): r is HookRow => r !== null);
+  }, [events, turns, activeTurnIndex]);
 
   // NEW-8: surface in-flight (and recently-completed) live hooks above the
   // JSONL-source rows. We render them in their own <tbody> so the existing

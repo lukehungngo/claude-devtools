@@ -429,6 +429,159 @@ describe("BottomPanel", () => {
     expect(screen.getByText("MCP")).toBeDefined();
   });
 
+  // --- Bug C: Tasks tab auto-scoping ---
+
+  describe("Tasks tab auto-scoping", () => {
+    function makeTurn(
+      turnNumber: number,
+      startIndex: number,
+      endIndex: number,
+    ): TurnSnapshot {
+      return {
+        turnNumber,
+        promptText: `prompt ${turnNumber}`,
+        startIndex,
+        endIndex,
+        agents: [],
+        durationMs: 1000,
+        cost: 0,
+        costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+        inputTokens: 0,
+        outputTokens: 0,
+        startTime: "2026-01-01T00:00:00Z",
+        endTime: "2026-01-01T00:00:01Z",
+        dispatchedAgentIds: new Set<string>(["main"]),
+        eventAgentIds: new Set<string>(["main"]),
+      };
+    }
+
+    function makeTaskCreateEvent(
+      uuid: string,
+      subject: string,
+    ): SessionEvent {
+      return {
+        type: "assistant",
+        uuid,
+        timestamp: "2026-01-01T00:00:00Z",
+        sessionId: "s1",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: `tu_${uuid}`,
+              name: "TaskCreate",
+              input: { subject },
+            },
+          ],
+          model: "claude-sonnet-4-20250514",
+          id: `msg_${uuid}`,
+          type: "message",
+          stop_reason: "end_turn",
+          usage: {
+            input_tokens: 0,
+            output_tokens: 0,
+          },
+        },
+      } as SessionEvent;
+    }
+
+    function makeTextEvent(uuid: string, text: string): SessionEvent {
+      return {
+        type: "assistant",
+        uuid,
+        timestamp: "2026-01-01T00:00:00Z",
+        sessionId: "s1",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text }],
+          model: "claude-sonnet-4-20250514",
+          id: `msg_${uuid}`,
+          type: "message",
+          stop_reason: "end_turn",
+          usage: {
+            input_tokens: 0,
+            output_tokens: 0,
+          },
+        },
+      } as SessionEvent;
+    }
+
+    const turns3: TurnSnapshot[] = [
+      makeTurn(1, 0, 1),
+      makeTurn(2, 1, 2),
+      makeTurn(3, 2, 3),
+    ];
+    const eventsWithTasks: SessionEvent[] = [
+      makeTaskCreateEvent("u1", "task 1"),
+      makeTaskCreateEvent("u2", "task 2"),
+      makeTextEvent("u3", "no task here"),
+    ];
+
+    it("auto-scopes Tasks to the latest turn when viewingTurnNumber is undefined", () => {
+      localStorageMock.setItem("bottomPanel.collapsed", "false");
+
+      render(
+        <BottomPanel
+          turns={turns3}
+          events={eventsWithTasks}
+          viewingTurnNumber={undefined}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tasks"));
+
+      // Scope label shows the auto-derived latest turn (T3).
+      expect(screen.getByText(/Scoped to/)).toBeDefined();
+      expect(screen.getByText("T3")).toBeDefined();
+
+      // Bug D — per-turn DELTA semantics. T3 has no task tools (only a text
+      // event), so its delta is empty even though the cumulative session has
+      // 2 tasks. The scope label still renders.
+      expect(screen.queryAllByRole("listitem").length).toBe(0);
+      expect(screen.getByText("No tasks")).toBeDefined();
+    });
+
+    it("respects explicit viewingTurnNumber over auto-scope", () => {
+      localStorageMock.setItem("bottomPanel.collapsed", "false");
+
+      render(
+        <BottomPanel
+          turns={turns3}
+          events={eventsWithTasks}
+          viewingTurnNumber={1}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tasks"));
+
+      expect(screen.getByText(/Scoped to/)).toBeDefined();
+      expect(screen.getByText("T1")).toBeDefined();
+
+      // T1 created exactly 1 task in its delta.
+      const rows = screen.getAllByRole("listitem");
+      expect(rows.length).toBe(1);
+    });
+
+    it("hides the scope label and shows no tasks when turns is empty", () => {
+      localStorageMock.setItem("bottomPanel.collapsed", "false");
+
+      render(
+        <BottomPanel
+          turns={[]}
+          events={[]}
+          viewingTurnNumber={undefined}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tasks"));
+
+      expect(screen.queryByText(/Scoped to/)).toBeNull();
+      expect(screen.queryAllByRole("listitem").length).toBe(0);
+      expect(screen.getByText("No tasks")).toBeDefined();
+    });
+  });
+
   it("mounts MCPStatusTab when the MCP tab is selected", async () => {
     localStorageMock.setItem("bottomPanel.collapsed", "false");
 

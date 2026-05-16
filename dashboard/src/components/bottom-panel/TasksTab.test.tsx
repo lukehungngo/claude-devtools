@@ -23,14 +23,15 @@ describe("TasksTab (JSONL-derived fallback)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("renders progress summary: 1/3 completed", () => {
+  it("renders progress summary: 1/3 completed in this turn", () => {
     const tasks: SessionTask[] = [
       { id: "T-001", name: "Task A", status: "done" },
       { id: "T-002", name: "Task B", status: "in_progress" },
       { id: "T-003", name: "Task C", status: "pending" },
     ];
     render(<TasksTab tasks={tasks} />);
-    expect(screen.getByText("1/3 completed")).toBeDefined();
+    // Bug D — label now clarifies the count is per-turn delta, not cumulative.
+    expect(screen.getByText("1/3 completed in this turn")).toBeDefined();
   });
 
   it("renders all task names", () => {

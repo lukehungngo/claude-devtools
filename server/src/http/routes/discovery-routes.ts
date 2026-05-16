@@ -6,10 +6,15 @@ import { Router } from "express";
 import {
   discoverSessions,
   discoverRepoGroups,
+  loadFullSession,
 } from "../../parser/session-discovery.js";
 import { getAnthropicUsage } from "../../api/usage-client.js";
 import { aggregateCosts } from "../../analyzer/cost-aggregator.js";
-import { aggregatePerModelUsage } from "../../analyzer/usage-breakdown.js";
+import {
+  aggregatePerModelUsage,
+  aggregateEventsPerModel,
+} from "../../analyzer/usage-breakdown.js";
+import type { SessionEvent } from "../../types.js";
 import { logger } from "../../logger.js";
 import { CommandCache } from "../../discovery/command-cache.js";
 import type { RouteContext } from "./route-context.js";
@@ -125,9 +130,68 @@ export function createDiscoveryRoutes({ state }: RouteContext): Router {
   // Get per-model + cache-hit-ratio breakdown (TASK-B5 / P2-10).
   // Data source: local JSONL aggregation (Anthropic /usage only returns
   // utilization percentages, no per-model token counts).
-  router.get("/usage/breakdown", (_req, res) => {
+  //
+  // Query params:
+  //   - `?sessionId=` — scope the aggregation to a single session. Avoids
+  //     account-wide totals leaking into the per-session Usage tab (Bug E).
+  //     Omitted → legacy global aggregate across every session in
+  //     ~/.claude/projects/.
+  //   - `?fromTs=&toTs=` (ISO-8601, [fromTs, toTs]) — Bug H. Only meaningful
+  //     when paired with `?sessionId=`. Scopes the aggregation to a single
+  //     turn's event window. The dashboard derives fromTs/toTs from the
+  //     active TurnSnapshot's startTime/endTime. Timestamps (not indexes)
+  //     are used so the server is frame-independent — dashboard/server event
+  //     orderings can drift (live + REST merge) but timestamps are stable.
+  //     The bounds are CLOSED on both ends: TurnSnapshot.endTime is the
+  //     timestamp of the turn's last event (often the assistant's end_turn
+  //     message that carries the bulk of the cost), so a strict `<` upper
+  //     bound would drop it. A range supplied WITHOUT sessionId is ignored
+  //     (back-compat: the legacy global aggregate runs unchanged).
+  router.get("/usage/breakdown", (req, res) => {
     try {
-      const sessions = discoverSessions();
+      const sessionId =
+        typeof req.query.sessionId === "string" ? req.query.sessionId : undefined;
+      const fromTs =
+        typeof req.query.fromTs === "string" ? req.query.fromTs : undefined;
+      const toTs =
+        typeof req.query.toTs === "string" ? req.query.toTs : undefined;
+
+      // Turn-scoped path: sessionId + both range bounds present.
+      if (sessionId && fromTs && toTs) {
+        const matches = discoverSessions().filter((s) => s.id === sessionId);
+        if (matches.length === 0) {
+          // Unknown sessionId — explicit empty result, no leak to others.
+          const breakdown = aggregateEventsPerModel([]);
+          return res.json({ breakdown });
+        }
+        const { mainEvents, subagentEvents } = loadFullSession(matches[0]);
+        // Merge main + subagent events the same way session-routes.ts does so
+        // the timestamp window catches subagent assistant events too.
+        const allSubEvents: SessionEvent[] = [];
+        for (const evts of subagentEvents.values()) {
+          allSubEvents.push(...evts);
+        }
+        const merged = [...mainEvents, ...allSubEvents].sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        );
+        // [fromTs, toTs] — CLOSED interval. TurnSnapshot.endTime is the
+        // timestamp of the LAST event in the turn (see turnSnapshot.ts:464,
+        // turnSnapshot.ts:635), not "one past the end." A strict `<` upper
+        // bound would drop the assistant's end_turn message, which usually
+        // carries most of the turn's tokens/cost.
+        const slice = merged.filter(
+          (e) => e.timestamp >= fromTs && e.timestamp <= toTs,
+        );
+        const breakdown = aggregateEventsPerModel(slice);
+        return res.json({ breakdown });
+      }
+
+      // Whole-session / global path (back-compat).
+      let sessions = discoverSessions();
+      if (sessionId) {
+        sessions = sessions.filter((s) => s.id === sessionId);
+      }
       const breakdown = aggregatePerModelUsage(sessions);
       res.json({ breakdown });
     } catch (err) {

@@ -3,6 +3,7 @@ import { act, render, cleanup, screen, fireEvent } from "@testing-library/react"
 import { HooksTab } from "./HooksTab";
 import type { SessionEvent, AttachmentEvent } from "../../lib/types";
 import type { LiveHookState } from "../../lib/streaming-types";
+import type { TurnSnapshot } from "../../lib/turnSnapshot";
 
 function hookSuccess(
   uuid: string,
@@ -407,6 +408,102 @@ describe("HooksTab", () => {
         vi.advanceTimersByTime(3_500);
       });
       expect(screen.queryByTestId("hook-row-live-h-live-3")).toBeNull();
+    });
+  });
+
+  describe("HooksTab activeTurnIndex scoping (Bug G)", () => {
+    function makeTurn(
+      turnNumber: number,
+      startIndex: number,
+      endIndex: number,
+    ): TurnSnapshot {
+      return {
+        turnNumber,
+        promptText: `prompt ${turnNumber}`,
+        startIndex,
+        endIndex,
+        agents: [],
+        durationMs: 0,
+        cost: 0,
+        costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
+        inputTokens: 0,
+        outputTokens: 0,
+        startTime: "2026-05-16T10:00:00Z",
+        endTime: "2026-05-16T10:00:01Z",
+        dispatchedAgentIds: new Set<string>(["main"]),
+        eventAgentIds: new Set<string>(["main"]),
+      };
+    }
+
+    // Three turns each with one hook attachment in the middle.
+    // Layout (8 events, indices 0..7):
+    //   T1: [0,3)  → hook at index 1 ("h-t1")
+    //   T2: [3,5)  → NO hook (just two filler events)
+    //   T3: [5,8)  → hook at index 6 ("h-t3")
+    function makeFiller(uuid: string): SessionEvent {
+      return {
+        type: "assistant",
+        uuid,
+        timestamp: "2026-05-16T10:00:00Z",
+        sessionId: "s1",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "filler" }],
+          model: "claude-sonnet-4-20250514",
+          id: `msg_${uuid}`,
+          type: "message",
+          stop_reason: "end_turn",
+          usage: { input_tokens: 0, output_tokens: 0 },
+        },
+      } as SessionEvent;
+    }
+
+    const events: SessionEvent[] = [
+      makeFiller("f1"),                              // 0 — T1
+      hookSuccess("h-t1", { hookName: "PreToolUse:Read" }), // 1 — T1
+      makeFiller("f2"),                              // 2 — T1
+      makeFiller("f3"),                              // 3 — T2
+      makeFiller("f4"),                              // 4 — T2
+      makeFiller("f5"),                              // 5 — T3
+      hookSuccess("h-t3", { hookName: "PreToolUse:Bash" }), // 6 — T3
+      makeFiller("f6"),                              // 7 — T3
+    ];
+    const turns: TurnSnapshot[] = [
+      makeTurn(1, 0, 3),
+      makeTurn(2, 3, 5),
+      makeTurn(3, 5, 8),
+    ];
+
+    it("defaults to active turn — last turn", () => {
+      render(<HooksTab events={events} turns={turns} activeTurnIndex={2} />);
+      expect(screen.queryByTestId("hook-row-h-t1")).toBeNull();
+      expect(screen.getByTestId("hook-row-h-t3")).toBeDefined();
+    });
+
+    it("scopes to clicked turn", () => {
+      render(<HooksTab events={events} turns={turns} activeTurnIndex={0} />);
+      expect(screen.getByTestId("hook-row-h-t1")).toBeDefined();
+      expect(screen.queryByTestId("hook-row-h-t3")).toBeNull();
+    });
+
+    it("falls back to whole session when turns/activeTurnIndex absent", () => {
+      render(<HooksTab events={events} />);
+      expect(screen.getByTestId("hook-row-h-t1")).toBeDefined();
+      expect(screen.getByTestId("hook-row-h-t3")).toBeDefined();
+    });
+
+    it("shows empty state for a turn with no hooks (T2)", () => {
+      render(<HooksTab events={events} turns={turns} activeTurnIndex={1} />);
+      expect(screen.queryByTestId("hook-row-h-t1")).toBeNull();
+      expect(screen.queryByTestId("hook-row-h-t3")).toBeNull();
+      expect(screen.getByText(/No hook executions/i)).toBeDefined();
+    });
+
+    it("falls back to whole session when activeTurnIndex is out of range", () => {
+      render(<HooksTab events={events} turns={turns} activeTurnIndex={99} />);
+      // Out-of-range index → turns[99] is undefined → whole-session fallback.
+      expect(screen.getByTestId("hook-row-h-t1")).toBeDefined();
+      expect(screen.getByTestId("hook-row-h-t3")).toBeDefined();
     });
   });
 

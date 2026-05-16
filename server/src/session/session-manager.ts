@@ -1,10 +1,87 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { AgentInfo, McpServerStatus, PermissionResult, PermissionUpdate, Query, RewindFilesResult, SDKControlGetContextUsageResponse, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import { sessionLog } from "../logger.js";
 import { isToolAllowedForSession } from "../hooks/permission-handler.js";
 import { discoverSessions } from "../parser/session-discovery.js";
+
+/**
+ * Bug F — widened MCP status type.
+ *
+ * The SDK's `McpServerStatus['status']` is a strict union of live connection
+ * states (`connected | failed | needs-auth | pending | disabled`). For
+ * cold (CLI-launched) sessions there is no live `query`, so we fall back
+ * to reading MCP server *configuration* from disk and emit each entry with
+ * `status: "configured"` — a new value the dashboard knows how to render.
+ *
+ * Keep the rest of the shape compatible with `McpServerStatus`.
+ */
+export type ExtendedMcpServerStatus =
+  Omit<McpServerStatus, "status"> & { status: McpServerStatus["status"] | "configured" };
+
+/**
+ * Bug F — config-file resolution order, mirroring what Claude Code itself
+ * reads. Project-level wins over user-level. First-write-wins per name.
+ */
+function readMcpServersFromDisk(cwd: string): ExtendedMcpServerStatus[] {
+  const sources: Array<{ file: string; scope: string; key: "mcpServers" | "root" }> = [
+    { file: join(cwd, ".mcp.json"),                    scope: "project", key: "root" },
+    { file: join(cwd, ".claude", "settings.json"),     scope: "project", key: "mcpServers" },
+    { file: join(cwd, ".claude", "settings.local.json"), scope: "local", key: "mcpServers" },
+    { file: join(homedir(), ".claude", "settings.json"), scope: "user",  key: "mcpServers" },
+    { file: join(homedir(), ".claude", "mcp_servers.json"), scope: "user", key: "root" },
+  ];
+
+  const merged = new Map<string, ExtendedMcpServerStatus>();
+
+  for (const { file, scope, key } of sources) {
+    if (!existsSync(file)) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(readFileSync(file, "utf-8"));
+    } catch (err) {
+      // Per invariant #3: fail-safe parsing — skip malformed files.
+      sessionLog.warn({ file, err: String(err) }, "readMcpServersFromDisk: malformed JSON");
+      continue;
+    }
+    if (!parsed || typeof parsed !== "object") continue;
+
+    // .mcp.json: `{ mcpServers: { ... } }` at the root.
+    // settings.json: `{ ..., mcpServers: { ... } }` keyed alongside other settings.
+    // mcp_servers.json (legacy): `{ ... }` is itself the server map.
+    const root = parsed as Record<string, unknown>;
+    let serversObj: Record<string, unknown> | undefined;
+    if (key === "root" && file.endsWith("mcp_servers.json")) {
+      serversObj = root as Record<string, unknown>;
+    } else if (key === "root") {
+      // .mcp.json convention
+      serversObj = (root.mcpServers as Record<string, unknown> | undefined) ?? undefined;
+    } else {
+      serversObj = (root.mcpServers as Record<string, unknown> | undefined) ?? undefined;
+    }
+    if (!serversObj || typeof serversObj !== "object") continue;
+
+    for (const [name, cfg] of Object.entries(serversObj)) {
+      // First-write-wins: project > local > user
+      if (merged.has(name)) continue;
+      const config = cfg && typeof cfg === "object" ? (cfg as Record<string, unknown>) : {};
+      merged.set(name, {
+        name,
+        status: "configured",
+        scope,
+        // Cast: we surface raw config fields (type/url/command/args) to feed
+        // the existing transport display. The SDK's McpServerStatusConfig
+        // is a union of variants; a structural cast is the smallest fit.
+        config: config as ExtendedMcpServerStatus["config"],
+      });
+    }
+  }
+
+  return Array.from(merged.values());
+}
 
 /** Subset of the canUseTool options parameter we forward to the dashboard */
 export interface CanUseToolOptions {
@@ -620,19 +697,36 @@ export class SessionManager {
 
   /**
    * NEW-4 — Authoritative MCP server connection status via
-   * `query.mcpServerStatus()` (SDK `sdk.d.ts:2146`). Returns null when the
-   * session has no activeQuery (cold session) or the SDK call throws —
-   * callers render the empty-state in both cases.
+   * `query.mcpServerStatus()` (SDK `sdk.d.ts:2146`).
+   *
+   * Bug F — when the session has no live `activeQuery` (cold session
+   * launched from CLI), fall back to reading MCP server *configuration*
+   * from disk via `readMcpServersFromDisk(cwd)`. Each disk entry is
+   * surfaced with `status: "configured"` so the dashboard renders the
+   * configured server list (with a banner noting the absence of live
+   * status). Returns null only when:
+   *   - session is unknown, OR
+   *   - cold session has no discoverable `cwd`, OR
+   *   - the live SDK call throws.
+   * Returns `[]` when live or disk lookup succeeds but finds nothing.
    */
-  async getMcpServerStatus(sessionId: string): Promise<McpServerStatus[] | null> {
+  async getMcpServerStatus(sessionId: string): Promise<ExtendedMcpServerStatus[] | null> {
     const session = this.activeSessions.get(sessionId);
-    if (!session?.activeQuery) return null;
-    try {
-      return await session.activeQuery.mcpServerStatus();
-    } catch (err) {
-      sessionLog.warn({ sessionId, err: String(err) }, "mcpServerStatus failed");
-      return null;
+    if (session?.activeQuery) {
+      try {
+        return await session.activeQuery.mcpServerStatus();
+      } catch (err) {
+        sessionLog.warn({ sessionId, err: String(err) }, "mcpServerStatus failed");
+        return null;
+      }
     }
+
+    // Bug F — cold session fallback: read configuration from disk.
+    // Both unknown session AND known session without a recorded cwd are
+    // unrecoverable for disk fallback — render the existing empty state.
+    const info = discoverSessions().find((s) => s.id === sessionId);
+    if (!info?.cwd) return null;
+    return readMcpServersFromDisk(info.cwd);
   }
 
   /**

@@ -6,7 +6,7 @@ import { LayoutContext } from "../../contexts/LayoutContext";
 import { normalizeContent } from "../../lib/normalizeContent";
 import { buildSearchIndex, updateSearchIndex, filterTurnsByQuery } from "../../lib/searchIndex";
 import { getEventsForTurn } from "../../lib/turnSnapshot";
-import { deriveTasksByTurn } from "../../lib/sessionTasks";
+import { deriveTasksTouchedInTurn } from "../../lib/sessionTasks";
 import { PermissionBlock } from "./PermissionBlock";
 import { cyclePermissionMode } from "./PermissionModeBadge";
 import type { PermissionMode } from "./permissionModeTypes";
@@ -586,11 +586,12 @@ export function ConversationView({
     });
   }, [turns, events]);
 
-  // Per-turn task derivation — shared with BottomPanel's Tasks tab via
-  // `deriveTasksByTurn` in lib/sessionTasks. Phase 1 unified TaskCreate/TaskUpdate
-  // handling so TaskGrid now reflects in-turn status flips inline.
+  // Per-turn task DELTA — for each turn, only the tasks Created or Updated
+  // in that specific turn (Bug D). TaskGrid in TurnCard shows just the slice
+  // of work that turn did, not the cumulative session-wide list. Same source
+  // helper backs BottomPanel's Tasks tab so the two surfaces stay consistent.
   const tasksByTurn = useMemo(
-    () => deriveTasksByTurn(events, turns),
+    () => deriveTasksTouchedInTurn(events, turns),
     [events, turns],
   );
 
@@ -871,12 +872,13 @@ export function ConversationView({
         agentCompletions={agentCompletions}
         sessionIsRunning={
           // Prefer authoritative SDK session_state_changed signal over mtime heuristic.
-          // Fall back to isActive (12-hour mtime), NOT isRunning (2-minute mtime).
-          // isRunning answers "is the session actively streaming?" (sidebar green dot).
-          // isActive answers "is this session still alive?" (TurnCard indeterminate guard).
+          // Fall back to isRunning (daemon-status-aware) — true only when the daemon
+          // reports busy or the SDK manager reports streaming. Sessions that ended
+          // without `end_turn` will correctly fall through to `indeterminate` instead
+          // of pulsing "Generating..." for 12 hours.
           streamingState.sessionState != null
             ? streamingState.sessionState === "running"
-            : metrics?.session?.isActive
+            : metrics?.session?.isRunning
         }
       />
 

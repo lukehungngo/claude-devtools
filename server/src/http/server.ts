@@ -15,12 +15,23 @@ import { CollectorHub } from "../collector/hub.js";
 import { loadOrCreate } from "../collector/token.js";
 import { startDockerInjector } from "../collector/docker-injector.js";
 
+// Resolve module directory in both runtimes:
+// - native ESM (tsx dev): __filename is undefined; use fileURLToPath(import.meta.url).
+// - bundled CJS (esbuild dist/cli.cjs): __filename is defined as the bundle's
+//   path; previously this branch fell through to process.cwd() which broke
+//   static-serve when users launched the CLI from any dir other than dist/.
 let __dirname: string;
-try {
-  __dirname = dirname(fileURLToPath(import.meta.url));
-} catch {
-  // Fallback for CommonJS build
-  __dirname = process.cwd();
+// `typeof __filename` is a TS-safe check that returns "undefined" under ESM
+// (where __filename is not a declared identifier) and "string" under the
+// esbuild CJS bundle (where __filename is the bundle's runtime path).
+if (typeof __filename === "string") {
+  __dirname = dirname(__filename);
+} else {
+  try {
+    __dirname = dirname(fileURLToPath(import.meta.url));
+  } catch {
+    __dirname = process.cwd();
+  }
 }
 
 export interface ServerState {

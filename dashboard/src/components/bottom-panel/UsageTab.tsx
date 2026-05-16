@@ -21,6 +21,18 @@ interface UsageTabProps {
    * falls back to the JSONL `/api/usage/breakdown` aggregator.
    */
   sessionId?: string;
+  /**
+   * Bug H — when set, render ONLY the JSONL fallback path and scope the
+   * `/api/usage/breakdown` request to this turn's timestamp range. The SDK
+   * live `/context-usage` path is skipped entirely (whole-session by design
+   * — cannot give "context as of turn N") and the SDK-rich sections (MCP /
+   * agents / skills / slash-commands / message breakdown) are hidden.
+   */
+  effectiveScopeTurn?: number;
+  /** Bug H — ISO-8601 lower bound (inclusive) for the turn's event window. */
+  scopeFromTs?: string;
+  /** Bug H — ISO-8601 upper bound (exclusive) for the turn's event window. */
+  scopeToTs?: string;
 }
 
 /**
@@ -33,17 +45,45 @@ interface UsageTabProps {
  *   LayoutContext for ContextWarningBanner).
  * - Historical / cold sessions: falls back to per-model + cache-hit ratio
  *   from `/api/usage/breakdown`.
+ * - Turn-scoped (Bug H): when `effectiveScopeTurn` is provided, the SDK
+ *   live path is bypassed entirely (the SDK has no concept of "context as
+ *   of turn N") and the fallback aggregator is scoped to the turn's
+ *   `[scopeFromTs, scopeToTs)` window. Header reads "Turn N usage" and the
+ *   SDK-rich sections are hidden.
  */
-export function UsageTab({ sessionId }: UsageTabProps = {}): JSX.Element {
+export function UsageTab({
+  sessionId,
+  effectiveScopeTurn,
+  scopeFromTs,
+  scopeToTs,
+}: UsageTabProps = {}): JSX.Element {
   const layoutCtx = useContext(LayoutContext);
   const setAutoCompactThreshold = layoutCtx?.setAutoCompactThreshold;
 
+  // Bug H — turn-scoped mode. Skip the SDK live path entirely (it's whole-
+  // session by design) and render only the per-turn fallback view.
+  const isTurnScoped =
+    effectiveScopeTurn !== undefined &&
+    typeof scopeFromTs === "string" &&
+    typeof scopeToTs === "string";
+
   const [liveState, setLiveState] = useState<LiveLoadState>(
-    sessionId ? { kind: "loading" } : { kind: "fallback" },
+    isTurnScoped
+      ? { kind: "fallback" }
+      : sessionId
+        ? { kind: "loading" }
+        : { kind: "fallback" },
   );
 
-  // Fetch live SDK context-usage when a sessionId is supplied.
+  // Fetch live SDK context-usage when a sessionId is supplied and we are NOT
+  // turn-scoped. Bug H — the SDK only knows "now," so for turn-scoped views
+  // we skip this fetch entirely (avoids both wasted I/O and the brief flash
+  // of SDK content before the fallback takes over).
   useEffect(() => {
+    if (isTurnScoped) {
+      setLiveState({ kind: "fallback" });
+      return;
+    }
     if (!sessionId) {
       setLiveState({ kind: "fallback" });
       return;
@@ -75,7 +115,7 @@ export function UsageTab({ sessionId }: UsageTabProps = {}): JSX.Element {
       }
     })();
     return () => { cancelled = true; };
-  }, [sessionId, setAutoCompactThreshold]);
+  }, [sessionId, setAutoCompactThreshold, isTurnScoped]);
 
   if (liveState.kind === "loading") {
     return (
@@ -95,17 +135,51 @@ export function UsageTab({ sessionId }: UsageTabProps = {}): JSX.Element {
     return <LiveBreakdown data={liveState.data} />;
   }
   // fallback → historical /api/usage/breakdown view (legacy behavior).
-  return <FallbackBreakdown />;
+  // Pass sessionId so the server scopes aggregation to this session — without
+  // it the endpoint returns account-wide totals (every project on disk),
+  // which surfaces as wildly inflated cost in the per-session Usage tab.
+  // When turn-scoped, also pass the [fromTs, toTs) window so the server
+  // aggregates only that turn's events.
+  return (
+    <FallbackBreakdown
+      sessionId={sessionId}
+      turnNumber={isTurnScoped ? effectiveScopeTurn : undefined}
+      fromTs={isTurnScoped ? scopeFromTs : undefined}
+      toTs={isTurnScoped ? scopeToTs : undefined}
+    />
+  );
 }
 
-function FallbackBreakdown(): JSX.Element {
+interface FallbackBreakdownProps {
+  sessionId?: string;
+  /** Bug H — when set, header reads "Turn N usage" instead of "Per-model usage". */
+  turnNumber?: number;
+  /** Bug H — half-open [fromTs, toTs) window forwarded to the server. */
+  fromTs?: string;
+  toTs?: string;
+}
+
+function FallbackBreakdown({
+  sessionId,
+  turnNumber,
+  fromTs,
+  toTs,
+}: FallbackBreakdownProps = {}): JSX.Element {
   const [state, setState] = useState<FallbackLoadState>({ kind: "loading" });
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/usage/breakdown");
+        const params = new URLSearchParams();
+        if (sessionId) params.set("sessionId", sessionId);
+        if (fromTs) params.set("fromTs", fromTs);
+        if (toTs) params.set("toTs", toTs);
+        const qs = params.toString();
+        const url = qs
+          ? `/api/usage/breakdown?${qs}`
+          : "/api/usage/breakdown";
+        const res = await fetch(url);
         if (!res.ok) {
           if (!cancelled) {
             setState({
@@ -128,7 +202,7 @@ function FallbackBreakdown(): JSX.Element {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [sessionId, fromTs, toTs]);
 
   if (state.kind === "loading") {
     return (
@@ -154,13 +228,17 @@ function FallbackBreakdown(): JSX.Element {
     );
   }
 
+  // Bug H — header label switches between whole-session and per-turn mode.
+  const headerLabel =
+    turnNumber !== undefined ? `Turn ${turnNumber} usage` : "Per-model usage";
+
   return (
     <div className="flex flex-col h-full">
       <div
         className="flex items-center justify-between px-3 py-2 t-mono-xs"
         style={{ color: "var(--t3)", borderBottom: "1px solid var(--bd)" }}
       >
-        <span>Per-model usage</span>
+        <span>{headerLabel}</span>
         <span>Total cost: {formatCost(totalCost)}</span>
       </div>
       <div className="overflow-y-auto flex-1">

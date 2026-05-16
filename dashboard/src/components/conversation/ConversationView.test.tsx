@@ -347,7 +347,7 @@ describe("ConversationView TaskGrid derived from events", () => {
     });
   });
 
-  it("accumulates tasks across multiple TaskCreate events", () => {
+  it("shows per-turn DELTA — latest turn lists only tasks it Created (Bug D)", () => {
     const events: SessionEvent[] = [
       makeUserEvent("Prompt", 0),
       makeAssistantWithToolUse(1, "TaskCreate", { subject: "Old task" }),
@@ -361,9 +361,12 @@ describe("ConversationView TaskGrid derived from events", () => {
       <ConversationView events={events} turns={turns} metrics={null} />
     );
 
-    // Cumulative across turns: 1 + 2 = 3 tasks shown in latest task-bearing turn
-    const expandButton = screen.getByRole("button", { name: /3 tasks/i });
+    // Per-turn delta: T3 created 2 tasks ("New task A" + "New task B"). "Old task"
+    // belongs to T1's delta and must NOT bleed into T3's TaskGrid.
+    const expandButton = screen.getByRole("button", { name: /2 tasks/i });
     expect(expandButton).toBeTruthy();
+    // The earlier turn still renders its own single-task delta.
+    expect(screen.getByRole("button", { name: /1 tasks/i })).toBeTruthy();
   });
 
   it("maps unknown TaskUpdate statuses to pending", () => {
@@ -578,8 +581,16 @@ describe("ConversationView onDecideSession", () => {
   });
 });
 
-describe("ConversationView sessionIsRunning uses isActive not isRunning", () => {
-  it("does NOT show indeterminate when isActive=true but isRunning=false (session running long tool)", () => {
+describe("ConversationView sessionIsRunning fallback to isRunning", () => {
+  it("renders last turn as indeterminate when session is active-recent but not running", () => {
+    // Reproduces bug filed 2026-05-16: last turn renders "Generating..." forever on
+    // sessions where mtime is within the 12-hour active window (isActive=true) but
+    // the daemon is idle and the file has not been written in >2 minutes
+    // (isRunning=false). The last assistant message lacks `end_turn`, so
+    // `isAgentCompleted("main", …)` returns false. The fallback in
+    // ConversationView must read `isRunning` (daemon-status-aware), not `isActive`
+    // (12-hour mtime), so `getAgentStatus` returns `"indeterminate"` instead of
+    // `"running"`.
     const events: SessionEvent[] = [
       makeUserEvent("Run a long command", 0),
       {
@@ -617,9 +628,14 @@ describe("ConversationView sessionIsRunning uses isActive not isRunning", () => 
       <ConversationView events={events} turns={turns} metrics={metrics} />
     );
 
-    const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
-    expect(indicator?.getAttribute("data-status")).not.toBe("indeterminate");
-    expect(container.textContent).not.toContain("Session ended without completion");
+    // The last turn's completion indicator must reflect indeterminate state
+    // (grey dot, no timer) — NOT a pulsing "Generating..." amber dot.
+    const indicators = container.querySelectorAll('[data-testid="turn-completion-indicator"]');
+    expect(indicators.length).toBeGreaterThan(0);
+    const lastIndicator = indicators[indicators.length - 1];
+    expect(lastIndicator.getAttribute("data-status")).toBe("indeterminate");
+    expect(lastIndicator.textContent ?? "").toContain("Session ended without completion");
+    expect(lastIndicator.textContent ?? "").not.toContain("Generating...");
   });
 });
 

@@ -197,7 +197,7 @@ function SessionTasksTable({ tasks }: SessionTasksTableProps) {
           borderBottom: "1px solid var(--bd)",
         }}
       >
-        {completedCount}/{tasks.length} completed
+        {completedCount}/{tasks.length} completed in this turn
       </div>
       <div className="overflow-y-auto h-full" role="list">
         <table

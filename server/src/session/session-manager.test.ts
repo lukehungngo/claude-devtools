@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -851,6 +851,8 @@ describe("SessionManager.getMcpServerStatus", () => {
   beforeEach(() => {
     manager = new SessionManager(vi.fn());
     mockQuery.mockReset();
+    mockDiscoverSessions.mockReset();
+    mockDiscoverSessions.mockReturnValue([]);
   });
 
   afterEach(() => {
@@ -901,10 +903,21 @@ describe("SessionManager.getMcpServerStatus", () => {
     await iterPromise;
   });
 
-  it("returns null when session has no activeQuery (not live)", async () => {
-    const sessionId = await manager.startSession("/tmp");
-    const result = await manager.getMcpServerStatus(sessionId);
-    expect(result).toBeNull();
+  it("returns empty list when session has no activeQuery and no on-disk MCP config (Bug F fallback)", async () => {
+    // Bug F: a cold session (no activeQuery) used to return null, blanking
+    // the dashboard MCP tab. Now we fall back to disk; if disk has nothing
+    // we return [] (still empty, but a non-null signal that we tried).
+    const tmpEmpty = mkdtempSync(join(tmpdir(), "mcp-empty-"));
+    try {
+      const sessionId = await manager.startSession("/tmp");
+      mockDiscoverSessions.mockReturnValue([
+        { id: sessionId, path: join(tmpEmpty, "session.jsonl"), cwd: tmpEmpty },
+      ]);
+      const result = await manager.getMcpServerStatus(sessionId);
+      expect(result).toEqual([]);
+    } finally {
+      rmSync(tmpEmpty, { recursive: true, force: true });
+    }
   });
 
   it("returns null when session is unknown", async () => {
@@ -937,6 +950,155 @@ describe("SessionManager.getMcpServerStatus", () => {
 
     resolveYield!();
     await iterPromise;
+  });
+});
+
+// Bug F — disk fallback for cold (CLI-launched) sessions
+describe("SessionManager.getMcpServerStatus — disk fallback (Bug F)", () => {
+  let manager: SessionManager;
+  let tmpDir: string;
+
+  beforeEach(() => {
+    manager = new SessionManager(vi.fn());
+    mockQuery.mockReset();
+    mockDiscoverSessions.mockReset();
+    tmpDir = mkdtempSync(join(tmpdir(), "mcp-disk-fallback-"));
+  });
+
+  afterEach(() => {
+    manager.dispose();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("reads servers from <cwd>/.mcp.json when session has no activeQuery", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([
+      { id: sessionId, path: join(tmpDir, "session.jsonl"), cwd: tmpDir },
+    ]);
+    writeFileSync(
+      join(tmpDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          "claude-devtools": {
+            type: "http",
+            url: "http://localhost:5557/mcp",
+          },
+          "exa": {
+            command: "exa-mcp",
+            args: ["--api-key", "xxx"],
+          },
+        },
+      }),
+      "utf-8"
+    );
+
+    const result = await manager.getMcpServerStatus(sessionId);
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(2);
+    const byName = Object.fromEntries((result ?? []).map((s) => [s.name, s]));
+    expect(byName["claude-devtools"].status).toBe("configured");
+    expect(byName["claude-devtools"].scope).toBe("project");
+    expect(byName["claude-devtools"].config?.type).toBe("http");
+    expect((byName["claude-devtools"].config as { url?: string }).url).toBe("http://localhost:5557/mcp");
+    expect(byName["exa"].status).toBe("configured");
+    expect(byName["exa"].scope).toBe("project");
+    expect((byName["exa"].config as { command?: string }).command).toBe("exa-mcp");
+  });
+
+  it("merges servers from <cwd>/.claude/settings.json with project precedence", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([
+      { id: sessionId, path: join(tmpDir, "session.jsonl"), cwd: tmpDir },
+    ]);
+    // project-level .mcp.json defines "a"
+    writeFileSync(
+      join(tmpDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          a: { type: "http", url: "http://example.com/a" },
+        },
+      }),
+      "utf-8"
+    );
+    // project-local settings.json defines "b"
+    const claudeDir = join(tmpDir, ".claude");
+    mkdirSync(claudeDir, { recursive: true });
+    writeFileSync(
+      join(claudeDir, "settings.json"),
+      JSON.stringify({
+        mcpServers: {
+          b: { command: "b-cmd", args: [] },
+        },
+      }),
+      "utf-8"
+    );
+
+    const result = await manager.getMcpServerStatus(sessionId);
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(2);
+    const names = (result ?? []).map((s) => s.name).sort();
+    expect(names).toEqual(["a", "b"]);
+  });
+
+  it("project .mcp.json wins on name conflict with .claude/settings.local.json", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([
+      { id: sessionId, path: join(tmpDir, "session.jsonl"), cwd: tmpDir },
+    ]);
+    writeFileSync(
+      join(tmpDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          dup: { type: "http", url: "http://project.example.com" },
+        },
+      }),
+      "utf-8"
+    );
+    const claudeDir = join(tmpDir, ".claude");
+    mkdirSync(claudeDir, { recursive: true });
+    writeFileSync(
+      join(claudeDir, "settings.local.json"),
+      JSON.stringify({
+        mcpServers: {
+          dup: { command: "local-cmd" },
+        },
+      }),
+      "utf-8"
+    );
+
+    const result = await manager.getMcpServerStatus(sessionId);
+    expect(result).toHaveLength(1);
+    const dup = (result ?? [])[0];
+    expect(dup.name).toBe("dup");
+    expect(dup.scope).toBe("project");
+    expect((dup.config as { url?: string }).url).toBe("http://project.example.com");
+  });
+
+  it("skips malformed .mcp.json without crashing", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([
+      { id: sessionId, path: join(tmpDir, "session.jsonl"), cwd: tmpDir },
+    ]);
+    writeFileSync(join(tmpDir, ".mcp.json"), "{not valid json", "utf-8");
+
+    const result = await manager.getMcpServerStatus(sessionId);
+    expect(result).toEqual([]);
+  });
+
+  it("returns null when session has no cwd in discovery", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([
+      { id: sessionId, path: join(tmpDir, "session.jsonl") }, // no cwd
+    ]);
+    const result = await manager.getMcpServerStatus(sessionId);
+    expect(result).toBeNull();
+  });
+
+  it("returns null when session not found in discovery and no activeQuery", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    mockDiscoverSessions.mockReturnValue([]); // not discovered
+    const result = await manager.getMcpServerStatus(sessionId);
+    expect(result).toBeNull();
   });
 });
 

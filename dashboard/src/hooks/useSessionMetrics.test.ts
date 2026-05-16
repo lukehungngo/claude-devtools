@@ -80,6 +80,63 @@ describe("useSessionMetrics", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("does not overwrite new session state when previous session's fetch resolves late", async () => {
+    const sessionAResponse = {
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({
+        metrics: { session: { id: "sessA", path: "/a", cwd: "/a" }, dag: { nodes: [], edges: [] } },
+        events: [{ uuid: "a1" }],
+        subagentMeta: {},
+      }),
+    } as unknown as Response;
+
+    const sessionBResponse = {
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({
+        metrics: { session: { id: "sessB", path: "/b", cwd: "/b" }, dag: { nodes: [], edges: [] } },
+        events: [{ uuid: "b1" }],
+        subagentMeta: {},
+      }),
+    } as unknown as Response;
+
+    let callCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        callCount += 1;
+        if (callCount === 1) {
+          // FIRST call (sessA) resolves AFTER a delay — simulates slow-in-flight fetch
+          return new Promise<Response>((resolve) => {
+            setTimeout(() => resolve(sessionAResponse), 50);
+          });
+        }
+        // SECOND call (sessB) resolves immediately
+        return Promise.resolve(sessionBResponse);
+      })
+    );
+
+    const { result, rerender } = renderHook(
+      ({ proj, sess }: { proj: string; sess: string }) =>
+        useSessionMetrics(proj, sess),
+      { initialProps: { proj: "projA", sess: "sessA" } }
+    );
+
+    // Immediately switch to session B before A's fetch resolves
+    rerender({ proj: "projA", sess: "sessB" });
+
+    // Wait long enough for both fetches + microtasks
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+
+    // Result must reflect session B, NOT the late-arriving session A
+    expect(result.current.events).toHaveLength(1);
+    expect(result.current.events[0].uuid).toBe("b1");
+    expect(result.current.metrics?.session.id).toBe("sessB");
+  });
+
   it("treats non-2xx response as error even when body contains metrics-shaped JSON", async () => {
     // A 403/500 that returns JSON shaped like valid data must NOT be accepted
     const poisonedBody = {

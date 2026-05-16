@@ -9,7 +9,10 @@ import { TasksTab } from "./TasksTab";
 import { HooksTab } from "./HooksTab";
 import { UsageTab } from "./UsageTab";
 import { MCPStatusTab } from "./MCPStatusTab";
-import { deriveSessionTasks, deriveTasksByTurn, getTasksAtTurn } from "../../lib/sessionTasks";
+import {
+  deriveSessionTasks,
+  deriveTasksTouchedInTurn,
+} from "../../lib/sessionTasks";
 export type BottomTab =
   | "agent-graph"
   | "tool-call"
@@ -133,16 +136,38 @@ export function BottomPanel({
     }
   });
   const dragStartRef = useRef<{ y: number; height: number } | null>(null);
+  // Bug D — per-turn DELTA (only tasks Created/Updated in each turn). The
+  // ConversationView's inline TaskGrid uses the same helper so both surfaces
+  // stay consistent.
   const tasksByTurn = useMemo(
-    () => deriveTasksByTurn(events, turns),
+    () => deriveTasksTouchedInTurn(events, turns),
     [events, turns],
   );
+  // Default scope to the latest turn when the user hasn't explicitly clicked one.
+  // Keeps the Tasks tab aligned with whatever turn the conversation pane is
+  // anchored on. Without this, Tasks falls through to deriveSessionTasks
+  // (whole-session cumulative), which is out of sync with the conversation pane.
+  const lastTurnNumber =
+    turns.length > 0 ? turns[turns.length - 1].turnNumber : undefined;
+  const effectiveScopeTurn = viewingTurnNumber ?? lastTurnNumber;
+  // Bug H — when the bottom panel is anchored on a turn, surface that turn's
+  // timestamp window so the Usage tab can scope the per-model aggregate to
+  // it. Using timestamps (not indexes) keeps the server frame-independent —
+  // the dashboard merges live + REST events in a different order than the
+  // server's on-disk JSONL, so any index-based scope would desync.
+  const effectiveScopeTurnSnapshot = useMemo(() => {
+    if (effectiveScopeTurn === undefined) return null;
+    return turns.find((t) => t.turnNumber === effectiveScopeTurn) ?? null;
+  }, [turns, effectiveScopeTurn]);
+  // Bug D — when scoped to a turn, show ONLY the tasks touched in that turn
+  // (direct map lookup, not closest-prior). A turn with no task tools renders
+  // as empty under the "Scoped to T<N>" label — that's correct semantics.
   const sessionTasks = useMemo(
     () =>
-      viewingTurnNumber !== undefined
-        ? getTasksAtTurn(tasksByTurn, viewingTurnNumber)
+      effectiveScopeTurn !== undefined
+        ? (tasksByTurn.get(effectiveScopeTurn) ?? [])
         : deriveSessionTasks(events),
-    [tasksByTurn, viewingTurnNumber, events],
+    [tasksByTurn, effectiveScopeTurn, events],
   );
 
   // TASK-010: track previous hasSubagents to detect false->true transition
@@ -328,11 +353,11 @@ export function BottomPanel({
               )}
             </button>
           ))}
-          {viewingTurnNumber !== undefined && (
+          {effectiveScopeTurn !== undefined && (
             <div className="ml-auto flex items-center gap-[3px] t-caption pr-2">
               Scoped to{" "}
               <span className="font-mono text-[10px] font-semibold text-dt-accent bg-dt-accent-bg px-[5px] py-[1px] rounded-[3px]">
-                T{viewingTurnNumber}
+                T{effectiveScopeTurn}
               </span>
             </div>
           )}
@@ -360,15 +385,28 @@ export function BottomPanel({
             ) : activeTab === "hooks" ? (
               <HooksTab
                 events={events}
+                turns={turns}
                 activeTurnIndex={activeTurnIndex}
                 onHookHover={onHookHover}
                 highlightedHookId={highlightedHookId}
                 liveHooks={liveHooks}
               />
             ) : activeTab === "usage" ? (
-              <UsageTab sessionId={sessionId || undefined} />
+              <UsageTab
+                sessionId={sessionId || undefined}
+                effectiveScopeTurn={
+                  effectiveScopeTurnSnapshot ? effectiveScopeTurn : undefined
+                }
+                scopeFromTs={effectiveScopeTurnSnapshot?.startTime}
+                scopeToTs={effectiveScopeTurnSnapshot?.endTime}
+              />
             ) : activeTab === "mcp" ? (
-              <MCPStatusTab sessionId={sessionId || undefined} />
+              <MCPStatusTab
+                sessionId={sessionId || undefined}
+                events={events}
+                turns={turns}
+                activeTurnIndex={activeTurnIndex}
+              />
             ) : null}
           </div>
         )}
