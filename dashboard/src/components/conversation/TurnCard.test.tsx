@@ -97,13 +97,18 @@ describe("TurnCard — completion indicator", () => {
   //   - stop_reason "tool_use" (or anything other than end_turn) with no other
   //     terminal signal keeps main "running".
   //   - stop_reason "end_turn" marks main completed.
-  it("shows 'Generating...' for a running turn", () => {
+  it("shows 'Generating...' for a running turn when session is active", () => {
+    // Realistic streaming scenario: stop_reason="tool_use" with an active
+    // session → main agent is still running. Requires sessionIsRunning=true
+    // per the three-state honesty semantics (running / completed / indeterminate).
     const evts = [makeAssistantEvent("Working on it...", "tool_use")] as SessionEvent[];
     const { turn, allEvents } = makeTurnAndEvents(
       { durationMs: null, endTime: "" },
       evts,
     );
-    const { container } = render(<TurnCard turn={turn} allEvents={allEvents} />);
+    const { container } = render(
+      <TurnCard turn={turn} allEvents={allEvents} sessionIsRunning={true} />,
+    );
 
     const indicator = container.querySelector('[data-testid="turn-completion-indicator"]');
     expect(indicator).not.toBeNull();
