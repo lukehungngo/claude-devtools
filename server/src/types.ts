@@ -439,6 +439,31 @@ export interface SessionInfo {
    * Captured from the first conversation event in the session JSONL.
    */
   entrypoint?: string;
+  /**
+   * Live daemon process id sourced from `~/.claude/sessions/<pid>.json`.
+   * Set when at least one daemon entry's `sessionId` matches this session.
+   * Undefined when no matching daemon entry exists.
+   */
+  pid?: number;
+  /**
+   * Authoritative daemon status sourced from `~/.claude/sessions/<pid>.json`:
+   * "idle" | "busy" | "background" (or any other string CC emits in future
+   * releases — kept open for forward compatibility). Undefined when no daemon
+   * entry is present for this session.
+   */
+  daemonStatus?: string;
+  /**
+   * Set when the session is connected via Remote Control / claude.ai bridge.
+   * Sourced from `bridgeSessionId` in `~/.claude/sessions/<pid>.json`.
+   */
+  bridgeSessionId?: string;
+  /**
+   * False when the daemon JSON file exists but the OS process is no longer
+   * running (detected via `process.kill(pid, 0)` → ESRCH). True when the
+   * process is alive. Undefined when no daemon entry is present at all —
+   * callers must distinguish "no daemon known" from "daemon known but dead".
+   */
+  daemonAlive?: boolean;
 }
 
 export interface AgentNode {

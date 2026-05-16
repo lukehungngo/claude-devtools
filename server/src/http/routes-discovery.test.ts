@@ -297,6 +297,132 @@ describe("Discovery endpoints", () => {
     });
   });
 
+  describe("GET /repos — isRunning resolution priority", () => {
+    // Priority (highest first):
+    //   1. SessionManager has it → "streaming"|"waiting-permission" ⇒ running
+    //   2. Daemon entry exists AND daemonAlive ⇒ daemonStatus === "busy"
+    //   3. Mtime within RUNNING_THRESHOLD_MS (2 min) — fallback
+    // Stale daemon (daemonAlive === false) falls through to mtime.
+
+    function makeRepo(
+      session: {
+        id: string;
+        lastModified: string;
+        daemonStatus?: string;
+        daemonAlive?: boolean;
+      },
+    ): { cwd: string; repoName: string; sessions: unknown[]; lastActive: string; hasActiveSessions: boolean } {
+      return {
+        cwd: "/tmp/x",
+        repoName: "x",
+        sessions: [
+          {
+            id: session.id,
+            projectHash: "ph",
+            path: "/tmp/x/x.jsonl",
+            startTime: "2026-04-17T10:00:00Z",
+            lastModified: session.lastModified,
+            eventCount: 1,
+            subagentCount: 0,
+            daemonStatus: session.daemonStatus,
+            daemonAlive: session.daemonAlive,
+            isRunning: false,
+          },
+        ],
+        lastActive: session.lastModified,
+        hasActiveSessions: false,
+      };
+    }
+
+    it("SessionManager wins: streaming ⇒ isRunning=true even when daemon says idle", async () => {
+      const { discoverRepoGroups } = await import("../parser/session-discovery.js");
+      const oldMtime = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1h ago — past mtime threshold
+      const repo = makeRepo({
+        id: "sess-mgr-wins",
+        lastModified: oldMtime,
+        daemonStatus: "idle",
+        daemonAlive: true,
+      });
+      vi.mocked(discoverRepoGroups).mockReturnValue([repo as unknown as import("../types.js").RepoGroup]);
+
+      // Add session to manager with streaming status
+      await sessionManager.startSession("/tmp");
+      // The manager assigns its own ID — override to match our repo session id
+      const managed = sessionManager.getActiveSessions()[0];
+      managed.sessionId = "sess-mgr-wins";
+      managed.status = "streaming";
+
+      const res = await request(app).get("/repos");
+      expect(res.status).toBe(200);
+      expect(res.body.repos[0].sessions[0].isRunning).toBe(true);
+    });
+
+    it("daemon wins over mtime: busy + alive ⇒ isRunning=true even with stale mtime", async () => {
+      const { discoverRepoGroups } = await import("../parser/session-discovery.js");
+      const staleMtime = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const repo = makeRepo({
+        id: "sess-daemon-busy",
+        lastModified: staleMtime,
+        daemonStatus: "busy",
+        daemonAlive: true,
+      });
+      vi.mocked(discoverRepoGroups).mockReturnValue([repo as unknown as import("../types.js").RepoGroup]);
+
+      const res = await request(app).get("/repos");
+      expect(res.status).toBe(200);
+      expect(res.body.repos[0].sessions[0].isRunning).toBe(true);
+    });
+
+    it("daemon authoritative idle + alive ⇒ isRunning=false even when mtime fresh", async () => {
+      const { discoverRepoGroups } = await import("../parser/session-discovery.js");
+      const freshMtime = new Date(Date.now() - 30 * 1000).toISOString(); // 30s ago — would be running by mtime
+      const repo = makeRepo({
+        id: "sess-daemon-idle",
+        lastModified: freshMtime,
+        daemonStatus: "idle",
+        daemonAlive: true,
+      });
+      vi.mocked(discoverRepoGroups).mockReturnValue([repo as unknown as import("../types.js").RepoGroup]);
+
+      const res = await request(app).get("/repos");
+      expect(res.status).toBe(200);
+      expect(res.body.repos[0].sessions[0].isRunning).toBe(false);
+    });
+
+    it("stale daemon (daemonAlive=false) falls through to mtime — fresh mtime ⇒ running", async () => {
+      const { discoverRepoGroups } = await import("../parser/session-discovery.js");
+      const freshMtime = new Date(Date.now() - 30 * 1000).toISOString();
+      const repo = makeRepo({
+        id: "sess-daemon-stale",
+        lastModified: freshMtime,
+        // Daemon entry exists but its process is gone — must NOT be authoritative.
+        daemonStatus: "busy",
+        daemonAlive: false,
+      });
+      vi.mocked(discoverRepoGroups).mockReturnValue([repo as unknown as import("../types.js").RepoGroup]);
+
+      const res = await request(app).get("/repos");
+      expect(res.status).toBe(200);
+      expect(res.body.repos[0].sessions[0].isRunning).toBe(true); // mtime path
+    });
+
+    it("no daemon entry + stale mtime ⇒ isRunning=false (mtime fallback)", async () => {
+      const { discoverRepoGroups } = await import("../parser/session-discovery.js");
+      const staleMtime = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const repo = makeRepo({
+        id: "sess-no-daemon",
+        lastModified: staleMtime,
+        daemonStatus: undefined,
+        daemonAlive: undefined,
+      });
+      vi.mocked(discoverRepoGroups).mockReturnValue([repo as unknown as import("../types.js").RepoGroup]);
+
+      const res = await request(app).get("/repos");
+      expect(res.status).toBe(200);
+      expect(res.body.repos[0].sessions[0].isRunning).toBe(false);
+    });
+  });
+
   describe("GET /sessions/:sessionId/agents", () => {
     it("returns 404 when session not found", async () => {
       const res = await request(app).get("/sessions/nonexistent/agents");

@@ -8,8 +8,10 @@ import {
   invalidateDiscoveryCache,
   groupSessionsIntoRepos,
   loadFullSession,
+  enrichSessionsWithDaemon,
 } from "./session-discovery.js";
 import type { SessionInfo } from "../types.js";
+import type { DaemonSession } from "./daemon-session-discovery.js";
 
 describe("discoverSessions caching", () => {
   beforeEach(() => {
@@ -413,5 +415,166 @@ describe("loadFullSession cross-project", () => {
     expect(result.subagentEvents.size).toBe(1);
     expect(result.subagentEvents.has("aaa")).toBe(true);
     expect(result.subagentMeta.get("aaa")?.agentType).toBe("explore");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enrichSessionsWithDaemon — pure overlay helper (TASK-R2B2 / NEW-1).
+// Tests verify the merge contract without touching the filesystem or the
+// module-level sessionCache singleton — keeps the suite fast and
+// deterministic.
+// ---------------------------------------------------------------------------
+
+describe("enrichSessionsWithDaemon — pure overlay", () => {
+  function makeDaemon(overrides: Partial<DaemonSession> & { pid: number; sessionId: string }): DaemonSession {
+    return {
+      cwd: "/tmp",
+      startedAt: 0,
+      version: "2.1.143",
+      alive: true,
+      ...overrides,
+    };
+  }
+
+  it("merges pid, daemonStatus, bridgeSessionId, daemonAlive when a daemon entry matches", () => {
+    const sessions: SessionInfo[] = [
+      {
+        id: "sess-1",
+        projectHash: "ph",
+        path: "/tmp/sess-1.jsonl",
+        startTime: "2026-04-17T10:00:00Z",
+        lastModified: "2026-04-17T10:00:00Z",
+        eventCount: 1,
+        subagentCount: 0,
+      },
+    ];
+
+    const daemon = makeDaemon({
+      pid: 42,
+      sessionId: "sess-1",
+      status: "busy",
+      bridgeSessionId: "bridge-abc",
+      alive: true,
+    });
+
+    const lookup = (sid: string): DaemonSession[] =>
+      sid === "sess-1" ? [daemon] : [];
+
+    const enriched = enrichSessionsWithDaemon(sessions, lookup);
+    expect(enriched).toHaveLength(1);
+    expect(enriched[0].pid).toBe(42);
+    expect(enriched[0].daemonStatus).toBe("busy");
+    expect(enriched[0].bridgeSessionId).toBe("bridge-abc");
+    expect(enriched[0].daemonAlive).toBe(true);
+  });
+
+  it("leaves daemon fields undefined when no daemon entry matches", () => {
+    const sessions: SessionInfo[] = [
+      {
+        id: "sess-orphan",
+        projectHash: "ph",
+        path: "/tmp/sess-orphan.jsonl",
+        startTime: "2026-04-17T10:00:00Z",
+        lastModified: "2026-04-17T10:00:00Z",
+        eventCount: 1,
+        subagentCount: 0,
+      },
+    ];
+
+    const enriched = enrichSessionsWithDaemon(sessions, () => []);
+    expect(enriched[0].pid).toBeUndefined();
+    expect(enriched[0].daemonStatus).toBeUndefined();
+    expect(enriched[0].bridgeSessionId).toBeUndefined();
+    expect(enriched[0].daemonAlive).toBeUndefined();
+  });
+
+  it("prefers the alive daemon entry when multiple match", () => {
+    // If both a dead and an alive daemon entry share the sessionId
+    // (resumed across processes), we MUST overlay from the alive one.
+    const sessions: SessionInfo[] = [
+      {
+        id: "sess-resumed",
+        projectHash: "ph",
+        path: "/tmp/sess-resumed.jsonl",
+        startTime: "2026-04-17T10:00:00Z",
+        lastModified: "2026-04-17T10:00:00Z",
+        eventCount: 1,
+        subagentCount: 0,
+      },
+    ];
+
+    const deadDaemon = makeDaemon({
+      pid: 100,
+      sessionId: "sess-resumed",
+      status: "idle",
+      alive: false,
+    });
+    const aliveDaemon = makeDaemon({
+      pid: 200,
+      sessionId: "sess-resumed",
+      status: "busy",
+      alive: true,
+    });
+
+    const enriched = enrichSessionsWithDaemon(sessions, () => [deadDaemon, aliveDaemon]);
+    expect(enriched[0].pid).toBe(200);
+    expect(enriched[0].daemonStatus).toBe("busy");
+    expect(enriched[0].daemonAlive).toBe(true);
+  });
+
+  it("falls back to the first entry when none are alive", () => {
+    // Surface the stale daemon's status so callers (route layer) can
+    // explicitly detect daemonAlive === false and fall through to mtime.
+    const sessions: SessionInfo[] = [
+      {
+        id: "sess-stale",
+        projectHash: "ph",
+        path: "/tmp/sess-stale.jsonl",
+        startTime: "2026-04-17T10:00:00Z",
+        lastModified: "2026-04-17T10:00:00Z",
+        eventCount: 1,
+        subagentCount: 0,
+      },
+    ];
+
+    const stale1 = makeDaemon({
+      pid: 11,
+      sessionId: "sess-stale",
+      status: "idle",
+      alive: false,
+    });
+    const stale2 = makeDaemon({
+      pid: 12,
+      sessionId: "sess-stale",
+      status: "busy",
+      alive: false,
+    });
+
+    const enriched = enrichSessionsWithDaemon(sessions, () => [stale1, stale2]);
+    expect(enriched[0].pid).toBe(11);
+    expect(enriched[0].daemonStatus).toBe("idle");
+    expect(enriched[0].daemonAlive).toBe(false);
+  });
+
+  it("returns NEW SessionInfo objects (does not mutate the input array)", () => {
+    // Immutability invariant — coding-style.md requires non-mutation. The
+    // upstream sessionCache returns the same SessionInfo ref across calls;
+    // mutating those refs would leak daemon state into the cache.
+    const original: SessionInfo = {
+      id: "sess-imm",
+      projectHash: "ph",
+      path: "/tmp/sess-imm.jsonl",
+      startTime: "2026-04-17T10:00:00Z",
+      lastModified: "2026-04-17T10:00:00Z",
+      eventCount: 1,
+      subagentCount: 0,
+    };
+    const sessions = [original];
+    const daemon = makeDaemon({ pid: 7, sessionId: "sess-imm", status: "busy" });
+
+    const enriched = enrichSessionsWithDaemon(sessions, () => [daemon]);
+    expect(enriched[0]).not.toBe(original);
+    expect(original.pid).toBeUndefined();
+    expect(original.daemonStatus).toBeUndefined();
   });
 });

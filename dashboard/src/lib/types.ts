@@ -358,6 +358,27 @@ export interface SessionInfo {
    * - "claude-desktop" — Claude Desktop app
    */
   entrypoint?: string;
+  /**
+   * Live daemon process id from `~/.claude/sessions/<pid>.json`. Set only
+   * when a daemon entry matches this session by sessionId.
+   */
+  pid?: number;
+  /**
+   * Authoritative daemon status: "idle" | "busy" | "background" | other.
+   * Sourced from `~/.claude/sessions/<pid>.json`. Undefined when no daemon
+   * entry is present for this session.
+   */
+  daemonStatus?: string;
+  /**
+   * Set when the session is connected via Remote Control / claude.ai bridge.
+   */
+  bridgeSessionId?: string;
+  /**
+   * False when the daemon JSON exists but its process is no longer running
+   * (detected via `process.kill(pid, 0)` → ESRCH). Undefined when no daemon
+   * entry is present.
+   */
+  daemonAlive?: boolean;
 }
 
 export interface RepoGroup {

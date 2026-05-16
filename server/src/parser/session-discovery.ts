@@ -6,6 +6,10 @@ import { parseJsonlFile } from "./jsonl-reader.js";
 import { SessionCache } from "../cache/session-cache.js";
 import { parserLog } from "../logger.js";
 import { collectorBuffer } from "../collector/buffer.js";
+import {
+  findDaemonSessionsBySessionId,
+  type DaemonSession,
+} from "./daemon-session-discovery.js";
 
 /** Shared session cache instance — used by discoverSessions(). */
 export const sessionCache = new SessionCache();
@@ -25,6 +29,40 @@ function getClaudeProjectsDir(): string {
   return join(homedir(), ".claude", "projects");
 }
 
+/**
+ * Pure overlay helper — produces a NEW SessionInfo array with daemon
+ * pid/status/bridgeSessionId/daemonAlive merged in from
+ * `~/.claude/sessions/<pid>.json`. Never mutates the input array or its
+ * SessionInfo entries (invariant: `sessionCache` returns shared refs;
+ * mutating them would leak daemon state across cache reads).
+ *
+ * Selection rule when multiple daemon entries share a sessionId
+ * (e.g. session resumed across processes — `cli` then `sdk-cli`): prefer the
+ * `alive` entry. When none are alive, fall back to the first one so callers
+ * can surface `daemonAlive=false` and choose to fall through to mtime.
+ *
+ * Exported for test isolation — injecting a fake `lookup` keeps the suite
+ * fast and deterministic by avoiding both the real filesystem and the
+ * `daemon-session-discovery` module-level cache.
+ */
+export function enrichSessionsWithDaemon(
+  sessions: SessionInfo[],
+  lookup: (sessionId: string) => DaemonSession[],
+): SessionInfo[] {
+  return sessions.map((session) => {
+    const matches = lookup(session.id);
+    if (matches.length === 0) return session;
+    const chosen = matches.find((d) => d.alive) ?? matches[0];
+    return {
+      ...session,
+      pid: chosen.pid,
+      daemonStatus: chosen.status,
+      bridgeSessionId: chosen.bridgeSessionId,
+      daemonAlive: chosen.alive,
+    };
+  });
+}
+
 export function discoverSessions(): SessionInfo[] {
   if (discoveryCache && Date.now() - discoveryCache.timestamp < DISCOVERY_TTL_MS) {
     return discoveryCache.sessions;
@@ -33,7 +71,7 @@ export function discoverSessions(): SessionInfo[] {
   const projectsDir = getClaudeProjectsDir();
   if (!existsSync(projectsDir)) return [];
 
-  const sessions: SessionInfo[] = [];
+  const rawSessions: SessionInfo[] = [];
 
   for (const projectHash of readdirSync(projectsDir)) {
     const projectDir = join(projectsDir, projectHash);
@@ -45,13 +83,13 @@ export function discoverSessions(): SessionInfo[] {
       const filePath = join(projectDir, file);
       const info = sessionCache.getSessionInfo(filePath, projectHash);
       if (info) {
-        sessions.push(info);
+        rawSessions.push(info);
       }
     }
   }
 
   // Sort by most recent first
-  sessions.sort(
+  rawSessions.sort(
     (a, b) =>
       new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
   );
@@ -59,10 +97,20 @@ export function discoverSessions(): SessionInfo[] {
   // Merge collector-sourced sessions (remote/docker)
   const collectorSessions = collectorBuffer.getSessions();
   for (const cs of collectorSessions) {
-    if (!sessions.find((s) => s.id === cs.id)) {
-      sessions.push(cs);
+    if (!rawSessions.find((s) => s.id === cs.id)) {
+      rawSessions.push(cs);
     }
   }
+
+  // Overlay daemon state from ~/.claude/sessions/<pid>.json without
+  // mutating the cached SessionInfo refs. Accepted trade-off: daemonAlive
+  // can be up to DISCOVERY_TTL_MS (2s) stale because the enriched array
+  // itself is cached — process death within that window won't flip the
+  // flag until the next cache miss.
+  const sessions = enrichSessionsWithDaemon(
+    rawSessions,
+    findDaemonSessionsBySessionId,
+  );
 
   discoveryCache = { sessions, timestamp: Date.now() };
   return sessions;

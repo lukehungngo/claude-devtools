@@ -86,11 +86,18 @@ export function createDiscoveryRoutes({ state }: RouteContext): Router {
           for (const session of repo.sessions) {
             const mgrStatus = activeStatuses.get(session.id);
             if (mgrStatus) {
-              // Session is tracked by SessionManager — use its precise status
+              // Tier 1: In-memory SessionManager — most precise signal.
               session.isRunning = mgrStatus === "streaming" || mgrStatus === "waiting-permission";
+            } else if (session.daemonAlive && session.daemonStatus) {
+              // Tier 2: Daemon-authoritative status from
+              // ~/.claude/sessions/<pid>.json. Only trust this when the OS
+              // process is still alive — a stale daemon entry (alive=false)
+              // must NOT claim "running" or "idle" and must fall through to
+              // the mtime heuristic instead.
+              session.isRunning = session.daemonStatus === "busy";
             } else {
-              // Not tracked by SessionManager — check if a CLI session is actively writing.
-              // Use RUNNING_THRESHOLD_MS (2 min) to match session-cache heuristic.
+              // Tier 3: mtime fallback (2-min window) for sessions that
+              // neither SessionManager nor an alive daemon entry tracks.
               const ageMs = Date.now() - new Date(session.lastModified).getTime();
               session.isRunning = ageMs < RUNNING_THRESHOLD_MS;
             }
