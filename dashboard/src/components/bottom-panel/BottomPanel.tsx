@@ -7,8 +7,15 @@ import { CostTab } from "./CostTab";
 import { DetailTab } from "./DetailTab";
 import { TasksTab } from "./TasksTab";
 import { HooksTab } from "./HooksTab";
+import { UsageTab } from "./UsageTab";
 import { deriveSessionTasks } from "../../lib/sessionTasks";
-export type BottomTab = "agent-graph" | "tool-call" | "cost" | "tasks" | "hooks";
+export type BottomTab =
+  | "agent-graph"
+  | "tool-call"
+  | "cost"
+  | "tasks"
+  | "hooks"
+  | "usage";
 
 const TABS: { id: BottomTab; label: string }[] = [
   { id: "agent-graph", label: "Agent Graph" },
@@ -16,6 +23,7 @@ const TABS: { id: BottomTab; label: string }[] = [
   { id: "cost", label: "Cost" },
   { id: "tasks", label: "Tasks" },
   { id: "hooks", label: "Hooks" },
+  { id: "usage", label: "Usage" },
 ];
 
 export interface BottomPanelProps {
@@ -280,6 +288,8 @@ export function BottomPanel({
               <TasksTab tasks={sessionTasks} />
             ) : activeTab === "hooks" ? (
               <HooksTab events={events} activeTurnIndex={activeTurnIndex} />
+            ) : activeTab === "usage" ? (
+              <UsageTab />
             ) : null}
           </div>
         )}

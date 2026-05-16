@@ -9,6 +9,7 @@ import {
 } from "../../parser/session-discovery.js";
 import { getAnthropicUsage } from "../../api/usage-client.js";
 import { aggregateCosts } from "../../analyzer/cost-aggregator.js";
+import { aggregatePerModelUsage } from "../../analyzer/usage-breakdown.js";
 import { logger } from "../../logger.js";
 import { CommandCache } from "../../discovery/command-cache.js";
 import type { RouteContext } from "./route-context.js";
@@ -111,6 +112,20 @@ export function createDiscoveryRoutes({ state }: RouteContext): Router {
       res.json({ usage });
     } catch (err) {
       res.json({ usage: null });
+    }
+  });
+
+  // Get per-model + cache-hit-ratio breakdown (TASK-B5 / P2-10).
+  // Data source: local JSONL aggregation (Anthropic /usage only returns
+  // utilization percentages, no per-model token counts).
+  router.get("/usage/breakdown", (_req, res) => {
+    try {
+      const sessions = discoverSessions();
+      const breakdown = aggregatePerModelUsage(sessions);
+      res.json({ breakdown });
+    } catch (err) {
+      logger.error({ err }, "Failed to compute usage breakdown");
+      res.status(500).json({ error: "Failed to compute usage breakdown" });
     }
   });
 

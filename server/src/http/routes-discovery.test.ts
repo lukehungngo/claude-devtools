@@ -42,6 +42,9 @@ vi.mock("../api/usage-client.js", () => ({
 vi.mock("../analyzer/cost-aggregator.js", () => ({
   aggregateCosts: vi.fn(),
 }));
+vi.mock("../analyzer/usage-breakdown.js", () => ({
+  aggregatePerModelUsage: vi.fn(() => ({ perModel: [], totalCost: 0 })),
+}));
 vi.mock("../analyzer/agent-events.js", () => ({
   getAgentEvents: vi.fn(),
 }));
@@ -133,6 +136,48 @@ describe("Discovery endpoints", () => {
       expect(res.status).toBe(200);
       expect(res.body.models.length).toBeGreaterThan(0);
       expect(res.body.source).toBe("fallback");
+    });
+  });
+
+  describe("GET /usage/breakdown", () => {
+    it("returns the aggregated per-model usage breakdown", async () => {
+      const { aggregatePerModelUsage } = await import(
+        "../analyzer/usage-breakdown.js"
+      );
+      vi.mocked(aggregatePerModelUsage).mockReturnValue({
+        perModel: [
+          {
+            model: "claude-sonnet-4-6",
+            inputTokens: 100,
+            outputTokens: 50,
+            cacheCreationTokens: 200,
+            cacheReadTokens: 700,
+            cacheHitRatio: 0.7,
+            totalCost: 0.123,
+          },
+        ],
+        totalCost: 0.123,
+      });
+
+      const res = await request(app).get("/usage/breakdown");
+      expect(res.status).toBe(200);
+      expect(res.body.breakdown.perModel).toHaveLength(1);
+      expect(res.body.breakdown.perModel[0].model).toBe("claude-sonnet-4-6");
+      expect(res.body.breakdown.perModel[0].cacheHitRatio).toBe(0.7);
+      expect(res.body.breakdown.totalCost).toBe(0.123);
+    });
+
+    it("returns 500 when aggregation throws", async () => {
+      const { aggregatePerModelUsage } = await import(
+        "../analyzer/usage-breakdown.js"
+      );
+      vi.mocked(aggregatePerModelUsage).mockImplementation(() => {
+        throw new Error("boom");
+      });
+
+      const res = await request(app).get("/usage/breakdown");
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBeDefined();
     });
   });
 
