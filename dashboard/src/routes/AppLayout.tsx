@@ -107,6 +107,13 @@ export function AppLayout() {
   const onTurnClickRef = useRef<((turnIndex: number) => void) | null>(null);
   const openBottomTabRef = useRef<((tab: string) => void) | null>(null);
 
+  // FU-3 — bidirectional Hooks↔tool_use hover correlation. Held here at the
+  // common ancestor of BottomPanel (Hooks tab) and ConversationView (tool
+  // blocks). Both directions are stored separately so a stray cross-update
+  // never feeds back into the source of the hover.
+  const [highlightedToolUseId, setHighlightedToolUseId] = useState<string | null>(null);
+  const [highlightedHookId, setHighlightedHookId] = useState<string | null>(null);
+
   const handleTurnSelect = useCallback((turnIndex: number) => {
     onTurnClickRef.current?.(turnIndex);
   }, []);
@@ -284,6 +291,10 @@ export function AppLayout() {
     onClearViewingTurnRef,
     onTurnClickRef,
     openBottomTabRef,
+    highlightedToolUseId,
+    setHighlightedToolUseId,
+    highlightedHookId,
+    setHighlightedHookId,
   };
 
   return (
@@ -378,6 +389,8 @@ export function AppLayout() {
               subagentMeta={currentSubagentMeta}
               viewingTurnNumber={viewingTurnNumber}
               openBottomTabRef={openBottomTabRef}
+              onHookHover={setHighlightedToolUseId}
+              highlightedHookId={highlightedHookId}
             />
           </Suspense>
         )}

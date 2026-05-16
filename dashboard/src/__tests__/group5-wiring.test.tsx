@@ -66,6 +66,10 @@ function makeLayoutCtx(overrides?: Partial<LayoutContextValue>): LayoutContextVa
     onClearViewingTurnRef: { current: null },
     onTurnClickRef: { current: null },
     openBottomTabRef: { current: null },
+    highlightedToolUseId: null,
+    setHighlightedToolUseId: () => {},
+    highlightedHookId: null,
+    setHighlightedHookId: () => {},
     ...overrides,
   };
 }

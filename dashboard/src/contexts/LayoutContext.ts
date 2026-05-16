@@ -82,6 +82,16 @@ export interface LayoutContextValue {
   onTurnClickRef: MutableRefObject<((turnIndex: number) => void) | null>;
   /** Registered by BottomPanel to switch active tab programmatically */
   openBottomTabRef: MutableRefObject<((tab: string) => void) | null>;
+
+  // FU-3 — bidirectional Hooks↔tool_use hover correlation.
+  // The matching tool_use id, set by HooksTab on row mouseenter and consumed
+  // by ToolCallBlock / ToolEntryRow to render a 2px purple outline.
+  highlightedToolUseId: string | null;
+  setHighlightedToolUseId: (id: string | null) => void;
+  // The matching hook row id (= tool_use id), set by ToolCallBlock /
+  // ToolEntryRow on mouseenter and consumed by HooksTab to tint the row.
+  highlightedHookId: string | null;
+  setHighlightedHookId: (id: string | null) => void;
 }
 
 export const LayoutContext = createContext<LayoutContextValue | null>(null);

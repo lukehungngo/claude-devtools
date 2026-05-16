@@ -4,6 +4,16 @@ import type { ToolUseContent, ToolResultContent } from "../../lib/types";
 interface ToolCallBlockProps {
   toolUse: ToolUseContent;
   toolResult?: ToolResultContent;
+  /**
+   * FU-3 — when true, render a 2px purple outline around the block to mark
+   * it as the correlate of a Hooks-tab row currently hovered by the user.
+   */
+  highlighted?: boolean;
+  /**
+   * FU-3 — fired with the tool_use id on mouseenter and `null` on mouseleave.
+   * Drives the reverse direction of the bidirectional Hooks↔tool_use highlight.
+   */
+  onToolHover?: (toolUseId: string | null) => void;
 }
 
 function extractFilePath(toolUse: ToolUseContent): string | null {
@@ -76,7 +86,12 @@ function summarizeArgs(toolUse: ToolUseContent): string {
   return s.length > 60 ? s.slice(0, 60) + "..." : s;
 }
 
-export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
+export function ToolCallBlock({
+  toolUse,
+  toolResult,
+  highlighted = false,
+  onToolHover,
+}: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false);
   const filePath = extractFilePath(toolUse);
   const command = extractCommand(toolUse);
@@ -95,9 +110,29 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
   const outputLineCount = lines.filter((l) => l.trim() !== "").length;
   const argsSummary = summarizeArgs(toolUse);
 
+  // FU-3 — bidirectional hover correlation. The wrapper carries:
+  //   - a stable data-testid keyed by the tool_use id (so tests + ToolEntries
+  //     can address a specific block);
+  //   - a 2px purple outline when highlighted (matches the matching hook row's
+  //     purple-dim tint in the Hooks tab);
+  //   - mouseenter/leave handlers that bubble the id back up so the Hooks tab
+  //     can tint its matching row.
+  const toolUseId = toolUse.id ?? "";
+  const wrapperOutline = highlighted ? "2px solid var(--purple)" : undefined;
+  const handleMouseEnter = (): void => {
+    if (onToolHover && toolUseId) onToolHover(toolUseId);
+  };
+  const handleMouseLeave = (): void => {
+    if (onToolHover && toolUseId) onToolHover(null);
+  };
+
   if (!expanded) {
     return (
       <div
+        data-testid={`tool-call-${toolUseId}`}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        style={{ outline: wrapperOutline, borderRadius: highlighted ? 4 : undefined }}
         className="my-1 pl-2 cursor-pointer transition-opacity"
         onClick={() => setExpanded(true)}
       >
@@ -131,7 +166,13 @@ export function ToolCallBlock({ toolUse, toolResult }: ToolCallBlockProps) {
   }
 
   return (
-    <div className="my-1 border-l-2 border-dt-cyan pl-2 transition-opacity">
+    <div
+      data-testid={`tool-call-${toolUseId}`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      style={{ outline: wrapperOutline, borderRadius: highlighted ? 4 : undefined }}
+      className="my-1 border-l-2 border-dt-cyan pl-2 transition-opacity"
+    >
       {/* Tool header line */}
       <div
         className={`flex items-center gap-1.5 text-xs text-dt-text1 ${hasOutput ? "cursor-pointer" : "cursor-default"}`}

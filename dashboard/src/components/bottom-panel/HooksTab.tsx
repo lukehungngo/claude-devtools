@@ -13,6 +13,17 @@ interface HooksTabProps {
   events?: SessionEvent[];
   /** Currently viewed turn — filters hooks to that turn when set. */
   activeTurnIndex?: number | null;
+  /**
+   * FU-3 — fired on row hover with the row's `toolUseID` (or `null` on leave).
+   * Only invoked for rows whose `toolUseID` is truthy. Monitor / async-only
+   * rows that don't correlate to a tool call don't dispatch.
+   */
+  onHookHover?: (toolUseID: string | null) => void;
+  /**
+   * FU-3 — id of the tool_use currently hovered in the conversation view.
+   * Rows whose `toolUseID` matches get a subtle purple-dim background tint.
+   */
+  highlightedHookId?: string | null;
 }
 
 /** Origin of the row — drives the "Source" column. */
@@ -150,7 +161,12 @@ function toRow(e: AttachmentEvent): HookRow | null {
   return null;
 }
 
-export function HooksTab({ events = [], activeTurnIndex: _ }: HooksTabProps): JSX.Element {
+export function HooksTab({
+  events = [],
+  activeTurnIndex: _,
+  onHookHover,
+  highlightedHookId = null,
+}: HooksTabProps): JSX.Element {
   const rows = useMemo<HookRow[]>(() => {
     return events.filter(isHookAttachment).map(toRow).filter((r): r is HookRow => r !== null);
   }, [events]);
@@ -299,11 +315,27 @@ export function HooksTab({ events = [], activeTurnIndex: _ }: HooksTabProps): JS
                 : failed
                 ? "var(--err)"
                 : "var(--t1)";
+              const isHighlighted =
+                highlightedHookId != null &&
+                r.toolUseID != null &&
+                r.toolUseID === highlightedHookId;
+              const handleMouseEnter = (): void => {
+                if (onHookHover && r.toolUseID) onHookHover(r.toolUseID);
+              };
+              const handleMouseLeave = (): void => {
+                if (onHookHover && r.toolUseID) onHookHover(null);
+              };
               return (
                 <tr
                   key={r.uuid}
                   data-testid={`hook-row-${r.uuid}`}
-                  style={{ borderBottom: "1px solid var(--bd)", color: rowColor }}
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
+                  style={{
+                    borderBottom: "1px solid var(--bd)",
+                    color: rowColor,
+                    background: isHighlighted ? "var(--purple-dim)" : undefined,
+                  }}
                 >
                   <td className="px-2 py-1" style={{ color: "var(--t3)" }}>
                     {r.source}

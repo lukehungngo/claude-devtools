@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useState, useContext } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import type { SessionEvent, AssistantEvent, UserEvent, ContentItem, ToolUseContent, ToolResultContent } from "../../lib/types";
 import { normalizeContent } from "../../lib/normalizeContent";
@@ -9,6 +9,7 @@ import { DiffBlock } from "../viewer/DiffBlock";
 import { AgentCard } from "./AgentCard";
 import { PhaseGroup } from "./PhaseGroup";
 import { ExpandHint } from "./ExpandHint";
+import { LayoutContext } from "../../contexts/LayoutContext";
 import type { AgentSummary } from "../../lib/turnSnapshot";
 
 interface ToolEntriesProps {
@@ -392,6 +393,22 @@ const ToolEntryRow = memo(function ToolEntryRow({
   onToolClick?: (toolName: string) => void;
   agentSummaries?: AgentSummary[];
 }) {
+  // FU-3 — bidirectional Hooks↔tool_use hover correlation. Read context at
+  // the top of the component (Rules-of-Hooks compliant) so the call order is
+  // identical for agent-dispatch AgentCard rows and plain tool rows. When
+  // rendered outside a LayoutContext provider (unit tests), the context is
+  // null and correlation is silently inert.
+  const layoutCtx = useContext(LayoutContext);
+  const highlightedToolUseId = layoutCtx?.highlightedToolUseId ?? null;
+  const setHighlightedHookId = layoutCtx?.setHighlightedHookId;
+  const isHighlighted = highlightedToolUseId != null && highlightedToolUseId === entry.id;
+  const handleRowMouseEnter = (): void => {
+    if (setHighlightedHookId && entry.id) setHighlightedHookId(entry.id);
+  };
+  const handleRowMouseLeave = (): void => {
+    if (setHighlightedHookId && entry.id) setHighlightedHookId(null);
+  };
+
   // Agent dispatch entries render as AgentCard instead of normal tool row
   if (isAgentDispatch(entry.name)) {
     const agentName = extractAgentName(entry);
@@ -431,7 +448,7 @@ const ToolEntryRow = memo(function ToolEntryRow({
   const hasDetail = entry.resultContent != null || (entry.name === "Edit" && entry.toolInput) || (entry.name === "Write" && entry.toolInput);
 
   return (
-    <div key={entry.id}>
+    <div key={entry.id} data-testid={`tool-call-${entry.id}`}>
       <div
         onClick={() => {
           if (hasDetail) {
@@ -440,6 +457,8 @@ const ToolEntryRow = memo(function ToolEntryRow({
             onToolClick?.(entry.name);
           }
         }}
+        onMouseEnter={handleRowMouseEnter}
+        onMouseLeave={handleRowMouseLeave}
         className="group flex items-center cursor-pointer"
         style={{
           padding: "4px 12px",
@@ -448,6 +467,8 @@ const ToolEntryRow = memo(function ToolEntryRow({
           borderLeft: `3px solid ${borderColor}`,
           borderBottom: isLast && !isExpanded ? "none" : "1px solid var(--bd)",
           transition: "background .1s",
+          outline: isHighlighted ? "2px solid var(--purple)" : undefined,
+          borderRadius: isHighlighted ? 4 : undefined,
         }}
       >
         {hasDetail && !isRunning ? (

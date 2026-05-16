@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { HooksTab } from "./HooksTab";
 import type { SessionEvent, AttachmentEvent } from "../../lib/types";
@@ -273,6 +273,53 @@ describe("HooksTab", () => {
     expect(title.length).toBeLessThanOrEqual(80);
     // Confirm truncation actually happened (last char is the ellipsis).
     expect(title.endsWith("…")).toBe(true);
+  });
+
+  it("fires onHookHover with toolUseID on row mouseenter (FU-3)", () => {
+    const events: SessionEvent[] = [
+      hookSuccess("h1", { toolUseID: "toolu_01ABC" }),
+    ];
+    const onHookHover = vi.fn();
+    render(<HooksTab events={events} onHookHover={onHookHover} />);
+    const row = screen.getByTestId("hook-row-h1");
+    fireEvent.mouseEnter(row);
+    expect(onHookHover).toHaveBeenCalledWith("toolu_01ABC");
+  });
+
+  it("fires onHookHover with null on row mouseleave (FU-3)", () => {
+    const events: SessionEvent[] = [
+      hookSuccess("h1", { toolUseID: "toolu_01ABC" }),
+    ];
+    const onHookHover = vi.fn();
+    render(<HooksTab events={events} onHookHover={onHookHover} />);
+    const row = screen.getByTestId("hook-row-h1");
+    fireEvent.mouseLeave(row);
+    expect(onHookHover).toHaveBeenCalledWith(null);
+  });
+
+  it("does not fire onHookHover when row has no toolUseID (FU-3)", () => {
+    const events: SessionEvent[] = [
+      // hookCancelled has no toolUseID
+      hookCancelled("hc1", "user-cancelled"),
+    ];
+    const onHookHover = vi.fn();
+    render(<HooksTab events={events} onHookHover={onHookHover} />);
+    const row = screen.getByTestId("hook-row-hc1");
+    fireEvent.mouseEnter(row);
+    expect(onHookHover).not.toHaveBeenCalled();
+  });
+
+  it("highlights matching row when highlightedHookId equals toolUseID (FU-3)", () => {
+    const events: SessionEvent[] = [
+      hookSuccess("h1", { toolUseID: "toolu_01ABC" }),
+      hookSuccess("h2", { toolUseID: "toolu_02XYZ" }),
+    ];
+    render(<HooksTab events={events} highlightedHookId="toolu_01ABC" />);
+    const row1 = screen.getByTestId("hook-row-h1");
+    const row2 = screen.getByTestId("hook-row-h2");
+    // The matching row uses purple-dim background tint
+    expect(row1.getAttribute("style")).toContain("purple-dim");
+    expect(row2.getAttribute("style") ?? "").not.toContain("purple-dim");
   });
 
   it("source column distinguishes hooks from task-notifications", () => {

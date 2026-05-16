@@ -45,6 +45,17 @@ export interface BottomPanelProps {
   subagentMeta?: SubagentMeta | null;
   /** Ref-based callback to switch tab programmatically without re-renders */
   openBottomTabRef?: MutableRefObject<((tab: string) => void) | null>;
+  /**
+   * FU-3 — forwarded to HooksTab. Fires with the row's `toolUseID` on hover
+   * (or `null` on leave). Held one level up in AppLayout so ConversationView
+   * can read it from LayoutContext and outline the matching tool block.
+   */
+  onHookHover?: (toolUseID: string | null) => void;
+  /**
+   * FU-3 — the reverse-direction highlight: when set, the matching row in
+   * HooksTab gets a purple-dim background tint.
+   */
+  highlightedHookId?: string | null;
 }
 
 const COLLAPSED_KEY = "bottomPanel.collapsed";
@@ -66,6 +77,8 @@ export function BottomPanel({
   viewingTurnNumber,
   subagentMeta = null,
   openBottomTabRef,
+  onHookHover,
+  highlightedHookId = null,
 }: BottomPanelProps) {
   const [activeTab, setActiveTab] = useState<BottomTab>("agent-graph");
   const [panelHeight, setPanelHeight] = useState(() => {
@@ -287,7 +300,12 @@ export function BottomPanel({
             ) : activeTab === "tasks" ? (
               <TasksTab tasks={sessionTasks} />
             ) : activeTab === "hooks" ? (
-              <HooksTab events={events} activeTurnIndex={activeTurnIndex} />
+              <HooksTab
+                events={events}
+                activeTurnIndex={activeTurnIndex}
+                onHookHover={onHookHover}
+                highlightedHookId={highlightedHookId}
+              />
             ) : activeTab === "usage" ? (
               <UsageTab />
             ) : null}
