@@ -19,7 +19,8 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src --max-warnings 0",
     "smoke": "tsx scripts/mcp-smoke.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build && pnpm run test && pnpm run smoke"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
