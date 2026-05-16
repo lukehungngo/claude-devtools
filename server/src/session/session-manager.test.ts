@@ -760,3 +760,96 @@ describe("SessionManager.summarizeUpTo bounds /compact at picked messageId", () 
     expect(turnNumber).toBe(2);
   });
 });
+
+// NEW-4 — query.mcpServerStatus() surface
+describe("SessionManager.getMcpServerStatus", () => {
+  let manager: SessionManager;
+
+  beforeEach(() => {
+    manager = new SessionManager(vi.fn());
+    mockQuery.mockReset();
+  });
+
+  afterEach(() => {
+    manager.dispose();
+  });
+
+  it("delegates to activeQuery.mcpServerStatus() when session is live", async () => {
+    const fakeServers = [
+      {
+        name: "exa",
+        status: "connected",
+        serverInfo: { name: "exa", version: "1.0.0" },
+        scope: "user",
+        config: { type: "http", url: "https://exa.example.com" },
+      },
+      {
+        name: "broken",
+        status: "failed",
+        error: "ECONNREFUSED",
+        scope: "project",
+        config: { type: "stdio", command: "broken-server" },
+      },
+    ];
+    const mockMcpStatus = vi.fn().mockResolvedValue(fakeServers);
+    let resolveYield: (() => void) | null = null;
+    const yieldPromise = new Promise<void>((resolve) => { resolveYield = resolve; });
+
+    async function* slowStream() {
+      yield* [];
+      await yieldPromise;
+    }
+    const queryObj = slowStream();
+    (queryObj as unknown as Record<string, unknown>).mcpServerStatus = mockMcpStatus;
+    mockQuery.mockReturnValue(queryObj);
+
+    const sessionId = await manager.startSession("/tmp");
+    const gen = manager.sendMessage(sessionId, "hello");
+    const iterPromise = (async () => {
+      for await (const _msg of gen) { /* drain */ }
+    })();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const result = await manager.getMcpServerStatus(sessionId);
+    expect(mockMcpStatus).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(fakeServers);
+
+    resolveYield!();
+    await iterPromise;
+  });
+
+  it("returns null when session has no activeQuery (not live)", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    const result = await manager.getMcpServerStatus(sessionId);
+    expect(result).toBeNull();
+  });
+
+  it("returns null when session is unknown", async () => {
+    const result = await manager.getMcpServerStatus("nonexistent");
+    expect(result).toBeNull();
+  });
+
+  it("returns null when SDK mcpServerStatus throws", async () => {
+    const mockMcpStatus = vi.fn().mockRejectedValue(new Error("SDK boom"));
+    let resolveYield: (() => void) | null = null;
+    const yieldPromise = new Promise<void>((resolve) => { resolveYield = resolve; });
+
+    async function* slowStream() {
+      yield* [];
+      await yieldPromise;
+    }
+    const queryObj = slowStream();
+    (queryObj as unknown as Record<string, unknown>).mcpServerStatus = mockMcpStatus;
+    mockQuery.mockReturnValue(queryObj);
+
+    const sessionId = await manager.startSession("/tmp");
+    const gen = manager.sendMessage(sessionId, "hello");
+    const iterPromise = (async () => {
+      for await (const _msg of gen) { /* drain */ }
+    })();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const result = await manager.getMcpServerStatus(sessionId);
+    expect(result).toBeNull();
+
+    resolveYield!();

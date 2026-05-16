@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import type { PermissionResult, PermissionUpdate, Query, RewindFilesResult, SDKControlGetContextUsageResponse, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
+import type { McpServerStatus, PermissionResult, PermissionUpdate, Query, RewindFilesResult, SDKControlGetContextUsageResponse, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import { sessionLog } from "../logger.js";
 import { isToolAllowedForSession } from "../hooks/permission-handler.js";
 import { discoverSessions } from "../parser/session-discovery.js";
@@ -616,5 +616,22 @@ export class SessionManager {
     session.abortController.abort();
     session.activeQuery = undefined;
     return this.activeSessions.delete(sessionId);
+  }
+
+  /**
+   * NEW-4 — Authoritative MCP server connection status via
+   * `query.mcpServerStatus()` (SDK `sdk.d.ts:2146`). Returns null when the
+   * session has no activeQuery (cold session) or the SDK call throws —
+   * callers render the empty-state in both cases.
+   */
+  async getMcpServerStatus(sessionId: string): Promise<McpServerStatus[] | null> {
+    const session = this.activeSessions.get(sessionId);
+    if (!session?.activeQuery) return null;
+    try {
+      return await session.activeQuery.mcpServerStatus();
+    } catch (err) {
+      sessionLog.warn({ sessionId, err: String(err) }, "mcpServerStatus failed");
+      return null;
+    }
   }
 }

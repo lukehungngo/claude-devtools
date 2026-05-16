@@ -127,6 +127,22 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     }
   });
 
+  // NEW-4: Return per-server MCP connection status via `query.mcpServerStatus()`.
+  // `{ servers: null }` for non-live sessions; `{ servers: [] }` when live but no
+  // servers are configured. Dashboard treats both as the empty state.
+  // Registered BEFORE /sessions/:projectHash/:sessionId so Express does not
+  // match the 2-param route with sessionId="mcp-status".
+  router.get("/sessions/:sessionId/mcp-status", async (req, res) => {
+    const sessionManager = state?.sessionManager;
+    if (!sessionManager) return res.status(500).json({ error: "Session manager not available" });
+    try {
+      const servers = await sessionManager.getMcpServerStatus(req.params.sessionId);
+      res.json({ servers });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch MCP server status", detail: String(err) });
+    }
+  });
+
   // Get session detail + metrics
   router.get("/sessions/:projectHash/:sessionId", (req, res) => {
     try {

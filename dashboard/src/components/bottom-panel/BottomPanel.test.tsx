@@ -421,4 +421,37 @@ describe("BottomPanel", () => {
 
     expect(screen.queryByTestId("otel-result-row")).toBeNull();
   });
+
+  // --- NEW-4: MCP tab ---
+
+  it("renders an MCP tab in the tab bar", () => {
+    render(<BottomPanel />);
+    expect(screen.getByText("MCP")).toBeDefined();
+  });
+
+  it("mounts MCPStatusTab when the MCP tab is selected", async () => {
+    localStorageMock.setItem("bottomPanel.collapsed", "false");
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ servers: [] }),
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      render(<BottomPanel sessionId="session-mcp" />);
+      fireEvent.click(screen.getByText("MCP"));
+
+      // MCPStatusTab fires its fetch on mount when sessionId is set.
+      await vi.waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/sessions/session-mcp/mcp-status",
+        );
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

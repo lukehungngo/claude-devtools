@@ -204,3 +204,57 @@ describe("GET /sessions/:sessionId/context-usage", () => {
     expect(res.body.error).toMatch(/context usage/i);
   });
 });
+
+// NEW-4 — MCP server status surface
+describe("GET /sessions/:sessionId/mcp-status", () => {
+  let app: express.Express;
+  let sessionManager: SessionManager;
+
+  beforeEach(() => {
+    sessionManager = new SessionManager(vi.fn());
+    const state = {
+      clients: new Set(),
+      sessionManager,
+    } as unknown as import("../server.js").ServerState;
+
+    app = express();
+    app.use(setupRoutes(state));
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    sessionManager.dispose();
+  });
+
+  it("returns the SDK MCP servers payload for a live session", async () => {
+    const fakeServers = [
+      {
+        name: "exa",
+        status: "connected",
+        serverInfo: { name: "exa", version: "1.0.0" },
+        scope: "user",
+        config: { type: "http", url: "https://exa.example.com" },
+      },
+      {
+        name: "broken",
+        status: "failed",
+        error: "ECONNREFUSED",
+        scope: "project",
+      },
+    ];
+    vi.spyOn(sessionManager, "getMcpServerStatus").mockResolvedValue(
+      fakeServers as unknown as Awaited<ReturnType<typeof sessionManager.getMcpServerStatus>>,
+    );
+
+    const res = await request(app).get("/sessions/live-sess/mcp-status");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ servers: fakeServers });
+  });
+
+  it("returns { servers: null } with 200 for a non-live session", async () => {
+    const res = await request(app).get("/sessions/cold-sess/mcp-status");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ servers: null });
+  });

@@ -8,6 +8,7 @@ import { DetailTab } from "./DetailTab";
 import { TasksTab } from "./TasksTab";
 import { HooksTab } from "./HooksTab";
 import { UsageTab } from "./UsageTab";
+import { MCPStatusTab } from "./MCPStatusTab";
 import { deriveSessionTasks, deriveTasksByTurn, getTasksAtTurn } from "../../lib/sessionTasks";
 export type BottomTab =
   | "agent-graph"
@@ -15,7 +16,8 @@ export type BottomTab =
   | "cost"
   | "tasks"
   | "hooks"
-  | "usage";
+  | "usage"
+  | "mcp";
 
 const TABS: { id: BottomTab; label: string }[] = [
   { id: "agent-graph", label: "Agent Graph" },
@@ -24,6 +26,7 @@ const TABS: { id: BottomTab; label: string }[] = [
   { id: "tasks", label: "Tasks" },
   { id: "hooks", label: "Hooks" },
   { id: "usage", label: "Usage" },
+  { id: "mcp", label: "MCP" },
 ];
 
 export interface BottomPanelProps {
@@ -349,6 +352,8 @@ export function BottomPanel({
               />
             ) : activeTab === "usage" ? (
               <UsageTab sessionId={sessionId || undefined} />
+            ) : activeTab === "mcp" ? (
+              <MCPStatusTab sessionId={sessionId || undefined} />
             ) : null}
           </div>
         )}
