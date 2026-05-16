@@ -644,3 +644,56 @@ describe("ConversationView sessionIsRunning uses isActive not isRunning", () => 
     expect(container.textContent).not.toContain("Session ended without completion");
   });
 });
+
+describe("ConversationView static compact_boundary markers (FU-4)", () => {
+  it("renders an inline compact marker between the two surrounding turns in a replayed session", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent("first prompt", 0),
+      makeAssistantEvent(1),
+      // compact_boundary sits between turn 1's response and turn 2's prompt
+      {
+        type: "system",
+        uuid: "compact-1",
+        timestamp: "2026-01-01T00:00:02Z",
+        sessionId: "sess-1",
+        subtype: "compact_boundary",
+        // camelCase compactMetadata — real CC v2.1.143 JSONL shape (P1-5)
+        compactMetadata: {
+          trigger: "auto",
+          preTokens: 168000,
+          postTokens: 9000,
+          durationMs: 60800,
+        },
+      } as unknown as SessionEvent,
+      makeUserEvent("second prompt", 3),
+      makeAssistantEvent(4),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    const { container } = render(
+      <ConversationView events={events} turns={turns} metrics={null} />,
+    );
+
+    const markers = container.querySelectorAll('[data-testid="static-compact-marker"]');
+    expect(markers).toHaveLength(1);
+    const text = markers[0].textContent ?? "";
+    expect(text).toContain("auto-compacted");
+    expect(text).toContain("turn 1");
+    expect(text).toContain("168,000");
+    expect(text).toContain("9,000");
+  });
+
+  it("renders nothing extra when no compact_boundary events exist", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent("a", 0),
+      makeAssistantEvent(1),
+      makeUserEvent("b", 2),
+      makeAssistantEvent(3),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    const { container } = render(
+      <ConversationView events={events} turns={turns} metrics={null} />,
+    );
+    expect(container.querySelectorAll('[data-testid="static-compact-marker"]')).toHaveLength(0);
+  });
+});

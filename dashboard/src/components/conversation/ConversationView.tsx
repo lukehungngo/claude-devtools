@@ -16,6 +16,8 @@ import { PromptInput } from "./PromptInput";
 import { ContextWarningBanner } from "./ContextWarningBanner";
 import { MemoTurnCard } from "./TurnCard";
 import { TurnDivider } from "./TurnDivider";
+import { StaticCompactMarker } from "./StaticCompactMarker";
+import { extractCompactMarkers, type CompactMarker } from "../../lib/compactEvents";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useStreamingState } from "../../hooks/useStreamingState";
 import { StreamingTurnArea } from "./StreamingTurnArea";
@@ -78,6 +80,8 @@ interface VirtualizedTurnListProps {
   streamingState: import("../../lib/streaming-types").StreamingState;
   tasksByTurn?: Map<number, TaskItem[]>;
   sessionIsRunning?: boolean;
+  /** compact_boundary markers grouped by the turn they follow (turnNumber -> markers). */
+  compactMarkersByTurn?: Map<number, CompactMarker[]>;
 }
 
 /** Props for TurnRow — pre-computed values to avoid per-row work */
@@ -97,6 +101,8 @@ interface TurnRowProps {
   onSubmitAnswer?: (questionId: string, answer: string) => void;
   tasks?: TaskItem[];
   sessionIsRunning?: boolean;
+  /** compact_boundary markers to render AFTER this turn (between it and the next). */
+  compactMarkers: CompactMarker[];
 }
 
 /** Render a single turn with its permissions and questions */
@@ -116,6 +122,7 @@ function TurnRow({
   onSubmitAnswer,
   tasks,
   sessionIsRunning,
+  compactMarkers,
 }: TurnRowProps) {
   return (
     <>
@@ -155,6 +162,9 @@ function TurnRow({
           onSubmitAnswer={onSubmitAnswer!}
         />
       ))}
+      {compactMarkers.map((m) => (
+        <StaticCompactMarker key={m.uuid} marker={m} />
+      ))}
     </>
   );
 }
@@ -167,6 +177,10 @@ function TurnRow({
  * per-memo O(n) predicate scan.
  */
 function turnRowAreEqual(prev: Readonly<TurnRowProps>, next: Readonly<TurnRowProps>): boolean {
+  if (prev.compactMarkers.length !== next.compactMarkers.length) return false;
+  for (let i = 0; i < prev.compactMarkers.length; i++) {
+    if (prev.compactMarkers[i].uuid !== next.compactMarkers[i].uuid) return false;
+  }
   return (
     prev.turn.turnNumber === next.turn.turnNumber &&
     prev.turn.endIndex === next.turn.endIndex &&
@@ -191,6 +205,7 @@ const MemoTurnRow = memo(TurnRow, turnRowAreEqual);
 // Stable empty arrays to avoid creating new refs on every render
 const emptyPerms: PermissionRequest[] = [];
 const emptyQuestions: QuestionItem[] = [];
+const emptyCompactMarkers: CompactMarker[] = [];
 
 function VirtualizedTurnList({
   scrollRef,
@@ -211,6 +226,7 @@ function VirtualizedTurnList({
   streamingState,
   tasksByTurn,
   sessionIsRunning,
+  compactMarkersByTurn,
 }: VirtualizedTurnListProps) {
   const virtualizer = useVirtualizer({
     count: filteredTurns.length,
@@ -342,6 +358,7 @@ function VirtualizedTurnList({
                   onSubmitAnswer={onSubmitAnswer}
                   tasks={tasksByTurn?.get(turn.turnNumber)}
                   sessionIsRunning={turn.turnNumber === lastTurnNumber ? sessionIsRunning : false}
+                  compactMarkers={compactMarkersByTurn?.get(turn.turnNumber) || emptyCompactMarkers}
                 />
               </div>
             );
@@ -369,6 +386,7 @@ function VirtualizedTurnList({
                 onSubmitAnswer={onSubmitAnswer}
                 tasks={tasksByTurn?.get(turn.turnNumber)}
                 sessionIsRunning={turn.turnNumber === lastTurnNumber ? sessionIsRunning : false}
+                compactMarkers={compactMarkersByTurn?.get(turn.turnNumber) || emptyCompactMarkers}
               />
             </div>
           );
@@ -562,6 +580,23 @@ export function ConversationView({
 
     return result;
   }, [turns, events]);
+
+  // Inline compact_boundary markers for replayed sessions (FU-4).
+  // Live SSE sessions surface compaction via StreamingTurnArea's 3s banner;
+  // historical sessions previously had no visual indicator.
+  const compactMarkersByTurn = useMemo(() => {
+    const markers = extractCompactMarkers(events, turns);
+    const byTurn = new Map<number, CompactMarker[]>();
+    for (const m of markers) {
+      const arr = byTurn.get(m.turnNumber);
+      if (arr) {
+        arr.push(m);
+      } else {
+        byTurn.set(m.turnNumber, [m]);
+      }
+    }
+    return byTurn;
+  }, [events, turns]);
 
   // Scroll to highlighted turn is handled by VirtualizedTurnList via virtualizer.scrollToIndex
 
@@ -791,6 +826,7 @@ export function ConversationView({
         onSubmitAnswer={onSubmitAnswer}
         streamingState={streamingState}
         tasksByTurn={tasksByTurn}
+        compactMarkersByTurn={compactMarkersByTurn}
         sessionIsRunning={
           // Prefer authoritative SDK session_state_changed signal over mtime heuristic.
           // Fall back to isActive (12-hour mtime), NOT isRunning (2-minute mtime).
