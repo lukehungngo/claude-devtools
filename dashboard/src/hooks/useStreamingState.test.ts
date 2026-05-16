@@ -321,4 +321,57 @@ describe("useStreamingState", () => {
     expect(result.current.state.lastResultStopReason).toBe("tool_use");
     expect(result.current.state.lastResultFinishReasons).toEqual(["tool_use"]);
   });
+
+  // NEW-9: SDKPermissionDeniedMessage — auto-denial events lands in
+  // permissionDenials. Duplicate tool_use_id is collapsed (first-wins)
+  // because the auto-denial signal is one-shot per tool call and any repeat
+  // is a transport-layer re-delivery, not a new denial.
+  it("appends permission_denied event to permissionDenials (NEW-9)", () => {
+    const { result } = renderHook(() => useStreamingState());
+    expect(result.current.state.permissionDenials).toEqual([]);
+
+    act(() => {
+      result.current.actions.handleSSEEvent({
+        type: "permission_denied",
+        tool_name: "Bash",
+        tool_use_id: "toolu_abc",
+        agent_id: "subagent-3",
+        decision_reason_type: "classifier",
+        decision_reason: "auto-mode flagged risky write",
+        message: "Tool call blocked by classifier",
+      });
+    });
+    expect(result.current.state.permissionDenials).toEqual([
+      {
+        tool_name: "Bash",
+        tool_use_id: "toolu_abc",
+        agent_id: "subagent-3",
+        decision_reason_type: "classifier",
+        decision_reason: "auto-mode flagged risky write",
+        message: "Tool call blocked by classifier",
+      },
+    ]);
+  });
+
+  it("dedupes permission_denied by tool_use_id (first wins) (NEW-9)", () => {
+    const { result } = renderHook(() => useStreamingState());
+    act(() => {
+      result.current.actions.handleSSEEvent({
+        type: "permission_denied",
+        tool_name: "Bash",
+        tool_use_id: "toolu_dupe",
+        decision_reason_type: "rule",
+        message: "first",
+      });
+      result.current.actions.handleSSEEvent({
+        type: "permission_denied",
+        tool_name: "Bash",
+        tool_use_id: "toolu_dupe",
+        decision_reason_type: "rule",
+        message: "second (should be ignored)",
+      });
+    });
+    expect(result.current.state.permissionDenials).toHaveLength(1);
+    expect(result.current.state.permissionDenials[0].message).toBe("first");
+  });
 });

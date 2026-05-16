@@ -675,3 +675,50 @@ describe("ConversationView static compact_boundary markers (FU-4)", () => {
     expect(container.querySelectorAll('[data-testid="static-compact-marker"]')).toHaveLength(0);
   });
 });
+
+describe("ConversationView auto-denial markers (NEW-9)", () => {
+  it("renders an AutoDenialBlock inline when a system.permission_denied event sits in a turn", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent("first prompt", 0),
+      makeAssistantEvent(1),
+      {
+        type: "system",
+        uuid: "denial-1",
+        timestamp: "2026-01-01T00:00:02Z",
+        sessionId: "sess-1",
+        subtype: "permission_denied",
+        tool_name: "Bash",
+        tool_use_id: "toolu_blocked_1",
+        decision_reason_type: "classifier",
+        decision_reason: "auto-mode flagged risky command",
+        message: "Tool call blocked by classifier",
+      } as unknown as SessionEvent,
+      makeUserEvent("second prompt", 3),
+      makeAssistantEvent(4),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    const { container } = render(
+      <ConversationView events={events} turns={turns} metrics={null} />,
+    );
+
+    const blocks = container.querySelectorAll('[data-testid="auto-denial-block"]');
+    expect(blocks).toHaveLength(1);
+    const text = blocks[0].textContent ?? "";
+    expect(text).toContain("Bash");
+    expect(text).toContain("classifier");
+    expect(text).toContain("Tool call blocked by classifier");
+  });
+
+  it("renders nothing extra when no permission_denied events exist", () => {
+    const events: SessionEvent[] = [
+      makeUserEvent("a", 0),
+      makeAssistantEvent(1),
+    ];
+    const turns = groupEventsIntoTurns(events);
+    const { container } = render(
+      <ConversationView events={events} turns={turns} metrics={null} />,
+    );
+    expect(container.querySelectorAll('[data-testid="auto-denial-block"]')).toHaveLength(0);
+  });
+});

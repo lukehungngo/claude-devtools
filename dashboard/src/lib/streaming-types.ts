@@ -50,6 +50,27 @@ export interface CompactMetadata {
   };
 }
 
+/**
+ * NEW-9: Single SDK auto-denial record (classifier / rule / mode / asyncAgent).
+ * Shape mirrors SDKPermissionDeniedMessage minus transport-only fields (uuid,
+ * session_id). The dashboard's AutoDenialBlock consumes this directly.
+ *
+ * See sdk.d.ts:3244-3268 (SDKPermissionDeniedMessage) and the server-side
+ * SSEPermissionDeniedEvent (sse-event-handler.ts).
+ */
+export interface PermissionDeniedRecord {
+  tool_name: string;
+  tool_use_id: string;
+  /** Subagent that triggered the denied tool call, when applicable. */
+  agent_id?: string;
+  /** Discriminator: 'classifier' | 'asyncAgent' | 'mode' | 'rule' (or unknown). */
+  decision_reason_type?: string;
+  /** Human-readable reason from the deciding component, when available. */
+  decision_reason?: string;
+  /** The rejection message returned to the model in the tool_result. */
+  message: string;
+}
+
 export interface StreamingState {
   tools: Map<string, StreamingToolEntry>;
   /** Ordered list of tool IDs (insertion order) */
@@ -78,6 +99,13 @@ export interface StreamingState {
    * result event (CC v2.1.143, P2-5). Null until the first result arrives.
    */
   lastResultFinishReasons: readonly string[] | null;
+  /**
+   * NEW-9: SDKPermissionDeniedMessage auto-denials seen during this live
+   * stream. Order matches arrival. Deduped by tool_use_id (first wins) —
+   * the auto-denial is a one-shot signal per tool call; any repeat is a
+   * transport-layer re-delivery, not a new denial.
+   */
+  permissionDenials: PermissionDeniedRecord[];
 }
 
 export function createInitialStreamingState(): StreamingState {
@@ -94,6 +122,7 @@ export function createInitialStreamingState(): StreamingState {
     sdkContextWindow: null,
     lastResultStopReason: null,
     lastResultFinishReasons: null,
+    permissionDenials: [],
   };
 }
 

@@ -19,6 +19,11 @@ import { MemoTurnCard } from "./TurnCard";
 import { TurnDivider } from "./TurnDivider";
 import { StaticCompactMarker } from "./StaticCompactMarker";
 import { extractCompactMarkers, type CompactMarker } from "../../lib/compactEvents";
+import { AutoDenialBlock } from "./AutoDenialBlock";
+import {
+  extractPermissionDenials,
+  type PermissionDenialMarker,
+} from "../../lib/permissionDenials";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useStreamingState } from "../../hooks/useStreamingState";
 import { StreamingTurnArea } from "./StreamingTurnArea";
@@ -83,6 +88,8 @@ interface VirtualizedTurnListProps {
   sessionIsRunning?: boolean;
   /** compact_boundary markers grouped by the turn they follow (turnNumber -> markers). */
   compactMarkersByTurn?: Map<number, CompactMarker[]>;
+  /** permission_denied (auto-denial) markers grouped by the turn they follow. */
+  permissionDenialsByTurn?: Map<number, PermissionDenialMarker[]>;
 }
 
 /** Props for TurnRow — pre-computed values to avoid per-row work */
@@ -104,6 +111,8 @@ interface TurnRowProps {
   sessionIsRunning?: boolean;
   /** compact_boundary markers to render AFTER this turn (between it and the next). */
   compactMarkers: CompactMarker[];
+  /** auto-denial markers to render AFTER this turn (between it and the next). */
+  permissionDenials: PermissionDenialMarker[];
 }
 
 /** Render a single turn with its permissions and questions */
@@ -124,6 +133,7 @@ function TurnRow({
   tasks,
   sessionIsRunning,
   compactMarkers,
+  permissionDenials,
 }: TurnRowProps) {
   return (
     <>
@@ -166,6 +176,9 @@ function TurnRow({
       {compactMarkers.map((m) => (
         <StaticCompactMarker key={m.uuid} marker={m} />
       ))}
+      {permissionDenials.map((d) => (
+        <AutoDenialBlock key={d.uuid} record={d} />
+      ))}
     </>
   );
 }
@@ -181,6 +194,10 @@ function turnRowAreEqual(prev: Readonly<TurnRowProps>, next: Readonly<TurnRowPro
   if (prev.compactMarkers.length !== next.compactMarkers.length) return false;
   for (let i = 0; i < prev.compactMarkers.length; i++) {
     if (prev.compactMarkers[i].uuid !== next.compactMarkers[i].uuid) return false;
+  }
+  if (prev.permissionDenials.length !== next.permissionDenials.length) return false;
+  for (let i = 0; i < prev.permissionDenials.length; i++) {
+    if (prev.permissionDenials[i].uuid !== next.permissionDenials[i].uuid) return false;
   }
   return (
     prev.turn.turnNumber === next.turn.turnNumber &&
@@ -207,6 +224,7 @@ const MemoTurnRow = memo(TurnRow, turnRowAreEqual);
 const emptyPerms: PermissionRequest[] = [];
 const emptyQuestions: QuestionItem[] = [];
 const emptyCompactMarkers: CompactMarker[] = [];
+const emptyPermissionDenials: PermissionDenialMarker[] = [];
 
 function VirtualizedTurnList({
   scrollRef,
@@ -228,6 +246,7 @@ function VirtualizedTurnList({
   tasksByTurn,
   sessionIsRunning,
   compactMarkersByTurn,
+  permissionDenialsByTurn,
 }: VirtualizedTurnListProps) {
   const virtualizer = useVirtualizer({
     count: filteredTurns.length,
@@ -360,6 +379,9 @@ function VirtualizedTurnList({
                   tasks={tasksByTurn?.get(turn.turnNumber)}
                   sessionIsRunning={turn.turnNumber === lastTurnNumber ? sessionIsRunning : false}
                   compactMarkers={compactMarkersByTurn?.get(turn.turnNumber) || emptyCompactMarkers}
+                  permissionDenials={
+                    permissionDenialsByTurn?.get(turn.turnNumber) || emptyPermissionDenials
+                  }
                 />
               </div>
             );
@@ -388,6 +410,9 @@ function VirtualizedTurnList({
                 tasks={tasksByTurn?.get(turn.turnNumber)}
                 sessionIsRunning={turn.turnNumber === lastTurnNumber ? sessionIsRunning : false}
                 compactMarkers={compactMarkersByTurn?.get(turn.turnNumber) || emptyCompactMarkers}
+                permissionDenials={
+                  permissionDenialsByTurn?.get(turn.turnNumber) || emptyPermissionDenials
+                }
               />
             </div>
           );
@@ -542,6 +567,23 @@ export function ConversationView({
   const compactMarkersByTurn = useMemo(() => {
     const markers = extractCompactMarkers(events, turns);
     const byTurn = new Map<number, CompactMarker[]>();
+    for (const m of markers) {
+      const arr = byTurn.get(m.turnNumber);
+      if (arr) {
+        arr.push(m);
+      } else {
+        byTurn.set(m.turnNumber, [m]);
+      }
+    }
+    return byTurn;
+  }, [events, turns]);
+
+  // NEW-9: Inline permission_denied (auto-denial) markers for replayed
+  // sessions. Mirrors the compact-marker pattern above. Live SSE sessions
+  // surface auto-denials via useStreamingState.permissionDenials.
+  const permissionDenialsByTurn = useMemo(() => {
+    const markers = extractPermissionDenials(events, turns);
+    const byTurn = new Map<number, PermissionDenialMarker[]>();
     for (const m of markers) {
       const arr = byTurn.get(m.turnNumber);
       if (arr) {
@@ -782,6 +824,7 @@ export function ConversationView({
         streamingState={streamingState}
         tasksByTurn={tasksByTurn}
         compactMarkersByTurn={compactMarkersByTurn}
+        permissionDenialsByTurn={permissionDenialsByTurn}
         sessionIsRunning={
           // Prefer authoritative SDK session_state_changed signal over mtime heuristic.
           // Fall back to isActive (12-hour mtime), NOT isRunning (2-minute mtime).
