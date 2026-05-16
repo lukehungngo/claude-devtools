@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import type { McpServerStatus, PermissionResult, PermissionUpdate, Query, RewindFilesResult, SDKControlGetContextUsageResponse, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
+import type { AgentInfo, McpServerStatus, PermissionResult, PermissionUpdate, Query, RewindFilesResult, SDKControlGetContextUsageResponse, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import { sessionLog } from "../logger.js";
 import { isToolAllowedForSession } from "../hooks/permission-handler.js";
 import { discoverSessions } from "../parser/session-discovery.js";
@@ -631,6 +631,24 @@ export class SessionManager {
       return await session.activeQuery.mcpServerStatus();
     } catch (err) {
       sessionLog.warn({ sessionId, err: String(err) }, "mcpServerStatus failed");
+      return null;
+    }
+  }
+
+  /**
+   * NEW-3 — Authoritative list of subagents available to a live session from
+   * the SDK. Includes plugin-contributed agents that a filesystem scan of
+   * `.claude/agents` would miss. Returns null when the session is not live
+   * (no activeQuery) or when the SDK call fails — callers should fall back
+   * to the filesystem hint.
+   */
+  async getSupportedAgents(sessionId: string): Promise<AgentInfo[] | null> {
+    const session = this.activeSessions.get(sessionId);
+    if (!session?.activeQuery?.supportedAgents) return null;
+    try {
+      return await session.activeQuery.supportedAgents();
+    } catch (err) {
+      sessionLog.warn({ sessionId, err: String(err) }, "supportedAgents failed");
       return null;
     }
   }
