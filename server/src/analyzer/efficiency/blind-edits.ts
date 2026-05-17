@@ -1,7 +1,7 @@
-import type { SessionEvent } from "../../types.js";
 import type { PatternResult, SessionWithEvents, EvidenceSession } from "./types.js";
 
 const LOOKBACK = 10;
+const LOOKAHEAD = 5;
 
 function extractFilePath(item: { input?: unknown }): string | undefined {
   const input = item.input as Record<string, unknown> | undefined;
@@ -13,6 +13,12 @@ export function detectBlindEdits(sessions: SessionWithEvents[]): PatternResult {
   let blindEdits = 0;
   let editsWithRead = 0;
   const evidenceSessions: EvidenceSession[] = [];
+
+  // First-try success tracking
+  let successWithRead = 0;
+  let failWithRead = 0;
+  let successWithoutRead = 0;
+  let failWithoutRead = 0;
 
   for (const { info, mainEvents } of sessions) {
     const toolCalls: Array<{ name: string; filePath?: string }> = [];
@@ -39,11 +45,18 @@ export function detectBlindEdits(sessions: SessionWithEvents[]): PatternResult {
         (c) => c.name === "Read" && c.filePath === call.filePath
       );
 
+      // Check first-try success: scan next LOOKAHEAD tool calls for another Edit/Write on same file
+      const hasFollowUpFix = toolCalls.slice(i + 1, i + 1 + LOOKAHEAD).some(
+        (c) => (c.name === "Edit" || c.name === "Write") && c.filePath === call.filePath
+      );
+
       if (hasRead) {
         editsWithRead++;
+        if (hasFollowUpFix) { failWithRead++; } else { successWithRead++; }
       } else {
         blindEdits++;
         sessionBlind++;
+        if (hasFollowUpFix) { failWithoutRead++; } else { successWithoutRead++; }
       }
     }
 
@@ -59,18 +72,30 @@ export function detectBlindEdits(sessions: SessionWithEvents[]): PatternResult {
   const ratio = totalEdits > 0 ? editsWithRead / totalEdits : 1;
   const detected = totalEdits >= 3 && ratio < 0.7;
 
+  const totalWithRead = successWithRead + failWithRead;
+  const totalWithoutRead = successWithoutRead + failWithoutRead;
+  const firstTrySuccessWithRead = totalWithRead > 0 ? Math.round((successWithRead / totalWithRead) * 100) : 100;
+  const firstTrySuccessWithoutRead = totalWithoutRead > 0 ? Math.round((successWithoutRead / totalWithoutRead) * 100) : 100;
+
   return {
     category: "blind_edits",
     detected,
     impact: blindEdits * 0.5,
     icon: "eye-off",
     punchline: detected
-      ? `${Math.round((1 - ratio) * 100)}% of your edits had no prior Read. Sessions with file context first had higher first-try success.`
+      ? `${Math.round((1 - ratio) * 100)}% of your edits had no prior Read. Edits with a prior Read succeeded ${firstTrySuccessWithRead}% of the time vs ${firstTrySuccessWithoutRead}% without.`
       : "",
     evidence: {
       sessions: evidenceSessions,
       recommendation: "Before editing a file, ask Claude to read it first. This gives Claude the actual file contents instead of guessing, leading to fewer failed edits.",
-      stats: { totalEdits, blindEdits, editsWithRead, ratio: Math.round(ratio * 100) },
+      stats: {
+        totalEdits,
+        blindEdits,
+        editsWithRead,
+        ratio: Math.round(ratio * 100),
+        firstTrySuccessWithRead,
+        firstTrySuccessWithoutRead,
+      },
     },
   };
 }

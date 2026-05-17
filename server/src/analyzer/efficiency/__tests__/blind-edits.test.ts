@@ -73,4 +73,39 @@ describe("detectBlindEdits", () => {
     const result = detectBlindEdits([]);
     expect(result.detected).toBe(false);
   });
+
+  it("measures first-try success: follow-up edit on same file counts as failure", () => {
+    // Edit a.ts, then edit a.ts again within 5 tool calls = first try failure
+    // Edit b.ts (no follow-up) = first try success
+    const events = [
+      makeToolUse("Read", { file_path: "/src/a.ts" }, "r1"),
+      makeToolUse("Edit", { file_path: "/src/a.ts", old_string: "a", new_string: "b" }, "e1"),
+      makeToolUse("Edit", { file_path: "/src/a.ts", old_string: "b", new_string: "c" }, "e2"), // follow-up fix
+      makeToolUse("Read", { file_path: "/src/b.ts" }, "r2"),
+      makeToolUse("Edit", { file_path: "/src/b.ts", old_string: "x", new_string: "y" }, "e3"), // no follow-up
+      makeToolUse("Edit", { file_path: "/src/c.ts", old_string: "x", new_string: "y" }, "e4"), // blind, no follow-up
+    ];
+    const result = detectBlindEdits([makeSession("s1", events)]);
+    // Stats should have firstTrySuccessWithRead and firstTrySuccessWithoutRead
+    expect(result.evidence.stats).toHaveProperty("firstTrySuccessWithRead");
+    expect(result.evidence.stats).toHaveProperty("firstTrySuccessWithoutRead");
+    // With read: a.ts-e1 (fail, follow-up e2), a.ts-e2 (success, Read still in lookback), b.ts (success) => 2/3 = 67%
+    expect(result.evidence.stats.firstTrySuccessWithRead).toBe(67);
+    // Without read: c.ts (success, no follow-up) => 100%
+    expect(result.evidence.stats.firstTrySuccessWithoutRead).toBe(100);
+  });
+
+  it("punchline includes real success rates when detected", () => {
+    // All blind edits, some with follow-up fixes
+    const events = [
+      makeToolUse("Edit", { file_path: "/src/a.ts", old_string: "a", new_string: "b" }, "e1"),
+      makeToolUse("Edit", { file_path: "/src/a.ts", old_string: "b", new_string: "c" }, "e2"),
+      makeToolUse("Edit", { file_path: "/src/b.ts", old_string: "x", new_string: "y" }, "e3"),
+      makeToolUse("Edit", { file_path: "/src/c.ts", old_string: "x", new_string: "y" }, "e4"),
+    ];
+    const result = detectBlindEdits([makeSession("s1", events)]);
+    expect(result.detected).toBe(true);
+    // Punchline should mention success rates
+    expect(result.punchline).toMatch(/succeeded.*%/i);
+  });
 });

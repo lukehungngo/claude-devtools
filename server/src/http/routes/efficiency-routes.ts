@@ -1,8 +1,24 @@
 import { Router } from "express";
-import { computeHints, getEvidence } from "../../analyzer/efficiency/index.js";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { mkdir, writeFile, readdir, readFile } from "node:fs/promises";
+import { computeHints, getEvidence, getDetectedResults } from "../../analyzer/efficiency/index.js";
 import type { RouteContext } from "./route-context.js";
 
 const VALID_RANGES = new Set(["24h", "7d", "30d", "90d"]);
+const REPORT_ID_RE = /^\d{4}-\d{2}-\d{2}-(24h|7d|30d|90d)$/;
+
+function reportsDir(): string {
+  return join(homedir(), ".claude", "devtools", "reports");
+}
+
+async function saveReport(range: string, markdown: string): Promise<void> {
+  const dir = reportsDir();
+  await mkdir(dir, { recursive: true });
+  const date = new Date().toISOString().slice(0, 10);
+  const filename = `${date}-${range}.md`;
+  await writeFile(join(dir, filename), markdown, "utf-8");
+}
 
 export function createEfficiencyRoutes(_ctx: RouteContext): Router {
   const router = Router();
@@ -43,36 +59,47 @@ export function createEfficiencyRoutes(_ctx: RouteContext): Router {
 
     try {
       const hints = computeHints(range as "24h" | "7d" | "30d" | "90d");
+      const detectedResults = getDetectedResults(range);
 
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        // Fallback: return a static report when no API key is available
-        const staticReport = generateStaticReport(hints);
-        res.write(`data: ${JSON.stringify({ text: staticReport })}\n\n`);
-        res.write("data: [DONE]\n\n");
-        res.end();
-        return;
-      }
+      // Build enriched prompt with full evidence data
+      const issueBlocks = detectedResults.map((r, i) => {
+        const sessionLines = r.evidence.sessions
+          .slice(0, 10)
+          .map((s) => `- ${s.id}: ${s.detail} ($${s.cost.toFixed(2)})`)
+          .join("\n");
+        const statsLines = Object.entries(r.evidence.stats)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(", ");
+        return `### ${i + 1}. ${r.category.replace(/_/g, " ")}
+${r.punchline}
 
-      const { default: Anthropic } = await import("@anthropic-ai/sdk");
-      const client = new Anthropic({ apiKey });
+Affected sessions:
+${sessionLines || "- (none)"}
+
+Stats: ${statsLines}
+Detector recommendation: ${r.evidence.recommendation}`;
+      });
 
       const prompt = `You are analyzing a developer's Claude Code usage for the last ${range}.
 
-Here is the data:
+## Summary
+- ${hints.sessionCount} sessions, $${hints.totalCost.toFixed(2)} total spend
 
-Sessions: ${hints.sessionCount}
-Total cost: $${hints.totalCost.toFixed(2)}
+## Detected Issues
 
-Issues found:
-${hints.hints.map((h) => `- ${h.icon} ${h.punchline}`).join("\n") || "No major issues detected."}
+${issueBlocks.length > 0 ? issueBlocks.join("\n\n") : "No major issues detected."}
+
+---
 
 Write a report with these sections:
-1. **What happened this period** - 3-5 bullet headline summary
-2. **Biggest issues** - for each issue: what happened, what it cost (time + money), what to do differently. Cite specific patterns.
-3. **Three changes for next week** - prioritized by expected savings, with rationale
+1. **This period at a glance** — 3-5 bullet summary
+2. **What needs attention** — for each issue above, explain what happened, what it cost, and what to do differently. Cite session IDs.
+3. **Three changes for next week** — prioritized by expected savings, with rationale and evidence
 
-Tone: direct, specific, no fluff. Use dollar amounts and concrete numbers from the data above.`;
+Tone: direct, specific, no fluff. Cite dollar amounts and session IDs.`;
+
+      const { default: Anthropic } = await import("@anthropic-ai/sdk");
+      const client = new Anthropic();
 
       const stream = client.messages.stream({
         model: "claude-sonnet-4-6",
@@ -80,10 +107,19 @@ Tone: direct, specific, no fluff. Use dollar amounts and concrete numbers from t
         messages: [{ role: "user", content: prompt }],
       });
 
+      let reportBuffer = "";
       for await (const event of stream) {
         if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          reportBuffer += event.delta.text;
           res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
         }
+      }
+
+      // Save report after stream completes
+      try {
+        await saveReport(range, reportBuffer);
+      } catch {
+        // Non-fatal: report was already streamed to client
       }
 
       res.write("data: [DONE]\n\n");
@@ -94,30 +130,43 @@ Tone: direct, specific, no fluff. Use dollar amounts and concrete numbers from t
     }
   });
 
-  return router;
-}
-
-function generateStaticReport(hints: { sessionCount: number; totalCost: number; hints: Array<{ punchline: string }> }): string {
-  const lines = [
-    `## What happened this period\n`,
-    `- Analyzed **${hints.sessionCount}** sessions`,
-    `- Total cost: **$${hints.totalCost.toFixed(2)}**`,
-    `- Found **${hints.hints.length}** efficiency issues\n`,
-  ];
-
-  if (hints.hints.length > 0) {
-    lines.push(`## Biggest issues\n`);
-    for (const h of hints.hints) {
-      lines.push(`- ${h.punchline}`);
+  // List saved reports
+  router.get("/efficiency/reports", async (_req, res) => {
+    try {
+      const dir = reportsDir();
+      await mkdir(dir, { recursive: true });
+      const files = await readdir(dir);
+      const reports = files
+        .filter((f) => f.endsWith(".md") && REPORT_ID_RE.test(f.replace(".md", "")))
+        .map((f) => {
+          const id = f.replace(".md", "");
+          const parts = id.split("-");
+          const range = parts[parts.length - 1]!;
+          const date = parts.slice(0, 3).join("-");
+          return { id, date, range, filename: f };
+        })
+        .sort((a, b) => b.date.localeCompare(a.date));
+      res.json(reports);
+    } catch {
+      res.status(500).json({ error: "Failed to list reports" });
     }
-    lines.push("");
-  }
+  });
 
-  lines.push(`## Three changes for next week\n`);
-  lines.push(`1. Review the hints above and address the highest-impact one first`);
-  lines.push(`2. Continue sessions instead of starting new ones for the same project`);
-  lines.push(`3. Always read files before editing them\n`);
-  lines.push(`\n*Note: Set ANTHROPIC_API_KEY for an AI-generated personalized report.*`);
+  // Get a saved report by ID
+  router.get("/efficiency/reports/:id", async (req, res) => {
+    const { id } = req.params;
+    if (!REPORT_ID_RE.test(id)) {
+      res.status(400).json({ error: "Invalid report ID" });
+      return;
+    }
+    try {
+      const filePath = join(reportsDir(), `${id}.md`);
+      const markdown = await readFile(filePath, "utf-8");
+      res.json({ markdown });
+    } catch {
+      res.status(404).json({ error: "Report not found" });
+    }
+  });
 
-  return lines.join("\n");
+  return router;
 }

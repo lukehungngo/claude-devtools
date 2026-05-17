@@ -7,19 +7,22 @@ export function detectCacheMisses(sessions: SessionWithEvents[]): PatternResult 
 
   for (const { info, mainEvents } of sessions) {
     let sessionInput = 0;
+    let sessionCacheCreation = 0;
     let sessionCacheRead = 0;
 
     for (const ev of mainEvents) {
       if (ev.type !== "assistant") continue;
       sessionInput += ev.message.usage.input_tokens;
+      sessionCacheCreation += ev.message.usage.cache_creation_input_tokens ?? 0;
       sessionCacheRead += ev.message.usage.cache_read_input_tokens ?? 0;
     }
 
-    totalInput += sessionInput;
+    const sessionTotalInput = sessionInput + sessionCacheCreation + sessionCacheRead;
+    totalInput += sessionTotalInput;
     totalCacheRead += sessionCacheRead;
 
-    const hitRate = sessionInput > 0 ? sessionCacheRead / sessionInput : 0;
-    if (sessionInput > 1000 && hitRate < 0.2) {
+    const hitRate = sessionTotalInput > 0 ? sessionCacheRead / sessionTotalInput : 0;
+    if (sessionTotalInput > 1000 && hitRate < 0.2) {
       evidenceSessions.push({
         id: info.id,
         detail: `${Math.round(hitRate * 100)}% cache hit rate`,
