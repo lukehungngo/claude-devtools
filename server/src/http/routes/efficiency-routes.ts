@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdir, writeFile, readdir, readFile } from "node:fs/promises";
 import { computeHints, getEvidence, getDetectedResults } from "../../analyzer/efficiency/index.js";
+import { mapSdkMessageToSSEEvents } from "../sse-event-handler.js";
 import type { RouteContext } from "./route-context.js";
 
 const VALID_RANGES = new Set(["24h", "7d", "30d", "90d"]);
@@ -20,7 +21,7 @@ async function saveReport(range: string, markdown: string): Promise<void> {
   await writeFile(join(dir, filename), markdown, "utf-8");
 }
 
-export function createEfficiencyRoutes(_ctx: RouteContext): Router {
+export function createEfficiencyRoutes(ctx: RouteContext): Router {
   const router = Router();
 
   router.get("/efficiency/hints", (req, res) => {
@@ -57,6 +58,15 @@ export function createEfficiencyRoutes(_ctx: RouteContext): Router {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
+    const sessionManager = ctx.state?.sessionManager;
+    if (!sessionManager) {
+      res.write(`data: ${JSON.stringify({ error: "Session manager not available" })}\n\n`);
+      res.end();
+      return;
+    }
+
+    let sessionId: string | undefined;
+
     try {
       const hints = computeHints(range as "24h" | "7d" | "30d" | "90d");
       const detectedResults = getDetectedResults(range);
@@ -80,38 +90,93 @@ Stats: ${statsLines}
 Detector recommendation: ${r.evidence.recommendation}`;
       });
 
-      const prompt = `You are analyzing a developer's Claude Code usage for the last ${range}.
+      const systemPrompt = `You are a Claude Code usage advisor. You analyze how a developer uses Claude Code and give them specific, actionable advice to improve.
 
-## Summary
-- ${hints.sessionCount} sessions, $${hints.totalCost.toFixed(2)} total spend
+You evaluate usage across four dimensions:
 
-## Detected Issues
+## 1. Cost
+- Are they spending money efficiently?
+- Which sessions burned money without producing results?
+- Are they using expensive models (Opus) for tasks that cheaper models (Sonnet) handle equally well?
+- Are they wasting tokens on retries that could have been prevented?
+- What's their cost per completed task vs cost per failed attempt?
 
-${issueBlocks.length > 0 ? issueBlocks.join("\n\n") : "No major issues detected."}
+## 2. Efficiency
+- Are they using the right tools in the right order? (Read before Edit, check before Bash)
+- Are they starting too many sessions when one would do? (session fragmentation wastes cached context)
+- Are they leveraging cache effectively? (continuing sessions vs restarting)
+- How many tool calls does it take them to accomplish a task vs how many it should take?
 
----
+## 3. Quality
+- What percentage of edits succeed on the first try?
+- How often do tool calls fail?
+- How often do they abandon sessions without finishing?
+- Are they getting into retry loops (same command 3+ times)?
+- Do sessions that start with good context (Read first) produce better outcomes?
 
-Write a report with these sections:
-1. **This period at a glance** — 3-5 bullet summary
-2. **What needs attention** — for each issue above, explain what happened, what it cost, and what to do differently. Cite session IDs.
-3. **Three changes for next week** — prioritized by expected savings, with rationale and evidence
+## 4. Latency
+- How long are their sessions taking?
+- How much time is wasted on retries and failed attempts?
+- Are there sessions that ran unusually long relative to their complexity?
+- Would better prompting or tool usage have shortened the task?
 
-Tone: direct, specific, no fluff. Cite dollar amounts and session IDs.`;
+## Report format
 
-      const { default: Anthropic } = await import("@anthropic-ai/sdk");
-      const client = new Anthropic();
+Write the report in markdown with these exact sections:
 
-      const stream = client.messages.stream({
-        model: "claude-sonnet-4-6",
-        max_tokens: 2048,
-        messages: [{ role: "user", content: prompt }],
-      });
+### This period at a glance
+3-5 bullet headline. Lead with the most important finding. Include total sessions, total cost, and the single biggest issue.
+
+### Cost analysis
+What they spent, where the waste is, specific sessions that burned money and why. Dollar amounts always.
+
+### Efficiency & quality
+Tool usage patterns, retry loops, blind edits, session fragmentation. Cite specific sessions and specific tool calls. Compare "what they did" vs "what would have been better."
+
+### What to change this week
+Exactly 3 recommendations. Each one:
+- **What to do** (one sentence, imperative)
+- **Why** (what evidence from their data supports this)
+- **Expected impact** (estimated time or cost savings)
+
+Prioritize by expected impact. Be specific — "use Read before Edit" is better than "improve your workflow."
+
+## Rules
+- Be direct. No pleasantries, no filler, no "great job overall."
+- Every claim must cite data from the input (session IDs, dollar amounts, percentages).
+- If a dimension has no issues, skip it — don't pad the report.
+- Numbers are rounded. Don't say $7.523421 — say $7.52.
+- If there are no issues at all, say so in one sentence and stop.`;
+
+      const userMessage = `Analyze my Claude Code usage for the last ${range}.
+
+## Data
+
+Sessions: ${hints.sessionCount}
+Total cost: $${hints.totalCost.toFixed(2)}
+
+## Detected patterns
+
+${issueBlocks.length > 0 ? issueBlocks.join("\n\n") : "No patterns detected — all metrics are within normal ranges."}`;
+
+      // Create ephemeral session for report generation
+      sessionId = await sessionManager.startSession(process.cwd());
+      sessionManager.setPermissionMode(sessionId, "dontAsk");
+      sessionManager.setModel(sessionId, "claude-sonnet-4-6");
+
+      // Combine system prompt + user message into a single prompt
+      // (Claude Code sessions take a single prompt string)
+      const fullPrompt = systemPrompt + "\n\n---\n\n" + userMessage;
 
       let reportBuffer = "";
-      for await (const event of stream) {
-        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          reportBuffer += event.delta.text;
-          res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
+      for await (const message of sessionManager.sendMessage(sessionId, fullPrompt)) {
+        const msg = message as { type: string; [key: string]: unknown };
+        const sseEvents = mapSdkMessageToSSEEvents(msg);
+        for (const evt of sseEvents) {
+          if (evt.type === "stdout") {
+            reportBuffer += evt.text;
+            res.write(`data: ${JSON.stringify({ text: evt.text })}\n\n`);
+          }
         }
       }
 
@@ -127,6 +192,11 @@ Tone: direct, specific, no fluff. Cite dollar amounts and session IDs.`;
     } catch {
       res.write(`data: ${JSON.stringify({ error: "Report generation failed" })}\n\n`);
       res.end();
+    } finally {
+      // Clean up ephemeral session to avoid leaking into dashboard sidebar
+      if (sessionId) {
+        sessionManager.removeSession(sessionId);
+      }
     }
   });
 
