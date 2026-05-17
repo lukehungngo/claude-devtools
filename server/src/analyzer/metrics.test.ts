@@ -193,7 +193,11 @@ describe("computeMetrics", () => {
     expect(metrics.contextWindowSize).toBe(200_000);
   });
 
-  it("caps contextPercent at 100 when tokens exceed window", () => {
+  it("caps contextPercent at 100 when tokens exceed an SDK-pinned window", () => {
+    // Pin the window explicitly via sdkContextWindow — the observation-derived
+    // path would treat 300K as evidence of a 1M tier and report 30% (no cap).
+    // To exercise the cap behaviour we must force the smaller window through
+    // the SDK authoritative path.
     const mainEvents: SessionEvent[] = [
       makeAssistantEvent({
         usage: { input_tokens: 300000, output_tokens: 100, cache_read_input_tokens: 0 },
@@ -205,7 +209,8 @@ describe("computeMetrics", () => {
       makeSessionInfo(),
       mainEvents,
       new Map(),
-      new Map()
+      new Map(),
+      200_000, // SDK pins window at 200K
     );
 
     // 300K / 200K = 150% → capped at 100
@@ -254,25 +259,10 @@ describe("computeMetrics", () => {
     expect(metrics.contextPercent).toBe(25);
   });
 
-  it("uses 1M context window for models containing '1m'", () => {
-    const mainEvents: SessionEvent[] = [
-      makeAssistantEvent({
-        usage: { input_tokens: 100000, output_tokens: 100, cache_read_input_tokens: 0 },
-        model: "claude-opus-4-6[1m]",
-      }),
-    ];
-
-    const metrics = computeMetrics(
-      makeSessionInfo(),
-      mainEvents,
-      new Map(),
-      new Map()
-    );
-
-    expect(metrics.contextWindowSize).toBe(1_000_000);
-    // contextPercent = round((100000 / 1000000) * 100) = 10
-    expect(metrics.contextPercent).toBe(10);
-  });
+  // (Removed 2026-05-17 with Bug K fix): the "1m" substring heuristic was
+  // deleted from getContextWindowSize. Context window is now derived from
+  // observed usage, not the model name. See
+  // docs/bugs/context-window-hardcoded-guesswork.md.
 
   it("computes duration from first to last main event timestamps (inactive session)", () => {
     const mainEvents: SessionEvent[] = [
@@ -490,11 +480,16 @@ describe("computeMetrics", () => {
     expect(metrics.tokens.outputTokens).toBe(300);
   });
 
-  it("uses 1_000_000 context window for claude-opus-4-7", () => {
+  it("derives 1M window from observed usage when a turn exceeds 200K (Bug K)", () => {
+    // Bug K fix: window is observation-driven, NOT model-name-driven.
+    // Use an unknown model id so the pre-fix hardcoded FALLBACK_CONTEXT_WINDOW_SIZES
+    // would have returned 200K — only the new observation logic returns 1M
+    // when a turn served > 200K input. This is what makes this a real
+    // both-directions test for the Bug K fix.
     const mainEvents: SessionEvent[] = [
       makeAssistantEvent({
         usage: { input_tokens: 500_000, output_tokens: 1000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
-        model: "claude-opus-4-7",
+        model: "claude-future-model-2027", // intentionally unknown to old static map
       }),
     ];
 
@@ -503,7 +498,7 @@ describe("computeMetrics", () => {
       mainEvents,
       new Map(),
       new Map(),
-      // sdkContextWindow omitted — uses fallback map
+      // sdkContextWindow omitted — observation-derived path must pick 1M
     );
 
     expect(metrics.contextWindowSize).toBe(1_000_000);
@@ -550,18 +545,21 @@ describe("computeMetrics", () => {
     expect(metrics.session.isRunning).toBe(false);
   });
 
-  it("uses last real model's context window (not the first model seen)", () => {
+  it("infers 1M tier when any turn exceeds 200K, even with unknown model names (Bug K)", () => {
+    // Mixed-model session with model ids that are NOT in the pre-fix static
+    // map. The pre-fix path would have returned the 200K default for both —
+    // only the observation-derived path sees the 500K turn and returns 1M.
     const mainEvents: SessionEvent[] = [
       makeAssistantEvent({
-        uuid: "sonnet-1",
+        uuid: "first-small",
         timestamp: "2026-04-17T10:00:00Z",
-        model: "claude-sonnet-4-6",
+        model: "claude-future-small-2027",
         usage: { input_tokens: 10_000, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
       }),
       makeAssistantEvent({
-        uuid: "opus-1m-1",
+        uuid: "later-big",
         timestamp: "2026-04-17T10:01:00Z",
-        model: "claude-opus-4-6[1m]",
+        model: "claude-future-big-2027",
         usage: { input_tokens: 500_000, output_tokens: 200, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
       }),
     ];
@@ -571,10 +569,10 @@ describe("computeMetrics", () => {
       mainEvents,
       new Map(),
       new Map()
-      // no sdkContextWindow — fallback path must pick the last real model
+      // no sdkContextWindow — observation-derived path must see the 500K turn
     );
 
-    // The latest assistant event with usage used the 1M-tier opus — context window must be 1M, not 200k.
+    // 500K observed → 1M tier inferred.
     expect(metrics.contextWindowSize).toBe(1_000_000);
     // 500_000 / 1_000_000 = 50%
     expect(metrics.contextPercent).toBe(50);

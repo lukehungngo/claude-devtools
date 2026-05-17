@@ -1,9 +1,8 @@
+import { FALLBACK_MODEL_PRICING } from "./modelPricing";
 import {
-  FALLBACK_MODEL_PRICING,
-  FALLBACK_CONTEXT_WINDOW_SIZES,
-  DEFAULT_CONTEXT_WINDOW,
-  ONE_MILLION_CONTEXT,
-} from "./modelPricing";
+  deriveObservedContextWindow,
+  type ContextWindowEvent,
+} from "./contextWindow";
 
 const DEFAULT_PRICING = FALLBACK_MODEL_PRICING["claude-sonnet-4-6"];
 
@@ -33,12 +32,15 @@ export function calculateTurnCost(
   );
 }
 
-function getContextWindowSize(model: string): number {
-  if (model.includes("1m") || model.includes("1M")) return ONE_MILLION_CONTEXT;
-  for (const [key, size] of Object.entries(FALLBACK_CONTEXT_WINDOW_SIZES)) {
-    if (model.includes(key)) return size;
-  }
-  return DEFAULT_CONTEXT_WINDOW;
+function getContextWindowSize(
+  _model: string,
+  observedEvents: readonly ContextWindowEvent[],
+): number {
+  // Observation-derived window — see docs/bugs/context-window-hardcoded-guesswork.md.
+  // No model-name heuristics, no per-model magic numbers. The dashboard has no
+  // access to the persistent SDK cache (server-only); SDK live values take the
+  // sdkContextWindow path. This function is the universal fallback.
+  return deriveObservedContextWindow(observedEvents);
 }
 
 export interface LiveMetrics {
@@ -116,9 +118,9 @@ export function computeLiveMetrics(
     }
   }
 
-  // Context % — use SDK authoritative value when available, fall back to model-based lookup
+  // Context % — use SDK authoritative value when available, fall back to observation-derived window
   const primaryModel = Array.from(models)[0] || "claude-sonnet-4-6";
-  const contextWindowSize = sdkContextWindow || getContextWindowSize(primaryModel);
+  const contextWindowSize = sdkContextWindow || getContextWindowSize(primaryModel, events);
   const contextPercent = contextWindowSize > 0
     ? Math.min(100, Math.round((lastInputTokens / contextWindowSize) * 100))
     : 0;

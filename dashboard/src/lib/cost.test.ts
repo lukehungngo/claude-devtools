@@ -209,7 +209,10 @@ describe("computeLiveMetrics context window", () => {
     expect(result.contextPercent).toBe(25);
   });
 
-  it("caps contextPercent at 100 when tokens exceed window without SDK value", () => {
+  it("caps contextPercent at 100 when tokens exceed an SDK-pinned window", () => {
+    // Pin window via SDK — the observation-derived path would treat 300K as
+    // evidence of a 1M tier (30%, no cap). To exercise the cap we must force
+    // the smaller window through the SDK authoritative path.
     const events = [
       {
         type: "assistant",
@@ -227,7 +230,7 @@ describe("computeLiveMetrics context window", () => {
       },
     ];
 
-    const result = computeLiveMetrics(events, false);
+    const result = computeLiveMetrics(events, false, 200_000);
 
     // 300K / 200K = 150% → capped at 100
     expect(result.contextWindowSize).toBe(200_000);

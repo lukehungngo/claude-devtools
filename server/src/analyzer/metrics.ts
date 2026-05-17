@@ -13,12 +13,8 @@ import { buildAgentDAG } from "./dag-builder.js";
 import { buildToolStats } from "./tool-stats.js";
 import { normalizeContent } from "../lib/normalizeContent.js";
 import { getModelContextWindow } from "../cache/model-context-cache.js";
-import {
-  FALLBACK_MODEL_PRICING,
-  FALLBACK_CONTEXT_WINDOW_SIZES,
-  DEFAULT_CONTEXT_WINDOW,
-  ONE_MILLION_CONTEXT,
-} from "./modelPricing.js";
+import { FALLBACK_MODEL_PRICING } from "./modelPricing.js";
+import { deriveObservedContextWindow } from "./contextWindow.js";
 
 export function calculateTokenCost(
   model: string,
@@ -36,17 +32,17 @@ export function calculateTokenCost(
   );
 }
 
-function getContextWindowSize(model: string): number {
-  // 1. Persistent cache (populated from live SDK result events)
+function getContextWindowSize(
+  model: string,
+  observedEvents: readonly SessionEvent[],
+): number {
+  // 1. Persistent cache (populated from live SDK result events) — authoritative when present.
   const cached = getModelContextWindow(model);
   if (cached !== undefined) return cached;
-  // 2. "1m" suffix heuristic (e.g., "claude-opus-4-6[1m]")
-  if (model.includes("1m") || model.includes("1M")) return ONE_MILLION_CONTEXT;
-  // 3. Static fallback map
-  for (const [key, size] of Object.entries(FALLBACK_CONTEXT_WINDOW_SIZES)) {
-    if (model.includes(key)) return size;
-  }
-  return DEFAULT_CONTEXT_WINDOW;
+  // 2. Observation-derived window from this session's actual assistant usage.
+  //    Universal — no model-name heuristics, no hardcoded per-model magic numbers.
+  //    See docs/bugs/context-window-hardcoded-guesswork.md for rationale.
+  return deriveObservedContextWindow(observedEvents);
 }
 
 function extractTasks(events: SessionEvent[]): TaskSummary {
@@ -295,7 +291,7 @@ export function computeMetrics(
   // For the fallback, prefer the model tied to the latest real assistant event
   // (that's the model currently running and the one whose window applies to lastInputTokens).
   const primaryModel = sessionInfo.model ?? lastRealModel ?? Array.from(models)[0] ?? "claude-sonnet-4-6";
-  const contextWindowSize = sdkContextWindow || getContextWindowSize(primaryModel);
+  const contextWindowSize = sdkContextWindow || getContextWindowSize(primaryModel, allEvents);
   const contextPercent = contextWindowSize > 0
     ? Math.min(100, Math.round((lastInputTokens / contextWindowSize) * 100))
     : 0;

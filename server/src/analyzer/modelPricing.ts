@@ -25,12 +25,19 @@ export const FALLBACK_MODEL_PRICING: Record<string, ModelPricing> = {
   "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheWrite: 1, cacheRead: 0.08 },
 };
 
-export const FALLBACK_CONTEXT_WINDOW_SIZES: Record<string, number> = {
-  "claude-opus-4-7": 1_000_000,
-  "claude-opus-4-6": 200_000,
-  "claude-sonnet-4-6": 200_000,
-  "claude-haiku-4-5": 200_000,
-};
-
+/**
+ * Standard 200K context window — used as the safe default by
+ * deriveObservedContextWindow when no assistant event has been observed yet.
+ *
+ * The static per-model FALLBACK_CONTEXT_WINDOW_SIZES map and the
+ * ONE_MILLION_CONTEXT substring heuristic were removed on 2026-05-17 — both
+ * were guesswork keyed on model-name strings that frequently didn't match the
+ * runtime model id. See docs/bugs/context-window-hardcoded-guesswork.md.
+ *
+ * Sources of truth for context window, in priority order:
+ *   1. SDK live `result.modelUsage[model].contextWindow` (authoritative).
+ *   2. Persistent cache (server only — populated from past SDK result events).
+ *   3. Observation-derived window from this session's assistant usage.
+ *   4. DEFAULT_CONTEXT_WINDOW (this constant) when no observations exist.
+ */
 export const DEFAULT_CONTEXT_WINDOW = 200_000;
-export const ONE_MILLION_CONTEXT = 1_000_000;
