@@ -3,7 +3,6 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdir, writeFile, readdir, readFile } from "node:fs/promises";
 import { computeHints, getEvidence, getDetectedResults } from "../../analyzer/efficiency/index.js";
-import { mapSdkMessageToSSEEvents } from "../sse-event-handler.js";
 import type { RouteContext } from "./route-context.js";
 
 const VALID_RANGES = new Set(["24h", "7d", "30d", "90d"]);
@@ -170,13 +169,21 @@ ${issueBlocks.length > 0 ? issueBlocks.join("\n\n") : "No patterns detected — 
 
       let reportBuffer = "";
       for await (const message of sessionManager.sendMessage(sessionId, fullPrompt)) {
-        const msg = message as { type: string; [key: string]: unknown };
-        const sseEvents = mapSdkMessageToSSEEvents(msg);
-        for (const evt of sseEvents) {
-          if (evt.type === "stdout") {
-            reportBuffer += evt.text;
-            res.write(`data: ${JSON.stringify({ text: evt.text })}\n\n`);
-          }
+        // Only extract text from stream_event content_block_delta text_delta messages
+        // to avoid duplication with the final assistant message that contains the full text.
+        const msg = message as {
+          type?: string;
+          event?: { type?: string; delta?: { type?: string; text?: string } };
+        };
+        if (
+          msg.type === "stream_event" &&
+          msg.event?.type === "content_block_delta" &&
+          msg.event.delta?.type === "text_delta" &&
+          msg.event.delta.text
+        ) {
+          const text = msg.event.delta.text;
+          reportBuffer += text;
+          res.write(`data: ${JSON.stringify({ text })}\n\n`);
         }
       }
 

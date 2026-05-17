@@ -22,6 +22,9 @@ function createAppWithSessionManager() {
   const mockMessages = [
     { type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "Report chunk 1" } } },
     { type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: " chunk 2" } } },
+    // SDK also emits the full assistant message after streaming completes (when includePartialMessages is true).
+    // The handler must NOT duplicate text from this message.
+    { type: "assistant", message: { content: [{ type: "text", text: "Report chunk 1 chunk 2" }] } },
     { type: "result", is_error: false },
   ];
 
@@ -148,6 +151,10 @@ describe("POST /efficiency/report (SessionManager)", () => {
     expect(body).toContain('data: {"text":"Report chunk 1"}');
     expect(body).toContain('data: {"text":" chunk 2"}');
     expect(body).toContain("data: [DONE]");
+
+    // Verify no duplication — the full assistant message must NOT produce a second text event
+    const textMatches = body.match(/data: \{"text"/g) ?? [];
+    expect(textMatches.length).toBe(2); // exactly 2 stream chunks, no duplicated full-message
   });
 
   it("returns SSE error and cleans up session when sendMessage throws", async () => {
