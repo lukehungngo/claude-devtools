@@ -12,6 +12,7 @@ import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
 import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
 import { useInsightsCommandsAgentsSkills } from "../hooks/useInsightsCommandsAgentsSkills";
 import { CASRow, BADGE_PALETTE, abbreviateName } from "../components/insights/CASRow";
+import { EfficiencyHints } from "../components/insights/EfficiencyHints";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -1003,10 +1004,10 @@ export function InsightsPage(): JSX.Element {
           </div>
         </div>
 
-        {/* Efficiency Hints — coming soon */}
+        {/* Efficiency Hints */}
         <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-efficiency-hints">
-          <div className="text-lg font-semibold text-dt-text0 mb-1">Efficiency Hints</div>
-          <div className="text-sm text-dt-text2">Coming soon — pattern-based usage recommendations.</div>
+          <div className="text-lg font-semibold text-dt-text0 mb-3">Efficiency Hints</div>
+          <EfficiencyHints range={timeRange} />
         </div>
       </div>
     </div>
