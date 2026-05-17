@@ -1007,7 +1007,7 @@ export function InsightsPage(): JSX.Element {
         {/* Efficiency Hints */}
         <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-efficiency-hints">
           <div className="text-lg font-semibold text-dt-text0 mb-3">Efficiency Hints</div>
-          <EfficiencyHints range={timeRange} />
+          <EfficiencyHints range={timeRange === "all" ? "90d" : timeRange} />
         </div>
       </div>
     </div>
