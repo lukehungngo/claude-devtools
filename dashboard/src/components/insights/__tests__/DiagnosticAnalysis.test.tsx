@@ -44,7 +44,7 @@ describe("DiagnosticAnalysis", () => {
     render(<DiagnosticAnalysis diagnostic={diagnostic} />);
 
     expect(screen.getByTestId("diagnostic-analysis")).toBeTruthy();
-    expect(screen.getByText("Selected analysis")).toBeTruthy();
+    expect(screen.getByText("Details for selected pattern")).toBeTruthy();
     expect(screen.getByText("Several write proposals were rejected.")).toBeTruthy();
     expect(screen.getByText("Read the target file immediately before editing.")).toBeTruthy();
     expect(screen.getByText("rejectRate: 0.25")).toBeTruthy();

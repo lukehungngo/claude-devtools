@@ -43,7 +43,7 @@ export function DiagnosticsSection({
 
   const [primary, ...secondary] = diagnostics;
   const diagnosticsTitle = periodLabel === "Last 7 days" ? "This week's coaching" : `${periodLabel} coaching`;
-  const patternLabel = diagnostics.length === 1 ? "1 pattern ranked by impact" : `${diagnostics.length} patterns ranked by impact`;
+  const patternCount = diagnostics.length === 1 ? "1 pattern" : `${diagnostics.length} patterns`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -51,9 +51,14 @@ export function DiagnosticsSection({
         data-testid="section-diagnostics"
         className="flex flex-col gap-3"
       >
-        <div className="flex items-baseline gap-2.5 pb-1">
+        <div className="flex flex-wrap items-baseline gap-2.5 pb-1">
           <h2 className="text-lg font-bold text-dt-text0">{diagnosticsTitle}</h2>
-          <span className="font-mono text-md text-dt-text2">{patternLabel}</span>
+          <span className="rounded-full border border-dt-border bg-dt-bg1 px-2 py-0.5 font-mono text-md text-dt-text2">
+            {patternCount} ranked by impact
+          </span>
+          <span className="font-mono text-md text-dt-text2">
+            Select a pattern to see evidence and recommendations below.
+          </span>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr_1fr]">

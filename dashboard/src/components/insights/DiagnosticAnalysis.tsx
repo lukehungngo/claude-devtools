@@ -13,7 +13,7 @@ export function DiagnosticAnalysis({ diagnostic }: DiagnosticAnalysisProps): JSX
     >
       <div className="flex items-center gap-2.5 border-b border-dt-border bg-dt-bg2 px-5 py-3.5">
         <div className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
-          Selected analysis
+          Details for selected pattern
         </div>
         <h3 className="text-md font-semibold text-dt-text0">{diagnostic.title}</h3>
         <div className="ml-auto rounded-dt-sm bg-dt-bg1 px-2 py-1 font-mono text-md text-dt-text2">

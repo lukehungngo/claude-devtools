@@ -87,16 +87,21 @@ export function DiagnosticCard({
       type="button"
       data-testid={variant === "primary" ? "diagnostic-card-primary" : "diagnostic-card-secondary"}
       aria-pressed={selected}
-      aria-label={diagnostic.title}
+      aria-label={`${diagnostic.title}. ${selected ? "Selected, details shown below" : "Select to view details below"}`}
       onClick={onSelect}
       className={baseClasses}
     >
       <div className="flex h-full flex-col gap-2.5">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className={["rounded-full px-2 py-0.5 font-mono text-md font-bold uppercase tracking-wide", CHIP_CLASSES[diagnostic.category]].join(" ")}>
             {diagnostic.category}
           </span>
           <span className="font-mono text-md text-dt-text2">{severityLabel(diagnostic)}</span>
+          {selected ? (
+            <span className="rounded-full bg-dt-accent-dim px-2 py-0.5 font-mono text-md font-bold text-dt-accent">
+              Selected
+            </span>
+          ) : null}
           <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-md text-dt-text2">
             {evidenceLabel(diagnostic.confidence)}
             <span className="inline-flex gap-0.5">
@@ -125,10 +130,15 @@ export function DiagnosticCard({
               </span>
             </span>
           </span>
-          <ChevronRight
-            size={15}
-            className={selected ? "mt-1 shrink-0 text-dt-accent" : "mt-1 shrink-0 text-dt-text2"}
-          />
+          <span
+            className={[
+              "mt-1 inline-flex shrink-0 items-center gap-1 font-mono text-md font-semibold",
+              selected ? "text-dt-accent" : "text-dt-text2",
+            ].join(" ")}
+          >
+            {selected ? "Viewing details" : "View details"}
+            <ChevronRight size={15} />
+          </span>
         </div>
 
         <p className={variant === "primary" ? "text-md leading-6 text-dt-text1" : "text-md leading-5 text-dt-text1"}>
