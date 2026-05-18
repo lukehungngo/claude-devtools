@@ -7,10 +7,16 @@ const mockUseRouterState = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
   useRouterState: () => mockUseRouterState(),
+  useLocation: () => ({ pathname: "/" }),
 }));
 
 vi.mock("../../contexts/ThemeContext", () => ({
   useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
+}));
+
+vi.mock("../../hooks/useInsightsNudge", () => ({
+  useInsightsNudge: () => ({ nudgeActive: false }),
+  safeWriteInsightsLastClick: vi.fn(),
 }));
 
 import { Titlebar } from "../Titlebar";
