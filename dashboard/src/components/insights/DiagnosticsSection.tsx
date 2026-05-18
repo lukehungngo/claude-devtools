@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { DiagnosticResult, QuickWinResult } from "../../lib/insightsDiagnosticsTypes";
 import { DiagnosticAnalysis } from "./DiagnosticAnalysis";
 import { DiagnosticCard } from "./DiagnosticCard";
@@ -43,7 +43,6 @@ export function DiagnosticsSection({
   if (error) return <DiagnosticsStates state="error" error={error} />;
   if (!selectedDiagnostic) return <DiagnosticsStates state="empty" />;
 
-  const [primary, ...secondary] = diagnostics;
   const diagnosticsTitle = periodLabel === "Last 7 days" ? "This week's coaching" : `${periodLabel} coaching`;
   const patternCount = diagnostics.length === 1 ? "1 pattern" : `${diagnostics.length} patterns`;
 
@@ -73,42 +72,41 @@ export function DiagnosticsSection({
             {patternCount} ranked by impact
           </span>
           <span className="font-mono text-md text-dt-text2">
-            Select a pattern to expand coaching and update evidence below.
+            Select a pattern to expand coaching; evidence appears directly underneath.
           </span>
         </div>
 
         <div className="grid gap-2">
-          <DiagnosticCard
-            diagnostic={primary}
-            variant="primary"
-            selected={selectedDiagnostic.id === primary.id}
-            onSelect={() => selectDiagnostic(primary.id)}
-          />
-          {secondary.length > 0 ? (
-            secondary.map((diagnostic) => (
-              <DiagnosticCard
-                key={diagnostic.id}
-                diagnostic={diagnostic}
-                variant="secondary"
-                selected={selectedDiagnostic.id === diagnostic.id}
-                onSelect={() => selectDiagnostic(diagnostic.id)}
-              />
-            ))
-          ) : (
+          {diagnostics.map((diagnostic, index) => {
+            const selected = selectedDiagnostic.id === diagnostic.id;
+            return (
+              <Fragment key={diagnostic.id}>
+                <DiagnosticCard
+                  diagnostic={diagnostic}
+                  variant={index === 0 ? "primary" : "secondary"}
+                  selected={selected}
+                  onSelect={() => selectDiagnostic(diagnostic.id)}
+                />
+                {selected ? (
+                  <div
+                    ref={evidenceRef}
+                    data-testid="diagnostic-evidence-anchor"
+                    className={evidenceHighlighted ? "rounded-dt ring-2 ring-dt-accent-dim" : "rounded-dt"}
+                  >
+                    <DiagnosticAnalysis diagnostic={selectedDiagnostic} />
+                  </div>
+                ) : null}
+              </Fragment>
+            );
+          })}
+          {diagnostics.length === 1 ? (
             <div className="rounded-dt border border-dt-border bg-dt-bg2 px-3 py-3 text-md text-dt-text2">
               More diagnostics will appear when additional signals cross a threshold.
             </div>
-          )}
+          ) : null}
         </div>
       </section>
 
-      <div
-        ref={evidenceRef}
-        data-testid="diagnostic-evidence-anchor"
-        className={evidenceHighlighted ? "rounded-dt ring-2 ring-dt-accent-dim" : "rounded-dt"}
-      >
-        <DiagnosticAnalysis diagnostic={selectedDiagnostic} />
-      </div>
       <QuickWinsList quickWins={quickWins} />
     </div>
   );

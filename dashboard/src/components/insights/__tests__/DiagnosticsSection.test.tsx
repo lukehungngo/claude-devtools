@@ -183,6 +183,30 @@ describe("DiagnosticsSection", () => {
     }
   });
 
+  it("renders evidence immediately after the expanded diagnosis", () => {
+    render(
+      <DiagnosticsSection
+        diagnostics={diagnostics}
+        quickWins={quickWins}
+        loading={false}
+        error={null}
+      />
+    );
+
+    const firstPattern = screen.getByRole("button", {
+      name: /Tool failures are slowing delivery/i,
+    });
+    const evidenceAnchor = screen.getByTestId("diagnostic-evidence-anchor");
+
+    expect(firstPattern.nextElementSibling).toBe(evidenceAnchor);
+
+    fireEvent.click(screen.getByRole("button", { name: /Cache reuse is low/i }));
+
+    const secondPattern = screen.getByRole("button", { name: /Cache reuse is low/i });
+    const updatedEvidenceAnchor = screen.getByTestId("diagnostic-evidence-anchor");
+    expect(secondPattern.nextElementSibling).toBe(updatedEvidenceAnchor);
+  });
+
   it("renders loading, error, and empty states", () => {
     const { rerender } = render(
       <DiagnosticsSection diagnostics={[]} quickWins={[]} loading error={null} />
