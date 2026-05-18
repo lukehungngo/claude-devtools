@@ -7,16 +7,16 @@ import { formatModelName } from "../../lib/formatModelName";
 
 /** Height of the tab bar in pixels */
 const TAB_BAR_HEIGHT = 37;
-const AGENT_ROW_HEIGHT = 48;
-const TOOL_ROW_HEIGHT = 26;
+const AGENT_ROW_HEIGHT = 52;
+const TOOL_ROW_HEIGHT = 28;
 const ROW_MARGIN = 2;
-const DEFAULT_LABEL_WIDTH = 140;
-const MIN_LABEL_WIDTH = 60;
+const DEFAULT_LABEL_WIDTH = 180;
+const MIN_LABEL_WIDTH = 80;
 const MAX_LABEL_WIDTH = 400;
-const NAME_COL_WIDTH = 60;
+const NAME_COL_WIDTH = 100;
 const MODEL_COL_WIDTH = 88;
 const DURATION_COL_WIDTH = 72;
-const COST_COL_WIDTH = 64;
+const COST_COL_WIDTH = 72;
 const TOKENS_COL_WIDTH = 88;
 const DATA_COLS_WIDTH = NAME_COL_WIDTH + MODEL_COL_WIDTH + DURATION_COL_WIDTH + COST_COL_WIDTH + TOKENS_COL_WIDTH;
 
