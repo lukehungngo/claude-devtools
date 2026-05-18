@@ -5,9 +5,12 @@ interface ThinkingGroupProps {
   items: ContentItem[];
 }
 
-/** Collapsible group for all thinking blocks in a turn — collapsed by default */
+/** Collapsible group for all thinking blocks in a turn — expanded by default
+ * (reasoning is the highest-signal content; users scroll to see it, hiding it
+ * behind a click is hostile). User can still collapse via the triangle.
+ */
 export function ThinkingGroup({ items }: ThinkingGroupProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   const thinkingItems = items.filter(
     (item): item is ContentItem & { thinking: string } =>
