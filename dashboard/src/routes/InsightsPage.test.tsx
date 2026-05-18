@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { InsightsPage } from "./InsightsPage";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -189,6 +189,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 describe("InsightsPage", () => {
@@ -459,6 +460,73 @@ describe("InsightsPage", () => {
     expect(vi.mocked(useInsightsCommandsAgentsSkills)).toHaveBeenLastCalledWith("7d", "all", 1);
     expect(vi.mocked(useEfficiencyDiagnostics)).toHaveBeenLastCalledWith("7d", "all", 1);
   });
+
+  it("regenerate report button refreshes data and saves a new report snapshot", async () => {
+    mockData();
+    mockActivityData();
+    const encoder = new TextEncoder();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode('data: {"text":"Report"}\n\n'));
+          controller.enqueue(
+            encoder.encode('data: {"done":true,"reportId":"2026-05-18-103700-7d"}\n\n')
+          );
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<InsightsPage />);
+    fireEvent.click(screen.getByTestId("insights-regenerate-report-btn"));
+
+    expect(vi.mocked(useInsightsAggregate)).toHaveBeenLastCalledWith("7d", "all", 1);
+    expect(vi.mocked(useEfficiencyDiagnostics)).toHaveBeenLastCalledWith("7d", "all", 1);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/efficiency/report",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ range: "7d", repo: "all" }),
+        })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Snapshot saved")).toBeTruthy();
+    });
+  });
+
+  it("settles regenerate report when SSE sends DONE before the stream closes", async () => {
+    mockData();
+    mockActivityData();
+    const encoder = new TextEncoder();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode('data: {"done":true,"reportId":"2026-05-18-193357-7d"}\n\n')
+          );
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<InsightsPage />);
+    fireEvent.click(screen.getByTestId("insights-regenerate-report-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Snapshot saved")).toBeTruthy();
+    });
+    expect(screen.getByTestId("insights-regenerate-report-btn").textContent).toContain(
+      "Regenerate report"
+    );
+  });
 });
 
 describe("activity section", () => {
@@ -531,5 +599,32 @@ describe("top consumers section", () => {
     vi.mocked(useInsightsTopConsumers).mockReturnValue({ data: null, loading: true, error: null });
     render(<InsightsPage />);
     expect(screen.getByTestId("section-top-consumers")).toBeTruthy();
+  });
+});
+
+describe("InsightsPage — nudge timestamp", () => {
+  const NUDGE_KEY = "cdt:insights-last-click";
+
+  beforeEach(() => {
+    localStorage.clear();
+    mockData();
+  });
+  afterEach(() => cleanup());
+
+  it("writes an ISO timestamp to localStorage on mount", () => {
+    render(<InsightsPage />);
+    const raw = localStorage.getItem(NUDGE_KEY);
+    expect(raw).not.toBeNull();
+    expect(raw!).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+  });
+
+  it("does not throw if localStorage.setItem throws on mount", () => {
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => { throw new Error("blocked"); };
+    try {
+      expect(() => render(<InsightsPage />)).not.toThrow();
+    } finally {
+      Storage.prototype.setItem = orig;
+    }
   });
 });

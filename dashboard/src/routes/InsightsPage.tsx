@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { RefreshCw, ChevronDown } from "lucide-react";
 import { useLayoutContext } from "../contexts/LayoutContext";
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
@@ -16,8 +16,10 @@ import { useEfficiencyDiagnostics } from "../hooks/useEfficiencyDiagnostics";
 import { DiagnosticsSection } from "../components/insights/DiagnosticsSection";
 import type { PeriodSummary } from "../lib/insightsDiagnosticsTypes";
 import type { DeltaData } from "../hooks/useInsightsAggregate";
+import { safeWriteInsightsLastClick } from "../hooks/useInsightsNudge";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
+type ReportSnapshotState = "idle" | "generating" | "saved" | "error";
 
 const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
   { value: "24h", label: "24h" },
@@ -392,10 +394,18 @@ function PeriodSummaryRow({ period, delta }: PeriodSummaryRowProps): JSX.Element
 }
 
 export function InsightsPage(): JSX.Element {
+  // Record this visit so the Titlebar nudge resets. Runs once on mount.
+  useEffect(() => {
+    safeWriteInsightsLastClick();
+  }, []);
+
   const { setCurrentMetrics } = useLayoutContext();
   const [timeRange, setTimeRange] = useState<TimeRange>("7d");
   const [repo, setRepo] = useState("all");
   const [refreshCount, setRefreshCount] = useState(0);
+  const [reportSnapshotState, setReportSnapshotState] =
+    useState<ReportSnapshotState>("idle");
+  const [reportSnapshotMessage, setReportSnapshotMessage] = useState<string | null>(null);
   const { data, delta, loading, error } = useInsightsAggregate(timeRange, repo, refreshCount);
   const { data: activityData, loading: activityLoading } = useInsightsActivity(timeRange, repo, refreshCount);
   const { data: modelMixData, loading: modelMixLoading } = useInsightsModelMix(timeRange, repo, refreshCount);
@@ -438,6 +448,78 @@ export function InsightsPage(): JSX.Element {
         }
       : null);
 
+  const regenerateReportSnapshot = useCallback(async () => {
+    if (reportSnapshotState === "generating") return;
+
+    setRefreshCount((c) => c + 1);
+    setReportSnapshotState("generating");
+    setReportSnapshotMessage("Creating snapshot...");
+
+    try {
+      const res = await fetch("/api/efficiency/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ range: diagnosticsRange, repo }),
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error("Report generation failed");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let reportId: string | null = null;
+      let streamComplete = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6);
+          if (payload === "[DONE]") {
+            streamComplete = true;
+            break;
+          }
+
+          try {
+            const parsed = JSON.parse(payload) as {
+              done?: boolean;
+              error?: string;
+              reportId?: string | null;
+            };
+            if (parsed.error) throw new Error(parsed.error);
+            if (parsed.reportId) reportId = parsed.reportId;
+            if (parsed.done) {
+              streamComplete = true;
+              break;
+            }
+          } catch (err) {
+            if (err instanceof SyntaxError) continue;
+            throw err;
+          }
+        }
+
+        if (streamComplete) {
+          await reader.cancel().catch(() => undefined);
+          break;
+        }
+      }
+
+      setReportSnapshotState("saved");
+      setReportSnapshotMessage(reportId ? "Snapshot saved" : "Report generated");
+    } catch {
+      setReportSnapshotState("error");
+      setReportSnapshotMessage("Snapshot failed");
+    }
+  }, [diagnosticsRange, repo, reportSnapshotState]);
+
   useEffect(() => {
     setCurrentMetrics(null);
   }, [setCurrentMetrics]);
@@ -454,6 +536,31 @@ export function InsightsPage(): JSX.Element {
             <span className="text-md text-dt-text2 font-sans">
               A weekly coach for your Claude Code workflow
             </span>
+          </div>
+          <div className="flex flex-col items-start sm:items-end gap-1">
+            <button
+              type="button"
+              data-testid="insights-regenerate-report-btn"
+              onClick={regenerateReportSnapshot}
+              disabled={anyLoading || reportSnapshotState === "generating"}
+              className="inline-flex h-8 items-center gap-2 rounded-dt border border-dt-border bg-dt-bg1 px-3 font-mono text-md font-bold text-dt-text1 shadow-dt-sm transition-colors hover:border-dt-accent hover:text-dt-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw
+                size={13}
+                className={reportSnapshotState === "generating" ? "animate-spin" : ""}
+              />
+              {reportSnapshotState === "generating" ? "Generating..." : "Regenerate report"}
+            </button>
+            {reportSnapshotMessage ? (
+              <span
+                className={[
+                  "font-mono text-md font-semibold",
+                  reportSnapshotState === "error" ? "text-dt-red" : "text-dt-text2",
+                ].join(" ")}
+              >
+                {reportSnapshotMessage}
+              </span>
+            ) : null}
           </div>
         </div>
 
