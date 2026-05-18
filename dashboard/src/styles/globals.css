@@ -1653,3 +1653,27 @@
   color: #ffdcd7;
   background-color: #67060c;
 }
+
+/* === Insights nudge animation ============================================ */
+@keyframes dt-insights-pulse {
+  0%   { box-shadow: 0 0 0 0   var(--acc); }
+  50%  { box-shadow: 0 0 12px 2px var(--acc); }
+  100% { box-shadow: 0 0 0 0   var(--acc); }
+}
+
+.dt-insights-pulse {
+  animation: dt-insights-pulse 1.4s ease-in-out 5;
+  animation-fill-mode: forwards;
+}
+
+.dt-insights-pulse-resting {
+  box-shadow: var(--acc-glow);
+  transition: box-shadow .2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dt-insights-pulse {
+    animation: none;
+    box-shadow: var(--acc-glow);
+  }
+}
