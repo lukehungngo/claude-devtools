@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { DiagnosticsSection } from "../DiagnosticsSection";
 import type { DiagnosticResult, QuickWinResult } from "../../../lib/insightsDiagnosticsTypes";
@@ -102,7 +102,7 @@ describe("DiagnosticsSection", () => {
     expect(screen.getByText("This week's coaching")).toBeTruthy();
     expect(screen.getByText("2 patterns ranked by impact")).toBeTruthy();
     expect(screen.getByTestId("diagnostic-card-primary")).toBeTruthy();
-    expect(screen.getByTestId("diagnostic-analysis")).toBeTruthy();
+    expect(screen.queryByTestId("diagnostic-analysis")).toBeNull();
     expect(screen.getByText("Quick wins")).toBeTruthy();
   });
 
@@ -149,41 +149,10 @@ describe("DiagnosticsSection", () => {
     expect(firstPattern.textContent).not.toContain("Commands failed repeatedly.");
     expect(secondPattern.getAttribute("aria-expanded")).toBe("true");
     expect(secondPattern.textContent).toContain("Large prompts missed cache reuse.");
-    expect(screen.getByTestId("diagnostic-analysis").textContent).toContain(
-      "Evidence for selected pattern"
-    );
+    expect(screen.queryByTestId("diagnostic-analysis")).toBeNull();
   });
 
-  it("jumps to the selected pattern evidence when the expanded row evidence cue is clicked", () => {
-    const scrollIntoView = vi.fn();
-    const originalScrollIntoView = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = scrollIntoView;
-
-    try {
-      render(
-        <DiagnosticsSection
-          diagnostics={diagnostics}
-          quickWins={quickWins}
-          loading={false}
-          error={null}
-        />
-      );
-
-      fireEvent.click(screen.getByText("Jump to evidence below"));
-
-      expect(scrollIntoView).toHaveBeenCalledWith({
-        behavior: "smooth",
-        block: "start",
-      });
-      expect(screen.getByTestId("diagnostic-evidence-anchor").className).toContain(
-        "ring-2"
-      );
-    } finally {
-      Element.prototype.scrollIntoView = originalScrollIntoView;
-    }
-  });
-
-  it("renders evidence immediately after the expanded diagnosis", () => {
+  it("shows and hides evidence as a third level under the expanded diagnosis", () => {
     render(
       <DiagnosticsSection
         diagnostics={diagnostics}
@@ -196,15 +165,47 @@ describe("DiagnosticsSection", () => {
     const firstPattern = screen.getByRole("button", {
       name: /Tool failures are slowing delivery/i,
     });
-    const evidenceAnchor = screen.getByTestId("diagnostic-evidence-anchor");
 
+    expect(screen.queryByTestId("diagnostic-analysis")).toBeNull();
+    expect(firstPattern.textContent).toContain("Show evidence");
+
+    fireEvent.click(firstPattern);
+
+    const evidenceAnchor = screen.getByTestId("diagnostic-evidence-anchor");
     expect(firstPattern.nextElementSibling).toBe(evidenceAnchor);
+    expect(screen.getByTestId("diagnostic-analysis").textContent).toContain(
+      "Evidence"
+    );
+    expect(firstPattern.textContent).toContain("Hide evidence");
+
+    fireEvent.click(firstPattern);
+
+    expect(screen.queryByTestId("diagnostic-analysis")).toBeNull();
+    expect(firstPattern.textContent).toContain("Show evidence");
+  });
+
+  it("closes evidence when a different diagnosis is expanded", () => {
+    render(
+      <DiagnosticsSection
+        diagnostics={diagnostics}
+        quickWins={quickWins}
+        loading={false}
+        error={null}
+      />
+    );
+
+    const firstPattern = screen.getByRole("button", {
+      name: /Tool failures are slowing delivery/i,
+    });
+    fireEvent.click(firstPattern);
+    expect(screen.getByTestId("diagnostic-analysis")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /Cache reuse is low/i }));
 
     const secondPattern = screen.getByRole("button", { name: /Cache reuse is low/i });
-    const updatedEvidenceAnchor = screen.getByTestId("diagnostic-evidence-anchor");
-    expect(secondPattern.nextElementSibling).toBe(updatedEvidenceAnchor);
+    expect(secondPattern.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.queryByTestId("diagnostic-analysis")).toBeNull();
+    expect(secondPattern.textContent).toContain("Show evidence");
   });
 
   it("renders loading, error, and empty states", () => {

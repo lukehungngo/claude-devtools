@@ -16,6 +16,7 @@ interface DiagnosticCardProps {
   diagnostic: DiagnosticResult;
   variant: "primary" | "secondary";
   selected: boolean;
+  evidenceOpen?: boolean;
   onSelect: () => void;
 }
 
@@ -73,6 +74,7 @@ export function DiagnosticCard({
   diagnostic,
   variant,
   selected,
+  evidenceOpen = false,
   onSelect,
 }: DiagnosticCardProps): JSX.Element {
   const Icon = getIcon(diagnostic);
@@ -90,7 +92,7 @@ export function DiagnosticCard({
       data-testid={variant === "primary" ? "diagnostic-card-primary" : "diagnostic-card-secondary"}
       aria-pressed={selected}
       aria-expanded={selected}
-      aria-label={`${diagnostic.title}. ${selected ? "Details expanded" : "Expand details"}`}
+      aria-label={`${diagnostic.title}. ${selected ? evidenceOpen ? "Details and evidence expanded" : "Details expanded, evidence collapsed" : "Expand details"}`}
       onClick={onSelect}
       className={baseClasses}
     >
@@ -224,7 +226,7 @@ export function DiagnosticCard({
             ) : null}
 
             <span className="inline-flex items-center gap-1 font-mono text-md font-semibold text-dt-accent lg:col-span-2">
-              Jump to evidence below
+              {evidenceOpen ? "Hide evidence" : "Show evidence"}
               <ChevronRight size={15} />
             </span>
           </div>
