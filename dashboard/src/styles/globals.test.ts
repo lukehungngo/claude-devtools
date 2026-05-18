@@ -24,3 +24,24 @@ describe("globals.css highlight.js theme configuration", () => {
     expect(css).toContain('[data-theme="high-contrast"] .hljs');
   });
 });
+
+function blockFor(selector: string): string {
+  const idx = css.indexOf(selector + " {");
+  if (idx < 0) throw new Error(`selector not found: ${selector}`);
+  const end = css.indexOf("}", idx);
+  return css.slice(idx, end);
+}
+
+describe("conversation text utility classes — readability sizes", () => {
+  const cases: Array<[string, string]> = [
+    [".t-body",     "font-size: 15px"],
+    [".t-mono",     "font-size: 13px"],
+    [".t-mono-sm",  "font-size: 12px"],
+    [".t-mono-xs",  "font-size: 11px"],
+  ];
+  for (const [cls, decl] of cases) {
+    it(`${cls} declares ${decl}`, () => {
+      expect(blockFor(cls)).toContain(decl);
+    });
+  }
+});

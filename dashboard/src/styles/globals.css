@@ -606,7 +606,7 @@
 
 .t-body {
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.65;
   color: var(--t1);
 }
@@ -648,24 +648,24 @@
 
 .t-mono {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: 13px;
+  line-height: 18px;
   color: var(--t1);
   font-feature-settings: "tnum";
 }
 
 .t-mono-sm {
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: 12px;
+  line-height: 16px;
   color: var(--t2);
   font-feature-settings: "tnum";
 }
 
 .t-mono-xs {
   font-family: var(--font-mono);
-  font-size: 9px;
-  line-height: 12px;
+  font-size: 11px;
+  line-height: 14px;
   color: var(--t3);
   font-feature-settings: "tnum";
 }
