@@ -65,3 +65,46 @@ describe("Titlebar — Insights nudge UI", () => {
     expect(insights.className).not.toContain("dt-insights-pulse");
   });
 });
+
+describe("Titlebar — Insights nudge pulse settles to resting glow", () => {
+  it("swaps to dt-insights-pulse-resting after the pulse duration elapses", async () => {
+    vi.useFakeTimers();
+    (useInsightsNudge as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ nudgeActive: true });
+    const { act } = await import("@testing-library/react");
+    render(<Titlebar />);
+    const insights = screen.getByTestId("nav-insights");
+
+    // Before timer elapses: pulse class present, resting class absent
+    const classListBefore = insights.className.split(/\s+/);
+    expect(classListBefore).toContain("dt-insights-pulse");
+    expect(classListBefore).not.toContain("dt-insights-pulse-resting");
+
+    // Total animation duration is 5 * 1400ms = 7000ms (+100ms buffer)
+    act(() => {
+      vi.advanceTimersByTime(7100);
+    });
+
+    const classListAfter = insights.className.split(/\s+/);
+    expect(classListAfter).not.toContain("dt-insights-pulse");
+    expect(classListAfter).toContain("dt-insights-pulse-resting");
+
+    vi.useRealTimers();
+  });
+
+  it("does not swap classes before the pulse duration elapses", async () => {
+    vi.useFakeTimers();
+    (useInsightsNudge as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ nudgeActive: true });
+    const { act } = await import("@testing-library/react");
+    render(<Titlebar />);
+    const insights = screen.getByTestId("nav-insights");
+
+    act(() => {
+      vi.advanceTimersByTime(3000); // halfway through the pulse
+    });
+
+    expect(insights.className).toContain("dt-insights-pulse");
+    expect(insights.className).not.toContain("dt-insights-pulse-resting");
+
+    vi.useRealTimers();
+  });
+});

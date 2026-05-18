@@ -29,7 +29,25 @@ export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
   const { location } = useRouterState();
   const isInsights = location.pathname === "/insights";
   const { nudgeActive } = useInsightsNudge();
+  const [pulseSettled, setPulseSettled] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+
+  // Settle the pulse animation after 5 × 1.4s (matches the CSS keyframe
+  // iteration count). A setTimeout is used instead of `onAnimationEnd`
+  // because jsdom + react-testing-library do not reliably dispatch the
+  // animationend native event to React's synthetic handler, which makes
+  // the behaviour untestable. The CSS animation continues to run regardless;
+  // this timer only swaps the class so the residual glow takes over.
+  const PULSE_TOTAL_MS = 5 * 1400 + 100;
+  useEffect(() => {
+    if (!nudgeActive) {
+      setPulseSettled(false);
+      return;
+    }
+    if (pulseSettled) return;
+    const id = setTimeout(() => setPulseSettled(true), PULSE_TOTAL_MS);
+    return () => clearTimeout(id);
+  }, [nudgeActive, pulseSettled]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000);
@@ -94,7 +112,8 @@ export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
             "px-4 py-2 rounded-full font-mono text-base font-semibold transition-all border-none cursor-pointer",
             "inline-flex items-center",
             isInsights ? "bg-dt-bg1 text-dt-accent" : "bg-transparent text-dt-text1",
-            nudgeActive ? "dt-insights-pulse" : "",
+            nudgeActive && !pulseSettled ? "dt-insights-pulse" : "",
+            nudgeActive && pulseSettled ? "dt-insights-pulse-resting" : "",
           ].filter(Boolean).join(" ")}
         >
           {nudgeActive && (
