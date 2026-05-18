@@ -141,8 +141,10 @@ export function RepoList({
 
   const sortedRepos = useMemo(() => {
     const mapped = repos.map((repo) => {
+      const RECENT_MS = 30 * 60_000;
+      const now = Date.now();
       const sessions = repoFilter === "active"
-        ? repo.sessions.filter((s) => s.isRunning)
+        ? repo.sessions.filter((s) => s.isRunning || (now - new Date(s.lastModified).getTime() < RECENT_MS))
         : [...repo.sessions];
       sessions.sort((a, b) => {
         if (a.isRunning && !b.isRunning) return -1;
