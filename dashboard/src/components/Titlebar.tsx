@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, Sparkles } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTheme } from "../contexts/ThemeContext";
+import { useInsightsNudge } from "../hooks/useInsightsNudge";
 import type { UsageInfo } from "../lib/types";
 
 interface TitlebarProps {
@@ -27,6 +28,7 @@ export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
   const navigate = useNavigate();
   const { location } = useRouterState();
   const isInsights = location.pathname === "/insights";
+  const { nudgeActive } = useInsightsNudge();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -90,9 +92,14 @@ export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
           onClick={() => navigate({ to: "/insights" })}
           className={[
             "px-4 py-2 rounded-full font-mono text-base font-semibold transition-all border-none cursor-pointer",
+            "inline-flex items-center",
             isInsights ? "bg-dt-bg1 text-dt-accent" : "bg-transparent text-dt-text1",
-          ].join(" ")}
+            nudgeActive ? "dt-insights-pulse" : "",
+          ].filter(Boolean).join(" ")}
         >
+          {nudgeActive && (
+            <Sparkles size={14} className="mr-1.5 inline-block" aria-hidden="true" />
+          )}
           Insights
         </button>
       </div>

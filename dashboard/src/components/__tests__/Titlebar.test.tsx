@@ -4,10 +4,16 @@ import { render, screen, cleanup } from "@testing-library/react";
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
   useRouterState: () => ({ location: { pathname: "/" } }),
+  useLocation: () => ({ pathname: "/" }),
 }));
 
 vi.mock("../../contexts/ThemeContext", () => ({
   useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
+}));
+
+vi.mock("../../hooks/useInsightsNudge", () => ({
+  useInsightsNudge: () => ({ nudgeActive: false }),
+  safeWriteInsightsLastClick: vi.fn(),
 }));
 
 import { Titlebar } from "../Titlebar";
