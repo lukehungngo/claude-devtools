@@ -224,7 +224,7 @@ export function DiagnosticCard({
             ) : null}
 
             <span className="inline-flex items-center gap-1 font-mono text-md font-semibold text-dt-accent lg:col-span-2">
-              Evidence updates below
+              Jump to evidence below
               <ChevronRight size={15} />
             </span>
           </div>

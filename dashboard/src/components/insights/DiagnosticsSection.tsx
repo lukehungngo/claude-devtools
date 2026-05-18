@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DiagnosticResult, QuickWinResult } from "../../lib/insightsDiagnosticsTypes";
 import { DiagnosticAnalysis } from "./DiagnosticAnalysis";
 import { DiagnosticCard } from "./DiagnosticCard";
@@ -21,6 +21,8 @@ export function DiagnosticsSection({
   periodLabel = "This week's",
 }: DiagnosticsSectionProps): JSX.Element {
   const [selectedId, setSelectedId] = useState<string | null>(diagnostics[0]?.id ?? null);
+  const [evidenceHighlighted, setEvidenceHighlighted] = useState(false);
+  const evidenceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (diagnostics.length === 0) {
@@ -45,6 +47,20 @@ export function DiagnosticsSection({
   const diagnosticsTitle = periodLabel === "Last 7 days" ? "This week's coaching" : `${periodLabel} coaching`;
   const patternCount = diagnostics.length === 1 ? "1 pattern" : `${diagnostics.length} patterns`;
 
+  function jumpToEvidence(): void {
+    setEvidenceHighlighted(true);
+    evidenceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function selectDiagnostic(id: string): void {
+    if (id === selectedDiagnostic.id) {
+      jumpToEvidence();
+      return;
+    }
+    setEvidenceHighlighted(false);
+    setSelectedId(id);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <section
@@ -66,7 +82,7 @@ export function DiagnosticsSection({
             diagnostic={primary}
             variant="primary"
             selected={selectedDiagnostic.id === primary.id}
-            onSelect={() => setSelectedId(primary.id)}
+            onSelect={() => selectDiagnostic(primary.id)}
           />
           {secondary.length > 0 ? (
             secondary.map((diagnostic) => (
@@ -75,7 +91,7 @@ export function DiagnosticsSection({
                 diagnostic={diagnostic}
                 variant="secondary"
                 selected={selectedDiagnostic.id === diagnostic.id}
-                onSelect={() => setSelectedId(diagnostic.id)}
+                onSelect={() => selectDiagnostic(diagnostic.id)}
               />
             ))
           ) : (
@@ -86,7 +102,13 @@ export function DiagnosticsSection({
         </div>
       </section>
 
-      <DiagnosticAnalysis diagnostic={selectedDiagnostic} />
+      <div
+        ref={evidenceRef}
+        data-testid="diagnostic-evidence-anchor"
+        className={evidenceHighlighted ? "rounded-dt ring-2 ring-dt-accent-dim" : "rounded-dt"}
+      >
+        <DiagnosticAnalysis diagnostic={selectedDiagnostic} />
+      </div>
       <QuickWinsList quickWins={quickWins} />
     </div>
   );

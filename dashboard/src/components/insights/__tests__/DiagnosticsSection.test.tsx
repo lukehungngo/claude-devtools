@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { DiagnosticsSection } from "../DiagnosticsSection";
 import type { DiagnosticResult, QuickWinResult } from "../../../lib/insightsDiagnosticsTypes";
@@ -152,6 +152,35 @@ describe("DiagnosticsSection", () => {
     expect(screen.getByTestId("diagnostic-analysis").textContent).toContain(
       "Evidence for selected pattern"
     );
+  });
+
+  it("jumps to the selected pattern evidence when the expanded row evidence cue is clicked", () => {
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      render(
+        <DiagnosticsSection
+          diagnostics={diagnostics}
+          quickWins={quickWins}
+          loading={false}
+          error={null}
+        />
+      );
+
+      fireEvent.click(screen.getByText("Jump to evidence below"));
+
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        behavior: "smooth",
+        block: "start",
+      });
+      expect(screen.getByTestId("diagnostic-evidence-anchor").className).toContain(
+        "ring-2"
+      );
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    }
   });
 
   it("renders loading, error, and empty states", () => {
