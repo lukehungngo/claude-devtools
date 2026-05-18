@@ -622,7 +622,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
             <span
               aria-hidden="true"
               className="absolute left-0 top-0 pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis w-full"
-              style={{ color: "var(--t4)", fontSize: 15, fontFamily: "var(--font-sans, inherit)" }}
+              style={{ color: "var(--t4)", fontSize: 14, fontFamily: "var(--font-sans, inherit)" }}
               data-testid="ghost-suggestion"
             >
               {ghostSuggestion}
@@ -646,7 +646,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
             className="w-full bg-transparent border-none outline-none resize-none overflow-hidden"
             style={{
               color: "var(--t1)",
-              fontSize: 15,
+              fontSize: 14,
               fontFamily: "var(--font-sans, inherit)",
               caretColor: "var(--acc)",
             }}
@@ -674,7 +674,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
               border: "none",
               padding: "6px 18px",
               borderRadius: "var(--radius)",
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: 500,
               fontFamily: "var(--font-sans, inherit)",
               transition: "background .12s",
@@ -693,7 +693,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
               border: "none",
               padding: "6px 18px",
               borderRadius: "var(--radius)",
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: 500,
               fontFamily: "var(--font-sans, inherit)",
               transition: "background .12s",

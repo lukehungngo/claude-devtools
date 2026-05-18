@@ -63,7 +63,7 @@ export const TaskGrid = memo(function TaskGrid({
                   fontWeight: 600,
                   textTransform: "uppercase",
                   letterSpacing: "0.3px",
-                  fontSize: 11,
+                  fontSize: 10,
                   color: "var(--t2)",
                   textAlign: "left",
                   padding: "4px 8px",
@@ -78,7 +78,7 @@ export const TaskGrid = memo(function TaskGrid({
                   fontWeight: 600,
                   textTransform: "uppercase",
                   letterSpacing: "0.3px",
-                  fontSize: 11,
+                  fontSize: 10,
                   color: "var(--t2)",
                   textAlign: "left",
                   padding: "4px 8px",
@@ -94,7 +94,7 @@ export const TaskGrid = memo(function TaskGrid({
                   fontWeight: 600,
                   textTransform: "uppercase",
                   letterSpacing: "0.3px",
-                  fontSize: 11,
+                  fontSize: 10,
                   color: "var(--t2)",
                   textAlign: "right",
                   padding: "4px 8px",
@@ -111,13 +111,13 @@ export const TaskGrid = memo(function TaskGrid({
                 <tr key={task.id} style={{ borderBottom: "1px solid var(--bd)" }}>
                   <td
                     className="font-mono"
-                    style={{ width: 60, fontSize: 11, color: "var(--t3)", padding: "4px 8px" }}
+                    style={{ width: 60, fontSize: 10, color: "var(--t3)", padding: "4px 8px" }}
                   >
                     {task.id}
                   </td>
                   <td
                     className="font-mono"
-                    style={{ fontSize: 11, color: "var(--t1)", padding: "4px 8px" }}
+                    style={{ fontSize: 10, color: "var(--t1)", padding: "4px 8px" }}
                   >
                     {task.name}
                   </td>
@@ -125,7 +125,7 @@ export const TaskGrid = memo(function TaskGrid({
                     className="font-mono"
                     style={{
                       width: 60,
-                      fontSize: 11,
+                      fontSize: 10,
                       color: status.color,
                       textAlign: "right",
                       padding: "4px 8px",

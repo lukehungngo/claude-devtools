@@ -34,10 +34,10 @@ function blockFor(selector: string): string {
 
 describe("conversation text utility classes — readability sizes", () => {
   const cases: Array<[string, string]> = [
-    [".t-body",     "font-size: 15px"],
-    [".t-mono",     "font-size: 13px"],
-    [".t-mono-sm",  "font-size: 12px"],
-    [".t-mono-xs",  "font-size: 11px"],
+    [".t-body",     "font-size: 14px"],
+    [".t-mono",     "font-size: 12px"],
+    [".t-mono-sm",  "font-size: 11px"],
+    [".t-mono-xs",  "font-size: 10px"],
   ];
   for (const [cls, decl] of cases) {
     it(`${cls} declares ${decl}`, () => {

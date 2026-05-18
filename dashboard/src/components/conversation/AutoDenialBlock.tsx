@@ -44,13 +44,13 @@ export function AutoDenialBlock({ record }: AutoDenialBlockProps): JSX.Element {
             color: badgeColor,
             border: `1px solid ${badgeColor}`,
             padding: "1px 6px",
-            fontSize: 12,
+            fontSize: 11,
           }}
         >
           {badgeLabel}
         </span>
         {record.agent_id && (
-          <span className="text-dt-text2 font-mono" style={{ fontSize: 12 }}>
+          <span className="text-dt-text2 font-mono" style={{ fontSize: 11 }}>
             agent {record.agent_id}
           </span>
         )}

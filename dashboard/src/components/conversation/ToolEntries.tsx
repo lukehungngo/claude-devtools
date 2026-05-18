@@ -432,7 +432,7 @@ const ToolEntryRow = memo(function ToolEntryRow({
         tokensOut={matchedSummary?.tokensOut}
       >
         {entry.resultContent != null && (
-          <div className="font-mono" style={{ fontSize: 12, color: "var(--t3)", lineHeight: 1.5 }}>
+          <div className="font-mono" style={{ fontSize: 11, color: "var(--t3)", lineHeight: 1.5 }}>
             <pre className="whitespace-pre-wrap break-words" style={{ maxHeight: 120, overflow: "auto", margin: 0 }}>
               {formatAgentResult(entry.resultContent)}
             </pre>
@@ -465,7 +465,7 @@ const ToolEntryRow = memo(function ToolEntryRow({
         style={{
           padding: "4px 12px",
           gap: 8,
-          fontSize: 13,
+          fontSize: 12,
           borderLeft: `3px solid ${borderColor}`,
           borderBottom: isLast && !isExpanded ? "none" : "1px solid var(--bd)",
           transition: "background .1s",
@@ -490,7 +490,7 @@ const ToolEntryRow = memo(function ToolEntryRow({
           <span
             className={`shrink-0 ${icon.className}`}
             style={{
-              fontSize: 13,
+              fontSize: 12,
               color: icon.className === "tool-ok" ? "var(--grn)"
                 : icon.className === "tool-err" ? "var(--red)"
                 : "var(--amb)",
@@ -502,7 +502,7 @@ const ToolEntryRow = memo(function ToolEntryRow({
         <span
           className="flex-1 font-mono overflow-hidden text-ellipsis whitespace-nowrap"
           style={{
-            fontSize: 13,
+            fontSize: 12,
             color: "var(--t2)",
             opacity: isRunning ? 0.7 : 1,
             animation: isRunning ? "pulse-opacity 2s infinite" : "none",
@@ -560,7 +560,7 @@ function CollapsedGroupRowInner({ group, isLast }: { group: ToolGroup; isLast: b
         style={{
           padding: "4px 12px",
           gap: 8,
-          fontSize: 13,
+          fontSize: 12,
           borderLeft: `3px solid ${borderColor}`,
           borderBottom: isLast && !isExpanded ? "none" : "1px solid var(--bd)",
         }}
@@ -573,7 +573,7 @@ function CollapsedGroupRowInner({ group, isLast }: { group: ToolGroup; isLast: b
         <span
           className={`shrink-0 ${icon.className}`}
           style={{
-            fontSize: 13,
+            fontSize: 12,
             color: icon.className === "tool-ok" ? "var(--grn)"
               : icon.className === "tool-err" ? "var(--red)"
               : "var(--amb)",
@@ -583,14 +583,14 @@ function CollapsedGroupRowInner({ group, isLast }: { group: ToolGroup; isLast: b
         </span>
         <span
           className="font-mono"
-          style={{ fontSize: 13, color: "var(--t2)" }}
+          style={{ fontSize: 12, color: "var(--t2)" }}
         >
           {summary}
         </span>
         <span
           className="font-mono"
           style={{
-            fontSize: 11,
+            fontSize: 10,
             color: badgeColors.text,
             background: badgeColors.bg,
             padding: "1px 5px",
@@ -614,7 +614,7 @@ function CollapsedGroupRowInner({ group, isLast }: { group: ToolGroup; isLast: b
               key={entry.id}
               role="listitem"
               className="flex items-center"
-              style={{ paddingLeft: 20, padding: "4px 12px 4px 20px", gap: 8, fontSize: 13 }}
+              style={{ paddingLeft: 20, padding: "4px 12px 4px 20px", gap: 8, fontSize: 12 }}
             >
               <span
                 data-testid="sub-row-dot"
@@ -628,7 +628,7 @@ function CollapsedGroupRowInner({ group, isLast }: { group: ToolGroup; isLast: b
               />
               <span
                 className="font-mono overflow-hidden text-ellipsis whitespace-nowrap"
-                style={{ fontSize: 13, color: "var(--t3)" }}
+                style={{ fontSize: 12, color: "var(--t3)" }}
               >
                 {entry.target || entry.name}
               </span>

@@ -157,7 +157,7 @@ function RawLogViewInner({ turns, allEvents, activeTurnIndex }: RawLogViewProps)
     <div
       ref={containerRef}
       className="flex-1 overflow-y-auto"
-      style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 13 }}
+      style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 12 }}
     >
       {turnEvents.map((event) => {
         const isExpanded = expandedRows.has(event.uuid);
@@ -168,11 +168,11 @@ function RawLogViewInner({ turns, allEvents, activeTurnIndex }: RawLogViewProps)
             <button
               onClick={() => toggleRow(event.uuid)}
               className="w-full flex items-center gap-2 px-3 py-[5px] bg-transparent border-none cursor-pointer text-left hover:bg-dt-bg-hover"
-              style={{ fontSize: 13 }}
+              style={{ fontSize: 12 }}
             >
               <span
                 className="text-dt-text3 select-none"
-                style={{ fontSize: 11, width: 12, textAlign: "center" }}
+                style={{ fontSize: 10, width: 12, textAlign: "center" }}
               >
                 {isExpanded ? "\u25BC" : "\u25B6"}
               </span>
@@ -195,7 +195,7 @@ function RawLogViewInner({ turns, allEvents, activeTurnIndex }: RawLogViewProps)
             {isExpanded && (
               <pre
                 className="m-0 px-6 py-2 overflow-x-auto text-dt-text2 bg-dt-bg-subtle"
-                style={{ fontSize: 12, lineHeight: 1.5 }}
+                style={{ fontSize: 11, lineHeight: 1.5 }}
               >
                 {highlightJson(JSON.stringify(event, null, 2))}
               </pre>
