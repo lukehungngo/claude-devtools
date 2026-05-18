@@ -72,8 +72,14 @@ export interface TurnSnapshot {
   model?: string;
   /**
    * Set of agentIds dispatched by main within this turn's window, plus "main".
+   * Built from parent_tool_use_id, description matching, and temporal proximity.
    * Carried forward across streaming extensions so `extendTurn` can do O(newEvents)
    * work instead of re-scanning the full turn (Architecture Invariant #8).
+   *
+   * **Used by `filterDagForTurn` for Agent Graph DAG membership.** Unlike
+   * `eventAgentIds` (which can include leaked cross-turn subagents),
+   * this set is scoped to agents actually dispatched in this turn.
+   *
    * Required: both production builders (`buildTurn`, `extendTurn`) always populate
    * it, and test fixtures are expected to supply it (e.g. `new Set(agents.map(a => a.agentId))`)
    * so invariants can be enforced without optional-chain escape hatches.
@@ -81,10 +87,14 @@ export interface TurnSnapshot {
   dispatchedAgentIds: Set<string>;
   /**
    * Set of unique agentIds found in the turn's events (via event.agentId).
-   * Always includes "main". Unlike `dispatchedAgentIds` (which uses the
-   * heuristic dispatch-detection that can miss agents), this set is derived
-   * directly from the events and is the authoritative source for which agents
-   * participated in a turn. Used by `filterDagForTurn` for DAG membership.
+   * Always includes "main". This set is derived directly from events and
+   * may include subagent IDs that leaked from adjacent turns via
+   * timestamp-sorted merging. Used for token aggregation (summing tokens
+   * across all agents whose events appear in the turn window).
+   *
+   * **Not used for DAG membership** — use `dispatchedAgentIds` instead,
+   * which correctly identifies agents dispatched within this turn and is
+   * immune to cross-turn subagent leaks.
    *
    * Populated by both `buildTurn` and `extendTurn` in O(newEvents) time.
    */

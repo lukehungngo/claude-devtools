@@ -57,18 +57,19 @@ function computeGroupEnvelope(subagents: AgentNode[]): { groupStart: number | nu
 /**
  * Filter a full session DAG to only the agents dispatched in a given turn.
  *
- * Uses TurnSnapshot.eventAgentIds (derived from event agentIds) as the
- * primary membership source. This matches how the Agent Log determines
- * which agents to display and prevents the cross-turn bleed that occurs
- * when the dispatch heuristic misses an agent. Never falls back to the
- * full session DAG.
+ * Uses TurnSnapshot.dispatchedAgentIds as the membership source. This set
+ * is built from parent_tool_use_id, description matching, and temporal
+ * proximity — it identifies which agents were actually dispatched within
+ * the turn. Unlike eventAgentIds (which includes every agentId from events
+ * in the turn window), dispatchedAgentIds is immune to cross-turn subagent
+ * leaks caused by timestamp-sorted event merging.
  *
  * When the turn has no subagents, returns a single-node DAG with just main
  * and turn-specific token data.
  *
  * Token/cost overrides still come from activeTurn.agents (AgentSummary).
- * Agents in eventAgentIds but absent from the agents array appear in the
- * DAG with session-wide tokenUsage (no turn-scoped override).
+ * Agents in dispatchedAgentIds but absent from the agents array appear in
+ * the DAG with session-wide tokenUsage (no turn-scoped override).
  */
 export function filterDagForTurn(
   dag: AgentDAG | null,
@@ -77,8 +78,8 @@ export function filterDagForTurn(
 ): AgentDAG | null {
   if (!dag || !activeTurn) return dag;
 
-  const turnAgentIds = new Set(activeTurn.eventAgentIds);
-  // Defensive: ensure "main" is always present even if eventAgentIds was
+  const turnAgentIds = new Set(activeTurn.dispatchedAgentIds);
+  // Defensive: ensure "main" is always present even if dispatchedAgentIds was
   // constructed without it (e.g. test fixtures). The builders always seed
   // with "main", but this guard prevents subtle breakage if the invariant
   // is ever violated upstream.

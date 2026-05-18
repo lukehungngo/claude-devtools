@@ -580,20 +580,23 @@ describe("filterDagForTurn", () => {
     });
   });
 
-  it("includes agent from eventAgentIds even when absent from agents array (dispatch heuristic miss)", () => {
-    // Bug scenario: computeDispatchedAgentIds misses agent-2, so it does
-    // not appear in activeTurn.agents. But agent-2's events ARE in the turn
-    // window, so eventAgentIds correctly contains it. The filtered DAG must
-    // include agent-2 (with session-wide token data since no AgentSummary).
+  it("excludes agents from eventAgentIds that are not in dispatchedAgentIds (cross-turn leak)", () => {
+    // Regression: eventAgentIds includes agent-abc because its events leaked
+    // into this turn via timestamp-sorted merging from a prior turn. But
+    // dispatchedAgentIds correctly knows agent-abc was NOT dispatched in this
+    // turn. The filtered DAG must exclude agent-abc.
+    const dagWithLeak: AgentDAG = {
+      nodes: [makeNode("main"), makeNode("agent-abc")],
+      edges: [{ source: "main", target: "agent-abc" }],
+    };
+
     const turn: TurnSnapshot = {
-      turnNumber: 1,
+      turnNumber: 11,
       promptText: "test",
-      startIndex: 0,
-      endIndex: 10,
+      startIndex: 50,
+      endIndex: 60,
       agents: [
-        // Only main and agent-1 in the agents array (dispatch detected these)
         { agentId: "main", agentType: "main", displayName: "Main", invocationCount: 1, cost: 0, tokensIn: 100, tokensOut: 50, tools: [] },
-        { agentId: "agent-1", agentType: "engineer", displayName: "eng", invocationCount: 1, cost: 0, tokensIn: 200, tokensOut: 100, tools: [] },
       ],
       cost: 0,
       costBreakdown: { total: 0, inputCost: 0, outputCost: 0 },
@@ -602,18 +605,17 @@ describe("filterDagForTurn", () => {
       durationMs: null,
       startTime: "2026-01-01T00:00:00Z",
       endTime: "",
-      dispatchedAgentIds: new Set<string>(["main", "agent-1"]),
-      // eventAgentIds includes agent-2 (from events) even though dispatch missed it
-      eventAgentIds: new Set<string>(["main", "agent-1", "agent-2"]),
+      // dispatchedAgentIds: only main was dispatched in T11
+      dispatchedAgentIds: new Set<string>(["main"]),
+      // eventAgentIds: agent-abc leaked in from T10's events
+      eventAgentIds: new Set<string>(["main", "agent-abc"]),
     };
 
-    const result = filterDagForTurn(fullDag, turn)!;
+    const result = filterDagForTurn(dagWithLeak, turn)!;
     const nodeIds = result.nodes.map((n) => n.id);
-    // agent-2 must be in the filtered DAG
-    expect(nodeIds).toContain("agent-2");
-    expect(nodeIds).toContain("main");
-    expect(nodeIds).toContain("agent-1");
-    // Edges involving agent-2 must also be present
-    expect(result.edges).toContainEqual({ source: "main", target: "agent-2" });
+    // agent-abc must NOT appear — it was dispatched in T10, not T11
+    expect(nodeIds).not.toContain("agent-abc");
+    expect(nodeIds).toEqual(["main"]);
+    expect(result.edges).toEqual([]);
   });
 });
