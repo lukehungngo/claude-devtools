@@ -69,7 +69,7 @@ export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
       {/* Nav pill — Session · Insights */}
       <div
         data-testid="nav-pill"
-        className="flex items-center gap-0.5 bg-dt-bg2 border border-dt-border rounded-full p-0.5 shrink-0"
+        className="flex items-center gap-1 bg-dt-bg2 border border-dt-border rounded-full p-1 shrink-0"
       >
         <button
           type="button"
@@ -77,8 +77,8 @@ export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
           aria-current={!isInsights ? ("page" as const) : undefined}
           onClick={() => navigate({ to: "/" })}
           className={[
-            "px-2.5 py-0.5 rounded-full font-mono text-xs font-semibold transition-all border-none cursor-pointer",
-            !isInsights ? "bg-dt-bg1 text-dt-accent" : "bg-transparent text-dt-text2",
+            "px-4 py-2 rounded-full font-mono text-base font-semibold transition-all border-none cursor-pointer",
+            !isInsights ? "bg-dt-bg1 text-dt-accent" : "bg-transparent text-dt-text1",
           ].join(" ")}
         >
           Session
@@ -89,8 +89,8 @@ export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
           aria-current={isInsights ? ("page" as const) : undefined}
           onClick={() => navigate({ to: "/insights" })}
           className={[
-            "px-2.5 py-0.5 rounded-full font-mono text-xs font-semibold transition-all border-none cursor-pointer",
-            isInsights ? "bg-dt-bg1 text-dt-accent" : "bg-transparent text-dt-text2",
+            "px-4 py-2 rounded-full font-mono text-base font-semibold transition-all border-none cursor-pointer",
+            isInsights ? "bg-dt-bg1 text-dt-accent" : "bg-transparent text-dt-text1",
           ].join(" ")}
         >
           Insights
