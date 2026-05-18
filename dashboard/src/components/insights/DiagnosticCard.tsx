@@ -1,4 +1,6 @@
 import {
+  CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Code2,
   Database,
@@ -87,84 +89,148 @@ export function DiagnosticCard({
       type="button"
       data-testid={variant === "primary" ? "diagnostic-card-primary" : "diagnostic-card-secondary"}
       aria-pressed={selected}
-      aria-label={`${diagnostic.title}. ${selected ? "Selected, details shown below" : "Select to view details below"}`}
+      aria-expanded={selected}
+      aria-label={`${diagnostic.title}. ${selected ? "Details expanded" : "Expand details"}`}
       onClick={onSelect}
       className={baseClasses}
     >
-      <div className="flex h-full flex-col gap-2.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={["rounded-full px-2 py-0.5 font-mono text-md font-bold uppercase tracking-wide", CHIP_CLASSES[diagnostic.category]].join(" ")}>
-            {diagnostic.category}
-          </span>
-          <span className="font-mono text-md text-dt-text2">{severityLabel(diagnostic)}</span>
-          {selected ? (
-            <span className="rounded-full bg-dt-accent-dim px-2 py-0.5 font-mono text-md font-bold text-dt-accent">
-              Selected
+      <div className="flex h-full flex-col gap-3">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-dt-sm bg-dt-bg2 text-dt-text1">
+              <Icon size={17} />
             </span>
-          ) : null}
-          <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-md text-dt-text2">
-            {evidenceLabel(diagnostic.confidence)}
-            <span className="inline-flex gap-0.5">
-              {[0, 1, 2].map((index) => (
-                <span
-                  key={index}
-                  className={[
-                    "h-1.5 w-1.5 rounded-full",
-                    index < dotCount ? "bg-dt-green" : "bg-dt-text3",
-                  ].join(" ")}
-                />
-              ))}
-            </span>
-          </span>
-        </div>
-
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-dt-sm bg-dt-bg2 text-dt-text1">
-            <Icon size={17} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="flex items-baseline gap-2">
-              <span className="font-mono text-md font-semibold text-dt-text2">#{diagnostic.rank}</span>
-              <span className={variant === "primary" ? "text-lg font-semibold leading-tight text-dt-text0" : "text-md font-semibold leading-tight text-dt-text0"}>
-                {diagnostic.title}
+            <span className="min-w-0 flex-1">
+              <span className="mb-1 flex flex-wrap items-center gap-2">
+                <span className={["rounded-full px-2 py-0.5 font-mono text-md font-bold uppercase tracking-wide", CHIP_CLASSES[diagnostic.category]].join(" ")}>
+                  {diagnostic.category}
+                </span>
+                <span className="font-mono text-md text-dt-text2">{severityLabel(diagnostic)}</span>
+                {selected ? (
+                  <span className="rounded-full bg-dt-accent-dim px-2 py-0.5 font-mono text-md font-bold text-dt-accent">
+                    Selected
+                  </span>
+                ) : null}
               </span>
+              <span className="flex flex-wrap items-baseline gap-2">
+                <span className="font-mono text-md font-semibold text-dt-text2">#{diagnostic.rank}</span>
+                <span className={selected ? "text-lg font-semibold leading-tight text-dt-text0" : "text-md font-semibold leading-tight text-dt-text0"}>
+                  {diagnostic.title}
+                </span>
+              </span>
+              {!selected ? (
+                <span className="mt-1 block text-md leading-5 text-dt-text1">
+                  {diagnostic.summary}
+                </span>
+              ) : null}
             </span>
-          </span>
+          </div>
+
+          <div className="flex flex-wrap items-baseline gap-2 lg:justify-end">
+            <span className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
+              {diagnostic.impactLabel}
+            </span>
+            <span className={selected ? "font-mono text-2xl font-bold text-dt-text0" : "font-mono text-lg font-bold text-dt-text0"}>
+              {diagnostic.impactValue}
+            </span>
+            <span className="font-mono text-md text-dt-text2">{diagnostic.impactDetail}</span>
+          </div>
+
           <span
             className={[
-              "mt-1 inline-flex shrink-0 items-center gap-1 font-mono text-md font-semibold",
+              "inline-flex shrink-0 items-center gap-1 font-mono text-md font-semibold lg:justify-end",
               selected ? "text-dt-accent" : "text-dt-text2",
             ].join(" ")}
           >
-            {selected ? "Viewing details" : "View details"}
-            <ChevronRight size={15} />
+            {selected ? "Details open" : "View details"}
+            <ChevronDown size={15} className={selected ? "rotate-180 transition-transform" : "transition-transform"} />
           </span>
         </div>
 
-        <p className={variant === "primary" ? "text-md leading-6 text-dt-text1" : "text-md leading-5 text-dt-text1"}>
-          {diagnostic.summary}
-        </p>
+        {selected ? (
+          <div className="grid gap-4 border-t border-dt-border pt-3 lg:grid-cols-[1.35fr_1fr]">
+            <div className="flex flex-col gap-3">
+              <p className="text-md leading-6 text-dt-text1">{diagnostic.summary}</p>
+              <div>
+                <div className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
+                  What happened
+                </div>
+                <p className="mt-1 text-md leading-6 text-dt-text1">
+                  {diagnostic.tellMeMore.whatHappened}
+                </p>
+              </div>
+              <div>
+                <div className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
+                  Why it matters
+                </div>
+                <p className="mt-1 text-md leading-6 text-dt-text1">
+                  {diagnostic.tellMeMore.whyItMatters}
+                </p>
+              </div>
+            </div>
 
-        <div className="flex flex-wrap items-baseline gap-2 py-1">
-          <span className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
-            {diagnostic.impactLabel}
-          </span>
-          <span className={variant === "primary" ? "font-mono text-3xl font-bold text-dt-text0" : "font-mono text-xl font-bold text-dt-text0"}>
-            {diagnostic.impactValue}
-          </span>
-          <span className="font-mono text-md text-dt-text2">{diagnostic.impactDetail}</span>
-        </div>
+            <div className="flex flex-col gap-3">
+              <div className="border-l-2 border-dt-border-active py-1 pl-3 text-md leading-5 text-dt-text0">
+                <span className="mb-1 block font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
+                  Change this week
+                </span>
+                {diagnostic.changeThisWeek}
+              </div>
+              <div className="rounded-dt-sm border border-dt-green/30 bg-dt-green-dim px-3 py-3">
+                <div className="font-mono text-md font-bold uppercase tracking-wide text-dt-green">
+                  Recommended changes
+                </div>
+                <div className="mt-2 grid gap-2">
+                  {diagnostic.tellMeMore.recommendedChanges.map((item) => (
+                    <span key={`${item.priority}-${item.change}`} className="flex items-start gap-2">
+                      <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-dt-green" />
+                      <span>
+                        <span className="block text-md text-dt-text0">{item.change}</span>
+                        <span className="block font-mono text-md text-dt-text2">
+                          {item.expectedEffect}
+                        </span>
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-        <div className="border-l-2 border-dt-border-active py-1 pl-3 text-md leading-5 text-dt-text0">
-          <span className="mb-1 block font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
-            Change this week
-          </span>
-          {diagnostic.changeThisWeek}
-        </div>
+            {diagnostic.evidenceChips.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 lg:col-span-2">
+                <span className="inline-flex items-center gap-1.5 font-mono text-md text-dt-text2">
+                  {evidenceLabel(diagnostic.confidence)}
+                  <span className="inline-flex gap-0.5">
+                    {[0, 1, 2].map((index) => (
+                      <span
+                        key={index}
+                        className={[
+                          "h-1.5 w-1.5 rounded-full",
+                          index < dotCount ? "bg-dt-green" : "bg-dt-text3",
+                        ].join(" ")}
+                      />
+                    ))}
+                  </span>
+                </span>
+                {diagnostic.evidenceChips.slice(0, 5).map((chip) => (
+                  <span
+                    key={chip}
+                    className="rounded-full border border-dt-border bg-dt-bg px-2 py-0.5 font-mono text-md text-dt-text2"
+                  >
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            ) : null}
 
-        {diagnostic.evidenceChips.length > 0 ? (
-          <div className="mt-auto flex flex-wrap gap-1.5">
-            {diagnostic.evidenceChips.slice(0, variant === "primary" ? 4 : 3).map((chip) => (
+            <span className="inline-flex items-center gap-1 font-mono text-md font-semibold text-dt-accent lg:col-span-2">
+              Evidence updates below
+              <ChevronRight size={15} />
+            </span>
+          </div>
+        ) : diagnostic.evidenceChips.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {diagnostic.evidenceChips.slice(0, 3).map((chip) => (
               <span
                 key={chip}
                 className="rounded-full border border-dt-border bg-dt-bg px-2 py-0.5 font-mono text-md text-dt-text2"

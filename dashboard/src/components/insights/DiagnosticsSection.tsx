@@ -57,11 +57,11 @@ export function DiagnosticsSection({
             {patternCount} ranked by impact
           </span>
           <span className="font-mono text-md text-dt-text2">
-            Select a pattern to see evidence and recommendations below.
+            Select a pattern to expand coaching and update evidence below.
           </span>
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="grid gap-2">
           <DiagnosticCard
             diagnostic={primary}
             variant="primary"

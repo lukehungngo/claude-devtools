@@ -106,7 +106,7 @@ describe("DiagnosticsSection", () => {
     expect(screen.getByText("Quick wins")).toBeTruthy();
   });
 
-  it("updates selected analysis when a secondary diagnostic is chosen", () => {
+  it("updates expanded details when a secondary diagnostic is chosen", () => {
     render(
       <DiagnosticsSection
         diagnostics={diagnostics}
@@ -118,8 +118,39 @@ describe("DiagnosticsSection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Cache reuse is low/i }));
 
-    expect(screen.getByTestId("diagnostic-analysis").textContent).toContain(
+    expect(screen.getByRole("button", { name: /Cache reuse is low/i }).textContent).toContain(
       "Large prompts missed cache reuse."
+    );
+  });
+
+  it("uses a single-open accordion for coaching pattern details", () => {
+    render(
+      <DiagnosticsSection
+        diagnostics={diagnostics}
+        quickWins={quickWins}
+        loading={false}
+        error={null}
+      />
+    );
+
+    const firstPattern = screen.getByRole("button", {
+      name: /Tool failures are slowing delivery/i,
+    });
+    const secondPattern = screen.getByRole("button", { name: /Cache reuse is low/i });
+
+    expect(firstPattern.getAttribute("aria-expanded")).toBe("true");
+    expect(firstPattern.textContent).toContain("Commands failed repeatedly.");
+    expect(secondPattern.getAttribute("aria-expanded")).toBe("false");
+    expect(secondPattern.textContent).not.toContain("Large prompts missed cache reuse.");
+
+    fireEvent.click(secondPattern);
+
+    expect(firstPattern.getAttribute("aria-expanded")).toBe("false");
+    expect(firstPattern.textContent).not.toContain("Commands failed repeatedly.");
+    expect(secondPattern.getAttribute("aria-expanded")).toBe("true");
+    expect(secondPattern.textContent).toContain("Large prompts missed cache reuse.");
+    expect(screen.getByTestId("diagnostic-analysis").textContent).toContain(
+      "Evidence for selected pattern"
     );
   });
 
