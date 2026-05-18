@@ -651,6 +651,76 @@ describe("buildAgentDAG", () => {
     expect(main.status).toBe("completed");
   });
 
+  it("synthetic agent without notification shows 'completed' when sessionIsRunning=false", () => {
+    // Scenario: a run_in_background subagent was dispatched but the session
+    // closed before a <task-notification> arrived AND no subagent events were
+    // ever recorded for it (purely synthetic — no realAgentId match). The
+    // server should not show it as 'active' forever — sessionIsRunning=false
+    // signals indeterminate → completed (same rule deriveStatus applies to
+    // real subagents at the line-296 path).
+    const mainEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_orphan",
+            name: "Agent",
+            input: {
+              description: "Run something async",
+              subagent_type: "general-purpose",
+              run_in_background: true,
+            },
+          },
+        ],
+        stopReason: "tool_use",
+      }),
+    ];
+    // No <task-notification>, no real subagent events.
+    const subagentEvents = new Map<string, SessionEvent[]>();
+    const subagentMeta = new Map<string, { agentType: string; description: string }>();
+
+    const dag = buildAgentDAG(mainEvents, subagentEvents, subagentMeta, false);
+
+    const syntheticNode = dag.nodes.find(
+      (n) => n.description === "Run something async",
+    );
+    expect(syntheticNode).toBeDefined();
+    expect(syntheticNode!.status).toBe("completed");
+  });
+
+  it("synthetic agent without notification shows 'active' when sessionIsRunning=true", () => {
+    // Regression guard: with sessionIsRunning=true, a dispatched-but-not-yet-
+    // notified background subagent must stay 'active' so live monitoring shows
+    // the work as in-flight.
+    const mainEvents: SessionEvent[] = [
+      makeAssistantEvent({
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_inflight",
+            name: "Agent",
+            input: {
+              description: "Active background work",
+              subagent_type: "general-purpose",
+              run_in_background: true,
+            },
+          },
+        ],
+        stopReason: "tool_use",
+      }),
+    ];
+    const subagentEvents = new Map<string, SessionEvent[]>();
+    const subagentMeta = new Map<string, { agentType: string; description: string }>();
+
+    const dag = buildAgentDAG(mainEvents, subagentEvents, subagentMeta, true);
+
+    const syntheticNode = dag.nodes.find(
+      (n) => n.description === "Active background work",
+    );
+    expect(syntheticNode).toBeDefined();
+    expect(syntheticNode!.status).toBe("active");
+  });
+
   // Transitive SDK invariant at the DAG level:
   // main completed ⇒ every subagent node is completed or errored.
   it("main completed in DAG ⇒ every subagent node is completed or errored", () => {

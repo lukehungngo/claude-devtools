@@ -324,12 +324,18 @@ export function buildAgentDAG(
     // Phase 3.5 → fixed: prefer authoritative <task-notification> over the
     // dispatch-ack tool_result that fires ~300ms after every async Agent
     // dispatch. See docs/bugs/synthetic-agent-instant-completion.md.
+    // 2026-05-18: also honour sessionIsRunning. When the session has closed
+    // without a terminal signal the synthetic agent cannot still be in flight —
+    // map indeterminate → "completed" the same way deriveStatus does for real
+    // subagents at the line-296 path.
     const result = findAgentCompletion(mainEvents, dispatch.toolUseId);
-    const status: AgentNode["status"] = result === null
-      ? "active"
-      : result.isError
+    const status: AgentNode["status"] = result !== null
+      ? result.isError
         ? "error"
-        : "completed";
+        : "completed"
+      : sessionIsRunning === false
+        ? "completed"
+        : "active";
 
     nodes.push({
       id: syntheticId,
