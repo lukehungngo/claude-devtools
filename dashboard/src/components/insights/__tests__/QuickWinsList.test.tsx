@@ -56,10 +56,14 @@ describe("QuickWinsList", () => {
 
     expect(screen.getByTestId("section-quick-wins")).toBeTruthy();
     expect(screen.getByText("Quick wins")).toBeTruthy();
+    expect(screen.getByText("Small fixes you can apply immediately.")).toBeTruthy();
     expect(screen.getByText("Cache reuse is low")).toBeTruthy();
     expect(screen.getByText("$4.20")).toBeTruthy();
+    expect(screen.getByText("COST")).toBeTruthy();
+    expect(screen.getAllByText("Change:")).toHaveLength(2);
     expect(screen.getByText("Keep related work in one session.")).toBeTruthy();
     expect(screen.getByText("Working well")).toBeTruthy();
+    expect(screen.getByText("LATENCY")).toBeTruthy();
   });
 
   it("renders an empty state when there are no quick wins", () => {
