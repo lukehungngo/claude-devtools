@@ -3,9 +3,9 @@ import express from "express";
 import request from "supertest";
 import { createEfficiencyRoutes } from "./routes/efficiency-routes.js";
 import type { RouteContext } from "./routes/route-context.js";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, rm, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { computeHints } from "../analyzer/efficiency/index.js";
 
 vi.mock("../analyzer/efficiency/index.js", () => ({
@@ -25,6 +25,31 @@ vi.mock("../analyzer/efficiency/index.js", () => ({
 const app = express();
 app.use(express.json());
 app.use(createEfficiencyRoutes({} as RouteContext));
+
+const TEST_REPORT_CONTENTS = new Set(["old", "new", "markdown", "recent", "Report chunk 1 chunk 2"]);
+
+afterEach(async () => {
+  const dir = join(homedir(), ".claude", "devtools", "reports");
+  try {
+    const files = await readdir(dir);
+    await Promise.all(
+      files.map(async (file) => {
+        if (!file.endsWith(".md")) return;
+        const path = join(dir, file);
+        try {
+          const content = await readFile(path, "utf-8");
+          if (TEST_REPORT_CONTENTS.has(content)) {
+            await rm(path, { force: true });
+          }
+        } catch {
+          // Ignore cleanup failures.
+        }
+      })
+    );
+  } catch {
+    // Reports directory may not exist.
+  }
+});
 
 // App with a mock SessionManager for report generation tests
 function createAppWithSessionManager() {
@@ -103,6 +128,31 @@ describe("POST /efficiency/report", () => {
       .send({ range: "invalid" });
     expect(res.status).toBe(400);
   });
+
+  it("skips generation when a same-range report already exists within 24 hours", async () => {
+    const { app: testApp, mockSessionManager } = createAppWithSessionManager();
+    const dir = join(homedir(), ".claude", "devtools", "reports");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "2026-05-18-103700-7d.md"), "recent", "utf-8");
+
+    const res = await request(testApp)
+      .post("/efficiency/report")
+      .send({ range: "7d" })
+      .buffer(true)
+      .parse((res, callback) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
+        res.on("end", () => callback(null, data));
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockSessionManager.startSession).not.toHaveBeenCalled();
+    const body = res.body as string;
+    expect(body).toContain('"skipped":true');
+    expect(body).toContain('"reason":"recent_report_exists"');
+    expect(body).toContain('"reportId":"2026-05-18-103700-7d"');
+    expect(body).toContain("data: [DONE]");
+  });
 });
 
 describe("GET /efficiency/reports", () => {
@@ -147,7 +197,7 @@ describe("POST /efficiency/report (SessionManager)", () => {
 
     const res = await request(testApp)
       .post("/efficiency/report")
-      .send({ range: "7d" })
+      .send({ range: "7d", force: true })
       .buffer(true)
       .parse((res, callback) => {
         let data = "";
@@ -178,6 +228,24 @@ describe("POST /efficiency/report (SessionManager)", () => {
     expect(textMatches.length).toBe(2); // exactly 2 stream chunks, no duplicated full-message
   });
 
+  it("saves each generated report as a timestamped snapshot", async () => {
+    const { app: testApp } = createAppWithSessionManager();
+
+    const res = await request(testApp)
+      .post("/efficiency/report")
+      .send({ range: "7d", force: true })
+      .buffer(true)
+      .parse((res, callback) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
+        res.on("end", () => callback(null, data));
+      });
+
+    expect(res.status).toBe(200);
+    const body = res.body as string;
+    expect(body).toMatch(/"reportId":"\d{4}-\d{2}-\d{2}-\d{9}-7d"/);
+  });
+
   it("returns SSE error and cleans up session when sendMessage throws", async () => {
     const { app: testApp, mockSessionManager } = createAppWithSessionManager();
     mockSessionManager.sendMessage.mockImplementation(async function* () {
@@ -187,7 +255,7 @@ describe("POST /efficiency/report (SessionManager)", () => {
 
     const res = await request(testApp)
       .post("/efficiency/report")
-      .send({ range: "7d" })
+      .send({ range: "7d", force: true })
       .buffer(true)
       .parse((res, callback) => {
         let data = "";
@@ -208,7 +276,7 @@ describe("POST /efficiency/report (SessionManager)", () => {
     // which will fail (no real API key in test env) and hit the error handler
     const res = await request(app)
       .post("/efficiency/report")
-      .send({ range: "7d" })
+      .send({ range: "7d", force: true })
       .buffer(true)
       .parse((res, callback) => {
         let data = "";
@@ -221,5 +289,32 @@ describe("POST /efficiency/report (SessionManager)", () => {
     const body = res.body as string;
     expect(body).toContain('"error"');
     expect(body).toContain("Report generation failed");
+  });
+});
+
+describe("GET /efficiency/reports timestamped snapshots", () => {
+  it("lists old date-only reports and new timestamped snapshots", async () => {
+    const dir = join(process.env.HOME!, ".claude", "devtools", "reports");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "2026-05-18-7d.md"), "old", "utf-8");
+    await writeFile(join(dir, "2026-05-18-103700-7d.md"), "new", "utf-8");
+
+    const res = await request(app).get("/efficiency/reports");
+
+    expect(res.status).toBe(200);
+    const ids = res.body.map((r: { id: string }) => r.id);
+    expect(ids).toContain("2026-05-18-7d");
+    expect(ids).toContain("2026-05-18-103700-7d");
+  });
+
+  it("accepts timestamped report IDs", async () => {
+    const dir = join(process.env.HOME!, ".claude", "devtools", "reports");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "2026-05-18-103700-7d.md"), "markdown", "utf-8");
+
+    const res = await request(app).get("/efficiency/reports/2026-05-18-103700-7d");
+
+    expect(res.status).toBe(200);
+    expect(res.body.markdown).toBe("markdown");
   });
 });

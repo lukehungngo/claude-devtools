@@ -1,6 +1,5 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DiagnosticResult, QuickWinResult } from "../../lib/insightsDiagnosticsTypes";
-import { DiagnosticAnalysis } from "./DiagnosticAnalysis";
 import { DiagnosticCard } from "./DiagnosticCard";
 import { DiagnosticsStates } from "./DiagnosticsStates";
 import { QuickWinsList } from "./QuickWinsList";
@@ -18,7 +17,7 @@ export function DiagnosticsSection({
   quickWins,
   loading,
   error,
-  periodLabel = "This week's",
+  periodLabel = "Last 7 days",
 }: DiagnosticsSectionProps): JSX.Element {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
@@ -43,8 +42,9 @@ export function DiagnosticsSection({
   if (error) return <DiagnosticsStates state="error" error={error} />;
   if (diagnostics.length === 0) return <DiagnosticsStates state="empty" />;
 
-  const diagnosticsTitle = periodLabel === "Last 7 days" ? "This week's coaching" : `${periodLabel} coaching`;
+  const diagnosticsTitle = "Build better with AI";
   const patternCount = diagnostics.length === 1 ? "1 pattern" : `${diagnostics.length} patterns`;
+  const periodText = periodLabel.toLowerCase();
 
   function selectDiagnostic(id: string): void {
     if (id === selectedId) {
@@ -66,13 +66,10 @@ export function DiagnosticsSection({
         data-testid="section-diagnostics"
         className="flex flex-col gap-3"
       >
-        <div className="flex flex-wrap items-baseline gap-2.5 pb-1">
+        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 pb-1">
           <h2 className="text-lg font-bold text-dt-text0">{diagnosticsTitle}</h2>
-          <span className="rounded-full border border-dt-border bg-dt-bg1 px-2 py-0.5 font-mono text-md text-dt-text2">
-            {patternCount} ranked by impact
-          </span>
-          <span className="font-mono text-md text-dt-text2">
-            Select a pattern for details, then click again to show evidence.
+          <span className="text-md font-medium text-dt-text2">
+            Based on your {periodText}, these are the {patternCount} that slowed you down most.
           </span>
         </div>
 
@@ -80,32 +77,23 @@ export function DiagnosticsSection({
           {diagnostics.map((diagnostic, index) => {
             const selected = selectedDiagnostic?.id === diagnostic.id;
             return (
-              <Fragment key={diagnostic.id}>
-                <DiagnosticCard
-                  diagnostic={diagnostic}
-                  variant={index === 0 ? "primary" : "secondary"}
-                  selected={selected}
-                  evidenceOpen={selected && evidenceOpen}
-                  onSelect={() => selectDiagnostic(diagnostic.id)}
-                  onToggleEvidence={toggleEvidence}
-                />
-                {selected && evidenceOpen ? (
-                  <div
-                    data-testid="diagnostic-evidence-anchor"
-                    className="rounded-dt"
-                  >
-                    <DiagnosticAnalysis diagnostic={diagnostic} />
-                  </div>
-                ) : null}
-              </Fragment>
+              <DiagnosticCard
+                key={diagnostic.id}
+                diagnostic={diagnostic}
+                variant={index === 0 ? "primary" : "secondary"}
+                selected={selected}
+                evidenceOpen={selected && evidenceOpen}
+                onSelect={() => selectDiagnostic(diagnostic.id)}
+                onToggleEvidence={toggleEvidence}
+              />
             );
           })}
-          {diagnostics.length === 1 ? (
-            <div className="rounded-dt border border-dt-border bg-dt-bg2 px-3 py-3 text-md text-dt-text2">
-              More diagnostics will appear when additional signals cross a threshold.
-            </div>
-          ) : null}
         </div>
+        {diagnostics.length === 1 ? (
+          <div className="rounded-dt border border-dt-border bg-dt-bg2 px-3 py-3 text-md text-dt-text2">
+            More diagnostics will appear when additional signals cross a threshold.
+          </div>
+        ) : null}
       </section>
 
       <QuickWinsList quickWins={quickWins} />

@@ -1,16 +1,6 @@
-import {
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  Code2,
-  Database,
-  Gauge,
-  ShieldX,
-  Timer,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { DiagnosticCategory, DiagnosticResult } from "../../lib/insightsDiagnosticsTypes";
+import { DiagnosticAnalysis } from "./DiagnosticAnalysis";
 
 interface DiagnosticCardProps {
   diagnostic: DiagnosticResult;
@@ -39,26 +29,6 @@ const CHIP_CLASSES: Record<DiagnosticCategory, string> = {
   model: "bg-dt-accent-dim text-dt-accent",
 };
 
-const ICONS: Record<string, LucideIcon> = {
-  edit_rejection_rate: ShieldX,
-  tool_failure_storm: Wrench,
-  cache_hit_ratio: Database,
-  cost_per_loc_outlier: Code2,
-  long_turn_durations: Timer,
-  high_context_duration_tax: Gauge,
-};
-
-function getIcon(diagnostic: DiagnosticResult): LucideIcon {
-  return ICONS[diagnostic.sourcePattern] ?? Gauge;
-}
-
-function severityLabel(diagnostic: DiagnosticResult): string {
-  if (diagnostic.severity === "positive") return "Working well";
-  if (diagnostic.severity === "high") return "High impact";
-  if (diagnostic.severity === "medium") return "Medium impact";
-  return "Low impact";
-}
-
 function evidenceLabel(confidence: DiagnosticResult["confidence"]): string {
   if (confidence === "high") return "Strong evidence";
   if (confidence === "medium") return "Enough evidence";
@@ -71,6 +41,52 @@ function confidenceDotCount(confidence: DiagnosticResult["confidence"]): number 
   return 1;
 }
 
+function scanSignal(diagnostic: DiagnosticResult): string {
+  return diagnostic.evidenceChips[0] ?? diagnostic.summary;
+}
+
+function impactTone(category: DiagnosticCategory): string {
+  if (category === "quality") return "border-dt-red/30 bg-dt-red-dim text-dt-red";
+  if (category === "cost") return "border-dt-yellow/30 bg-dt-yellow-dim text-dt-yellow";
+  if (category === "latency") return "border-dt-teal/30 bg-dt-teal-dim text-dt-teal";
+  if (category === "context") return "border-dt-sky/30 bg-dt-sky-dim text-dt-sky";
+  if (category === "workflow") return "border-dt-purple/30 bg-dt-purple-dim text-dt-purple";
+  return "border-dt-accent/30 bg-dt-accent-dim text-dt-accent";
+}
+
+function rowImpact(diagnostic: DiagnosticResult): { label: string; value: string } {
+  switch (diagnostic.sourcePattern) {
+    case "long_turn_durations": {
+      const overMinute = diagnostic.impactValue.match(/\(([^)]+)\)/)?.[1];
+      return {
+        label: "Slow turns",
+        value: overMinute?.replace("over 1m", ">1m") ?? diagnostic.impactValue,
+      };
+    }
+    case "high_context_duration_tax": {
+      const ratio = diagnostic.impactValue.match(/(\d+(?:\.\d+)?x slower)/)?.[1];
+      return { label: "Context tax", value: ratio ?? diagnostic.impactValue };
+    }
+    case "cache_hit_ratio": {
+      const cacheReuse = diagnostic.impactValue.match(/(\d+(?:\.\d+)?%)/)?.[1];
+      return { label: "Cache reuse", value: cacheReuse ?? diagnostic.impactValue };
+    }
+    case "edit_rejection_rate": {
+      const rejection = diagnostic.impactValue.match(/(\d+)\s+of\s+(\d+).*rejected/i);
+      return {
+        label: "Edit acceptance",
+        value: rejection ? `${rejection[1]} / ${rejection[2]} rejected` : diagnostic.impactValue,
+      };
+    }
+    case "tool_failure_storm":
+      return { label: "Failed tools", value: diagnostic.impactValue };
+    case "cost_per_loc_outlier":
+      return { label: "Cost / LOC", value: diagnostic.impactValue };
+    default:
+      return { label: diagnostic.impactLabel, value: diagnostic.impactValue };
+  }
+}
+
 export function DiagnosticCard({
   diagnostic,
   variant,
@@ -79,13 +95,12 @@ export function DiagnosticCard({
   onSelect,
   onToggleEvidence,
 }: DiagnosticCardProps): JSX.Element {
-  const Icon = getIcon(diagnostic);
   const dotCount = confidenceDotCount(diagnostic.confidence);
+  const impact = rowImpact(diagnostic);
   const baseClasses = [
-    "w-full h-full text-left border border-l-4 rounded-dt bg-dt-bg1 transition-colors",
+    "overflow-hidden rounded-dt border border-l-4 bg-dt-bg1 text-left shadow-dt-sm transition-colors",
     CATEGORY_CLASSES[diagnostic.category],
-    selected ? "border-dt-border-active shadow-sm ring-2 ring-dt-accent-dim" : "border-dt-border hover:border-dt-border-active hover:bg-dt-bg2",
-    variant === "primary" ? "p-5" : "p-4",
+    selected ? "border-dt-border-active bg-dt-bg1" : "border-dt-border hover:border-dt-border-active hover:bg-dt-bg2",
   ].join(" ");
 
   return (
@@ -93,166 +108,148 @@ export function DiagnosticCard({
       data-testid={variant === "primary" ? "diagnostic-card-primary" : "diagnostic-card-secondary"}
       className={baseClasses}
     >
-      <div className="flex h-full flex-col gap-3">
-        <button
-          type="button"
-          aria-pressed={selected}
-          aria-expanded={selected}
-          aria-label={`${diagnostic.title}. ${selected ? "Details expanded" : "Expand details"}`}
-          onClick={onSelect}
-          className="w-full cursor-pointer text-left"
+      <button
+        type="button"
+        aria-pressed={selected}
+        aria-expanded={selected}
+        aria-label={`${diagnostic.title}. ${selected ? "Hide details" : "View details"}`}
+        onClick={onSelect}
+        className="grid w-full cursor-pointer gap-3 px-4 py-3 text-left transition-colors md:grid-cols-[2rem_8rem_minmax(0,1fr)_8.5rem] md:items-center"
+      >
+        <span className="font-mono text-md font-bold tabular-nums text-dt-text2 lg:text-center">
+          {diagnostic.rank}
+        </span>
+        <span
+          className={[
+            "w-fit rounded-full px-2 py-0.75 text-center font-mono text-md font-bold uppercase tracking-wide lg:w-full",
+            CHIP_CLASSES[diagnostic.category],
+          ].join(" ")}
         >
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center">
-            <div className="flex min-w-0 items-start gap-3">
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-dt-sm bg-dt-bg2 text-dt-text1">
-                <Icon size={17} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="mb-1 flex flex-wrap items-center gap-2">
-                  <span className={["rounded-full px-2 py-0.5 font-mono text-md font-bold uppercase tracking-wide", CHIP_CLASSES[diagnostic.category]].join(" ")}>
-                    {diagnostic.category}
-                  </span>
-                  <span className="font-mono text-md text-dt-text2">{severityLabel(diagnostic)}</span>
-                  {selected ? (
-                    <span className="rounded-full bg-dt-accent-dim px-2 py-0.5 font-mono text-md font-bold text-dt-accent">
-                      Selected
-                    </span>
-                  ) : null}
-                </span>
-                <span className="flex flex-wrap items-baseline gap-2">
-                  <span className="font-mono text-md font-semibold text-dt-text2">#{diagnostic.rank}</span>
-                  <span className={selected ? "text-lg font-semibold leading-tight text-dt-text0" : "text-md font-semibold leading-tight text-dt-text0"}>
-                    {diagnostic.title}
-                  </span>
-                </span>
-                {!selected ? (
-                  <span className="mt-1 block text-md leading-5 text-dt-text1">
-                    {diagnostic.summary}
-                  </span>
-                ) : null}
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-baseline gap-2 lg:justify-end">
-              <span className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
-                {diagnostic.impactLabel}
-              </span>
-              <span className={selected ? "font-mono text-2xl font-bold text-dt-text0" : "font-mono text-lg font-bold text-dt-text0"}>
-                {diagnostic.impactValue}
-              </span>
-              <span className="font-mono text-md text-dt-text2">{diagnostic.impactDetail}</span>
-            </div>
-
+          {diagnostic.category}
+        </span>
+        <span className="min-w-0 py-0.5">
+          <span className="block truncate text-xl font-bold leading-6 tracking-[-0.01em] text-dt-text0">
+            {diagnostic.title}
+          </span>
+          <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="truncate text-lg leading-5 text-dt-text2">
+              {scanSignal(diagnostic)}
+            </span>
             <span
               className={[
-                "inline-flex shrink-0 items-center gap-1 font-mono text-md font-semibold lg:justify-end",
-                selected ? "text-dt-accent" : "text-dt-text2",
+                "inline-flex max-w-full shrink-0 items-baseline gap-1.5 rounded-full border px-2 py-0.75 font-mono text-md",
+                impactTone(diagnostic.category),
               ].join(" ")}
             >
-              {selected ? "Details open" : "View details"}
-              <ChevronDown size={15} className={selected ? "rotate-180 transition-transform" : "transition-transform"} />
+              <span className="font-bold uppercase tracking-wide">{impact.label}</span>
+              <span className="truncate font-bold tabular-nums text-dt-text0">
+                {impact.value}
+              </span>
             </span>
-          </div>
-        </button>
+          </span>
+        </span>
+        <span
+          className={[
+            "inline-flex h-9 w-fit shrink-0 items-center gap-1 rounded-dt-sm border px-2.5 font-sans text-md font-semibold transition-colors md:w-full md:justify-center",
+            selected
+              ? "border-dt-accent bg-dt-accent-dim text-dt-accent"
+              : "border-dt-border bg-dt-bg2 text-dt-text1",
+          ].join(" ")}
+        >
+          {selected ? "Hide details" : "View details"}
+          <ChevronRight
+            size={14}
+            className={selected ? "rotate-90 text-dt-accent transition-transform" : "text-dt-text2 transition-transform"}
+          />
+        </span>
+      </button>
 
-        {selected ? (
-          <div className="grid gap-4 border-t border-dt-border pt-3 lg:grid-cols-[1.35fr_1fr]">
-            <div className="flex flex-col gap-3">
-              <p className="text-md leading-6 text-dt-text1">{diagnostic.summary}</p>
-              <div>
-                <div className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
-                  What happened
-                </div>
-                <p className="mt-1 text-md leading-6 text-dt-text1">
-                  {diagnostic.tellMeMore.whatHappened}
-                </p>
+      {selected ? (
+        <div className="border-t border-dashed border-dt-border px-4 pb-4 pt-3 lg:pl-14">
+          <div className="grid gap-x-7 gap-y-3 lg:grid-cols-2">
+            <section className="flex flex-col gap-1">
+              <span className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
+                What happened
+              </span>
+              <p className="text-md leading-6 text-dt-text0">
+                {diagnostic.tellMeMore.whatHappened}
+              </p>
+            </section>
+            <section className="flex flex-col gap-1">
+              <span className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
+                Why it matters
+              </span>
+              <p className="text-md leading-6 text-dt-text0">
+                {diagnostic.tellMeMore.whyItMatters}
+              </p>
+            </section>
+            <section className="rounded-dt-sm border border-dt-accent-dim bg-dt-accent-dim px-3 py-3 lg:col-span-2">
+              <span className="font-mono text-md font-bold uppercase tracking-wide text-dt-accent">
+                Change this week
+              </span>
+              <p className="mt-1 text-md leading-6 text-dt-text0">{diagnostic.changeThisWeek}</p>
+            </section>
+            <section className="flex flex-col gap-1">
+              <span className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
+                Expected outcome
+              </span>
+              <div className="grid gap-2">
+                {diagnostic.tellMeMore.recommendedChanges.length > 0 ? (
+                  diagnostic.tellMeMore.recommendedChanges.map((item) => (
+                    <p key={`${item.priority}-${item.change}`} className="text-md leading-6 text-dt-text0">
+                      {item.expectedEffect}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-md leading-6 text-dt-text0">{diagnostic.impactDetail}</p>
+                )}
               </div>
-              <div>
-                <div className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
-                  Why it matters
-                </div>
-                <p className="mt-1 text-md leading-6 text-dt-text1">
-                  {diagnostic.tellMeMore.whyItMatters}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <div className="border-l-2 border-dt-border-active py-1 pl-3 text-md leading-5 text-dt-text0">
-                <span className="mb-1 block font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
-                  Change this week
-                </span>
-                {diagnostic.changeThisWeek}
-              </div>
-              <div className="rounded-dt-sm border border-dt-green/30 bg-dt-green-dim px-3 py-3">
-                <div className="font-mono text-md font-bold uppercase tracking-wide text-dt-green">
-                  Recommended changes
-                </div>
-                <div className="mt-2 grid gap-2">
-                  {diagnostic.tellMeMore.recommendedChanges.map((item) => (
-                    <span key={`${item.priority}-${item.change}`} className="flex items-start gap-2">
-                      <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-dt-green" />
-                      <span>
-                        <span className="block text-md text-dt-text0">{item.change}</span>
-                        <span className="block font-mono text-md text-dt-text2">
-                          {item.expectedEffect}
-                        </span>
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {diagnostic.evidenceChips.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5 lg:col-span-2">
-                <span className="inline-flex items-center gap-1.5 font-mono text-md text-dt-text2">
+            </section>
+            <section className="flex flex-col gap-1">
+              <span className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
+                Evidence strength
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-md text-dt-text1">
                   {evidenceLabel(diagnostic.confidence)}
-                  <span className="inline-flex gap-0.5">
-                    {[0, 1, 2].map((index) => (
-                      <span
-                        key={index}
-                        className={[
-                          "h-1.5 w-1.5 rounded-full",
-                          index < dotCount ? "bg-dt-green" : "bg-dt-text3",
-                        ].join(" ")}
-                      />
-                    ))}
-                  </span>
                 </span>
-                {diagnostic.evidenceChips.slice(0, 5).map((chip) => (
-                  <span
-                    key={chip}
-                    className="rounded-full border border-dt-border bg-dt-bg px-2 py-0.5 font-mono text-md text-dt-text2"
-                  >
-                    {chip}
-                  </span>
-                ))}
+                <span className="inline-flex gap-0.75">
+                  {[0, 1, 2].map((index) => (
+                    <span
+                      key={index}
+                      className={[
+                        "h-1.5 w-1.5 rounded-full",
+                        index < dotCount ? "bg-dt-green" : "bg-dt-text2",
+                      ].join(" ")}
+                    />
+                  ))}
+                </span>
               </div>
-            ) : null}
+            </section>
+          </div>
 
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
+              aria-expanded={evidenceOpen}
               onClick={onToggleEvidence}
-              className="inline-flex w-fit cursor-pointer items-center gap-1 font-mono text-md font-semibold text-dt-accent lg:col-span-2"
+              className="inline-flex w-fit cursor-pointer items-center gap-1 rounded-dt-sm border border-dt-border bg-dt-bg2 px-2.5 py-1 font-sans text-md font-semibold text-dt-text1 transition-colors hover:border-dt-border-active hover:bg-dt-bg3 hover:text-dt-text0"
             >
               {evidenceOpen ? "Hide evidence" : "Show evidence"}
-              <ChevronRight size={15} />
+              <ChevronRight
+                size={14}
+                className={evidenceOpen ? "rotate-90 text-dt-accent transition-transform" : "text-dt-text2 transition-transform"}
+              />
             </button>
           </div>
-        ) : diagnostic.evidenceChips.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {diagnostic.evidenceChips.slice(0, 3).map((chip) => (
-              <span
-                key={chip}
-                className="rounded-full border border-dt-border bg-dt-bg px-2 py-0.5 font-mono text-md text-dt-text2"
-              >
-                {chip}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </div>
+
+          {evidenceOpen ? (
+            <div data-testid="diagnostic-evidence-anchor" className="mt-4">
+              <DiagnosticAnalysis diagnostic={diagnostic} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 }

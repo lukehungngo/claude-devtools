@@ -5,6 +5,7 @@ import type { DiagnosticResult } from "../../../lib/insightsDiagnosticsTypes";
 
 const diagnostic: DiagnosticResult = {
   id: "edit_rejection_rate-diagnostic",
+  kind: "proven",
   rank: 1,
   sourcePattern: "edit_rejection_rate",
   category: "quality",
@@ -19,6 +20,7 @@ const diagnostic: DiagnosticResult = {
   evidenceChips: ["3 rejected edits"],
   evidenceSessionIds: ["s1", "s2"],
   whyFlagged: ["rejectRate: 0.25"],
+  aiGeneratedFields: [],
   tellMeMore: {
     whatHappened: "Several write proposals were rejected.",
     whyItMatters: "Rejected edits add review friction.",
@@ -44,7 +46,7 @@ describe("DiagnosticAnalysis", () => {
     render(<DiagnosticAnalysis diagnostic={diagnostic} />);
 
     expect(screen.getByTestId("diagnostic-analysis")).toBeTruthy();
-    expect(screen.getByText("Evidence for selected pattern")).toBeTruthy();
+    expect(screen.getByText("Evidence")).toBeTruthy();
     expect(screen.getByText("3 rejected edits")).toBeTruthy();
     expect(screen.getByText("s1")).toBeTruthy();
     expect(screen.getByText("rejectRate: 0.25")).toBeTruthy();

@@ -459,7 +459,7 @@ export function InsightsPage(): JSX.Element {
       const res = await fetch("/api/efficiency/report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ range: diagnosticsRange, repo }),
+        body: JSON.stringify({ range: diagnosticsRange, repo, force: true }),
       });
 
       if (!res.ok || !res.body) {

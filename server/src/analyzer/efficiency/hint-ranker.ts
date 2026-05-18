@@ -17,6 +17,7 @@ export function buildDiagnostics(results: QuickWinResult[]): DiagnosticResult[] 
   return selected
     .map((r, index) => ({
       id: `${r.pattern}-diagnostic`,
+      kind: "proven" as const,
       rank: index + 1,
       sourcePattern: r.pattern,
       category: r.category,
@@ -29,8 +30,10 @@ export function buildDiagnostics(results: QuickWinResult[]): DiagnosticResult[] 
       impactDetail: r.status === "praise" ? "working well" : "this period",
       changeThisWeek: r.recommendation,
       evidenceChips: r.evidence.chips,
+      evidenceSessions: r.evidence.sessions,
       evidenceSessionIds: r.evidence.sessions.map((s) => s.id),
       whyFlagged: formatWhyFlagged(r),
+      aiGeneratedFields: [],
       tellMeMore: {
         whatHappened: r.punchline,
         whyItMatters: r.status === "praise"

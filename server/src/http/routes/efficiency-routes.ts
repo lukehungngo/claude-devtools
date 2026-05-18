@@ -1,24 +1,54 @@
 import { Router } from "express";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { mkdir, writeFile, readdir, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readdir, readFile, stat } from "node:fs/promises";
 import { INSIGHTS_DIAGNOSTICS_SYSTEM_PROMPT } from "../../analyzer/efficiency/ai-diagnostics-prompt.js";
 import { computeHints, getEvidence } from "../../analyzer/efficiency/index.js";
 import type { RouteContext } from "./route-context.js";
 
 const VALID_RANGES = new Set(["24h", "7d", "30d", "90d"]);
-const REPORT_ID_RE = /^\d{4}-\d{2}-\d{2}-(24h|7d|30d|90d)$/;
+const REPORT_ID_RE = /^\d{4}-\d{2}-\d{2}(?:-\d{6}(?:\d{3})?)?-(24h|7d|30d|90d)$/;
+const RECENT_REPORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function reportsDir(): string {
   return join(homedir(), ".claude", "devtools", "reports");
 }
 
-async function saveReport(range: string, markdown: string): Promise<void> {
+function makeReportId(range: string, now = new Date()): string {
+  const date = now.toISOString().slice(0, 10);
+  const time = now.toISOString().slice(11, 23).replace(/[:.]/g, "");
+  return `${date}-${time}-${range}`;
+}
+
+async function saveReport(range: string, markdown: string): Promise<string> {
   const dir = reportsDir();
   await mkdir(dir, { recursive: true });
-  const date = new Date().toISOString().slice(0, 10);
-  const filename = `${date}-${range}.md`;
+  const id = makeReportId(range);
+  const filename = `${id}.md`;
   await writeFile(join(dir, filename), markdown, "utf-8");
+  return id;
+}
+
+async function findRecentReport(range: string, nowMs = Date.now()): Promise<string | null> {
+  const dir = reportsDir();
+  await mkdir(dir, { recursive: true });
+  const files = await readdir(dir);
+  const candidates = await Promise.all(
+    files
+      .filter((file) => file.endsWith(".md"))
+      .map(async (file) => {
+        const id = file.replace(".md", "");
+        if (!REPORT_ID_RE.test(id) || !id.endsWith(`-${range}`)) return null;
+        const fileStat = await stat(join(dir, file));
+        const ageMs = nowMs - fileStat.mtimeMs;
+        if (ageMs < 0 || ageMs > RECENT_REPORT_WINDOW_MS) return null;
+        return { id, mtimeMs: fileStat.mtimeMs };
+      })
+  );
+  const recent = candidates
+    .filter((candidate): candidate is { id: string; mtimeMs: number } => candidate !== null)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return recent[0]?.id ?? null;
 }
 
 export function createEfficiencyRoutes(ctx: RouteContext): Router {
@@ -51,6 +81,7 @@ export function createEfficiencyRoutes(ctx: RouteContext): Router {
   router.post("/efficiency/report", async (req, res) => {
     const range = String(req.body?.range ?? "7d");
     const repo = String(req.body?.repo ?? "all");
+    const force = req.body?.force === true;
     if (!VALID_RANGES.has(range)) {
       res.status(400).json({ error: `Invalid range: ${range}` });
       return;
@@ -61,6 +92,23 @@ export function createEfficiencyRoutes(ctx: RouteContext): Router {
     res.setHeader("Connection", "keep-alive");
 
     try {
+      if (!force) {
+        const recentReportId = await findRecentReport(range);
+        if (recentReportId) {
+          res.write(
+            `data: ${JSON.stringify({
+              done: true,
+              skipped: true,
+              reason: "recent_report_exists",
+              reportId: recentReportId,
+            })}\n\n`
+          );
+          res.write("data: [DONE]\n\n");
+          res.end();
+          return;
+        }
+      }
+
       const hints = computeHints(range as "24h" | "7d" | "30d" | "90d", repo);
       const payload = {
         period: hints.period,
@@ -116,12 +164,14 @@ export function createEfficiencyRoutes(ctx: RouteContext): Router {
         }
       }
 
+      let reportId: string | null = null;
       try {
-        await saveReport(range, reportBuffer);
+        reportId = await saveReport(range, reportBuffer);
       } catch {
         // Non-fatal
       }
 
+      res.write(`data: ${JSON.stringify({ done: true, reportId })}\n\n`);
       res.write("data: [DONE]\n\n");
       res.end();
     } catch {
@@ -143,9 +193,10 @@ export function createEfficiencyRoutes(ctx: RouteContext): Router {
           const parts = id.split("-");
           const range = parts[parts.length - 1]!;
           const date = parts.slice(0, 3).join("-");
-          return { id, date, range, filename: f };
+          const time = parts.length >= 5 ? parts[3] : null;
+          return { id, date, time, range, filename: f };
         })
-        .sort((a, b) => b.date.localeCompare(a.date));
+        .sort((a, b) => b.id.localeCompare(a.id));
       res.json(reports);
     } catch {
       res.status(500).json({ error: "Failed to list reports" });

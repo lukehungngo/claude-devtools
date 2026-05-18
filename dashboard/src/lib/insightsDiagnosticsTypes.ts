@@ -3,6 +3,7 @@ export type EfficiencyRange = "24h" | "7d" | "30d" | "90d";
 export type SignalStatus = "warn" | "praise";
 export type SignalSeverity = "high" | "medium" | "low" | "positive";
 export type SignalConfidence = "high" | "medium" | "low";
+export type DiagnosticKind = "proven" | "observation";
 export type QuickWinCategory = "quality" | "cost" | "latency";
 export type DiagnosticCategory =
   | "quality"
@@ -55,6 +56,7 @@ export interface QuickWinResult {
 
 export interface DiagnosticResult {
   id: string;
+  kind: DiagnosticKind;
   rank: number;
   sourcePattern: string;
   category: DiagnosticCategory;
@@ -67,8 +69,10 @@ export interface DiagnosticResult {
   impactDetail: string;
   changeThisWeek: string;
   evidenceChips: string[];
+  evidenceSessions?: EvidenceSession[];
   evidenceSessionIds: string[];
   whyFlagged: string[];
+  aiGeneratedFields: string[];
   tellMeMore: {
     whatHappened: string;
     whyItMatters: string;

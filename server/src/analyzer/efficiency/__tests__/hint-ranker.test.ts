@@ -85,6 +85,8 @@ describe("rankAndFormat", () => {
       id: "edit_rejection_rate-diagnostic",
       rank: 1,
       sourcePattern: "edit_rejection_rate",
+      kind: "proven",
+      aiGeneratedFields: [],
       evidenceChips: ["chip"],
     });
   });

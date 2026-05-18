@@ -119,6 +119,7 @@ function mockDiagnosticsData() {
       diagnostics: [
         {
           id: "tool_failure_storm-diagnostic",
+          kind: "proven",
           rank: 1,
           sourcePattern: "tool_failure_storm",
           category: "quality",
@@ -133,6 +134,7 @@ function mockDiagnosticsData() {
           evidenceChips: ["20% failure rate"],
           evidenceSessionIds: ["s1"],
           whyFlagged: ["failedToolCalls: 8"],
+          aiGeneratedFields: [],
           tellMeMore: {
             whatHappened: "Commands failed repeatedly.",
             whyItMatters: "Repeated failures cost time.",
@@ -491,7 +493,7 @@ describe("InsightsPage", () => {
         "/api/efficiency/report",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ range: "7d", repo: "all" }),
+          body: JSON.stringify({ range: "7d", repo: "all", force: true }),
         })
       );
     });

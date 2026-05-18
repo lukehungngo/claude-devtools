@@ -6,6 +6,7 @@ export type DiagnosticCategory = "quality" | "cost" | "latency" | "workflow" | "
 export type SignalStatus = "warn" | "praise";
 export type SignalSeverity = "high" | "medium" | "low" | "positive";
 export type SignalConfidence = "high" | "medium" | "low";
+export type DiagnosticKind = "proven" | "observation";
 
 export type QuickWinPattern =
   | "edit_rejection_rate"
@@ -71,6 +72,7 @@ export interface QuickWinResult {
 
 export interface DiagnosticResult {
   id: string;
+  kind: DiagnosticKind;
   rank: number;
   sourcePattern: QuickWinPattern;
   category: DiagnosticCategory;
@@ -83,8 +85,10 @@ export interface DiagnosticResult {
   impactDetail: string;
   changeThisWeek: string;
   evidenceChips: string[];
+  evidenceSessions?: EvidenceSession[];
   evidenceSessionIds: string[];
   whyFlagged: string[];
+  aiGeneratedFields: string[];
   tellMeMore: {
     whatHappened: string;
     whyItMatters: string;

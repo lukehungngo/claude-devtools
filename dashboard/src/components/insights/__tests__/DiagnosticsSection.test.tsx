@@ -6,6 +6,7 @@ import type { DiagnosticResult, QuickWinResult } from "../../../lib/insightsDiag
 const diagnostics: DiagnosticResult[] = [
   {
     id: "tool_failure_storm-diagnostic",
+    kind: "proven",
     rank: 1,
     sourcePattern: "tool_failure_storm",
     category: "quality",
@@ -20,6 +21,7 @@ const diagnostics: DiagnosticResult[] = [
     evidenceChips: ["20% failure rate", "8 failed calls"],
     evidenceSessionIds: ["s1"],
     whyFlagged: ["failedToolCalls: 8"],
+    aiGeneratedFields: [],
     tellMeMore: {
       whatHappened: "Commands failed repeatedly.",
       whyItMatters: "Repeated failures cost time.",
@@ -34,6 +36,7 @@ const diagnostics: DiagnosticResult[] = [
   },
   {
     id: "cache_hit_ratio-diagnostic",
+    kind: "proven",
     rank: 2,
     sourcePattern: "cache_hit_ratio",
     category: "cost",
@@ -48,6 +51,7 @@ const diagnostics: DiagnosticResult[] = [
     evidenceChips: ["52% cache hit ratio"],
     evidenceSessionIds: ["s2"],
     whyFlagged: ["cacheHitRatio: 0.52"],
+    aiGeneratedFields: [],
     tellMeMore: {
       whatHappened: "Large prompts missed cache reuse.",
       whyItMatters: "Low cache reuse raises input cost.",
@@ -99,8 +103,12 @@ describe("DiagnosticsSection", () => {
       />
     );
 
-    expect(screen.getByText("This week's coaching")).toBeTruthy();
-    expect(screen.getByText("2 patterns ranked by impact")).toBeTruthy();
+    expect(screen.getByText("Build better with AI")).toBeTruthy();
+    expect(
+      screen.getByText("Based on your last 7 days, these are the 2 patterns that slowed you down most.")
+    ).toBeTruthy();
+    expect(screen.queryByText("Ranked by impact")).toBeNull();
+    expect(screen.queryByText("plain-language coaching from deterministic signals")).toBeNull();
     expect(screen.getByTestId("diagnostic-card-primary")).toBeTruthy();
     expect(
       screen.getByRole("button", { name: /Tool failures are slowing delivery/i }).getAttribute("aria-expanded")
@@ -188,12 +196,12 @@ describe("DiagnosticsSection", () => {
 
     fireEvent.click(firstPattern);
     expect(screen.getByTestId("diagnostic-card-primary").textContent).toContain("Show evidence");
-    expect(firstPattern.textContent).toContain("Details open");
+    expect(firstPattern.textContent).toContain("Hide details");
 
     fireEvent.click(screen.getByRole("button", { name: "Show evidence" }));
 
     const evidenceAnchor = screen.getByTestId("diagnostic-evidence-anchor");
-    expect(screen.getByTestId("diagnostic-card-primary").nextElementSibling).toBe(evidenceAnchor);
+    expect(screen.getByTestId("diagnostic-card-primary").contains(evidenceAnchor)).toBe(true);
     expect(screen.getByTestId("diagnostic-analysis").textContent).toContain(
       "Evidence"
     );

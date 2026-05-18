@@ -84,7 +84,7 @@ export function EfficiencyReport({ range, onClose }: EfficiencyReportProps): JSX
       const res = await fetch("/api/efficiency/report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ range }),
+        body: JSON.stringify({ range, force: true }),
       });
 
       if (!res.ok || !res.body) throw new Error("Stream failed");

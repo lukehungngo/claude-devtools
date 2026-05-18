@@ -5,6 +5,7 @@ import type { DiagnosticResult } from "../../../lib/insightsDiagnosticsTypes";
 
 const diagnostic: DiagnosticResult = {
   id: "long_turn_durations-diagnostic",
+  kind: "proven",
   rank: 1,
   sourcePattern: "long_turn_durations",
   category: "latency",
@@ -19,6 +20,7 @@ const diagnostic: DiagnosticResult = {
   evidenceChips: ["7 turns over 1m", "slow turns 1m 13s"],
   evidenceSessionIds: ["s1"],
   whyFlagged: ["7 turns took over 1 minute"],
+  aiGeneratedFields: [],
   tellMeMore: {
     whatHappened: "Several turns exceeded one minute.",
     whyItMatters: "Slow feedback makes iteration harder.",
