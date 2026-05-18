@@ -11,6 +11,7 @@ import { PhaseGroup } from "./PhaseGroup";
 import { ExpandHint } from "./ExpandHint";
 import { LayoutContext } from "../../contexts/LayoutContext";
 import type { AgentSummary } from "../../lib/turnSnapshot";
+import { classifyToolCall, toolLabel, type ToolCategory } from "../../lib/toolClassification";
 
 interface ToolEntriesProps {
   events: SessionEvent[];
@@ -675,18 +676,151 @@ function renderGroups(
   return nodes;
 }
 
+/**
+ * Split tool entries by category. State + spawn entries flow through the
+ * existing groups/phases renderer. Routine + accounting entries are collapsed
+ * into chips so a long sequence of reads / task updates doesn't dominate the
+ * panel. Errors always remain in the main flow regardless of category.
+ */
+function splitByCategory(entries: ToolEntry[]): {
+  main: ToolEntry[];
+  routine: ToolEntry[];
+  accounting: ToolEntry[];
+} {
+  const main: ToolEntry[] = [];
+  const routine: ToolEntry[] = [];
+  const accounting: ToolEntry[] = [];
+  for (const entry of entries) {
+    if (entry.status === "error") {
+      main.push(entry);
+      continue;
+    }
+    const cat = classifyToolCall(entry.name);
+    if (cat === "routine") routine.push(entry);
+    else if (cat === "accounting") accounting.push(entry);
+    else main.push(entry); // spawn + state
+  }
+  return { main, routine, accounting };
+}
+
+interface CollapsedCategoryChipProps {
+  entries: ToolEntry[];
+  category: ToolCategory;
+  onToolClick?: (toolName: string) => void;
+  agentSummaries?: AgentSummary[];
+  isLast: boolean;
+}
+
+/**
+ * One-row chip summarising routine read-only OR accounting tool calls. Click
+ * to expand into the full per-row view. Errors in the underlying entries
+ * surface as a `(N failed)` suffix so they can't hide inside the chip.
+ */
+function CollapsedCategoryChip({
+  entries,
+  category,
+  onToolClick,
+  agentSummaries,
+  isLast,
+}: CollapsedCategoryChipProps) {
+  const [expanded, setExpanded] = useState(false);
+  if (entries.length === 0) return null;
+
+  const counts = new Map<string, { count: number; failed: number }>();
+  for (const entry of entries) {
+    const existing = counts.get(entry.name);
+    if (existing) {
+      existing.count += 1;
+      if (entry.status === "error") existing.failed += 1;
+    } else {
+      counts.set(entry.name, { count: 1, failed: entry.status === "error" ? 1 : 0 });
+    }
+  }
+  const totalFailed = entries.reduce((s, e) => s + (e.status === "error" ? 1 : 0), 0);
+  const parts: string[] = [];
+  for (const [name, { count }] of counts) {
+    parts.push(`${count} ${toolLabel(name, count)}`);
+  }
+  const summary = parts.join(" · ");
+
+  return (
+    <>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 cursor-pointer select-none font-mono"
+        style={{
+          padding: "6px 12px",
+          fontSize: 11,
+          color: "var(--t3)",
+          background: "transparent",
+          borderTop: "1px solid var(--bd-faint)",
+        }}
+        data-testid={`tool-chip-${category}`}
+      >
+        <span className="shrink-0 inline-block" style={{ width: 12 }}>
+          {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        </span>
+        <span>+ {summary}</span>
+        {totalFailed > 0 && (
+          <span style={{ color: "var(--red)", marginLeft: 4 }}>
+            ({totalFailed} failed)
+          </span>
+        )}
+      </div>
+      {expanded && entries.map((entry, ei) => (
+        <ToolEntryRow
+          key={entry.id}
+          entry={entry}
+          isLast={isLast && ei === entries.length - 1}
+          onToolClick={onToolClick}
+          agentSummaries={agentSummaries}
+        />
+      ))}
+    </>
+  );
+}
+
 export function ToolEntriesInner({ events, onToolClick, agentSummaries }: ToolEntriesProps) {
   const { entries, textBoundaryIndices, thinkingContext } = extractToolEntries(events);
-  const groups = groupToolEntries(entries);
+  const { main: mainEntries, routine, accounting } = splitByCategory(entries);
 
-  if (groups.length === 0) return null;
+  // Remap textBoundaryIndices from entries[] index space to mainEntries[] index space
+  // so phase detection still works after we filter routine/accounting out of the main flow.
+  const originalToMainIdx: (number | undefined)[] = [];
+  {
+    let mi = 0;
+    for (const e of entries) {
+      const isError = e.status === "error";
+      const cat = classifyToolCall(e.name);
+      const isMain = isError || (cat !== "routine" && cat !== "accounting");
+      if (isMain) {
+        originalToMainIdx.push(mi);
+        mi++;
+      } else {
+        originalToMainIdx.push(undefined);
+      }
+    }
+  }
+  const remappedBoundaries: number[] = [];
+  for (const origIdx of textBoundaryIndices) {
+    for (let i = origIdx; i < entries.length; i++) {
+      const m = originalToMainIdx[i];
+      if (m !== undefined) {
+        remappedBoundaries.push(m);
+        break;
+      }
+    }
+  }
+
+  const groups = groupToolEntries(mainEntries);
+
+  if (groups.length === 0 && routine.length === 0 && accounting.length === 0) return null;
 
   // Convert entry-level text boundary indices to group-level indices.
-  // A text boundary at entry index N means "assistant text appeared before entry N".
-  // We need to find which group contains entry N and mark that group index as a boundary.
+  // (Boundaries here are in mainEntries[] space — already remapped above.)
   let assistantTextGroupIndices: number[] | undefined;
-  if (textBoundaryIndices.length > 0) {
-    const boundarySet = new Set(textBoundaryIndices);
+  if (remappedBoundaries.length > 0) {
+    const boundarySet = new Set(remappedBoundaries);
     const groupIndices = new Set<number>();
     let entryIdx = 0;
     for (let gi = 0; gi < groups.length; gi++) {
@@ -741,7 +875,8 @@ export function ToolEntriesInner({ events, onToolClick, agentSummaries }: ToolEn
         }
 
         // No phase — render as before
-        const isLast = gi === groups.length - 1;
+        const isLast =
+          gi === groups.length - 1 && routine.length === 0 && accounting.length === 0;
         if (group.isCollapsed) {
           return <CollapsedGroupRow key={`g-${gi}`} group={group} isLast={isLast} />;
         }
@@ -755,6 +890,24 @@ export function ToolEntriesInner({ events, onToolClick, agentSummaries }: ToolEn
           />
         ));
       })}
+      {routine.length > 0 && (
+        <CollapsedCategoryChip
+          entries={routine}
+          category="routine"
+          onToolClick={onToolClick}
+          agentSummaries={agentSummaries}
+          isLast={accounting.length === 0}
+        />
+      )}
+      {accounting.length > 0 && (
+        <CollapsedCategoryChip
+          entries={accounting}
+          category="accounting"
+          onToolClick={onToolClick}
+          agentSummaries={agentSummaries}
+          isLast={true}
+        />
+      )}
     </div>
   );
 }
