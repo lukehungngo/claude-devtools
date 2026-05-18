@@ -77,7 +77,7 @@ function PhaseGroupInner({ phase, children }: PhaseGroupProps) {
           <span
             data-testid="phase-status"
             className="shrink-0"
-            style={{ fontSize: 12, color: "var(--red)" }}
+            style={{ fontSize: 14, color: "var(--red)" }}
           >
             {"\u2717"}
           </span>
@@ -85,7 +85,7 @@ function PhaseGroupInner({ phase, children }: PhaseGroupProps) {
           <span
             data-testid="phase-status"
             className="shrink-0"
-            style={{ fontSize: 12, color: "var(--grn)" }}
+            style={{ fontSize: 14, color: "var(--grn)" }}
           >
             {"\u2713"}
           </span>
@@ -96,7 +96,7 @@ function PhaseGroupInner({ phase, children }: PhaseGroupProps) {
           data-testid="phase-label"
           className="flex-1 overflow-hidden whitespace-nowrap"
           style={{
-            fontSize: 13,
+            fontSize: 15,
             fontWeight: 600,
             color: "var(--t0)",
             textOverflow: "ellipsis",
@@ -115,7 +115,7 @@ function PhaseGroupInner({ phase, children }: PhaseGroupProps) {
                 data-testid="phase-pill"
                 style={{
                   fontFamily: "var(--mono)",
-                  fontSize: 9,
+                  fontSize: 11,
                   padding: "2px 7px",
                   borderRadius: 10,
                   background: colors.bg,
