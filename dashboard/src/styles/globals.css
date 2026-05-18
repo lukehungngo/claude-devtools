@@ -1321,27 +1321,27 @@
 
 .trace-col-name {
   text-align: left;
-  border-left: 1px solid var(--bd);
+  border-left: 1px solid color-mix(in srgb, var(--bd) 40%, transparent);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .trace-col-model {
-  border-left: 1px solid var(--bd);
+  border-left: 1px solid color-mix(in srgb, var(--bd) 40%, transparent);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .trace-col-duration {
-  border-left: 1px solid var(--bd);
+  border-left: 1px solid color-mix(in srgb, var(--bd) 40%, transparent);
 }
 
 .trace-col-cost {
-  border-left: 1px solid var(--bd);
+  border-left: 1px solid color-mix(in srgb, var(--bd) 40%, transparent);
 }
 
 .trace-col-tokens {
-  border-left: 1px solid var(--bd);
+  border-left: 1px solid color-mix(in srgb, var(--bd) 40%, transparent);
 }
 
 .trace-col-header {
