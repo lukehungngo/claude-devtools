@@ -20,7 +20,7 @@ export function DiagnosticsSection({
   error,
   periodLabel = "This week's",
 }: DiagnosticsSectionProps): JSX.Element {
-  const [selectedId, setSelectedId] = useState<string | null>(diagnostics[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
 
   useEffect(() => {
@@ -28,30 +28,36 @@ export function DiagnosticsSection({
       setSelectedId(null);
       return;
     }
-    if (!diagnostics.some((diagnostic) => diagnostic.id === selectedId)) {
-      setSelectedId(diagnostics[0]?.id ?? null);
+    if (selectedId !== null && !diagnostics.some((diagnostic) => diagnostic.id === selectedId)) {
+      setSelectedId(null);
+      setEvidenceOpen(false);
     }
   }, [diagnostics, selectedId]);
 
   const selectedDiagnostic = useMemo(
-    () => diagnostics.find((diagnostic) => diagnostic.id === selectedId) ?? diagnostics[0],
+    () => diagnostics.find((diagnostic) => diagnostic.id === selectedId) ?? null,
     [diagnostics, selectedId]
   );
 
   if (loading) return <DiagnosticsStates state="loading" />;
   if (error) return <DiagnosticsStates state="error" error={error} />;
-  if (!selectedDiagnostic) return <DiagnosticsStates state="empty" />;
+  if (diagnostics.length === 0) return <DiagnosticsStates state="empty" />;
 
   const diagnosticsTitle = periodLabel === "Last 7 days" ? "This week's coaching" : `${periodLabel} coaching`;
   const patternCount = diagnostics.length === 1 ? "1 pattern" : `${diagnostics.length} patterns`;
 
   function selectDiagnostic(id: string): void {
-    if (id === selectedDiagnostic.id) {
-      setEvidenceOpen((open) => !open);
+    if (id === selectedId) {
+      setSelectedId(null);
+      setEvidenceOpen(false);
       return;
     }
     setEvidenceOpen(false);
     setSelectedId(id);
+  }
+
+  function toggleEvidence(): void {
+    setEvidenceOpen((open) => !open);
   }
 
   return (
@@ -72,7 +78,7 @@ export function DiagnosticsSection({
 
         <div className="grid gap-2">
           {diagnostics.map((diagnostic, index) => {
-            const selected = selectedDiagnostic.id === diagnostic.id;
+            const selected = selectedDiagnostic?.id === diagnostic.id;
             return (
               <Fragment key={diagnostic.id}>
                 <DiagnosticCard
@@ -81,13 +87,14 @@ export function DiagnosticsSection({
                   selected={selected}
                   evidenceOpen={selected && evidenceOpen}
                   onSelect={() => selectDiagnostic(diagnostic.id)}
+                  onToggleEvidence={toggleEvidence}
                 />
                 {selected && evidenceOpen ? (
                   <div
                     data-testid="diagnostic-evidence-anchor"
                     className="rounded-dt"
                   >
-                    <DiagnosticAnalysis diagnostic={selectedDiagnostic} />
+                    <DiagnosticAnalysis diagnostic={diagnostic} />
                   </div>
                 ) : null}
               </Fragment>

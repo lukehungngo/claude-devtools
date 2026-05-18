@@ -102,6 +102,10 @@ describe("DiagnosticsSection", () => {
     expect(screen.getByText("This week's coaching")).toBeTruthy();
     expect(screen.getByText("2 patterns ranked by impact")).toBeTruthy();
     expect(screen.getByTestId("diagnostic-card-primary")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Tool failures are slowing delivery/i }).getAttribute("aria-expanded")
+    ).toBe("false");
+    expect(screen.queryByText("Commands failed repeatedly.")).toBeNull();
     expect(screen.queryByTestId("diagnostic-analysis")).toBeNull();
     expect(screen.getByText("Quick wins")).toBeTruthy();
   });
@@ -118,12 +122,12 @@ describe("DiagnosticsSection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Cache reuse is low/i }));
 
-    expect(screen.getByRole("button", { name: /Cache reuse is low/i }).textContent).toContain(
+    expect(screen.getByTestId("diagnostic-card-secondary").textContent).toContain(
       "Large prompts missed cache reuse."
     );
   });
 
-  it("uses a single-open accordion for coaching pattern details", () => {
+  it("uses a single-open accordion for coaching pattern details and allows collapse", () => {
     render(
       <DiagnosticsSection
         diagnostics={diagnostics}
@@ -138,18 +142,32 @@ describe("DiagnosticsSection", () => {
     });
     const secondPattern = screen.getByRole("button", { name: /Cache reuse is low/i });
 
-    expect(firstPattern.getAttribute("aria-expanded")).toBe("true");
-    expect(firstPattern.textContent).toContain("Commands failed repeatedly.");
+    expect(firstPattern.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("Commands failed repeatedly.")).toBeNull();
     expect(secondPattern.getAttribute("aria-expanded")).toBe("false");
-    expect(secondPattern.textContent).not.toContain("Large prompts missed cache reuse.");
+    expect(screen.queryByText("Large prompts missed cache reuse.")).toBeNull();
+
+    fireEvent.click(firstPattern);
+
+    expect(firstPattern.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("diagnostic-card-primary").textContent).toContain(
+      "Commands failed repeatedly."
+    );
 
     fireEvent.click(secondPattern);
 
     expect(firstPattern.getAttribute("aria-expanded")).toBe("false");
-    expect(firstPattern.textContent).not.toContain("Commands failed repeatedly.");
+    expect(screen.queryByText("Commands failed repeatedly.")).toBeNull();
     expect(secondPattern.getAttribute("aria-expanded")).toBe("true");
-    expect(secondPattern.textContent).toContain("Large prompts missed cache reuse.");
+    expect(screen.getByTestId("diagnostic-card-secondary").textContent).toContain(
+      "Large prompts missed cache reuse."
+    );
     expect(screen.queryByTestId("diagnostic-analysis")).toBeNull();
+
+    fireEvent.click(secondPattern);
+
+    expect(secondPattern.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("Large prompts missed cache reuse.")).toBeNull();
   });
 
   it("shows and hides evidence as a third level under the expanded diagnosis", () => {
@@ -167,21 +185,29 @@ describe("DiagnosticsSection", () => {
     });
 
     expect(screen.queryByTestId("diagnostic-analysis")).toBeNull();
-    expect(firstPattern.textContent).toContain("Show evidence");
 
     fireEvent.click(firstPattern);
+    expect(screen.getByTestId("diagnostic-card-primary").textContent).toContain("Show evidence");
+    expect(firstPattern.textContent).toContain("Details open");
+
+    fireEvent.click(screen.getByRole("button", { name: "Show evidence" }));
 
     const evidenceAnchor = screen.getByTestId("diagnostic-evidence-anchor");
-    expect(firstPattern.nextElementSibling).toBe(evidenceAnchor);
+    expect(screen.getByTestId("diagnostic-card-primary").nextElementSibling).toBe(evidenceAnchor);
     expect(screen.getByTestId("diagnostic-analysis").textContent).toContain(
       "Evidence"
     );
-    expect(firstPattern.textContent).toContain("Hide evidence");
+    expect(screen.getByRole("button", { name: "Hide evidence" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide evidence" }));
+
+    expect(screen.queryByTestId("diagnostic-analysis")).toBeNull();
+    expect(screen.getByRole("button", { name: "Show evidence" })).toBeTruthy();
 
     fireEvent.click(firstPattern);
 
-    expect(screen.queryByTestId("diagnostic-analysis")).toBeNull();
-    expect(firstPattern.textContent).toContain("Show evidence");
+    expect(firstPattern.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: "Show evidence" })).toBeNull();
   });
 
   it("closes evidence when a different diagnosis is expanded", () => {
@@ -198,6 +224,7 @@ describe("DiagnosticsSection", () => {
       name: /Tool failures are slowing delivery/i,
     });
     fireEvent.click(firstPattern);
+    fireEvent.click(screen.getByRole("button", { name: "Show evidence" }));
     expect(screen.getByTestId("diagnostic-analysis")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /Cache reuse is low/i }));
@@ -205,7 +232,7 @@ describe("DiagnosticsSection", () => {
     const secondPattern = screen.getByRole("button", { name: /Cache reuse is low/i });
     expect(secondPattern.getAttribute("aria-expanded")).toBe("true");
     expect(screen.queryByTestId("diagnostic-analysis")).toBeNull();
-    expect(secondPattern.textContent).toContain("Show evidence");
+    expect(screen.getByTestId("diagnostic-card-secondary").textContent).toContain("Show evidence");
   });
 
   it("renders loading, error, and empty states", () => {
