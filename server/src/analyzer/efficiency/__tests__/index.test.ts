@@ -14,6 +14,9 @@ describe("computeHints", () => {
   it("returns a valid HintsResponse with empty sessions", () => {
     const result = computeHints("7d");
     expect(result.range).toBe("7d");
+    expect(result.period).toMatchObject({ range: "7d", spend: 0, tokens: 0, sessions: 0, turns: 0 });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.quickWins).toEqual([]);
     expect(result.hints).toEqual([]);
     expect(result.sessionCount).toBe(0);
     expect(result.totalCost).toBe(0);
@@ -38,6 +41,6 @@ describe("getEvidence", () => {
   });
 
   it("returns undefined when cache is empty", () => {
-    expect(getEvidence("wasted_retries-7d")).toBeUndefined();
+    expect(getEvidence("tool_failure_storm-7d")).toBeUndefined();
   });
 });

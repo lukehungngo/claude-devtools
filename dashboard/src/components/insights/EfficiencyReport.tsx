@@ -132,7 +132,7 @@ export function EfficiencyReport({ range, onClose }: EfficiencyReportProps): JSX
   return (
     <div className="border border-dt-border rounded-dt bg-dt-bg2 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h4 className="text-dt-text-primary font-semibold text-sm">Full Analysis</h4>
+        <h4 className="text-dt-text-primary font-semibold text-md">Full Analysis</h4>
         <button type="button" onClick={onClose} className="text-dt-text-secondary hover:text-dt-text-primary">
           <X size={16} />
         </button>
@@ -142,7 +142,7 @@ export function EfficiencyReport({ range, onClose }: EfficiencyReportProps): JSX
         <button
           type="button"
           onClick={generate}
-          className="w-full py-2 px-4 bg-dt-accent text-white rounded-dt text-sm hover:opacity-90 transition-opacity"
+          className="w-full py-2 px-4 bg-dt-accent text-white rounded-dt text-md hover:opacity-90 transition-opacity"
         >
           Generate Report
         </button>
@@ -151,13 +151,13 @@ export function EfficiencyReport({ range, onClose }: EfficiencyReportProps): JSX
       {streaming && !markdown && (
         <div className="flex items-center gap-2 text-dt-text-secondary py-4 justify-center">
           <Loader2 size={16} className="animate-spin" />
-          <span className="text-sm">Generating report...</span>
+          <span className="text-md">Generating report...</span>
         </div>
       )}
 
       {error && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 text-amber-500 text-sm py-2">
+          <div className="flex items-center gap-2 text-amber-500 text-md py-2">
             <AlertTriangle size={14} />
             <span>Could not generate the full report. Here is what we found:</span>
           </div>
@@ -165,25 +165,25 @@ export function EfficiencyReport({ range, onClose }: EfficiencyReportProps): JSX
           {loadingFallback && (
             <div className="flex items-center gap-2 text-dt-text-secondary py-2 justify-center">
               <Loader2 size={14} className="animate-spin" />
-              <span className="text-xs">Loading evidence...</span>
+              <span className="text-md">Loading evidence...</span>
             </div>
           )}
 
           {fallbackHints && !loadingFallback && (
             <div className="space-y-3">
-              <div className="text-xs text-dt-text-secondary">
+              <div className="text-md text-dt-text-secondary">
                 {fallbackHints.sessionCount} sessions, ${fallbackHints.totalCost.toFixed(2)} total spend
               </div>
               {fallbackHints.hints.length === 0 && (
-                <p className="text-sm text-dt-text-secondary">No major issues detected for this period.</p>
+                <p className="text-md text-dt-text-secondary">No major issues detected for this period.</p>
               )}
               {fallbackHints.hints.map((hint) => {
                 const evidence = fallbackEvidence.get(hint.id);
                 return (
                   <div key={hint.id} className="border border-dt-border rounded-dt p-3 space-y-2">
-                    <p className="text-sm text-dt-text-primary font-medium">{hint.punchline}</p>
+                    <p className="text-md text-dt-text-primary font-medium">{hint.punchline}</p>
                     {evidence && (
-                      <div className="space-y-1 text-xs text-dt-text-secondary">
+                      <div className="space-y-1 text-md text-dt-text-secondary">
                         {evidence.sessions.slice(0, 5).map((s) => (
                           <div key={s.id} className="font-mono">
                             {s.id.slice(0, 12)}: {s.detail}

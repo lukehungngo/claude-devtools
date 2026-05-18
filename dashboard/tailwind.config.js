@@ -13,6 +13,9 @@ export default {
       lg:    ["13px", { lineHeight: "18px" }],
       xl:    ["14px", { lineHeight: "20px" }],
       "2xl": ["15px", { lineHeight: "20px" }],
+      "3xl": ["18px", { lineHeight: "24px" }],
+      "4xl": ["24px", { lineHeight: "30px" }],
+      display: ["32px", { lineHeight: "36px" }],
     },
     extend: {
       colors: {

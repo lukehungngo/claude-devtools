@@ -6,9 +6,18 @@ import type { RouteContext } from "./routes/route-context.js";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { computeHints } from "../analyzer/efficiency/index.js";
 
 vi.mock("../analyzer/efficiency/index.js", () => ({
-  computeHints: vi.fn(() => ({ range: "7d", hints: [], sessionCount: 0, totalCost: 0 })),
+  computeHints: vi.fn(() => ({
+    range: "7d",
+    period: { range: "7d", spend: 0, tokens: 0, sessions: 0, turns: 0 },
+    diagnostics: [],
+    quickWins: [],
+    hints: [],
+    sessionCount: 0,
+    totalCost: 0,
+  })),
   getEvidence: vi.fn(() => undefined),
   getDetectedResults: vi.fn(() => []),
 }));
@@ -57,12 +66,21 @@ describe("GET /efficiency/hints", () => {
     const res = await request(app).get("/efficiency/hints?range=7d");
     expect(res.status).toBe(200);
     expect(res.body.range).toBe("7d");
+    expect(res.body).toHaveProperty("period");
+    expect(res.body).toHaveProperty("diagnostics");
+    expect(res.body).toHaveProperty("quickWins");
+    expect(res.body).toHaveProperty("hints");
   });
 
   it("returns 200 with default range when not specified", async () => {
     const res = await request(app).get("/efficiency/hints");
     expect(res.status).toBe(200);
     expect(res.body.range).toBe("7d");
+  });
+
+  it("passes repo scope to the hint computer", async () => {
+    await request(app).get("/efficiency/hints?range=30d&repo=%2Ftmp%2Fproject");
+    expect(vi.mocked(computeHints)).toHaveBeenLastCalledWith("30d", "/tmp/project");
   });
 
   it("returns 400 with invalid range", async () => {
@@ -144,6 +162,9 @@ describe("POST /efficiency/report (SessionManager)", () => {
     expect(mockSessionManager.setPermissionMode).toHaveBeenCalledWith("mock-session-id", "dontAsk");
     expect(mockSessionManager.setModel).toHaveBeenCalledWith("mock-session-id", "claude-sonnet-4-6");
     expect(mockSessionManager.sendMessage).toHaveBeenCalledWith("mock-session-id", expect.any(String));
+    const prompt = mockSessionManager.sendMessage.mock.calls[0]![1] as string;
+    expect(prompt).toContain('"quick_wins"');
+    expect(prompt).toContain('"diagnostics"');
     expect(mockSessionManager.removeSession).toHaveBeenCalledWith("mock-session-id");
 
     // Verify SSE format
@@ -160,6 +181,7 @@ describe("POST /efficiency/report (SessionManager)", () => {
   it("returns SSE error and cleans up session when sendMessage throws", async () => {
     const { app: testApp, mockSessionManager } = createAppWithSessionManager();
     mockSessionManager.sendMessage.mockImplementation(async function* () {
+      yield { type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "" } } };
       throw new Error("SDK exploded");
     });
 
@@ -181,8 +203,9 @@ describe("POST /efficiency/report (SessionManager)", () => {
     expect(mockSessionManager.removeSession).toHaveBeenCalledWith("mock-session-id");
   });
 
-  it("returns SSE error when no SessionManager is available", async () => {
-    // The default `app` has no sessionManager (empty RouteContext)
+  it("falls back to API key when no SessionManager is available", async () => {
+    // The default `app` has no sessionManager — falls through to @anthropic-ai/sdk
+    // which will fail (no real API key in test env) and hit the error handler
     const res = await request(app)
       .post("/efficiency/report")
       .send({ range: "7d" })
@@ -197,6 +220,6 @@ describe("POST /efficiency/report (SessionManager)", () => {
 
     const body = res.body as string;
     expect(body).toContain('"error"');
-    expect(body).toContain("Session manager not available");
+    expect(body).toContain("Report generation failed");
   });
 });

@@ -36,11 +36,16 @@ vi.mock("../hooks/useInsightsCommandsAgentsSkills", () => ({
   useInsightsCommandsAgentsSkills: vi.fn(),
 }));
 
+vi.mock("../hooks/useEfficiencyDiagnostics", () => ({
+  useEfficiencyDiagnostics: vi.fn(),
+}));
+
 import { useInsightsAggregate } from "../hooks/useInsightsAggregate";
 import { useInsightsActivity } from "../hooks/useInsightsActivity";
 import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
 import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
 import { useInsightsCommandsAgentsSkills } from "../hooks/useInsightsCommandsAgentsSkills";
+import { useEfficiencyDiagnostics } from "../hooks/useEfficiencyDiagnostics";
 
 function mockLoading() {
   vi.mocked(useInsightsAggregate).mockReturnValue({
@@ -100,12 +105,86 @@ function mockActivityLoading() {
   });
 }
 
+function mockDiagnosticsData() {
+  vi.mocked(useEfficiencyDiagnostics).mockReturnValue({
+    data: {
+      range: "7d",
+      period: {
+        range: "7d",
+        spend: 12.34,
+        tokens: 120_000,
+        sessions: 8,
+        turns: 42,
+      },
+      diagnostics: [
+        {
+          id: "tool_failure_storm-diagnostic",
+          rank: 1,
+          sourcePattern: "tool_failure_storm",
+          category: "quality",
+          severity: "high",
+          confidence: "high",
+          title: "Tool failures are slowing delivery",
+          summary: "8 of 40 tool calls failed",
+          impactLabel: "Quality risk",
+          impactValue: "8 failed calls",
+          impactDetail: "this period",
+          changeThisWeek: "Validate paths before retrying failed commands.",
+          evidenceChips: ["20% failure rate"],
+          evidenceSessionIds: ["s1"],
+          whyFlagged: ["failedToolCalls: 8"],
+          tellMeMore: {
+            whatHappened: "Commands failed repeatedly.",
+            whyItMatters: "Repeated failures cost time.",
+            recommendedChanges: [
+              {
+                priority: 1,
+                change: "Validate paths before running commands.",
+                expectedEffect: "fewer failed calls",
+              },
+            ],
+          },
+        },
+      ],
+      quickWins: [
+        {
+          id: "tool_failure_storm-7d",
+          pattern: "tool_failure_storm",
+          status: "warn",
+          category: "quality",
+          severity: "high",
+          confidence: "high",
+          title: "Tool failure storm",
+          punchline: "8 of 40 tool calls failed",
+          impactLabel: "Quality risk",
+          impactValue: "8 failed calls",
+          recommendation: "Validate paths before running commands.",
+          rule: "failRate > 0.10",
+          icon: "wrench",
+          evidence: {
+            sessions: [{ id: "s1", detail: "Bash failed repeatedly", cost: 1.2 }],
+            recommendation: "Validate paths before running commands.",
+            stats: { failedToolCalls: 8 },
+            chips: ["20% failure rate"],
+          },
+        },
+      ],
+      sessionCount: 8,
+      totalCost: 12.34,
+    },
+    loading: false,
+    error: null,
+    refetchKey: 0,
+  });
+}
+
 beforeEach(() => {
   mockLoading();
   mockActivityLoading();
   vi.mocked(useInsightsModelMix).mockReturnValue({ data: null, loading: false, error: null });
   vi.mocked(useInsightsTopConsumers).mockReturnValue({ data: null, loading: false, error: null });
   vi.mocked(useInsightsCommandsAgentsSkills).mockReturnValue({ data: null, loading: false, error: null });
+  mockDiagnosticsData();
 });
 
 afterEach(() => {
@@ -188,7 +267,7 @@ describe("InsightsPage", () => {
 
   it("renders subtitle below h1", () => {
     render(<InsightsPage />);
-    expect(screen.getByText("Aggregate usage across your repos and sessions")).toBeTruthy();
+    expect(screen.getByText("A weekly coach for your Claude Code workflow")).toBeTruthy();
   });
 
   it("renders 5 stat tiles in data loaded state", () => {
@@ -262,13 +341,26 @@ describe("InsightsPage", () => {
     expect(grid.className).not.toContain("lg:grid-cols-6");
   });
 
-  it("renders commands, agents, skills, and efficiency hints sections", () => {
+  it("renders commands, agents, skills, diagnostics, quick wins, and evidence sections", () => {
     mockData();
     render(<InsightsPage />);
     expect(screen.getByTestId("section-commands")).toBeTruthy();
     expect(screen.getByTestId("section-agents")).toBeTruthy();
     expect(screen.getByTestId("section-skills")).toBeTruthy();
-    expect(screen.getByTestId("section-efficiency-hints")).toBeTruthy();
+    expect(screen.getByTestId("section-diagnostics")).toBeTruthy();
+    expect(screen.getByTestId("section-quick-wins")).toBeTruthy();
+    expect(screen.getByTestId("section-evidence")).toBeTruthy();
+  });
+
+  it("renders diagnostics before the evidence charts", () => {
+    mockData();
+    render(<InsightsPage />);
+    const diagnostics = screen.getByTestId("section-diagnostics");
+    const evidence = screen.getByTestId("section-evidence");
+
+    expect(
+      diagnostics.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   it("shows error banner with role=alert when fetch fails", () => {
@@ -365,6 +457,7 @@ describe("InsightsPage", () => {
     expect(vi.mocked(useInsightsTopConsumers)).toHaveBeenCalledWith("7d", "all", 1);
     expect(vi.mocked(useInsightsTopConsumers)).toHaveBeenCalledWith("all", "all", 1);
     expect(vi.mocked(useInsightsCommandsAgentsSkills)).toHaveBeenLastCalledWith("7d", "all", 1);
+    expect(vi.mocked(useEfficiencyDiagnostics)).toHaveBeenLastCalledWith("7d", "all", 1);
   });
 });
 

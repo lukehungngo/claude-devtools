@@ -77,10 +77,10 @@ export function HourlyBars({ hourly, className }: HourlyBarsProps): JSX.Element 
               boxShadow: "0 4px 12px rgba(0,0,0,.25)",
             }}
           >
-            <div className="font-mono text-sm font-semibold text-dt-text0">
+            <div className="font-mono text-md font-semibold text-dt-text0">
               {fmtHour(tooltip.hour)}–{fmtHour((tooltip.hour + 1) % 24)}
             </div>
-            <div className="font-mono text-sm text-dt-text2 mt-0.5">
+            <div className="font-mono text-md text-dt-text2 mt-0.5">
               avg <span className="text-dt-text0 font-semibold">{fmtTokens(tooltip.tokensAvg)}</span> tokens
             </div>
           </div>
@@ -117,7 +117,7 @@ export function HourlyBars({ hourly, className }: HourlyBarsProps): JSX.Element 
       {/* X-axis hour labels */}
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(24, 1fr)",
-        fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--t3)",
+        fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--t3)",
         marginTop: 4,
       }}>
         {Array.from({ length: 24 }, (_, h) => (

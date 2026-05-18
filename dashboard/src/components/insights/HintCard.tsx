@@ -28,10 +28,10 @@ export function HintCard({ icon, punchline, expanded, onToggle, children }: Hint
         onClick={onToggle}
         className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-dt-bg3 transition-colors"
       >
-        <span className="flex-shrink-0 mt-0.5 text-dt-text-secondary">
-          {IconComponent ? <IconComponent size={18} /> : <span className="text-lg">{icon}</span>}
+        <span className="flex-shrink-0 mt-1 text-dt-text-secondary">
+          {IconComponent ? <IconComponent size={20} /> : <span className="text-xl">{icon}</span>}
         </span>
-        <span className="text-dt-text-primary text-sm flex-1">{punchline}</span>
+        <span className="text-dt-text-primary text-md flex-1">{punchline}</span>
         <span className="text-dt-text-secondary mt-0.5">
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </span>

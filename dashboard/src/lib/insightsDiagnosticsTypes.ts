@@ -1,32 +1,16 @@
-import type { SessionInfo, SessionEvent } from "../../types.js";
-
 export type EfficiencyRange = "24h" | "7d" | "30d" | "90d";
-export type QuickWinCategory = "quality" | "cost" | "latency";
-export type DiagnosticCategory = "quality" | "cost" | "latency" | "workflow" | "model" | "context";
+
 export type SignalStatus = "warn" | "praise";
 export type SignalSeverity = "high" | "medium" | "low" | "positive";
 export type SignalConfidence = "high" | "medium" | "low";
-
-export type QuickWinPattern =
-  | "edit_rejection_rate"
-  | "tool_failure_storm"
-  | "cache_hit_ratio"
-  | "cost_per_loc_outlier"
-  | "long_turn_durations"
-  | "high_context_duration_tax";
-
-export interface DetectorContext {
-  sessions: SessionInfo[];
-  priorSessions: SessionInfo[];
-  range: EfficiencyRange;
-  repo: string;
-  nowMs: number;
-}
-
-export interface SessionWithEvents {
-  info: SessionInfo;
-  mainEvents: SessionEvent[];
-}
+export type QuickWinCategory = "quality" | "cost" | "latency";
+export type DiagnosticCategory =
+  | "quality"
+  | "cost"
+  | "latency"
+  | "workflow"
+  | "model"
+  | "context";
 
 export interface PeriodSummary {
   range: EfficiencyRange;
@@ -52,13 +36,13 @@ export interface QuickWinEvidence {
 
 export interface QuickWinResult {
   id: string;
-  pattern: QuickWinPattern;
+  pattern: string;
   status: SignalStatus;
   category: QuickWinCategory;
   severity: SignalSeverity;
   confidence: SignalConfidence;
-  detected: boolean;
-  impact: number;
+  detected?: boolean;
+  impact?: number;
   title: string;
   punchline: string;
   impactLabel: string;
@@ -72,7 +56,7 @@ export interface QuickWinResult {
 export interface DiagnosticResult {
   id: string;
   rank: number;
-  sourcePattern: QuickWinPattern;
+  sourcePattern: string;
   category: DiagnosticCategory;
   severity: SignalSeverity;
   confidence: SignalConfidence;
@@ -96,33 +80,9 @@ export interface DiagnosticResult {
   };
 }
 
-export type HintCategory =
-  | "wasted_retries"
-  | "blind_edits"
-  | "session_fragmentation"
-  | "cost_waste"
-  | "model_overuse"
-  | "cache_misses"
-  | "improving_trend";
-
-export interface PatternResult {
-  category: HintCategory;
-  detected: boolean;
-  impact: number;
-  punchline: string;
-  icon: string;
-  evidence: HintEvidenceData;
-}
-
-export interface HintEvidenceData {
-  sessions: EvidenceSession[];
-  recommendation: string;
-  stats: Record<string, number | string>;
-}
-
 export interface Hint {
   id: string;
-  category: QuickWinPattern;
+  category: string;
   icon: string;
   punchline: string;
   impact: number;
@@ -130,18 +90,12 @@ export interface Hint {
   drilldownAvailable: boolean;
 }
 
-export interface HintsResponse {
-  range: EfficiencyRange;
+export interface EfficiencyDiagnosticsResponse {
+  range: string;
   period: PeriodSummary;
   diagnostics: DiagnosticResult[];
   quickWins: QuickWinResult[];
-  hints: Hint[];
+  hints?: Hint[];
   sessionCount: number;
   totalCost: number;
-}
-
-export interface EvidenceResponse {
-  hintId: string;
-  category: QuickWinPattern;
-  evidence: QuickWinEvidence;
 }

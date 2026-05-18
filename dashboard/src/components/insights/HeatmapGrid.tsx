@@ -77,11 +77,11 @@ export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Eleme
             boxShadow: "0 4px 12px rgba(0,0,0,.25)",
           }}
         >
-          <div className="font-mono text-sm font-semibold text-dt-text0">
+          <div className="font-mono text-md font-semibold text-dt-text0">
             {DAY_LABELS[tooltip.day]}&nbsp;
             {String(tooltip.hour).padStart(2, "0")}:00–{String((tooltip.hour + 1) % 24).padStart(2, "0")}:00
           </div>
-          <div className="font-mono text-sm text-dt-text2 flex items-center gap-1.5 mt-0.5">
+          <div className="font-mono text-md text-dt-text2 flex items-center gap-1.5 mt-0.5">
             <span
               style={{
                 display: "inline-block",
@@ -106,7 +106,7 @@ export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Eleme
         }}>
           {DAY_LABELS.map(d => (
             <span key={d} style={{
-              fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--t3)",
+              fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--t3)",
               lineHeight: 1, height: 14, display: "flex", alignItems: "center",
               justifyContent: "flex-end",
             }}>{d}</span>
@@ -152,7 +152,7 @@ export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Eleme
           }}>
             {Array.from({ length: 24 }, (_, h) => (
               <span key={h} style={{
-                fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--t3)",
+                fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--t3)",
                 textAlign: "center",
                 visibility: h % 6 === 0 ? "visible" : "hidden",
               }}>{h}</span>
@@ -163,7 +163,7 @@ export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Eleme
           <div style={{
             display: "flex", alignItems: "center", gap: 5,
             marginTop: 8,
-            fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--t3)",
+            fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--t3)",
           }}>
             <span>Less</span>
             {[0, 1, 2, 3, 4].map(i => (
@@ -174,7 +174,7 @@ export function HeatmapGrid({ heatmap, className }: HeatmapGridProps): JSX.Eleme
             ))}
             <span>More</span>
             {peakHour >= 0 && (
-              <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--t2)" }}>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--t2)" }}>
                 Peak {String(peakHour).padStart(2, "0")}:00 {DAY_LABELS[peakDay]}
               </span>
             )}

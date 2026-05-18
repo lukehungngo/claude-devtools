@@ -12,7 +12,10 @@ import { useInsightsModelMix } from "../hooks/useInsightsModelMix";
 import { useInsightsTopConsumers } from "../hooks/useInsightsTopConsumers";
 import { useInsightsCommandsAgentsSkills } from "../hooks/useInsightsCommandsAgentsSkills";
 import { CASRow, BADGE_PALETTE, abbreviateName } from "../components/insights/CASRow";
-import { EfficiencyHints } from "../components/insights/EfficiencyHints";
+import { useEfficiencyDiagnostics } from "../hooks/useEfficiencyDiagnostics";
+import { DiagnosticsSection } from "../components/insights/DiagnosticsSection";
+import type { PeriodSummary } from "../lib/insightsDiagnosticsTypes";
+import type { DeltaData } from "../hooks/useInsightsAggregate";
 
 type TimeRange = "24h" | "7d" | "30d" | "90d" | "all";
 
@@ -57,7 +60,7 @@ function SegPill({ options, value, onChange, testId }: SegPillProps): JSX.Elemen
             aria-pressed={isActive}
             onClick={() => onChange(opt.value)}
             className={[
-              "px-2.5 py-0.5 rounded-full font-mono text-sm font-semibold transition-all",
+              "px-2.5 py-0.5 rounded-full font-mono text-md font-semibold transition-all",
               isActive
                 ? "bg-dt-bg1 text-dt-accent"
                 : "text-dt-text2 hover:text-dt-text1",
@@ -79,7 +82,7 @@ interface DeltaChipProps {
 function DeltaChip({ value, testId }: DeltaChipProps): JSX.Element {
   if (value === null) {
     return (
-      <span data-testid={testId} className="text-dt-text2 text-sm font-mono">
+      <span data-testid={testId} className="text-dt-text2 text-md font-mono">
         —
       </span>
     );
@@ -90,7 +93,7 @@ function DeltaChip({ value, testId }: DeltaChipProps): JSX.Element {
     return (
       <span
         data-testid={testId}
-        className="text-sm font-mono font-semibold px-1.5 py-0.5 rounded-dt-xs text-dt-text2 bg-dt-bg2"
+        className="text-md font-mono font-semibold px-1.5 py-0.5 rounded-dt-xs text-dt-text2 bg-dt-bg2"
       >
         → {pct}%
       </span>
@@ -101,7 +104,7 @@ function DeltaChip({ value, testId }: DeltaChipProps): JSX.Element {
     <span
       data-testid={testId}
       className={[
-        "text-sm font-mono font-semibold px-1.5 py-0.5 rounded-dt-xs",
+        "text-md font-mono font-semibold px-1.5 py-0.5 rounded-dt-xs",
         isUp
           ? "text-dt-red bg-dt-red/10"
           : "text-dt-green bg-dt-green/10",
@@ -137,7 +140,7 @@ function HeadlineTile({
       className="bg-dt-bg1 border border-dt-border rounded-dt relative overflow-hidden"
       style={{ padding: "16px 18px" }}
     >
-      <span className="text-sm font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
+      <span className="text-md font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
         {label}
       </span>
       <div
@@ -185,7 +188,7 @@ function StatTile({
       className="bg-dt-bg1 border border-dt-border rounded-dt"
       style={{ padding: "14px 16px" }}
     >
-      <span className="text-sm font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
+      <span className="text-md font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
         {label}
       </span>
       <div
@@ -218,7 +221,7 @@ function SecondaryTile({ label, value, delta, deltaTestId, testId }: SecondaryTi
       className="bg-dt-bg1 border border-dt-border rounded-dt"
       style={{ padding: "14px 16px" }}
     >
-      <span className="text-sm font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
+      <span className="text-md font-mono font-bold uppercase tracking-[0.6px] text-dt-text2">
         {label}
       </span>
       <div
@@ -249,6 +252,145 @@ function formatTok(n: number): string {
   return String(n);
 }
 
+function formatPeriodLabel(range: string): string {
+  if (range === "24h") return "Last 24 hours";
+  if (range === "7d") return "Last 7 days";
+  if (range === "30d") return "Last 30 days";
+  if (range === "90d") return "Last 90 days";
+  return "Selected period";
+}
+
+function formatPeriodChipLabel(range: string): string {
+  if (range === "24h") return "last 24 hours";
+  if (range === "7d") return "last 7 days";
+  if (range === "30d") return "last 30 days";
+  if (range === "90d") return "last 90 days";
+  return "selected period";
+}
+
+function formatWindowDate(date: Date): string {
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatWindowRange(range: string): string {
+  const end = new Date();
+  const days = range === "24h" ? 1 : range === "7d" ? 7 : range === "30d" ? 30 : range === "90d" ? 90 : null;
+  if (days === null) return "All time";
+  const start = new Date(end);
+  start.setDate(start.getDate() - days);
+  return `${formatPeriodLabel(range)} · ${formatWindowDate(start)} → ${formatWindowDate(end)}`;
+}
+
+function deltaText(value: number | null | undefined): { text: string; tone: "up" | "down" | "flat" } {
+  if (value === null || value === undefined || Math.abs(value) < 0.005) {
+    return { text: "→ unchanged", tone: "flat" };
+  }
+  const pct = `${value > 0 ? "+" : "-"}${(Math.abs(value) * 100).toFixed(0)}%`;
+  return { text: `▲ ${pct} vs prev 7d`, tone: value > 0 ? "up" : "down" };
+}
+
+function formatKpiCost(value: number): { value: string; suffix: string } {
+  const formatted = formatCost(value);
+  const [whole, cents] = formatted.split(".");
+  return { value: whole ?? formatted, suffix: cents ? `.${cents}` : "" };
+}
+
+function formatKpiTokens(value: number): { value: string; suffix: string } {
+  if (value >= 1_000_000) return { value: (value / 1_000_000).toFixed(value >= 10_000_000 ? 1 : 0).replace(/\.0$/, ""), suffix: "M" };
+  if (value >= 1_000) return { value: (value / 1_000).toFixed(value >= 10_000 ? 1 : 0).replace(/\.0$/, ""), suffix: "K" };
+  return { value: value.toLocaleString(), suffix: "" };
+}
+
+interface PeriodMetricCellProps {
+  label: string;
+  value: string;
+  suffix?: string;
+  delta?: { text: string; tone: "up" | "down" | "flat" };
+  accent: "amber" | "orange" | "teal" | "purple";
+}
+
+function PeriodMetricCell({ label, value, suffix, delta, accent }: PeriodMetricCellProps): JSX.Element {
+  const accentClasses = {
+    amber: "border-l-dt-yellow text-dt-yellow",
+    orange: "border-l-dt-accent text-dt-accent",
+    teal: "border-l-dt-teal text-dt-teal",
+    purple: "border-l-dt-purple text-dt-purple",
+  }[accent];
+  const deltaTone = delta?.tone === "up"
+    ? "text-dt-red"
+    : delta?.tone === "down"
+      ? "text-dt-green"
+      : "text-dt-text2";
+
+  return (
+    <div className={["min-w-0 border-l-4 bg-dt-bg1 px-5 py-4", accentClasses].join(" ")}>
+      <div className="font-mono text-md font-bold uppercase tracking-[0.18em] text-dt-text2">
+        {label}
+      </div>
+      <div className="mt-2 flex items-baseline gap-1 font-mono">
+        <span className="text-display font-bold leading-none">{value}</span>
+        {suffix ? <span className="text-xl font-bold text-dt-text2">{suffix}</span> : null}
+      </div>
+      {delta ? (
+        <div className={["mt-2 font-mono text-md font-bold", deltaTone].join(" ")}>
+          {delta.text}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface PeriodSummaryRowProps {
+  period: PeriodSummary | null;
+  delta: DeltaData | null;
+}
+
+function PeriodSummaryRow({ period, delta }: PeriodSummaryRowProps): JSX.Element {
+  const spend = period ? formatKpiCost(period.spend) : { value: "...", suffix: "" };
+  const tokens = period ? formatKpiTokens(period.tokens) : { value: "...", suffix: "" };
+  const sessions = period ? { value: period.sessions.toLocaleString(), suffix: "" } : { value: "...", suffix: "" };
+  const turns = period ? { value: period.turns.toLocaleString(), suffix: "" } : { value: "...", suffix: "" };
+
+  return (
+    <section className="grid overflow-hidden rounded-dt border border-dt-border bg-dt-bg1 shadow-dt-sm lg:grid-cols-[1fr_1fr_1fr_1fr_1.05fr]">
+      <PeriodMetricCell
+        label="Spent"
+        value={spend.value}
+        suffix={spend.suffix}
+        delta={deltaText(delta?.cost)}
+        accent="amber"
+      />
+      <PeriodMetricCell
+        label="Tokens"
+        value={tokens.value}
+        suffix={tokens.suffix}
+        delta={deltaText(delta?.tokensIn)}
+        accent="orange"
+      />
+      <PeriodMetricCell
+        label="Sessions"
+        value={sessions.value}
+        delta={{ text: "→ unchanged", tone: "flat" }}
+        accent="teal"
+      />
+      <PeriodMetricCell
+        label="Turns"
+        value={turns.value}
+        delta={{ text: "→ unchanged", tone: "flat" }}
+        accent="purple"
+      />
+      <div className="min-w-0 border-l border-dt-border bg-dt-bg2 px-5 py-4">
+        <div className="font-mono text-md font-bold uppercase tracking-[0.18em] text-dt-text2">
+          Window
+        </div>
+        <div className="mt-3 text-2xl font-bold text-dt-text0">
+          {formatWindowRange(period?.range ?? "")}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function InsightsPage(): JSX.Element {
   const { setCurrentMetrics } = useLayoutContext();
   const [timeRange, setTimeRange] = useState<TimeRange>("7d");
@@ -271,7 +413,30 @@ export function InsightsPage(): JSX.Element {
   }, [allReposData?.repos]);
   const { data: casData, loading: casLoading } =
     useInsightsCommandsAgentsSkills(timeRange, repo, refreshCount);
-  const anyLoading = loading || activityLoading || modelMixLoading || topConsumersLoading || casLoading;
+  const diagnosticsRange = timeRange === "all" ? "90d" : timeRange;
+  const {
+    data: diagnosticsData,
+    loading: diagnosticsLoading,
+    error: diagnosticsError,
+  } = useEfficiencyDiagnostics(diagnosticsRange, repo, refreshCount);
+  const anyLoading =
+    loading ||
+    activityLoading ||
+    modelMixLoading ||
+    topConsumersLoading ||
+    casLoading ||
+    diagnosticsLoading;
+  const periodSummary: PeriodSummary | null =
+    diagnosticsData?.period ??
+    (data
+      ? {
+          range: diagnosticsRange,
+          spend: data.cost,
+          tokens: data.tokensIn + data.tokensOut + data.cacheReadTokens,
+          sessions: data.sessions,
+          turns: data.turns,
+        }
+      : null);
 
   useEffect(() => {
     setCurrentMetrics(null);
@@ -283,20 +448,43 @@ export function InsightsPage(): JSX.Element {
         {/* Scope bar */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex flex-col gap-1">
-            <h1 className="text-xl font-semibold text-dt-text0 font-sans m-0" style={{ letterSpacing: "-0.01em" }}>
+            <h1 className="m-0 font-sans text-2xl font-bold text-dt-text0">
               Insights
             </h1>
             <span className="text-md text-dt-text2 font-sans">
-              Aggregate usage across your repos and sessions
+              A weekly coach for your Claude Code workflow
             </span>
           </div>
-          <div className="flex items-center gap-2.5 flex-wrap pt-1">
+        </div>
+
+        <PeriodSummaryRow period={periodSummary} delta={delta} />
+
+        <DiagnosticsSection
+          diagnostics={diagnosticsData?.diagnostics ?? []}
+          quickWins={diagnosticsData?.quickWins ?? []}
+          loading={diagnosticsLoading}
+          error={diagnosticsError}
+          periodLabel={formatPeriodLabel(diagnosticsRange)}
+        />
+
+        <section data-testid="section-evidence" className="flex flex-col gap-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="font-mono text-md font-bold uppercase tracking-wide text-dt-text2">
+                Evidence
+              </span>
+              <h2 className="text-xl font-semibold text-dt-text0">Underlying telemetry</h2>
+              <span className="text-md text-dt-text2">
+                Supports the patterns above.
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5 flex-wrap pt-1">
             <div className="relative inline-flex items-center">
               <select
                 data-testid="repo-pill"
                 value={repo}
                 onChange={(e) => setRepo(e.target.value)}
-                className="appearance-none h-7 pl-2.5 pr-7 rounded font-mono text-sm font-semibold bg-dt-bg2 border border-dt-border text-dt-text1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-dt-accent"
+                className="appearance-none h-7 pl-2.5 pr-7 rounded font-mono text-md font-semibold bg-dt-bg2 border border-dt-border text-dt-text1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-dt-accent"
               >
                 {repoOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -321,14 +509,14 @@ export function InsightsPage(): JSX.Element {
               <RefreshCw size={13} className={anyLoading ? "animate-spin" : ""} />
             </button>
           </div>
-        </div>
+          </div>
 
         {/* Error banner */}
         {error && (
           <div
             data-testid="insights-error"
             role="alert"
-            className="bg-dt-bg1 border border-dt-red/40 rounded-dt p-4 text-dt-red font-mono text-sm"
+            className="bg-dt-bg1 border border-dt-red/40 rounded-dt p-4 text-dt-red font-mono text-md"
           >
             Failed to load insights: {error}
           </div>
@@ -437,17 +625,17 @@ export function InsightsPage(): JSX.Element {
                     className="inline-block rounded-full bg-dt-teal"
                     style={{ width: 8, height: 8 }}
                   />
-                  <span className="text-sm font-mono text-dt-text2">Tokens in</span>
+                  <span className="text-md font-mono text-dt-text2">Tokens in</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span
                     className="inline-block rounded-full bg-dt-purple"
                     style={{ width: 8, height: 8 }}
                   />
-                  <span className="text-sm font-mono text-dt-text2">Tokens out</span>
+                  <span className="text-md font-mono text-dt-text2">Tokens out</span>
                 </span>
               </div>
-              <span className="text-sm font-mono text-dt-text2 ml-3">Hourly · last 7 days</span>
+              <span className="text-md font-mono text-dt-text2 ml-3">Hourly · last 7 days</span>
             </div>
             <div className="mt-3">
               <TrendChart daily={data.daily} />
@@ -462,21 +650,21 @@ export function InsightsPage(): JSX.Element {
             style={{ padding: "14px 20px 0" }}
           >
             <h2 className="text-lg font-semibold text-dt-text0">When you work</h2>
-            <span className="text-sm font-mono text-dt-text2">Last 7 days · by hour &amp; day</span>
+            <span className="text-md font-mono text-dt-text2">Last 7 days · by hour &amp; day</span>
           </div>
           {activityLoading || !activityData ? (
             <div className="m-5 h-36 bg-dt-bg2 rounded animate-pulse" />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1px 1fr" }}>
               <div style={{ padding: "14px 20px 16px" }}>
-                <span className="text-sm font-mono font-bold uppercase tracking-[0.8px] text-dt-text2 block mb-3.5">
+                <span className="text-md font-mono font-bold uppercase tracking-[0.8px] text-dt-text2 block mb-3.5">
                   Weekday × Hour
                 </span>
                 <HeatmapGrid heatmap={activityData.heatmap} />
               </div>
               <div className="bg-dt-border" />
               <div style={{ padding: "14px 20px 16px" }}>
-                <span className="text-sm font-mono font-bold uppercase tracking-[0.8px] text-dt-text2 block mb-3.5">
+                <span className="text-md font-mono font-bold uppercase tracking-[0.8px] text-dt-text2 block mb-3.5">
                   Hour of Day · Avg Tokens, All Time
                 </span>
                 <HourlyBars hourly={activityData.hourly} />
@@ -496,7 +684,7 @@ export function InsightsPage(): JSX.Element {
               Model mix
             </span>
             {modelMixData && (
-              <span className="text-sm font-mono text-dt-text2 ml-auto">
+              <span className="text-md font-mono text-dt-text2 ml-auto">
                 Share of total tokens · {formatTokens(modelMixData.totalTokens)}
               </span>
             )}
@@ -552,14 +740,14 @@ export function InsightsPage(): JSX.Element {
                       />
                       <div>
                         <div className="text-lg font-semibold text-dt-text0">{m.model}</div>
-                        <div className="text-sm font-mono text-dt-text2 mt-0.5">
+                        <div className="text-md font-mono text-dt-text2 mt-0.5">
                           {(m.share * 100).toFixed(0)}% of total · {m.turns} turns
                         </div>
                       </div>
                     </div>
                     <div className="flex flex-col gap-0.5 px-3">
                       <div
-                        className="text-sm font-mono font-bold uppercase flex items-center gap-1"
+                        className="text-md font-mono font-bold uppercase flex items-center gap-1"
                         style={{ letterSpacing: "0.5px", color: "var(--teal)" }}
                       >
                         <span
@@ -577,7 +765,7 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="flex flex-col gap-0.5 px-3">
                       <div
-                        className="text-sm font-mono font-bold uppercase flex items-center gap-1"
+                        className="text-md font-mono font-bold uppercase flex items-center gap-1"
                         style={{ letterSpacing: "0.5px", color: "var(--cat-purple)" }}
                       >
                         <span
@@ -595,7 +783,7 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="text-right">
                       <div className="text-xl font-semibold text-dt-text0">{formatCost(m.cost)}</div>
-                      <div className="text-sm font-mono text-dt-text2 mt-0.5">total spend</div>
+                      <div className="text-md font-mono text-dt-text2 mt-0.5">total spend</div>
                     </div>
                   </div>
                 ))}
@@ -610,7 +798,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Top repos{" "}
-              <span className="text-sm font-mono text-dt-text2 font-normal">by token spend</span>
+              <span className="text-md font-mono text-dt-text2 font-normal">by token spend</span>
             </div>
             {topConsumersLoading ? (
               <div className="flex flex-col gap-2">
@@ -627,7 +815,7 @@ export function InsightsPage(): JSX.Element {
                     style={{ gridTemplateColumns: "26px 1fr 80px" }}
                   >
                     <div
-                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
+                      className="font-mono text-md font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
                       style={{ width: 22, height: 22 }}
                     >
                       {idx + 1}
@@ -640,7 +828,7 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="text-right">
                       <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{formatTokens(item.totalTokens)}</div>
-                      <span className="text-sm font-mono text-dt-text2">tokens</span>
+                      <span className="text-md font-mono text-dt-text2">tokens</span>
                     </div>
                   </div>
                 ))}
@@ -652,7 +840,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Top sessions{" "}
-              <span className="text-sm font-mono text-dt-text2 font-normal">by cost</span>
+              <span className="text-md font-mono text-dt-text2 font-normal">by cost</span>
             </div>
             {topConsumersLoading ? (
               <div className="flex flex-col gap-2">
@@ -669,7 +857,7 @@ export function InsightsPage(): JSX.Element {
                     style={{ gridTemplateColumns: "26px 1fr 80px" }}
                   >
                     <div
-                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
+                      className="font-mono text-md font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
                       style={{ width: 22, height: 22 }}
                     >
                       {idx + 1}
@@ -682,7 +870,7 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="text-right">
                       <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{formatCost(item.cost)}</div>
-                      <span className="text-sm font-mono text-dt-text2">spend</span>
+                      <span className="text-md font-mono text-dt-text2">spend</span>
                     </div>
                   </div>
                 ))}
@@ -694,7 +882,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }}>
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Top tool calls{" "}
-              <span className="text-sm font-mono text-dt-text2 font-normal">by count</span>
+              <span className="text-md font-mono text-dt-text2 font-normal">by count</span>
             </div>
             {topConsumersLoading ? (
               <div className="flex flex-col gap-2">
@@ -711,7 +899,7 @@ export function InsightsPage(): JSX.Element {
                     style={{ gridTemplateColumns: "26px 1fr 80px" }}
                   >
                     <div
-                      className="font-mono text-sm font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
+                      className="font-mono text-md font-bold text-dt-text2 flex items-center justify-center rounded-dt-sm bg-dt-bg2 border border-dt-border flex-shrink-0"
                       style={{ width: 22, height: 22 }}
                     >
                       {idx + 1}
@@ -724,7 +912,7 @@ export function InsightsPage(): JSX.Element {
                     </div>
                     <div className="text-right">
                       <div className="text-lg font-mono font-semibold text-dt-text0 leading-none">{item.count.toLocaleString()}</div>
-                      <span className="text-sm font-mono text-dt-text2">calls</span>
+                      <span className="text-md font-mono text-dt-text2">calls</span>
                     </div>
                   </div>
                 ))}
@@ -739,7 +927,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-commands">
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Commands{" "}
-              <span className="text-sm font-mono text-dt-text2 font-normal">by invocations</span>
+              <span className="text-md font-mono text-dt-text2 font-normal">by invocations</span>
             </div>
             {casLoading ? (
               <div className="flex flex-col gap-2">
@@ -748,7 +936,7 @@ export function InsightsPage(): JSX.Element {
                 ))}
               </div>
             ) : (casData?.commands ?? []).length === 0 ? (
-              <div className="text-sm text-dt-text2 py-4 text-center">No slash commands found</div>
+              <div className="text-md text-dt-text2 py-4 text-center">No slash commands found</div>
             ) : (
               <div className="flex gap-4">
                 {/* Left panel: ranked list */}
@@ -759,7 +947,7 @@ export function InsightsPage(): JSX.Element {
                       className="flex items-start gap-2.5 px-2 py-2.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                     >
                       <div
-                        className="font-mono text-sm font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
+                        className="font-mono text-md font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
                         style={{ width: 32, height: 20 }}
                       >
                         {idx + 1}
@@ -767,12 +955,12 @@ export function InsightsPage(): JSX.Element {
                       <div className="flex-1 min-w-0 min-h-0">
                         {/* Line 1: name + count */}
                         <div className="flex items-baseline justify-between gap-2">
-                          <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.name}>
+                          <div className="text-md font-mono font-semibold text-dt-text0 truncate" title={item.name}>
                             {item.name}
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <span className="text-base font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
-                            <span className="text-sm font-mono text-dt-text2 ml-1">calls</span>
+                            <span className="text-md font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
+                            <span className="text-md font-mono text-dt-text2 ml-1">calls</span>
                           </div>
                         </div>
                         {/* Line 2: progress bar + avg tokens | total tokens */}
@@ -792,11 +980,11 @@ export function InsightsPage(): JSX.Element {
                                 style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
                               />
                             </div>
-                            <div className="mt-1 text-sm font-mono text-dt-text2">
+                            <div className="mt-1 text-md font-mono text-dt-text2">
                               avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
                             </div>
                           </div>
-                          <div className="text-right flex-shrink-0 text-sm font-mono text-dt-text2">
+                          <div className="text-right flex-shrink-0 text-md font-mono text-dt-text2">
                             <div>{formatTok(item.tokensIn)} in</div>
                             <div>{formatTok(item.tokensOut)} out</div>
                           </div>
@@ -828,7 +1016,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-agents">
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Agents{" "}
-              <span className="text-sm font-mono text-dt-text2 font-normal">by dispatches</span>
+              <span className="text-md font-mono text-dt-text2 font-normal">by dispatches</span>
             </div>
             {casLoading ? (
               <div className="flex flex-col gap-2">
@@ -837,7 +1025,7 @@ export function InsightsPage(): JSX.Element {
                 ))}
               </div>
             ) : (casData?.agents ?? []).length === 0 ? (
-              <div className="text-sm text-dt-text2 py-4 text-center">No agent dispatches found</div>
+              <div className="text-md text-dt-text2 py-4 text-center">No agent dispatches found</div>
             ) : (
               <div className="flex gap-4">
                 {/* Left panel: ranked list */}
@@ -852,19 +1040,19 @@ export function InsightsPage(): JSX.Element {
                       >
                         <div
                           aria-hidden="true"
-                          className="font-mono text-sm font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0 mt-0.5"
+                          className="font-mono text-md font-bold uppercase tracking-wide text-white flex items-center justify-center rounded flex-shrink-0 mt-0.5"
                           style={{ width: 32, height: 22, background: badgeColor }}
                         >
                           {abbrev}
                         </div>
                         <div className="flex-1 min-w-0 min-h-0">
                           <div className="flex items-baseline justify-between gap-2">
-                            <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.type}>
+                            <div className="text-md font-mono font-semibold text-dt-text0 truncate" title={item.type}>
                               {item.type}
                             </div>
                             <div className="text-right flex-shrink-0">
-                              <span className="text-base font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
-                              <span className="text-sm font-mono text-dt-text2 ml-1">runs</span>
+                              <span className="text-md font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
+                              <span className="text-md font-mono text-dt-text2 ml-1">runs</span>
                             </div>
                           </div>
                           <div className="mt-1.5 flex items-center gap-2">
@@ -883,11 +1071,11 @@ export function InsightsPage(): JSX.Element {
                                   style={{ width: `${item.share * 100}%`, background: badgeColor }}
                                 />
                               </div>
-                              <div className="mt-1 text-sm font-mono text-dt-text2">
+                              <div className="mt-1 text-md font-mono text-dt-text2">
                                 avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
                               </div>
                             </div>
-                            <div className="text-right flex-shrink-0 text-sm font-mono text-dt-text2">
+                            <div className="text-right flex-shrink-0 text-md font-mono text-dt-text2">
                               <div>{formatTok(item.tokensIn)} in</div>
                               <div>{formatTok(item.tokensOut)} out</div>
                             </div>
@@ -920,7 +1108,7 @@ export function InsightsPage(): JSX.Element {
           <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-skills">
             <div className="text-lg font-semibold text-dt-text0 mb-3">
               Skills{" "}
-              <span className="text-sm font-mono text-dt-text2 font-normal">by invocations</span>
+              <span className="text-md font-mono text-dt-text2 font-normal">by invocations</span>
             </div>
             {casLoading ? (
               <div className="flex flex-col gap-2">
@@ -929,7 +1117,7 @@ export function InsightsPage(): JSX.Element {
                 ))}
               </div>
             ) : (casData?.skills ?? []).length === 0 ? (
-              <div className="text-sm text-dt-text2 py-4 text-center">No skill invocations found</div>
+              <div className="text-md text-dt-text2 py-4 text-center">No skill invocations found</div>
             ) : (
               <div className="flex gap-4">
                 {/* Left panel: ranked list */}
@@ -940,19 +1128,19 @@ export function InsightsPage(): JSX.Element {
                       className="flex items-start gap-2.5 px-2 py-2.5 rounded-dt-sm hover:bg-dt-bg2 transition-colors cursor-default"
                     >
                       <div
-                        className="font-mono text-sm font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
+                        className="font-mono text-md font-bold text-dt-text1 flex items-center justify-center rounded flex-shrink-0 bg-dt-bg2 mt-0.5"
                         style={{ width: 32, height: 20 }}
                       >
                         {idx + 1}
                       </div>
                       <div className="flex-1 min-w-0 min-h-0">
                         <div className="flex items-baseline justify-between gap-2">
-                          <div className="text-base font-mono font-semibold text-dt-text0 truncate" title={item.name}>
+                          <div className="text-md font-mono font-semibold text-dt-text0 truncate" title={item.name}>
                             {item.name}
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <span className="text-base font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
-                            <span className="text-sm font-mono text-dt-text2 ml-1">runs</span>
+                            <span className="text-md font-mono font-semibold text-dt-text0">{item.count.toLocaleString()}</span>
+                            <span className="text-md font-mono text-dt-text2 ml-1">runs</span>
                           </div>
                         </div>
                         <div className="mt-1.5 flex items-center gap-2">
@@ -971,11 +1159,11 @@ export function InsightsPage(): JSX.Element {
                                 style={{ width: `${item.share * 100}%`, background: "var(--teal)" }}
                               />
                             </div>
-                            <div className="mt-1 text-sm font-mono text-dt-text2">
+                            <div className="mt-1 text-md font-mono text-dt-text2">
                               avg {formatTok(item.avgTokensIn)} in · {formatTok(item.avgTokensOut)} out
                             </div>
                           </div>
-                          <div className="text-right flex-shrink-0 text-sm font-mono text-dt-text2">
+                          <div className="text-right flex-shrink-0 text-md font-mono text-dt-text2">
                             <div>{formatTok(item.tokensIn)} in</div>
                             <div>{formatTok(item.tokensOut)} out</div>
                           </div>
@@ -1004,11 +1192,7 @@ export function InsightsPage(): JSX.Element {
           </div>
         </div>
 
-        {/* Efficiency Hints */}
-        <div className="bg-dt-bg1 border border-dt-border rounded-dt" style={{ padding: "16px 18px" }} data-testid="section-efficiency-hints">
-          <div className="text-lg font-semibold text-dt-text0 mb-3">Efficiency Hints</div>
-          <EfficiencyHints range={timeRange === "all" ? "90d" : timeRange} />
-        </div>
+        </section>
       </div>
     </div>
   );

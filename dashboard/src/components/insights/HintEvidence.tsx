@@ -37,30 +37,30 @@ export function HintEvidence({ hintId }: HintEvidenceProps): JSX.Element {
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-3 text-dt-text-secondary">
-        <Loader2 size={14} className="animate-spin" />
-        <span className="text-xs">Loading evidence...</span>
+        <Loader2 size={16} className="animate-spin" />
+        <span className="text-md">Loading evidence...</span>
       </div>
     );
   }
 
-  if (!data) return <div className="text-xs text-dt-text-secondary py-2">No evidence available.</div>;
+  if (!data) return <div className="text-md text-dt-text-secondary py-2">No evidence available.</div>;
 
   return (
     <div className="space-y-3 pt-3">
       <div className="bg-dt-bg1 rounded-dt p-3">
-        <p className="text-sm text-dt-text-primary font-medium mb-1">How to fix it</p>
-        <p className="text-xs text-dt-text-secondary">{data.evidence.recommendation}</p>
+        <p className="text-md text-dt-text-primary font-medium mb-1">How to fix it</p>
+        <p className="text-md text-dt-text-secondary">{data.evidence.recommendation}</p>
       </div>
 
       {data.evidence.sessions.length > 0 && (
         <div>
-          <p className="text-xs text-dt-text-secondary font-medium mb-2">Sessions affected</p>
+          <p className="text-md text-dt-text-secondary font-medium mb-2">Sessions affected</p>
           <div className="space-y-1">
             {data.evidence.sessions.map((s) => (
               <a
                 key={s.id}
                 href={`/session/${s.id}`}
-                className="flex items-center justify-between text-xs px-2 py-1.5 rounded hover:bg-dt-bg3 transition-colors group"
+                className="flex items-center justify-between text-md px-2 py-2 rounded hover:bg-dt-bg3 transition-colors group"
               >
                 <span className="text-dt-text-primary font-mono">{s.id.slice(0, 8)}...</span>
                 <span className="text-dt-text-secondary">{s.detail}</span>

@@ -1,15 +1,15 @@
 import { loadFullSession } from "../../parser/session-discovery.js";
 import { calculateTokenCost } from "../metrics.js";
 import { buildDetectorContext } from "./detector-context.js";
-import { detectWastedRetries } from "./wasted-retries.js";
-import { detectBlindEdits } from "./blind-edits.js";
-import { detectSessionFragmentation } from "./session-fragmentation.js";
-import { detectCostWaste } from "./cost-waste.js";
-import { detectModelOveruse } from "./model-overuse.js";
-import { detectCacheMisses } from "./cache-misses.js";
-import { detectImprovingTrend } from "./improving-trend.js";
-import { rankAndFormat } from "./hint-ranker.js";
-import type { HintsResponse, EvidenceResponse, PatternResult, SessionWithEvents } from "./types.js";
+import { detectEditRejectionRate } from "./edit-rejection-rate.js";
+import { detectToolFailureStorm } from "./tool-failure-storm.js";
+import { detectCacheHitRatio } from "./cache-hit-ratio.js";
+import { detectCostPerLocOutlier } from "./cost-per-loc-outlier.js";
+import { detectLongTurnDurations } from "./long-turn-durations.js";
+import { detectHighContextDurationTax } from "./high-context-duration-tax.js";
+import { buildDiagnostics, rankAndFormat, rankQuickWins } from "./hint-ranker.js";
+import { groupEfficiencyTurns } from "./signal-extractors.js";
+import type { HintsResponse, EvidenceResponse, EfficiencyRange, QuickWinResult, SessionWithEvents } from "./types.js";
 import type { SessionInfo } from "../../types.js";
 
 function loadEvents(sessions: SessionInfo[]): SessionWithEvents[] {
@@ -19,29 +19,44 @@ function loadEvents(sessions: SessionInfo[]): SessionWithEvents[] {
   });
 }
 
-const cachedResults: Map<string, PatternResult[]> = new Map();
+const cachedResults: Map<string, QuickWinResult[]> = new Map();
 
-export function computeHints(range: "24h" | "7d" | "30d" | "90d"): HintsResponse {
-  const ctx = buildDetectorContext(range);
+function cacheKey(range: EfficiencyRange, repo: string): string {
+  return `${range}:${repo}`;
+}
+
+function findCachedResults(range: string): QuickWinResult[] | undefined {
+  return cachedResults.get(cacheKey(range as EfficiencyRange, "all"))
+    ?? [...cachedResults.entries()].find(([key]) => key.startsWith(`${range}:`))?.[1];
+}
+
+export function computeHints(range: EfficiencyRange, repo = "all"): HintsResponse {
+  const ctx = buildDetectorContext(range, repo);
   const sessionsWithEvents = loadEvents(ctx.sessions);
-  const priorWithEvents = loadEvents(ctx.priorSessions);
 
-  const results: PatternResult[] = [
-    detectWastedRetries(sessionsWithEvents),
-    detectBlindEdits(sessionsWithEvents),
-    detectSessionFragmentation(ctx.sessions),
-    detectCostWaste(sessionsWithEvents),
-    detectModelOveruse(sessionsWithEvents),
-    detectCacheMisses(sessionsWithEvents),
-    detectImprovingTrend(sessionsWithEvents, priorWithEvents),
+  const results: QuickWinResult[] = [
+    detectEditRejectionRate(sessionsWithEvents),
+    detectToolFailureStorm(sessionsWithEvents),
+    detectCacheHitRatio(sessionsWithEvents),
+    detectCostPerLocOutlier(sessionsWithEvents),
+    detectLongTurnDurations(sessionsWithEvents),
+    detectHighContextDurationTax(sessionsWithEvents),
   ];
 
-  cachedResults.set(range, results);
+  cachedResults.set(cacheKey(range, repo), results);
 
   let totalCost = 0;
+  let tokens = 0;
+  let turns = 0;
   for (const s of sessionsWithEvents) {
+    turns += groupEfficiencyTurns(s.mainEvents).length;
     for (const ev of s.mainEvents) {
       if (ev.type === "assistant") {
+        tokens +=
+          (ev.message.usage.input_tokens ?? 0) +
+          (ev.message.usage.output_tokens ?? 0) +
+          (ev.message.usage.cache_creation_input_tokens ?? 0) +
+          (ev.message.usage.cache_read_input_tokens ?? 0);
         totalCost += calculateTokenCost(ev.message.model, {
           inputTokens: ev.message.usage.input_tokens,
           outputTokens: ev.message.usage.output_tokens,
@@ -52,8 +67,19 @@ export function computeHints(range: "24h" | "7d" | "30d" | "90d"): HintsResponse
     }
   }
 
+  const period = {
+    range,
+    spend: totalCost,
+    tokens,
+    sessions: ctx.sessions.length,
+    turns,
+  };
+
   return {
     range,
+    period,
+    diagnostics: buildDiagnostics(results),
+    quickWins: rankQuickWins(results),
     hints: rankAndFormat(results, range),
     sessionCount: ctx.sessions.length,
     totalCost,
@@ -61,28 +87,29 @@ export function computeHints(range: "24h" | "7d" | "30d" | "90d"): HintsResponse
 }
 
 export function getEvidence(hintId: string): EvidenceResponse | undefined {
-  // hintId format: "{category}-{range}"
-  const lastDash = hintId.lastIndexOf("-");
-  if (lastDash === -1) return undefined;
+  const diagnosticSuffix = "-diagnostic";
+  const isDiagnostic = hintId.endsWith(diagnosticSuffix);
+  const range = isDiagnostic ? undefined : hintId.slice(hintId.lastIndexOf("-") + 1);
 
-  const range = hintId.slice(lastDash + 1);
-  const category = hintId.slice(0, lastDash);
-
-  const results = cachedResults.get(range);
+  const results = range ? findCachedResults(range) : undefined;
   if (!results) {
     // Try all cached ranges as fallback
     for (const [, rs] of cachedResults) {
-      const result = rs.find((r) => hintId.startsWith(r.category));
+      const result = rs.find((r) => hintId === `${r.pattern}-diagnostic` || hintId === `${r.pattern}-${range ?? ""}` || hintId.startsWith(r.pattern));
       if (result) {
-        return { hintId, category: result.category, evidence: result.evidence };
+        return { hintId, category: result.pattern, evidence: result.evidence };
       }
     }
     return undefined;
   }
 
-  const result = results.find((r) => r.category === category);
+  const result = results.find((r) => hintId === `${r.pattern}-${range}` || hintId === `${r.pattern}-diagnostic` || hintId.startsWith(r.pattern));
   if (!result) return undefined;
-  return { hintId, category: result.category, evidence: result.evidence };
+  return { hintId, category: result.pattern, evidence: result.evidence };
+}
+
+export function getDetectedResults(range: string): QuickWinResult[] {
+  return (findCachedResults(range) ?? []).filter((r) => r.detected);
 }
 
 /** Reset cache — for testing only */

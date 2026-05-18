@@ -42,7 +42,7 @@ export function buildTrendChartOption(daily: DailyPoint[]): EChartsOption {
       data: daily.map((d) => d.date.slice(5)),
       axisLine: { lineStyle: { color: border } },
       axisTick: { show: false },
-      axisLabel: { color: text2, fontSize: 9 },
+      axisLabel: { color: text2, fontSize: 12 },
     },
     yAxis: {
       type: "value",
@@ -82,7 +82,7 @@ export function TrendChart({ daily, className }: TrendChartProps): JSX.Element {
   if (daily.length === 0) {
     return (
       <div
-        className={`h-28 flex items-center justify-center text-dt-text2 text-sm font-mono ${className ?? ""}`}
+        className={`h-28 flex items-center justify-center text-dt-text2 text-md font-mono ${className ?? ""}`}
       >
         No data
       </div>
