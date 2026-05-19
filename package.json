@@ -1,6 +1,6 @@
 {
   "name": "@lukehungngo/claude-devtools",
-  "version": "0.3.14",
+  "version": "0.3.15",
   "description": "Live observability, turn-by-turn traces, and usage insights for Claude Code",
   "bin": {
     "claude-devtools": "dist/cli.cjs"
