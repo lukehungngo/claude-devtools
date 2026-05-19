@@ -23,6 +23,21 @@
   .titlebar .tb-sep {
     width: 1px; height: 18px; background: var(--bd); margin: 0 4px;
   }
+  /* Section switcher */
+  .titlebar .tb-sect {
+    display: flex; align-items: center;
+    background: var(--bg-e); border: 1px solid var(--bd);
+    border-radius: var(--r); padding: 2px;
+  }
+  .titlebar .tb-sect a {
+    padding: 4px 12px; font-size: 11px; font-weight: 600;
+    color: var(--t2); text-decoration: none; border-radius: var(--r-xs);
+    letter-spacing: .2px; transition: all .12s;
+  }
+  .titlebar .tb-sect a:hover { color: var(--t1); }
+  .titlebar .tb-sect a.on {
+    background: var(--acc); color: #fff;
+  }
   /* Compact connection pill */
   .titlebar .tb-conn {
     display: flex; align-items: center; gap: 6px;
@@ -651,10 +666,10 @@
   .trace .scope { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--t3); }
   .trace .scope b { color: var(--acc); font-weight: 600; }
 
-  /* Column grid: AGENT | NAME | MODEL | DURATION | COST | TIMELINE */
+  /* Column grid: CARET | AGENT | MODEL | DURATION | COST | TIMELINE (with ↓ tokens overlay) */
   .trace .grid {
     display: grid;
-    grid-template-columns: 150px 80px 88px 80px 60px 1fr;
+    grid-template-columns: 18px 1fr 90px 80px 70px 320px;
     align-items: center;
   }
   .trace .hdr {
@@ -663,6 +678,7 @@
     padding: 7px 10px; border-bottom: 1px solid var(--bd);
     background: var(--bg-s);
   }
+  .trace .hdr.caret { padding: 7px 4px; }
   .trace .hdr.tl { padding: 0; position: relative; height: 26px; }
   .trace .ticks {
     display: flex; position: absolute; inset: 0; align-items: center;
@@ -673,15 +689,28 @@
     color: var(--t3); letter-spacing: .3px;
   }
 
-  .trace .body { max-height: 140px; overflow-y: auto; background: var(--bg); }
+  .trace .body { max-height: 220px; overflow-y: auto; background: var(--bg); }
   .trace .row {
     display: contents;
   }
+  .trace .row.focused .cell {
+    background: var(--bg-h);
+  }
+  .trace .row.focused .cell:first-child {
+    color: var(--acc); font-weight: 700;
+  }
+  .trace .row.focused .cell.agent .aname { color: var(--t1); font-weight: 700; }
+  .trace .row.focused .cell.dur,
+  .trace .row.focused .cell.cost { color: var(--t1); font-weight: 700; }
   .trace .cell {
     padding: 9px 10px; font-family: var(--font-mono); font-size: 10px;
     color: var(--t1); border-bottom: 1px solid var(--bd);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     background: var(--bg);
+  }
+  .trace .cell.caret {
+    padding: 9px 4px; text-align: center;
+    color: var(--t3); font-weight: 700;
   }
   .trace .cell.agent { display: flex; align-items: center; gap: 8px; }
   .trace .cell .badge {
@@ -690,9 +719,23 @@
     font-family: var(--font-mono); font-size: 9px; font-weight: 700;
     flex-shrink: 0;
   }
-  .trace .cell .aname { color: var(--t1); font-family: var(--font-sans); font-size: 12px; font-weight: 500; }
+  .trace .cell .aname {
+    color: var(--t1); font-family: var(--font-sans);
+    font-size: 12px; font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .trace .cell .aname .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--grn); flex-shrink: 0;
+    animation: bg-pulse 1.6s ease-in-out infinite;
+  }
+  .trace .cell .aname .tid {
+    color: var(--acc); font-family: var(--font-mono);
+    font-size: 10px; font-weight: 700; margin-right: 2px;
+  }
   .trace .cell.dim { color: var(--t2); }
-  .trace .cell.cost { color: var(--amb); }
+  .trace .cell.cost { color: var(--amb); font-weight: 600; }
+  .trace .cell.dur { color: var(--t1); font-weight: 600; }
   .trace .cell.tl {
     padding: 0; position: relative; height: 38px;
     border-left: 1px solid var(--bd);
@@ -703,6 +746,37 @@
     font-family: var(--font-mono); font-size: 9px; font-weight: 600;
   }
   .trace .cell.tl .bar.run { animation: pulse 1.6s ease-in-out infinite; }
+  .trace .cell.tl .tok-overlay {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+    color: var(--t2);
+    display: inline-flex; align-items: center; gap: 3px;
+    pointer-events: none;
+  }
+  .trace .cell.tl .tok-overlay::before {
+    content: '↓'; color: var(--teal); font-weight: 700;
+  }
+
+  /* CLI-style hint footer under the table */
+  .trace .bghint-row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 8px 14px;
+    border-top: 1px solid var(--bd);
+    background: var(--bg-s);
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--t3); flex-wrap: wrap;
+  }
+  .trace .bghint-row kbd {
+    background: var(--bg-e); border: 1px solid var(--bd);
+    border-radius: 3px; padding: 1px 5px;
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--t1); font-weight: 600;
+    margin-right: 4px;
+  }
+  .trace .bghint-row .right {
+    margin-left: auto; color: var(--t2);
+  }
+  .trace .bghint-row .right b { color: var(--t1); font-weight: 700; }
 
   /* ── Conversation ── */
   .conv {
@@ -957,6 +1031,496 @@
 
   .rblock.think .txt { color: var(--t2); font-style: italic; }
 
+  /* ── Thinking + Working unified block ────────────────────────
+     Running state: prominent, expanded, live feed of steps + thoughts.
+     Completed state: slim one-liner with chevron to expand on demand. */
+  .think-block {
+    border: 1px solid var(--bd);
+    border-left: 3px solid var(--bd);
+    border-radius: var(--r-sm);
+    background: var(--bg-e);
+    margin: 6px 0;
+    overflow: hidden;
+    transition: border-color .2s, background .2s;
+  }
+  .think-block > summary {
+    list-style: none; cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    transition: padding .15s;
+  }
+  .think-block > summary::-webkit-details-marker { display: none; }
+  .think-block .tb-chev {
+    color: var(--t3); font-size: 10px; width: 10px; flex-shrink: 0;
+    transition: transform .12s ease; display: inline-block;
+  }
+  .think-block[open] .tb-chev { transform: rotate(90deg); }
+  .think-block .tb-ic {
+    width: 22px; height: 22px; border-radius: var(--r-xs);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+    flex-shrink: 0;
+    background: var(--resp-think-bg); color: var(--resp-think);
+  }
+  .think-block .tb-title {
+    font-size: 12px; color: var(--t1); font-weight: 600;
+    letter-spacing: .1px;
+  }
+  .think-block .tb-meta {
+    margin-left: auto;
+    font-family: var(--font-mono); font-size: 10px; color: var(--t3);
+    display: inline-flex; align-items: center; gap: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .think-block .tb-meta b { color: var(--t1); font-weight: 600; }
+  .think-block .tb-meta .sep {
+    width: 1px; height: 10px; background: var(--bd);
+  }
+
+  /* Body shown when open */
+  .think-block .tb-body {
+    border-top: 1px solid var(--bd);
+    background: var(--bg);
+    padding: 12px 16px 14px;
+  }
+  .think-block .tb-feed {
+    display: flex; flex-direction: column; gap: 8px;
+    position: relative;
+    padding-left: 14px;
+  }
+  .think-block .tb-feed::before {
+    content: '';
+    position: absolute; left: 4px; top: 4px; bottom: 4px;
+    width: 1px; background: var(--bd);
+  }
+  .think-block .tb-step {
+    position: relative;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .think-block .tb-step::before {
+    content: ''; position: absolute; left: -14px; top: 5px;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--bg); border: 2px solid var(--resp-think);
+  }
+  .think-block .tb-step .tb-step-lbl {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .5px;
+    color: var(--resp-think);
+  }
+  .think-block .tb-step .tb-step-text {
+    font-size: 13px; line-height: 1.55; color: var(--t1);
+  }
+  .think-block .tb-step .tb-step-text.italic {
+    font-style: italic; color: var(--t2);
+  }
+  .think-block .tb-step .tb-step-text .t-code {
+    font-style: normal;
+  }
+
+  /* RUNNING state — bigger, accent, live, expanded by default */
+  .think-block.running {
+    border-color: var(--bd-s);
+    border-left-color: var(--acc);
+    background: var(--acc-bg);
+    box-shadow: 0 0 0 1px var(--acc-bg) inset;
+  }
+  .think-block.running > summary {
+    padding: 11px 14px;
+    background: linear-gradient(90deg, var(--acc-bg) 0%, transparent 100%);
+  }
+  .think-block.running .tb-ic {
+    background: var(--acc); color: #fff;
+    animation: tb-ic-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes tb-ic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--acc-bg-strong); }
+    50%      { box-shadow: 0 0 0 6px transparent; }
+  }
+  .think-block.running .tb-title {
+    font-size: 13.5px; color: var(--t1);
+  }
+  .think-block.running .tb-title::after {
+    content: '…'; color: var(--acc);
+    margin-left: 4px; font-weight: 700;
+    animation: tb-ellipsis 1.2s steps(4, end) infinite;
+    display: inline-block;
+    width: 14px; overflow: hidden; vertical-align: bottom;
+    text-align: left;
+  }
+  @keyframes tb-ellipsis {
+    0%   { width: 0; }
+    100% { width: 14px; }
+  }
+  .think-block.running .tb-meta .running-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--acc); display: inline-block;
+    animation: bg-pulse 1s ease-in-out infinite;
+  }
+  .think-block.running .tb-meta .live-lbl {
+    color: var(--acc); font-weight: 700; letter-spacing: .4px;
+  }
+  /* Active step gets a filled accent marker + animated halo */
+  .think-block.running .tb-step.active::before {
+    background: var(--acc); border-color: var(--acc);
+    box-shadow: 0 0 0 4px var(--acc-bg);
+    animation: bg-pulse 1.2s ease-in-out infinite;
+  }
+  .think-block.running .tb-step.active .tb-step-lbl { color: var(--acc); }
+
+  /* COMPLETED state — slim, neutral, collapsed by default */
+  .think-block.completed {
+    background: var(--bg-e);
+    border-left-color: var(--resp-think);
+  }
+  .think-block.completed > summary {
+    padding: 7px 12px;
+  }
+  .think-block.completed .tb-title { font-size: 11.5px; color: var(--t2); }
+  .think-block.completed .tb-title b { color: var(--t1); }
+
+  /* ── Agent dispatch group (rich Task tool rendering) ── */
+  .agroup {
+    border: 1px solid var(--bd);
+    border-left: 3px solid var(--resp-dispatch);
+    border-radius: var(--r-sm);
+    background: var(--resp-dispatch-bg);
+    margin: 4px 0;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Running state — visually distinct from completed */
+  .agroup.running {
+    border-left-color: var(--acc);
+    background: var(--acc-bg);
+    box-shadow: 0 0 0 1px var(--acc-bg-strong) inset;
+  }
+  .agroup.running > summary {
+    background: linear-gradient(90deg, var(--acc-bg) 0%, var(--bg-e) 70%);
+  }
+  .agroup.running::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%, var(--acc) 50%, transparent 100%
+    );
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: agroup-stream 1.4s linear infinite;
+    pointer-events: none;
+    z-index: 1;
+  }
+  @keyframes agroup-stream {
+    0%   { background-position: -40% 0; }
+    100% { background-position: 140% 0; }
+  }
+  .agroup.running .agroup-ic {
+    background: var(--acc); color: #fff;
+    animation: agroup-ic-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes agroup-ic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--acc-bg-strong); }
+    50%      { box-shadow: 0 0 0 6px transparent; }
+  }
+  .agroup.running .agroup-title b { color: var(--acc); }
+  .agroup.running .agroup-sum .running-pill {
+    background: var(--acc); color: #fff;
+    padding: 2px 7px; border-radius: var(--r-pill);
+    font-weight: 700; letter-spacing: .3px;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .agroup.running .agroup-sum .running-pill::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: #fff; animation: bg-pulse 1s ease-in-out infinite;
+  }
+  .agroup.running .agroup-sum .live-dur {
+    color: var(--acc); font-weight: 700;
+  }
+
+  .agroup > summary {
+    list-style: none; cursor: pointer;
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    user-select: none;
+    background: var(--bg-e);
+    border-bottom: 1px solid var(--bd);
+    position: relative;
+  }
+  .agroup:not([open]) > summary { border-bottom: none; }
+  .agroup > summary::-webkit-details-marker { display: none; }
+  .agroup-chev {
+    color: var(--t3); font-size: 10px; width: 10px;
+    transition: transform .12s ease; display: inline-block;
+  }
+  .agroup:not([open]) .agroup-chev { transform: rotate(-90deg); }
+  .agroup-ic {
+    width: 22px; height: 22px; border-radius: var(--r-xs);
+    background: var(--resp-dispatch-bg); color: var(--resp-dispatch);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .agroup-title {
+    font-size: 12px; color: var(--t1); font-weight: 500;
+  }
+  .agroup-title b { color: var(--resp-dispatch); font-weight: 700; }
+  .agroup-sum {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 10px; color: var(--t2);
+    font-variant-numeric: tabular-nums;
+  }
+  .agroup-sum .ok { color: var(--grn); font-weight: 700; }
+  .agroup-sum .cost { color: var(--amb); font-weight: 700; }
+  .agroup-sum .tok { color: var(--t1); font-weight: 600; }
+  .agroup-sum .tok i { color: var(--teal); font-style: normal; font-weight: 700; margin-right: 2px; }
+  .agroup-sum .sep {
+    width: 1px; height: 10px; background: var(--bd);
+    display: inline-block;
+  }
+
+  .agroup-body {
+    padding: 4px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+
+  /* Individual agent row */
+  .arow {
+    background: var(--bg-e);
+    border: 1px solid var(--bd);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+  }
+  .arow > summary {
+    list-style: none; cursor: pointer; user-select: none;
+    display: grid;
+    grid-template-columns: 12px 36px 1fr auto auto auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    transition: background .12s;
+  }
+  .arow > summary:hover { background: var(--bg-h); }
+  .arow > summary::-webkit-details-marker { display: none; }
+  .arow-chev {
+    color: var(--t3); font-size: 9px; text-align: center;
+    transition: transform .12s ease; display: inline-block;
+  }
+  .arow[open] .arow-chev { transform: rotate(90deg); color: var(--resp-dispatch); }
+
+  .arow-badge {
+    height: 22px; border-radius: var(--r-xs);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    letter-spacing: .4px;
+    padding: 0 6px;
+  }
+  .arow-title {
+    display: flex; align-items: baseline; gap: 8px;
+    min-width: 0;
+  }
+  .arow-tid {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    color: var(--acc); flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .arow-desc {
+    font-size: 13px; color: var(--t1); font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .arow-status {
+    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: var(--r-pill);
+    letter-spacing: .3px;
+  }
+  .arow-status.done { background: var(--grn-bg); color: var(--grn); }
+  .arow-status.run  {
+    background: var(--acc); color: #fff;
+    display: inline-flex; align-items: center; gap: 5px;
+    animation: arow-run-pulse 1.6s ease-in-out infinite;
+  }
+  .arow-status.run .rd {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #fff; display: inline-block;
+    animation: bg-pulse 1s ease-in-out infinite;
+  }
+  @keyframes arow-run-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--acc-bg-strong); }
+    50%      { box-shadow: 0 0 0 4px transparent; }
+  }
+  .arow-status.fail { background: var(--red-bg); color: var(--red); }
+
+  /* Running arow row gets a subtle accent background + live tick */
+  .arow.live { border-color: var(--acc); background: var(--bg-e); }
+  .arow.live > summary {
+    background: linear-gradient(90deg, var(--acc-bg) 0%, var(--bg-e) 60%);
+  }
+  .arow.live .arow-dur { color: var(--acc); }
+  .arow.live .arow-tid { color: var(--acc); }
+
+  .live-bullet {
+    display: inline-block;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--acc); margin-right: 5px;
+    vertical-align: 1px;
+    animation: bg-pulse 1s ease-in-out infinite;
+  }
+  .arow-dur, .arow-tok, .arow-cost {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .arow-dur { color: var(--t1); }
+  .arow-tok { color: var(--t1); display: inline-flex; align-items: center; gap: 3px; }
+  .arow-tok i { color: var(--teal); font-style: normal; font-weight: 700; }
+  .arow-cost { color: var(--amb); }
+
+  .arow-body {
+    padding: 10px 14px 12px;
+    border-top: 1px solid var(--bd);
+    background: var(--bg);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .arow-section { display: flex; flex-direction: column; gap: 4px; }
+  .arow-lbl {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .6px;
+    color: var(--t3);
+  }
+  .arow-text {
+    font-size: 12.5px; line-height: 1.55; color: var(--t1);
+  }
+  .arow-meta {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 10px; color: var(--t3);
+    font-variant-numeric: tabular-nums;
+    padding-top: 6px;
+    border-top: 1px dashed var(--bd);
+  }
+  .arow-meta b { color: var(--t1); font-weight: 600; }
+  .arow-meta .sep {
+    width: 1px; height: 10px; background: var(--bd);
+    display: inline-block;
+  }
+
+  /* ── Background tasks live panel (Claude Code CLI-style) ── */
+  .bgtasks {
+    background: var(--bg-s);
+    border: 1px solid var(--bd);
+    border-radius: var(--r-sm);
+    font-family: var(--font-mono);
+    padding: 10px 0 8px;
+    margin: 6px 0;
+    overflow: hidden;
+  }
+  .bgtasks .bgh {
+    padding: 0 14px 6px;
+    display: flex; align-items: baseline; gap: 8px;
+    font-size: 11px; color: var(--acc);
+    font-weight: 600;
+    letter-spacing: .2px;
+  }
+  .bgtasks .bgh .arrow { color: var(--acc); font-weight: 700; }
+  .bgtasks .bgh .count { color: var(--t2); font-weight: 400; }
+  .bgtasks .bgh .perm {
+    color: var(--red); font-weight: 600;
+    margin-right: 4px;
+  }
+  .bgtasks .bgh .right { margin-left: auto; color: var(--grn); font-weight: 500; }
+
+  .bgtasks .bgrow {
+    display: grid;
+    grid-template-columns: 16px 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 3px 14px;
+    font-size: 12px;
+    color: var(--t2);
+    line-height: 18px;
+    position: relative;
+  }
+  .bgtasks .bgrow .caret {
+    color: transparent;
+    font-weight: 700;
+    text-align: center;
+  }
+  .bgtasks .bgrow.focused .caret { color: var(--t1); }
+  .bgtasks .bgrow.focused {
+    background: var(--bg-h);
+    border-left: 2px solid var(--acc);
+    padding-left: 12px;
+  }
+  .bgtasks .bgrow.focused .label,
+  .bgtasks .bgrow.focused .dur,
+  .bgtasks .bgrow.focused .tok {
+    color: var(--t1); font-weight: 600;
+  }
+  .bgtasks .bgrow .label {
+    display: flex; align-items: center; gap: 10px;
+    min-width: 0;
+  }
+  .bgtasks .bgrow .label .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--t3); flex-shrink: 0;
+  }
+  .bgtasks .bgrow .label .dot.run {
+    background: var(--grn); animation: bg-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes bg-pulse {
+    0%,100% { opacity: 1; }
+    50%     { opacity: .45; }
+  }
+  .bgtasks .bgrow .label .role {
+    color: var(--t1); font-weight: 600; flex-shrink: 0; min-width: 64px;
+  }
+  .bgtasks .bgrow .label .role.main { color: var(--acc); }
+  .bgtasks .bgrow .label .tid {
+    color: var(--acc); font-weight: 600; flex-shrink: 0;
+  }
+  .bgtasks .bgrow .label .desc {
+    color: var(--t1);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .bgtasks .bgrow .dur { color: var(--t2); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .bgtasks .bgrow .tok {
+    color: var(--t1); font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .bgtasks .bgrow .tok::before {
+    content: '↓'; color: var(--teal); font-weight: 700;
+  }
+
+  .bgtasks .bghint {
+    margin-top: 6px;
+    padding: 6px 14px 0;
+    border-top: 1px dashed var(--bd);
+    font-size: 10px; color: var(--t3);
+    display: flex; gap: 16px; flex-wrap: wrap;
+  }
+  .bgtasks .bghint kbd {
+    background: var(--bg-e); border: 1px solid var(--bd);
+    border-radius: 3px; padding: 1px 5px;
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--t1); font-weight: 600;
+    margin-right: 4px;
+  }
+
+  /* Variant: docked in bottom panel (no extra chrome, just sits) */
+  .trace .bgtasks {
+    background: transparent;
+    border: none; border-radius: 0;
+    margin: 0; padding: 8px 0;
+  }
+  .trace .bgtasks .bghint {
+    padding-left: 18px; padding-right: 18px;
+  }
+  .trace .bgtasks .bgrow { padding-left: 18px; padding-right: 18px; }
+  .trace .bgtasks .bgrow.focused { padding-left: 16px; }
+  .trace .bgtasks .bgh { padding-left: 18px; padding-right: 18px; }
+
   /* ── Composer ── */
   .composer {
     flex-shrink: 0; padding: 10px 16px 14px;
@@ -985,6 +1549,13 @@
   <!-- Titlebar -->
   <div class="titlebar">
     <span class="brand">Claude DevTools</span>
+
+    <span class="tb-sep"></span>
+
+    <div class="tb-sect">
+      <a href="dashboard.html" class="on">Session</a>
+      <a href="insights.html">Insights</a>
+    </div>
 
     <span class="tb-sep"></span>
 
@@ -1344,8 +1915,37 @@
 
               <span class="chip">▸ Main · x30 $2.59 In/Out <span class="dim">36/12K</span></span>
 
-              <details class="section working">
-                <summary><span class="tag">WORKING</span> <span style="color:var(--t3)">4 steps · 481 chars</span></summary>
+              <!-- Unified Thinking + Working block. running | completed.
+                   Completed turn → not [open] (slim summary). Running → [open] (full feed). -->
+              <details class="think-block completed">
+                <summary>
+                  <span class="tb-chev">▸</span>
+                  <span class="tb-ic">◐</span>
+                  <span class="tb-title">Thought for <b>12s</b> · 4 steps · 481 chars</span>
+                  <span class="tb-meta">
+                    <span>opus-4 · 2.1K thinking tokens</span>
+                  </span>
+                </summary>
+                <div class="tb-body">
+                  <div class="tb-feed">
+                    <div class="tb-step">
+                      <span class="tb-step-lbl">Step 1 · Orient</span>
+                      <div class="tb-step-text italic">User reports subagents stuck on <span class="t-code">"active"</span> after session abort. Need to trace <span class="t-code">deriveStatus()</span> — the issue likely sits upstream of <span class="t-code">getAgentStatus()</span>, which already handles the closed-session case.</div>
+                    </div>
+                    <div class="tb-step">
+                      <span class="tb-step-lbl">Step 2 · Plan</span>
+                      <div class="tb-step-text italic">Two-task route: (1) confirm dispatch sequence in <span class="t-code">dag-builder.ts</span> via grep, then (2) read full file. Both tasks are known patterns — sequential, since Task 2 depends on Task 1's signature.</div>
+                    </div>
+                    <div class="tb-step">
+                      <span class="tb-step-lbl">Step 3 · Dispatch</span>
+                      <div class="tb-step-text italic">Dispatch one engineer subagent. Scope to <span class="t-code">server/src/analyzer/</span>. Use sonnet-4-6 for cost. Should return diff + tests.</div>
+                    </div>
+                    <div class="tb-step">
+                      <span class="tb-step-lbl">Step 4 · Reply draft</span>
+                      <div class="tb-step-text italic">Once engineer returns, summarize root cause and confirm fix. Surface tests-passing count. Offer follow-up for backend <span class="t-code">SessionInfo.isRunning</span> guard.</div>
+                    </div>
+                  </div>
+                </div>
               </details>
 
               <details class="section" open>
@@ -1361,14 +1961,6 @@
                 </summary>
               </details>
 
-              <details class="rblock think">
-                <summary>
-                  <div class="ic">…</div>
-                  <div class="lbl">Thinking <span class="muted">· 12s</span><span class="peek">User reports subagents stuck on “active” after session abort…</span></div>
-                </summary>
-                <div class="body">
-                  <div class="txt">User reports subagents stuck on <span class="t-code">“active”</span> after session abort. Need to trace <span class="t-code">deriveStatus()</span> — the issue likely sits upstream of <span class="t-code">getAgentStatus()</span>, which already handles the closed-session case.</div>
-                </div>
               </details>
 
               <details class="rblock reply" open>
@@ -1383,6 +1975,127 @@
 
               <div class="ctx-summary"><span class="amb">$2.59</span> · 1 agent · In: 36 / Out: 12K</div>
               <div class="done"><span class="ok">✓</span> Completed in 3m 4s · sonnet-4-6</div>
+
+              <!-- Agent dispatch (moved to bottom — live background tasks) -->
+              <details class="agroup running" open>
+                <summary>
+                  <span class="agroup-chev">▾</span>
+                  <span class="agroup-ic">⎇</span>
+                  <span class="agroup-title">Background agents <b>×3</b></span>
+                  <span class="agroup-sum">
+                    <span class="running-pill">1 RUNNING</span>
+                    <span class="sep"></span>
+                    <span class="ok">✓ 2 done</span>
+                    <span class="sep"></span>
+                    <span class="live-dur" id="agroup-live-dur">12m 04s</span>
+                    <span class="sep"></span>
+                    <span class="tok"><i>↓</i> 337.8k</span>
+                    <span class="sep"></span>
+                    <span class="cost">$5.78</span>
+                  </span>
+                </summary>
+                <div class="agroup-body">
+
+                  <details class="arow live" open>
+                    <summary>
+                      <span class="arow-chev">▸</span>
+                      <span class="arow-badge" style="background:var(--span-swe);color:var(--span-swe-t)">ENG</span>
+                      <span class="arow-title">
+                        <span class="arow-tid">TASK-C3</span>
+                        <span class="arow-desc">hook ↔ tool correlation</span>
+                      </span>
+                      <span class="arow-status run"><i class="rd"></i> running</span>
+                      <span class="arow-dur" id="arow-live-dur">3m 34s</span>
+                      <span class="arow-tok"><i>↓</i> 104.6k</span>
+                      <span class="arow-cost">$1.88</span>
+                    </summary>
+                    <div class="arow-body">
+                      <div class="arow-section">
+                        <span class="arow-lbl">Prompt</span>
+                        <div class="arow-text">Correlate <span class="t-code">PreToolUse</span> / <span class="t-code">PostToolUse</span> hook events with the matching <span class="t-code">tool_use</span> blocks via shared <span class="t-code">tool_use_id</span>. Surface the correlation in the trace.</div>
+                      </div>
+                      <div class="arow-section">
+                        <span class="arow-lbl">Live activity</span>
+                        <div class="arow-text" style="color:var(--t2)">
+                          <span class="live-bullet"></span> Reading <span class="t-code">hookRegistry.ts</span>… <span style="color:var(--t3);font-family:var(--font-mono);font-size:11px">3s ago</span>
+                        </div>
+                      </div>
+                      <div class="arow-meta">
+                        <span><b>sonnet-4-6</b></span>
+                        <span class="sep"></span>
+                        <span>tools so far: <b>Read 5 · Edit 1 · Bash 0</b></span>
+                        <span class="sep"></span>
+                        <span>spawned <b>23:42:47</b></span>
+                      </div>
+                    </div>
+                  </details>
+
+                  <details class="arow">
+                    <summary>
+                      <span class="arow-chev">▸</span>
+                      <span class="arow-badge" style="background:var(--span-swe);color:var(--span-swe-t)">ENG</span>
+                      <span class="arow-title">
+                        <span class="arow-tid">TASK-C1</span>
+                        <span class="arow-desc">bound summarize-up-to</span>
+                      </span>
+                      <span class="arow-status done">✓ done</span>
+                      <span class="arow-dur">5m 53s</span>
+                      <span class="arow-tok"><i>↓</i> 129.5k</span>
+                      <span class="arow-cost">$2.04</span>
+                    </summary>
+                    <div class="arow-body">
+                      <div class="arow-section">
+                        <span class="arow-lbl">Prompt</span>
+                        <div class="arow-text">Add a configurable <span class="t-code">maxTokens</span> cap to <span class="t-code">summarizeUpTo()</span>; respect it across recursive calls; keep behavior identical when unset.</div>
+                      </div>
+                      <div class="arow-section">
+                        <span class="arow-lbl">Return</span>
+                        <div class="arow-text">Patched <span class="t-code">summarize.ts</span> +28 −9. Added 6 tests covering bound enforcement and recursion. All passing.</div>
+                      </div>
+                      <div class="arow-meta">
+                        <span><b>sonnet-4-6</b></span>
+                        <span class="sep"></span>
+                        <span>tools: <b>Read 7 · Edit 2 · Bash 3</b></span>
+                        <span class="sep"></span>
+                        <span>spawned <b>23:42:47</b></span>
+                      </div>
+                    </div>
+                  </details>
+
+                  <details class="arow">
+                    <summary>
+                      <span class="arow-chev">▸</span>
+                      <span class="arow-badge" style="background:var(--span-swe);color:var(--span-swe-t)">ENG</span>
+                      <span class="arow-title">
+                        <span class="arow-tid">TASK-B3</span>
+                        <span class="arow-desc">claude project purge action</span>
+                      </span>
+                      <span class="arow-status done">✓ done</span>
+                      <span class="arow-dur">2m 29s</span>
+                      <span class="arow-tok"><i>↓</i> 103.7k</span>
+                      <span class="arow-cost">$1.86</span>
+                    </summary>
+                    <div class="arow-body">
+                      <div class="arow-section">
+                        <span class="arow-lbl">Prompt</span>
+                        <div class="arow-text">Add a <span class="t-code">/purge &lt;project&gt;</span> command that drops cached state, JSONL transcripts, and session indexes for one project.</div>
+                      </div>
+                      <div class="arow-section">
+                        <span class="arow-lbl">Return</span>
+                        <div class="arow-text">Implemented purge in <span class="t-code">commands/purge.ts</span>. Confirms before deleting. Tested with 3 sample projects.</div>
+                      </div>
+                      <div class="arow-meta">
+                        <span><b>sonnet-4-6</b></span>
+                        <span class="sep"></span>
+                        <span>tools: <b>Read 4 · Edit 3 · Bash 2</b></span>
+                        <span class="sep"></span>
+                        <span>spawned <b>23:46:31</b></span>
+                      </div>
+                    </div>
+                  </details>
+
+                </div>
+              </details>
             </div>
           </div>
         </div>
@@ -1488,7 +2201,7 @@
       <!-- Trace (bottom, dockable) -->
       <div class="trace" id="trace">
         <div class="tabs">
-          <button class="tab on">Agent Graph</button>
+          <button class="tab on">Agent Graph <span class="ct" style="margin-left:5px;padding:1px 6px;border-radius:8px;background:var(--acc-bg);color:var(--acc);font-family:var(--font-mono);font-size:9px;font-weight:600;border:1px solid var(--acc-bg)">7</span></button>
           <button class="tab">Tool Call</button>
           <button class="tab">Cost</button>
           <button class="tab">Tasks</button>
@@ -1498,56 +2211,80 @@
           </span>
         </div>
         <div class="grid">
+          <div class="hdr caret"></div>
           <div class="hdr">Agent</div>
-          <div class="hdr">Name</div>
           <div class="hdr">Model</div>
           <div class="hdr">Duration</div>
           <div class="hdr">Cost</div>
-          <div class="hdr tl"><div class="ticks"><span>0m</span><span>2m</span><span>4m</span><span>6m</span><span>8m</span><span>10m</span><span>12m</span><span>14m</span></div></div>
+          <div class="hdr tl"><div class="ticks"><span>0m</span><span>2m</span><span>4m</span><span>6m</span><span>8m</span><span>10m</span><span>12m</span></div></div>
         </div>
         <div class="body">
           <div class="grid">
             <div class="row">
-              <div class="cell agent"><div class="badge" style="background:var(--span-pm);color:var(--span-pm-t)">MA</div><span class="aname">Main session</span></div>
-              <div class="cell">main</div>
-              <div class="cell dim">sonnet-4-6</div>
-              <div class="cell">13m 48s</div>
+              <div class="cell caret"></div>
+              <div class="cell agent"><div class="badge" style="background:var(--span-pm);color:var(--span-pm-t)">M</div><span class="aname">main <span style="color:var(--t3);font-weight:500">· routing 6 engineers</span></span></div>
+              <div class="cell dim">opus-4.7</div>
+              <div class="cell dur">14m 12s</div>
               <div class="cell cost">$5.86</div>
-              <div class="cell tl"><div class="bar" style="left:0;width:92%;background:var(--span-pm);color:var(--span-pm-t)"></div></div>
+              <div class="cell tl"><div class="bar" style="left:0;width:100%;background:var(--span-pm);color:var(--span-pm-t)"></div><div class="tok-overlay">22.4k</div></div>
             </div>
             <div class="row">
-              <div class="cell agent"><div class="badge" style="background:var(--span-swe);color:var(--span-swe-t)">EN</div><span class="aname">Engineer: fix su…</span></div>
-              <div class="cell">mas:en…</div>
+              <div class="cell caret">›</div>
+              <div class="cell agent"><div class="badge" style="background:var(--span-swe);color:var(--span-swe-t)">B3</div><span class="aname"><span class="tid">TASK-B3:</span>claude project purge action</span></div>
               <div class="cell dim">sonnet-4-6</div>
-              <div class="cell">4m 48s</div>
+              <div class="cell dur">5m 53s</div>
               <div class="cell cost">$2.04</div>
-              <div class="cell tl"><div class="bar" style="left:16%;width:32%;background:var(--span-swe);color:var(--span-swe-t)"></div></div>
+              <div class="cell tl"><div class="bar" style="left:8%;width:42%;background:var(--span-swe);color:var(--span-swe-t)"></div><div class="tok-overlay">129.5k</div></div>
             </div>
             <div class="row">
-              <div class="cell agent"><div class="badge" style="background:var(--span-qa);color:var(--span-qa-t)">QA</div><span class="aname">QA: regress tests</span></div>
-              <div class="cell">mas:qa</div>
+              <div class="cell caret"></div>
+              <div class="cell agent"><div class="badge" style="background:var(--span-swe);color:var(--span-swe-t)">B5</div><span class="aname"><span class="tid">TASK-B5:</span>per-model /usage tab</span></div>
               <div class="cell dim">sonnet-4-6</div>
-              <div class="cell">2m 12s</div>
-              <div class="cell cost">$0.88</div>
-              <div class="cell tl"><div class="bar" style="left:48%;width:15%;background:var(--span-qa);color:var(--span-qa-t)"></div></div>
+              <div class="cell dur">5m 28s</div>
+              <div class="cell cost">$1.86</div>
+              <div class="cell tl"><div class="bar" style="left:18%;width:40%;background:var(--span-swe);color:var(--span-swe-t)"></div><div class="tok-overlay">103.7k</div></div>
             </div>
-            <div class="row">
-              <div class="cell agent"><div class="badge" style="background:var(--span-bug);color:var(--span-bug-t)">RV</div><span class="aname">Reviewer: suba…</span></div>
-              <div class="cell">mas:re…</div>
+            <div class="row focused">
+              <div class="cell caret">›</div>
+              <div class="cell agent"><div class="badge" style="background:var(--span-swe);color:var(--span-swe-t)">C1</div><span class="aname"><span class="live-dot"></span><span class="tid">TASK-C1:</span>bound summarize-up-to</span></div>
               <div class="cell dim">sonnet-4-6</div>
-              <div class="cell dim">running</div>
-              <div class="cell cost">$1.61</div>
-              <div class="cell tl"><div class="bar run" style="left:64%;width:28%;background:var(--span-bug);color:var(--span-bug-t)">+ running</div></div>
+              <div class="cell dur">3m 34s</div>
+              <div class="cell cost">$1.88</div>
+              <div class="cell tl"><div class="bar run" style="left:46%;width:26%;background:var(--span-swe);color:var(--span-swe-t)">running</div><div class="tok-overlay">104.6k</div></div>
             </div>
             <div class="row">
-              <div class="cell agent"><div class="badge" style="background:var(--span-doc);color:var(--span-doc-t)">DC</div><span class="aname">Docs: permission…</span></div>
-              <div class="cell">mas:doc</div>
+              <div class="cell caret"></div>
+              <div class="cell agent"><div class="badge" style="background:var(--span-swe);color:var(--span-swe-t)">B2</div><span class="aname"><span class="tid">TASK-B2:</span>OTel result fields</span></div>
+              <div class="cell dim">sonnet-4-6</div>
+              <div class="cell dur">1m 34s</div>
+              <div class="cell cost">$1.42</div>
+              <div class="cell tl"><div class="bar" style="left:62%;width:11%;background:var(--span-swe);color:var(--span-swe-t)"></div><div class="tok-overlay">93.3k</div></div>
+            </div>
+            <div class="row">
+              <div class="cell caret"></div>
+              <div class="cell agent"><div class="badge" style="background:var(--span-swe);color:var(--span-swe-t)">C3</div><span class="aname"><span class="live-dot"></span><span class="tid">TASK-C3:</span>hook ↔ tool correlation</span></div>
+              <div class="cell dim">sonnet-4-6</div>
+              <div class="cell dur">7s</div>
+              <div class="cell cost">$0.86</div>
+              <div class="cell tl"><div class="bar run" style="left:88%;width:2%;background:var(--span-swe);color:var(--span-swe-t)"></div><div class="tok-overlay">48.0k</div></div>
+            </div>
+            <div class="row">
+              <div class="cell caret"></div>
+              <div class="cell agent"><div class="badge" style="background:var(--span-doc);color:var(--span-doc-t)">DC</div><span class="aname"><span class="tid">TASK-D1:</span>permission-mode docs</span></div>
               <div class="cell dim">haiku-4-5</div>
-              <div class="cell">42s</div>
+              <div class="cell dur">42s</div>
               <div class="cell cost">$0.21</div>
-              <div class="cell tl"><div class="bar" style="left:82%;width:8%;background:var(--span-doc);color:var(--span-doc-t)"></div></div>
+              <div class="cell tl"><div class="bar" style="left:84%;width:6%;background:var(--span-doc);color:var(--span-doc-t)"></div><div class="tok-overlay">3.2k</div></div>
             </div>
           </div>
+        </div>
+
+        <div class="bghint-row">
+          <span><kbd>Enter</kbd>view</span>
+          <span><kbd>x</kbd>stop</span>
+          <span><kbd>ctrl+x</kbd><kbd>ctrl+k</kbd>stop all</span>
+          <span><kbd>↑</kbd><kbd>↓</kbd>navigate</span>
+          <span class="right">Focused: <b>TASK-C1</b> · sonnet-4-6 · spawned 23:42:47</span>
         </div>
       </div>
 
@@ -1641,6 +2378,25 @@
       applyTheme(next);
       try { localStorage.setItem('theme-v1', next); } catch(_){}
     });
+
+    // ── Live duration ticker for running agent dispatch ──
+    const groupDur = document.getElementById('agroup-live-dur');
+    const rowDur   = document.getElementById('arow-live-dur');
+    function fmtDur(ms){
+      const t = Math.max(0, Math.floor(ms / 1000));
+      const m = Math.floor(t / 60), s = t % 60;
+      return m + 'm ' + String(s).padStart(2,'0') + 's';
+    }
+    if (groupDur && rowDur) {
+      let groupStart = Date.now() - 12 * 60_000 - 4_000; // 12m 04s
+      let rowStart   = Date.now() - 3  * 60_000 - 34_000; // 3m 34s
+      function tick(){
+        groupDur.textContent = fmtDur(Date.now() - groupStart);
+        rowDur.textContent   = fmtDur(Date.now() - rowStart);
+      }
+      tick();
+      setInterval(tick, 1000);
+    }
 
     // ── Profile drawer ──
     const avBtn = document.getElementById('avatar-btn');
