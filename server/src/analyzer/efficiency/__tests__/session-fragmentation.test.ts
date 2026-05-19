@@ -6,9 +6,13 @@ function makeInfo(id: string, projectHash: string, startTime: number, eventCount
   return { id, projectHash, path: `/tmp/${id}.jsonl`, startTime: new Date(startTime).toISOString(), lastModified: new Date(startTime + 600_000).toISOString(), eventCount, subagentCount: 0 } as SessionInfo;
 }
 
+// Pin to mid-day UTC. Detector groups by isoDate.slice(0,10) (UTC dayKey),
+// so using Date.now() flaked once an hour around 00:00 UTC.
+const NOON_UTC = Date.UTC(2026, 4, 18, 12, 0, 0);
+
 describe("detectSessionFragmentation", () => {
   it("flags multiple short sessions on same project same day", () => {
-    const now = Date.now();
+    const now = NOON_UTC;
     const sessions = [
       makeInfo("s1", "proj-a", now - 3600_000, 10),
       makeInfo("s2", "proj-a", now - 1800_000, 8),
@@ -20,7 +24,7 @@ describe("detectSessionFragmentation", () => {
   });
 
   it("does not flag sessions on different projects", () => {
-    const now = Date.now();
+    const now = NOON_UTC;
     const sessions = [
       makeInfo("s1", "proj-a", now - 3600_000, 10),
       makeInfo("s2", "proj-b", now - 1800_000, 8),
@@ -30,7 +34,7 @@ describe("detectSessionFragmentation", () => {
   });
 
   it("does not flag sessions with many events", () => {
-    const now = Date.now();
+    const now = NOON_UTC;
     const sessions = [
       makeInfo("s1", "proj-a", now - 3600_000, 50),
       makeInfo("s2", "proj-a", now - 1800_000, 40),

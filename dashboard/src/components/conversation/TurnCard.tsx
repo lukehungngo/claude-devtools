@@ -335,11 +335,19 @@ export function TurnCard({
 
     return dispatches.map((d): AgentNode => {
       const completion = completionsByToolUseId.get(d.toolUseId) ?? null;
-      const status: AgentNode["status"] = completion === null
-        ? "active"
-        : completion.isError
+      // Status derivation mirrors the canonical `getAgentStatus` rule used by
+      // the server DAG and TraceTab: when the session has ended without a
+      // terminal signal (no <task-notification> / non-ack tool_result), the
+      // dispatch cannot still be in flight — it's "indeterminate" → mapped
+      // to "completed". Without this check, the conversation panel disagreed
+      // with the Agent Graph panel for stale sessions (bug 2026-05-18).
+      const status: AgentNode["status"] = completion !== null
+        ? completion.isError
           ? "error"
-          : "completed";
+          : "completed"
+        : sessionIsRunning === false
+          ? "completed"
+          : "active";
       return {
         id: toolUseIdToSyntheticAgent(d.toolUseId),
         type: d.subagentType ?? "subagent",
@@ -359,7 +367,7 @@ export function TurnCard({
         endTime: completion?.timestamp,
       };
     });
-  }, [turnEvents, completionsByToolUseId]);
+  }, [turnEvents, completionsByToolUseId, sessionIsRunning]);
 
   return (
     <div

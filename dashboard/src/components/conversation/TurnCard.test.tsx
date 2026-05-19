@@ -412,3 +412,79 @@ describe("TurnCard — model badge in assistant header", () => {
   });
 });
 
+describe("TurnCard — background agent status honours sessionIsRunning", () => {
+  // Bug: BackgroundAgentGroup synthesises one AgentNode per Agent/Task dispatch
+  // and derives status purely from the <task-notification>/tool_result completion
+  // map. When the session ends without that notification firing, the subagent
+  // stays "● running" in the conversation panel while the Agent Graph panel
+  // (server DAG) correctly shows "✓ done" via deriveStatus(sessionIsRunning).
+  // See dashboard/src/components/conversation/TurnCard.tsx backgroundAgents memo.
+  function dispatchEvent(toolUseId: string, description: string): AssistantEvent {
+    return {
+      type: "assistant",
+      uuid: `asst-${toolUseId}`,
+      timestamp: "2026-05-18T16:00:00Z",
+      sessionId: "sess-x",
+      agentId: "main",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: toolUseId,
+            name: "Agent",
+            input: {
+              description,
+              subagent_type: "general-purpose",
+              run_in_background: true,
+            },
+          },
+        ],
+        model: "claude-opus-4-7",
+        usage: { input_tokens: 10, output_tokens: 20 },
+        stop_reason: "tool_use",
+      },
+    } as unknown as AssistantEvent;
+  }
+
+  it("renders dispatch as '✓ done' when no completion event AND sessionIsRunning=false", () => {
+    const dispatch = dispatchEvent("toolu_dead_session", "Implement T5: role gate");
+    const events = [dispatch] as SessionEvent[];
+    const { turn, allEvents } = makeTurnAndEvents(
+      { startIndex: 0, endIndex: 1 },
+      events,
+    );
+    const { container } = render(
+      <TurnCard turn={turn} allEvents={allEvents} sessionIsRunning={false} />,
+    );
+
+    // The Agent Graph panel (server DAG) would show this as "completed" because
+    // deriveStatus maps to "completed" when sessionIsRunning=false. The
+    // conversation panel must agree to avoid the inconsistency reported on
+    // 2026-05-18 — a subagent flashing "● running 3m 08s" forever after the
+    // session terminated without a task-notification.
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("● running");
+    expect(text).toContain("✓ done");
+  });
+
+  it("still renders '● running' when no completion AND sessionIsRunning=true (genuinely in-flight)", () => {
+    // Regression guard: a live session with an in-flight dispatch must keep
+    // showing "● running" — we don't want the fix to over-correct and mark
+    // live work as done. (We don't claim event-staleness in this guard;
+    // that would require subagent event-stream access from TurnCard.)
+    const dispatch = dispatchEvent("toolu_live_session", "Audit the PRD");
+    const events = [dispatch] as SessionEvent[];
+    const { turn, allEvents } = makeTurnAndEvents(
+      { startIndex: 0, endIndex: 1 },
+      events,
+    );
+    const { container } = render(
+      <TurnCard turn={turn} allEvents={allEvents} sessionIsRunning={true} />,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("● running");
+  });
+});
+
