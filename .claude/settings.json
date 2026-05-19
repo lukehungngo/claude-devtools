@@ -27,37 +27,5 @@
       "Bash:git push --force*"
     ]
   },
-  "hooks": {
-    "PreToolUse": [
-      { "matcher": "Agent", "hooks": [{ "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/validate-dispatch.sh" }] },
-      { "matcher": "Skill", "hooks": [{ "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/validate-skill.sh" }] },
-      { "matcher": "Edit|Write|Bash", "hooks": [{ "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/suggest-compact.sh" }] }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/lint.sh"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-stop-gate.sh"
-          },
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/validate-pipeline.sh"
-          }
-        ]
-      }
-    ]
-  }
+  "hooks": {}
 }

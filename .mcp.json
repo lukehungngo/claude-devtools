@@ -6,6 +6,10 @@
       "env": {
         "DEVTOOLS_PORT": "3142"
       }
+    },
+    "claude-devtools-mcp": {
+      "command": "npx",
+      "args": ["tsx", "./mcp/src/index.ts"]
     }
   }
 }
