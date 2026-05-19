@@ -267,7 +267,7 @@ export function RepoList({
                 transition: "color .15s, background .15s, border-color .15s",
               }}
             >
-              {value === "all" ? "All" : "Active Only"}
+              {value === "all" ? "All" : "Recent"}
             </button>
           );
         })}
