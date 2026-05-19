@@ -7,7 +7,7 @@ Works locally, inside Docker containers, and on remote servers. Built directly a
 ## Quick start
 
 ```bash
-npx @lukehungngo/claude-devtools
+npx @lukehungngo/claude-devtools@latest
 ```
 
 The dashboard opens automatically at `http://localhost:3142`.
@@ -110,13 +110,13 @@ If Docker is running on your machine, claude-devtools auto-detects containers wh
 **1. Get your token** (on your local machine):
 
 ```bash
-npx @lukehungngo/claude-devtools token
+npx @lukehungngo/claude-devtools@latest token
 ```
 
 **2. Start the collector** (on the remote machine):
 
 ```bash
-npx @lukehungngo/claude-devtools collect \
+npx @lukehungngo/claude-devtools@latest collect \
   --server ws://<your-local-ip>:3142 \
   --token <token>
 ```
