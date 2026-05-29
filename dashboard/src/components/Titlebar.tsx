@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Sun, Moon, Sparkles } from "lucide-react";
+import { Sun, Moon, Sparkles, Workflow } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTheme } from "../contexts/ThemeContext";
 import { useInsightsNudge } from "../hooks/useInsightsNudge";
@@ -28,6 +28,8 @@ export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
   const navigate = useNavigate();
   const { location } = useRouterState();
   const isInsights = location.pathname === "/insights";
+  const isGraph = location.pathname === "/graph";
+  const isSession = !isInsights && !isGraph;
   const { nudgeActive } = useInsightsNudge();
   const [pulseSettled, setPulseSettled] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -86,7 +88,7 @@ export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
         Claude DevTools
       </button>
 
-      {/* Nav pill — Session · Insights */}
+      {/* Nav pill — Session · Insights · Graph */}
       <div
         data-testid="nav-pill"
         className="flex items-center gap-1 bg-dt-bg2 border border-dt-border rounded-full p-1 shrink-0"
@@ -94,11 +96,11 @@ export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
         <button
           type="button"
           data-testid="nav-session"
-          aria-current={!isInsights ? ("page" as const) : undefined}
+          aria-current={isSession ? ("page" as const) : undefined}
           onClick={() => navigate({ to: "/" })}
           className={[
             "px-4 py-2 rounded-full font-mono text-base font-semibold transition-all border-none cursor-pointer",
-            !isInsights ? "bg-dt-bg1 text-dt-accent" : "bg-transparent text-dt-text1",
+            isSession ? "bg-dt-bg1 text-dt-accent" : "bg-transparent text-dt-text1",
           ].join(" ")}
         >
           Session
@@ -120,6 +122,20 @@ export function Titlebar({ usage, onOpenDrawer }: TitlebarProps) {
             <Sparkles size={14} className="mr-1.5 inline-block" aria-hidden="true" />
           )}
           Insights
+        </button>
+        <button
+          type="button"
+          data-testid="nav-graph"
+          aria-current={isGraph ? ("page" as const) : undefined}
+          onClick={() => navigate({ to: "/graph" })}
+          className={[
+            "px-4 py-2 rounded-full font-mono text-base font-semibold transition-all border-none cursor-pointer",
+            "inline-flex items-center",
+            isGraph ? "bg-dt-bg1 text-dt-accent" : "bg-transparent text-dt-text1",
+          ].join(" ")}
+        >
+          <Workflow size={14} className="mr-1.5 inline-block" aria-hidden="true" />
+          Graph
         </button>
       </div>
 

@@ -33,8 +33,17 @@ const insightsRoute = createRoute({
   ),
 });
 
+const graphRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/graph",
+  component: lazyRouteComponent(
+    () => import("./routes/GraphPage"),
+    "GraphPage"
+  ),
+});
+
 const routeTree = rootRoute.addChildren([
-  layoutRoute.addChildren([indexRoute, sessionRoute, insightsRoute]),
+  layoutRoute.addChildren([indexRoute, sessionRoute, insightsRoute, graphRoute]),
 ]);
 
 export const router = createRouter({ routeTree });

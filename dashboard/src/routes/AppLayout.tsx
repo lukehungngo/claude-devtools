@@ -27,6 +27,8 @@ export function AppLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const isInsights = pathname === "/insights";
+  const isGraph = pathname === "/graph";
+  const isFullBleed = isInsights || isGraph;
   const { repos, loading: reposLoading, refresh: refreshRepos } = useRepos();
   const { permissions, decide, decideSession, handlePermissionRequest, handlePermissionResolved } = usePermissions();
   const { usage } = useUsage();
@@ -328,15 +330,15 @@ export function AppLayout() {
   return (
     <LayoutContext.Provider value={contextValue}>
       <Layout
-        sidebarCollapsed={isInsights ? false : sidebarCollapsed}
-        onToggleSidebar={isInsights ? undefined : () => setSidebarCollapsed((prev) => !prev)}
+        sidebarCollapsed={isFullBleed ? false : sidebarCollapsed}
+        onToggleSidebar={isFullBleed ? undefined : () => setSidebarCollapsed((prev) => !prev)}
         titlebar={
           <Titlebar
             usage={usage}
             onOpenDrawer={openDrawer}
           />
         }
-        topBar={isInsights ? null : (
+        topBar={isFullBleed ? null : (
           <TopBar
             repoName={currentRepo?.repoName}
             branch={currentMetrics?.session.gitBranch ?? currentRepo?.gitBranch}
@@ -349,7 +351,7 @@ export function AppLayout() {
             onPermissionModeChange={setPermissionMode}
           />
         )}
-        sidebar={isInsights ? null : (
+        sidebar={isFullBleed ? null : (
           <RepoList
             repos={repos}
             loading={reposLoading}
@@ -372,7 +374,7 @@ export function AppLayout() {
             onToggleTurnHistory={toggleTurnHistory}
           />
         )}
-        turnHistory={isInsights ? null : (
+        turnHistory={isFullBleed ? null : (
           <TurnHistoryPanel
             turns={currentTurns}
             allEvents={currentEvents}
@@ -391,7 +393,7 @@ export function AppLayout() {
           />
         )}
         center={<Outlet />}
-        bottomPanel={isInsights ? null : (
+        bottomPanel={isFullBleed ? null : (
           <Suspense fallback={null}>
             <BottomPanel
               metrics={currentMetrics}
