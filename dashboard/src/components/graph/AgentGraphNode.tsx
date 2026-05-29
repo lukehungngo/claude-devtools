@@ -1,7 +1,6 @@
 import { memo } from "react";
 import type { AgentNode } from "../../lib/types";
 import { formatTokens } from "../../lib/cost";
-import { getAgentColor } from "../../lib/agentColors";
 
 export interface AgentGraphNodeProps {
   node: AgentNode;
@@ -28,9 +27,14 @@ const STATUS_LABEL: Record<AgentNode["status"], string> = {
 };
 
 function AgentGraphNodeImpl({ node, x, y, selected, running, onSelect }: AgentGraphNodeProps) {
-  const borderColor = getAgentColor(node.type);
   const dotClass = STATUS_DOT[node.status];
   const isError = node.status === "error";
+  const borderClass =
+    node.status === "error"
+      ? "border-dt-red"
+      : node.status === "active"
+        ? "border-dt-accent"
+        : "border-dt-border-active";
 
   return (
     <button
@@ -41,11 +45,12 @@ function AgentGraphNodeImpl({ node, x, y, selected, running, onSelect }: AgentGr
       data-selected={selected ? "true" : "false"}
       onClick={() => onSelect(node.id)}
       // Dynamic absolute position — the ONLY allowed inline style per fe-guide.
-      style={{ left: `${x}px`, top: `${y}px`, borderColor }}
+      style={{ left: `${x}px`, top: `${y}px` }}
       className={[
         "absolute z-10 flex flex-col items-start gap-0.5 text-left",
         "bg-dt-bg2 rounded-dt border px-3 py-2 min-w-[7rem] max-w-[11rem]",
         "cursor-pointer transition-all duration-200 shadow-dt-sm hover:shadow-dt-md",
+        borderClass,
         selected ? "ring-2 ring-dt-accent ring-offset-2 ring-offset-dt-bg1" : "",
         isError ? "text-dt-red" : "text-dt-text0",
       ]

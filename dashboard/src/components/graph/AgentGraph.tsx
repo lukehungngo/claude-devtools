@@ -72,7 +72,6 @@ export function AgentGraph({ dag, runningAgentIds, selectedAgentId, onSelectAgen
     return () => {
       if (typeof tl?.kill === "function") tl.kill();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeIdKey]);
 
   if (dag.nodes.length === 0) {
@@ -98,9 +97,12 @@ export function AgentGraph({ dag, runningAgentIds, selectedAgentId, onSelectAgen
       data-testid="agent-graph"
       className="relative overflow-auto h-full w-full bg-dt-bg1"
     >
-      <div className="relative" style={{ width: canvasW, height: canvasH }}>
+      {/* The SVG sits in normal flow and sizes the relative wrapper via its
+          width/height attributes (not an inline style), so absolutely
+          positioned nodes share the same scroll area. */}
+      <div className="relative inline-block min-w-full min-h-full">
         <svg
-          className="absolute inset-0 pointer-events-none"
+          className="block pointer-events-none"
           width={canvasW}
           height={canvasH}
           aria-hidden="true"
