@@ -1,15 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { listSessions } from "./sessions-adapter.js";
 import { FIXTURE_DIR } from "../__fixtures__/index.js";
 
 describe("listSessions", () => {
   const origEnv = { ...process.env };
+  let tempFixtureDir: string;
+
   beforeEach(() => {
+    tempFixtureDir = mkdtempSync(join(tmpdir(), "claude-devtools-mcp-sessions-"));
+    cpSync(FIXTURE_DIR, tempFixtureDir, { recursive: true });
     process.env = { ...origEnv };
-    process.env.CLAUDE_PROJECTS_DIR = FIXTURE_DIR;
+    process.env.CLAUDE_PROJECTS_DIR = tempFixtureDir;
   });
   afterEach(() => {
     process.env = origEnv;
+    rmSync(tempFixtureDir, { recursive: true, force: true });
   });
 
   it("returns all sessions from fixture dir", () => {
@@ -18,7 +26,7 @@ describe("listSessions", () => {
   });
 
   it("filters by range using file mtime", () => {
-    // Files were just created, so mtime is now — they all pass the 24h filter
+    // Files were copied into a temp fixture dir, so mtime is now.
     const out = listSessions({ range: "24h" });
     expect(out.length).toBe(5);
   });
