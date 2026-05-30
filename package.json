@@ -1,6 +1,6 @@
 {
   "name": "@lukehungngo/claude-devtools",
-  "version": "0.3.15",
+  "version": "0.4.0",
   "description": "Live observability, turn-by-turn traces, and usage insights for Claude Code",
   "bin": {
     "claude-devtools": "dist/cli.cjs"
@@ -10,10 +10,12 @@
   ],
   "scripts": {
     "lint": "eslint server/src/ dashboard/src/ && pnpm --dir dashboard lint:styles",
-    "lint:fix": "eslint server/src/ dashboard/src/ --fix && pnpm --dir dashboard lint:styles"
+    "lint:fix": "eslint server/src/ dashboard/src/ --fix && pnpm --dir dashboard lint:styles",
+    "build": "rm -rf dist/public && pnpm -C server run npm-build && pnpm -C dashboard run build && mkdir -p dist/public && cp -r dashboard/dist/. dist/public/ && chmod +x dist/cli.cjs",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.143",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.156",
     "chokidar": "^3.6.0",
     "express": "^4.18.0",
     "open": "^10.0.0",

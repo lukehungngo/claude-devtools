@@ -14,7 +14,7 @@ export function backfillDebugDb(db: DebugDB): void {
   const toBackfill = sessions.filter((s) => !existing.has(s.id));
 
   if (toBackfill.length === 0) {
-    console.log(`[debug-db] All ${sessions.length} sessions already in DB, nothing to backfill.`);
+    logger.info({ count: sessions.length }, "debug-db: all sessions already backfilled");
     return;
   }
 

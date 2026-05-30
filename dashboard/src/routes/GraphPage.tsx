@@ -1,9 +1,11 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRepos } from "../hooks/useRepos";
 import { useGraphSession } from "../hooks/useGraphSession";
+import { useResizablePanel } from "../hooks/useResizablePanel";
 import { SessionPicker } from "../components/graph/SessionPicker";
 import { AgentGraph } from "../components/graph/AgentGraph";
-import { AgentDetailPanel } from "../components/graph/AgentDetailPanel";
+import { GraphSummary } from "../components/graph/GraphSummary";
+import { GraphRightPanel } from "../components/graph/GraphRightPanel";
 import type { RepoGroup, SessionInfo } from "../lib/types";
 
 interface Selection {
@@ -35,8 +37,18 @@ export function GraphPage() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [userPicked, setUserPicked] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const rail = useResizablePanel("dt-graph-rail-width", 460);
 
   const defaultSelection = useMemo(() => pickDefaultSession(repos), [repos]);
+  const hasSessions = useMemo(() => repos.some((r) => r.sessions.length > 0), [repos]);
+  const selectionExists = useMemo(
+    () =>
+      !!selection &&
+      repos.some((r) =>
+        r.sessions.some((s) => s.projectHash === selection.projectHash && s.id === selection.sessionId),
+      ),
+    [repos, selection],
+  );
 
   // Auto-select the default session once repos load, unless the user already
   // picked one explicitly.
@@ -45,7 +57,17 @@ export function GraphPage() {
     if (!selection && defaultSelection) setSelection(defaultSelection);
   }, [defaultSelection, selection, userPicked]);
 
-  const { dagForTurn, runningAgentIds, liveEventCount, loading } = useGraphSession(
+  // Stale-selection recovery: if the picked session is no longer present
+  // (deleted / expired / discovery refresh dropped it), fall back to the
+  // default so the graph never points at a dead session.
+  useEffect(() => {
+    if (!selection || !hasSessions || selectionExists) return;
+    setSelection(defaultSelection);
+    setUserPicked(false);
+    setSelectedAgentId(null);
+  }, [selection, hasSessions, selectionExists, defaultSelection]);
+
+  const { dag, workflows, runningAgentIds, liveEventCount, loading } = useGraphSession(
     selection?.projectHash ?? null,
     selection?.sessionId ?? null,
   );
@@ -55,8 +77,6 @@ export function GraphPage() {
     setSelection(sel);
     setSelectedAgentId(null);
   };
-
-  const hasSessions = repos.some((r) => r.sessions.length > 0);
 
   return (
     <div className="flex flex-col h-full w-full bg-dt-bg1">
@@ -76,30 +96,59 @@ export function GraphPage() {
           No sessions found
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0">
+        <div className={["flex flex-1 min-h-0", rail.dragging ? "select-none cursor-col-resize" : ""].join(" ")}>
           {/* Graph canvas */}
           <div className="flex-1 min-w-0 relative">
-            {loading && !dagForTurn ? (
+            {loading && !dag ? (
               <div className="flex items-center justify-center h-full text-dt-text2 text-md font-mono">
                 Loading…
               </div>
             ) : (
-              <AgentGraph
-                dag={dagForTurn ?? { nodes: [], edges: [] }}
-                runningAgentIds={runningAgentIds}
-                selectedAgentId={selectedAgentId}
-                onSelectAgent={setSelectedAgentId}
-              />
+              <>
+                <AgentGraph
+                  dag={dag ?? { nodes: [], edges: [] }}
+                  runningAgentIds={runningAgentIds}
+                  selectedAgentId={selectedAgentId}
+                  onSelectAgent={setSelectedAgentId}
+                />
+                {dag && dag.nodes.length > 0 && (
+                  <GraphSummary dag={dag} runningAgentIds={runningAgentIds} />
+                )}
+              </>
             )}
           </div>
 
-          {/* Right rail — agent detail */}
-          <div className="w-[22rem] shrink-0 border-l border-dt-border bg-dt-bg">
-            <AgentDetailPanel
+          {/* Drag handle — resize the right rail (double-click to reset) */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize panel"
+            data-testid="graph-rail-resizer"
+            onPointerDown={rail.onPointerDown}
+            onDoubleClick={rail.reset}
+            title="Drag to resize · double-click to reset"
+            className={[
+              "relative z-10 w-1 shrink-0 cursor-col-resize transition-colors duration-dt-fast",
+              rail.dragging ? "bg-dt-accent" : "bg-dt-border hover:bg-dt-accent",
+            ].join(" ")}
+          >
+            {/* Wider invisible hit area + a centered grip line */}
+            <span className="absolute inset-y-0 -left-2 -right-2" aria-hidden="true" />
+            <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-dt-text2/40" aria-hidden="true" />
+          </div>
+
+          {/* Right rail — Log | Workflows tabs (resizable) */}
+          <div
+            style={{ width: rail.width }}
+            className="shrink-0 min-w-0 border-l border-dt-border bg-dt-bg"
+          >
+            <GraphRightPanel
               projectHash={selection?.projectHash ?? ""}
               sessionId={selection?.sessionId ?? ""}
               agentId={selectedAgentId}
               liveEventCount={liveEventCount}
+              live={selectedAgentId !== null && runningAgentIds.has(selectedAgentId)}
+              workflows={workflows}
             />
           </div>
         </div>

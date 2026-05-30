@@ -1,21 +1,53 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { AgentGraph } from "./AgentGraph";
+import type { ReactNode } from "react";
 import type { AgentDAG } from "../../lib/types";
+import type { AgentFlowNode, AgentFlowEdge } from "../../lib/agentFlowElements";
 
-// Mock gsap so jsdom doesn't choke on real DOM tweens.
-vi.mock("gsap", () => ({
-  default: {
-    set: vi.fn(),
-    to: vi.fn(),
-    from: vi.fn(),
-    timeline: () => ({
-      from: vi.fn().mockReturnThis(),
-      to: vi.fn().mockReturnThis(),
-      fromTo: vi.fn().mockReturnThis(),
-    }),
-  },
-}));
+// react-flow needs ResizeObserver + a real layout engine that jsdom lacks, so
+// we mock it. The mock renders each node through nodeTypes.agent and each edge
+// as a testid'd stub, and wires onNodeClick — enough to assert our integration.
+interface MockReactFlowProps {
+  nodes: AgentFlowNode[];
+  edges: AgentFlowEdge[];
+  nodeTypes: Record<string, (p: { id: string; data: unknown; selected?: boolean; type: string }) => ReactNode>;
+  onNodeClick?: (e: unknown, n: { id: string }) => void;
+  children?: ReactNode;
+}
+
+vi.mock("@xyflow/react", () => {
+  const ReactFlow = ({ nodes, edges, nodeTypes, onNodeClick, children }: MockReactFlowProps) => (
+    <div data-testid="rf">
+      {nodes.map((n) => {
+        const NodeComp = nodeTypes[n.type ?? "agent"];
+        return (
+          <div key={n.id} data-testid={`rf-node-${n.id}`} onClick={(e) => onNodeClick?.(e, n)}>
+            {NodeComp ? (
+              <NodeComp id={n.id} data={n.data} selected={n.selected} type={n.type ?? "agent"} />
+            ) : null}
+          </div>
+        );
+      })}
+      {edges.map((e) => (
+        <div key={e.id} data-testid={`agent-graph-edge-${e.source}-${e.target}`} />
+      ))}
+      {children}
+    </div>
+  );
+  return {
+    ReactFlow,
+    Background: () => null,
+    Controls: () => null,
+    MiniMap: () => null,
+    Handle: () => null,
+    Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
+    BackgroundVariant: { Dots: "dots", Lines: "lines", Cross: "cross" },
+    useNodesState: <T,>(initial: T) => [initial, vi.fn(), vi.fn()],
+    useEdgesState: <T,>(initial: T) => [initial, vi.fn(), vi.fn()],
+  };
+});
+
+import { AgentGraph } from "./AgentGraph";
 
 afterEach(cleanup);
 
@@ -40,7 +72,7 @@ const threeNodeDag = (): AgentDAG => ({
 });
 
 describe("AgentGraph", () => {
-  it("renders one AgentGraphNode per dag node and one edge per dag edge", () => {
+  it("renders one node per dag node and one edge per dag edge", () => {
     render(
       <AgentGraph
         dag={threeNodeDag()}
@@ -69,7 +101,7 @@ describe("AgentGraph", () => {
     expect(screen.getByTestId("agent-graph-node-agent_a").getAttribute("data-running")).toBe("false");
   });
 
-  it("calls onSelectAgent when a node is clicked", () => {
+  it("calls onSelectAgent with the node id when a node is clicked", () => {
     const onSelectAgent = vi.fn();
     render(
       <AgentGraph
@@ -79,11 +111,11 @@ describe("AgentGraph", () => {
         onSelectAgent={onSelectAgent}
       />,
     );
-    fireEvent.click(screen.getByTestId("agent-graph-node-agent_a"));
+    fireEvent.click(screen.getByTestId("rf-node-agent_a"));
     expect(onSelectAgent).toHaveBeenCalledWith("agent_a");
   });
 
-  it("marks the selected node", () => {
+  it("expands (selects) the selected node and leaves the others compact", () => {
     render(
       <AgentGraph
         dag={threeNodeDag()}
@@ -93,7 +125,9 @@ describe("AgentGraph", () => {
       />,
     );
     expect(screen.getByTestId("agent-graph-node-agent_b").getAttribute("data-selected")).toBe("true");
+    expect(screen.getByTestId("agent-graph-node-agent_b").getAttribute("data-expanded")).toBe("true");
     expect(screen.getByTestId("agent-graph-node-main").getAttribute("data-selected")).toBe("false");
+    expect(screen.getByTestId("agent-graph-node-main").getAttribute("data-expanded")).toBe("false");
   });
 
   it("shows an empty state when the dag has no nodes", () => {
@@ -106,5 +140,18 @@ describe("AgentGraph", () => {
       />,
     );
     expect(screen.getByTestId("agent-graph-empty").textContent).toMatch(/no agents/i);
+  });
+
+  it("renders the react-flow canvas container", () => {
+    render(
+      <AgentGraph
+        dag={threeNodeDag()}
+        runningAgentIds={new Set()}
+        selectedAgentId={null}
+        onSelectAgent={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("agent-graph")).toBeTruthy();
+    expect(screen.getByTestId("rf")).toBeTruthy();
   });
 });

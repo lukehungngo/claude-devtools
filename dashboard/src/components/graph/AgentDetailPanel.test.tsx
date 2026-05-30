@@ -7,13 +7,19 @@ vi.mock("../../hooks/useAgentLogs", () => ({
   useAgentLogs: (...args: unknown[]) => useAgentLogsMock(...args),
 }));
 
+// Mock GSAP so jsdom doesn't run real timelines; the panel under test renders
+// the log regardless of animation.
+vi.mock("gsap", () => ({ default: { registerPlugin: vi.fn(), from: vi.fn(), to: vi.fn() } }));
+vi.mock("@gsap/react", () => ({ useGSAP: vi.fn() }));
+
 import { AgentDetailPanel } from "./AgentDetailPanel";
 
-const entry = (i: number, preview: string): AgentLogEntry => ({
+const entry = (i: number, content: string): AgentLogEntry => ({
   timestamp: `2026-05-29T00:00:${String(i).padStart(2, "0")}Z`,
   eventType: "assistant",
   agentId: "main",
-  contentPreview: preview,
+  contentPreview: content.slice(0, 120),
+  content,
   uuid: `u${i}`,
 });
 
@@ -25,21 +31,62 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("AgentDetailPanel", () => {
-  it("renders exactly the last 5 emitted lines, newest last", () => {
+  it("renders ALL log lines (no 5-line cap), in order", () => {
     const logs = [1, 2, 3, 4, 5, 6, 7].map((i) => entry(i, `line ${i}`));
     useAgentLogsMock.mockReturnValue({ logs, loading: false });
 
     render(<AgentDetailPanel projectHash="hA" sessionId="s1" agentId="main" />);
 
     const lines = screen.getAllByTestId("agent-detail-line");
-    expect(lines.length).toBe(5);
-    expect(lines[0].textContent).toContain("line 3");
-    expect(lines[4].textContent).toContain("line 7");
+    expect(lines.length).toBe(7); // full log, not capped
+    expect(lines[0].textContent).toContain("line 1");
+    expect(lines[6].textContent).toContain("line 7");
   });
 
-  it("shows an empty state when agentId is null", () => {
+  it("renders the FULL untruncated content of a line", () => {
+    const long = "X".repeat(400) + "\nsecond line";
+    useAgentLogsMock.mockReturnValue({ logs: [entry(1, long)], loading: false });
+
+    render(<AgentDetailPanel projectHash="hA" sessionId="s1" agentId="main" />);
+
+    const line = screen.getByTestId("agent-detail-line");
+    expect(line.textContent).toContain("X".repeat(400));
+    expect(line.textContent).toContain("second line");
+  });
+
+  it("renders markdown (bold + GFM table) instead of raw syntax", () => {
+    const md = "**Headline** text\n\n| A | B |\n|---|---|\n| 1 | 2 |";
+    useAgentLogsMock.mockReturnValue({ logs: [entry(1, md)], loading: false });
+    render(<AgentDetailPanel projectHash="hA" sessionId="s1" agentId="main" />);
+
+    const line = screen.getByTestId("agent-detail-line");
+    expect(line.querySelector("strong")?.textContent).toBe("Headline");
+    expect(line.querySelector("table")).not.toBeNull();
+    expect(line.querySelector("td")?.textContent).toBe("1");
+    // raw markdown syntax must NOT show as literal text
+    expect(line.textContent).not.toContain("**Headline**");
+    expect(line.textContent).not.toContain("|---|");
+  });
+
+  it("shows the line count in the header", () => {
+    const logs = [1, 2, 3].map((i) => entry(i, `line ${i}`));
+    useAgentLogsMock.mockReturnValue({ logs, loading: false });
+    render(<AgentDetailPanel projectHash="hA" sessionId="s1" agentId="main" />);
+    expect(screen.getByText("3 lines")).toBeTruthy();
+  });
+
+  it("shows a live indicator when live=true", () => {
+    useAgentLogsMock.mockReturnValue({ logs: [entry(1, "x")], loading: false });
+    render(<AgentDetailPanel projectHash="hA" sessionId="s1" agentId="main" live />);
+    expect(screen.getByTestId("agent-detail-live")).toBeTruthy();
+  });
+
+  it("shows an empty state (no '5') when agentId is null", () => {
     render(<AgentDetailPanel projectHash="hA" sessionId="s1" agentId={null} />);
-    expect(screen.getByTestId("agent-detail-empty").textContent).toMatch(/select an agent/i);
+    const empty = screen.getByTestId("agent-detail-empty");
+    expect(empty.textContent).toMatch(/select an agent/i);
+    expect(empty.textContent).toMatch(/live log/i);
+    expect(empty.textContent).not.toMatch(/\b5\b/);
   });
 
   it("passes projectHash, sessionId, agentId and liveEventCount to useAgentLogs", () => {

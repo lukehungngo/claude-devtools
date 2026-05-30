@@ -1,13 +1,31 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
 import { setupRoutes } from "../http/routes.js";
 import type { ServerState } from "../http/server.js";
 import { SessionManager } from "../session/session-manager.js";
+import { clearSessionAllowances } from "../hooks/permission-handler.js";
+
+// F4 (test-isolation): the Agent SDK is mocked so no route exercised here can
+// ever make a real `query()` network call. Without this, a route that reaches
+// the SDK (directly or via a leaked manager) returns a real 401 from Anthropic,
+// which intermittently surfaced as "expected 401 to be 404/500" under the
+// full parallel suite. The mock keeps every assertion deterministic.
+vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
+  query: vi.fn(() => {
+    async function* emptyStream() { /* no messages */ }
+    return emptyStream();
+  }),
+}));
+
+// Track every SessionManager we create so afterEach can dispose them. Undisposed
+// managers leak timers and module-level state that pollute sibling tests.
+const createdManagers = new Set<SessionManager>();
 
 function createTestState(): ServerState {
   const broadcastFn = vi.fn();
   const sessionManager = new SessionManager(broadcastFn);
+  createdManagers.add(sessionManager);
   return {
     clients: new Set(),
     sessionManager,
@@ -19,6 +37,21 @@ function createApp(state?: ServerState) {
   app.use("/api", setupRoutes(state));
   return app;
 }
+
+// Reset all shared, module-level global state so each test starts hermetic and
+// leaves nothing behind for the next test (in this file or the parallel suite).
+function resetGlobalState(): void {
+  for (const mgr of createdManagers) {
+    mgr.dispose();
+  }
+  createdManagers.clear();
+  // Session-scoped tool allowances are a module-level Map in permission-handler.
+  clearSessionAllowances();
+}
+
+afterEach(() => {
+  resetGlobalState();
+});
 
 describe("Session lifecycle routes", () => {
   let state: ServerState;

@@ -129,7 +129,7 @@ function makeUserEventWithError(uuid: string): SessionEvent {
   } as SessionEvent;
 }
 
-describe.skip("GROUP-5: onOpenPanel wiring", () => {
+describe("GROUP-5: onOpenPanel wiring", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
       ok: true,
@@ -177,7 +177,7 @@ describe.skip("GROUP-5: onOpenPanel wiring", () => {
   });
 });
 
-describe.skip("GROUP-5: ghost text props wiring", () => {
+describe("GROUP-5: ghost text props wiring", () => {
   it("passes hasMessages=false when no events (ghost text shows starter)", () => {
     const ctx = makeLayoutCtx();
 
@@ -222,7 +222,10 @@ describe.skip("GROUP-5: ghost text props wiring", () => {
       </LayoutContext.Provider>,
     );
 
+    // C5: lastTurnHadError branch in computeSuggestion is re-enabled, so the
+    // ghost text now points the user at fixing the error instead of the
+    // generic "continue" copy.
     const ghost = getByTestId("ghost-suggestion");
-    expect(ghost.textContent).toBe("Continue with next steps...");
+    expect(ghost.textContent).toBe("Fix the error above");
   });
 });

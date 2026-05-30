@@ -67,6 +67,34 @@ describe("SessionManager permission mode", () => {
   });
 });
 
+describe("SessionManager.sendMessage busy guard (F2)", () => {
+  let manager: SessionManager;
+
+  beforeEach(() => {
+    manager = new SessionManager(vi.fn());
+  });
+
+  afterEach(() => {
+    manager.dispose();
+  });
+
+  it("rejects a second sendMessage while the session is waiting-permission and does NOT replace the live AbortController", async () => {
+    const sessionId = await manager.startSession("/tmp");
+    const session = manager.getStatus(sessionId)!;
+    // First turn is parked on a permission / AskUserQuestion prompt.
+    session.status = "waiting-permission";
+    const liveController = session.abortController;
+
+    // sendMessage is an async generator — the guard runs on first .next().
+    const gen = manager.sendMessage(sessionId, "second");
+    await expect(gen.next()).rejects.toThrow(/already streaming|busy/i);
+
+    // The live turn's controller must be untouched (no concurrent query()).
+    expect(session.abortController).toBe(liveController);
+    expect(session.abortController.signal.aborted).toBe(false);
+  });
+});
+
 describe("SessionManager permission mode (SDK-native handling)", () => {
   let manager: SessionManager;
   beforeEach(() => {

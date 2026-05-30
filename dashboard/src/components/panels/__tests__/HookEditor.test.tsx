@@ -32,10 +32,11 @@ describe("HookEditor", () => {
     });
   });
 
-  // SDK 0.3.143 exports HOOK_EVENTS as the authoritative list of 29 hook types.
-  // Devtools must surface all of them so users can attach hooks to any.
-  it("SDK HOOK_EVENTS contains 29 entries", () => {
-    expect(HOOK_EVENTS.length).toBe(29);
+  // SDK 0.3.156 exports HOOK_EVENTS as the authoritative list of 30 hook types
+  // (MessageDisplay added in 0.3.152). Devtools must surface all of them so
+  // users can attach hooks to any.
+  it("SDK HOOK_EVENTS contains 30 entries", () => {
+    expect(HOOK_EVENTS.length).toBe(30);
   });
 
   // Drift guard: dashboard ships a local mirror of HOOK_EVENTS to keep the
@@ -45,7 +46,7 @@ describe("HookEditor", () => {
     expect([...HOOK_EVENTS_LOCAL]).toEqual([...HOOK_EVENTS]);
   });
 
-  it("lists all 29 SDK HOOK_EVENTS in the editor", async () => {
+  it("lists all 30 SDK HOOK_EVENTS in the editor", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({ hooks: {} }),

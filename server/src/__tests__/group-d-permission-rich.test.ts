@@ -33,7 +33,7 @@ describe("SessionManager: rich permission fields forwarded via canUseTool", () =
 
   it("forwards title, displayName, description from canUseTool options to broadcast", async () => {
     // Make the query call canUseTool with rich options
-    mockQuery.mockImplementation(({ options }: { options: { canUseTool: Function } }) => {
+    mockQuery.mockImplementation(({ options }: { options: { canUseTool: (...args: unknown[]) => unknown } }) => {
       // Simulate SDK calling canUseTool with rich options
       const canUseTool = options.canUseTool;
 
@@ -94,7 +94,7 @@ describe("SessionManager: rich permission fields forwarded via canUseTool", () =
   });
 
   it("omits rich fields from broadcast when canUseTool options lack them", async () => {
-    mockQuery.mockImplementation(({ options }: { options: { canUseTool: Function } }) => {
+    mockQuery.mockImplementation(({ options }: { options: { canUseTool: (...args: unknown[]) => unknown } }) => {
       const canUseTool = options.canUseTool;
 
       async function* stream() {

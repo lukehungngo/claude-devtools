@@ -545,9 +545,38 @@ export interface RepoConfig {
   claudeMdFiles: number;
 }
 
+/** One agent within a workflow, as shown in the workflow-table. */
+export interface WorkflowAgentSummary {
+  agentId: string;
+  label: string;
+  phase: string | null;
+  status: "running" | "finished";
+  model: string | null;
+  tokens: AggregatedTokens;
+  toolCalls: number;
+  mcpToolCalls: number;
+  resultSummary: string | null;
+}
+
+/** A single workflow (one `subagents/workflows/<wf_id>/` dir). */
+export interface WorkflowSummary {
+  id: string;
+  agentCount: number;
+  running: number;
+  finished: number;
+  /** Total tokens summed across all of the workflow's agents. */
+  tokens: AggregatedTokens;
+  /** Wall-clock ms from the earliest to the latest agent event; null if unknown. */
+  durationMs: number | null;
+  /** Ordered phase titles, or null when the journal records no phases. */
+  phases: string[] | null;
+  agents: WorkflowAgentSummary[];
+}
+
 export interface SessionMetrics {
   session: SessionInfo;
   dag: AgentDAG;
+  workflows: WorkflowSummary[];
   tokens: AggregatedTokens;
   tokensByModel: Record<string, AggregatedTokens>;
   tokensByTurn: TurnTokens[];
@@ -775,7 +804,10 @@ export interface AgentLogEntry {
   timestamp: string;
   eventType: string;
   agentId: string;
+  /** Truncated single-line preview (≤120 chars, newlines stripped). */
   contentPreview: string;
+  /** Full, untruncated content with newlines preserved (live log view). */
+  content: string;
   uuid: string;
 }
 

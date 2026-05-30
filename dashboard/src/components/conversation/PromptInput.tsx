@@ -5,6 +5,7 @@ import { useDiscoveryCommands } from "../../hooks/useDiscovery";
 import { useCommandHistory } from "../../hooks/useCommandHistory";
 import { handleSlashCommand, SERVER_FORWARDED_COMMANDS } from "../../lib/slashCommandHandler";
 import type { SessionMetrics, UsageInfo, CostSummary, SessionEvent } from "../../lib/types";
+import type { PermissionMode } from "./permissionModeTypes";
 
 interface ImageAttachment {
   type: "image";
@@ -40,6 +41,13 @@ interface PromptInputProps {
   onStreamingEvent?: (data: { type: string;[key: string]: unknown }) => void;
   /** Reset streaming state (called when starting a new message) */
   onStreamingReset?: () => void;
+  /**
+   * C3: permission mode chosen in the TopBar badge. Applied to the session on
+   * the first send/resume (POSTed before the message) so the very first turn
+   * honors plan/acceptEdits/etc. — the pre-activation `/permission-mode` POST
+   * in AppLayout no-ops because there is no `activeSessionId` yet.
+   */
+  permissionMode?: PermissionMode;
 }
 
 
@@ -74,7 +82,7 @@ function getAtMentionPrefix(text: string): string | null {
   return after;
 }
 
-export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionId, onSessionStarted, getAssistantResponses, metrics, usage, costs, events, hasMessages = false, lastTurnHadError = false, onOpenPanel, onBashOutput, onStreamingEvent, onStreamingReset }: PromptInputProps) {
+export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionId, onSessionStarted, getAssistantResponses, metrics, usage, costs, events, hasMessages = false, lastTurnHadError = false, onOpenPanel, onBashOutput, onStreamingEvent, onStreamingReset, permissionMode = "default" }: PromptInputProps) {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
 
@@ -85,6 +93,8 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
   const { history, historyIndex, addToHistory, navigateUp, navigateDown, resetNavigation } = useCommandHistory();
   const [sseStatus, setSseStatus] = useState<"idle" | "streaming" | "error">("idle");
   const [sseError, setSseError] = useState<string | null>(null);
+  // C1: non-fatal throttle/retry signal from server rate_limit / api_retry frames.
+  const [throttled, setThrottled] = useState(false);
   const [selectedCmdIndex, setSelectedCmdIndex] = useState(-1);
   const [commandOutput, setCommandOutput] = useState<string | null>(null);
   const [dropdownDismissed, setDropdownDismissed] = useState(false);
@@ -162,11 +172,21 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
     runningRef.current = running;
   }, [running]);
 
+  // Keep the latest onStreamingReset in a ref so the global keydown handler
+  // (registered once with [] deps) calls the current callback, not a stale one.
+  const streamingResetRef = useRef(onStreamingReset);
+  useEffect(() => {
+    streamingResetRef.current = onStreamingReset;
+  }, [onStreamingReset]);
+
   // Global Ctrl+C handler to abort streaming (T2-11)
   useEffect(() => {
     function handleGlobalKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey && e.key === "c" && runningRef.current) {
         abortRef.current?.abort();
+        // C2: clear the partial streaming preview so the "Working..." pulse
+        // doesn't linger after the user cancels mid-stream.
+        streamingResetRef.current?.();
       }
     }
     document.addEventListener("keydown", handleGlobalKeyDown);
@@ -267,6 +287,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
 
     setRunning(true);
     setSseError(null);
+    setThrottled(false);
     onStreamingReset?.();
 
     const controller = new AbortController();
@@ -275,6 +296,9 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
     setSseStatus("streaming");
     try {
       let targetSessionId = activeSessionId;
+      // C3: track whether the session was established during THIS submit so we
+      // can apply the chosen permission mode before the first message lands.
+      let sessionJustEstablished = false;
 
       if (!targetSessionId && sessionId) {
         try {
@@ -285,6 +309,7 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
           });
           if (resumeRes.ok) {
             targetSessionId = sessionId;
+            sessionJustEstablished = true;
             onSessionStarted?.(sessionId);
           }
           // On non-2xx (e.g. cwd missing, server restart): fall through to /sessions/new
@@ -302,7 +327,10 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
           });
           const data = await newRes.json();
           targetSessionId = data.sessionId;
-          if (targetSessionId) onSessionStarted?.(targetSessionId);
+          if (targetSessionId) {
+            sessionJustEstablished = true;
+            onSessionStarted?.(targetSessionId);
+          }
         } catch {
           console.error("Failed to start new session");
         }
@@ -312,6 +340,22 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         setSseStatus("error");
         setRunning(false);
         return;
+      }
+
+      // C3: apply the chosen permission mode to a freshly-established session
+      // BEFORE the first message, so the first turn honors plan/acceptEdits/etc.
+      // Pre-activation POSTs from the TopBar badge no-op (no activeSessionId),
+      // so this is the first place the mode can stick. Default mode needs no POST.
+      if (sessionJustEstablished && permissionMode !== "default") {
+        try {
+          await fetch(`/api/sessions/${targetSessionId}/permission-mode`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: permissionMode }),
+          });
+        } catch {
+          // Non-fatal — proceed with the message; mode falls back to default.
+        }
       }
 
       const endpoint = `/api/sessions/${targetSessionId}/message`;
@@ -357,6 +401,21 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
             }
             // Forward streaming events to parent
             onStreamingEvent?.(data);
+            // C1: server-emitted top-level error frame (rate_limit / billing /
+            // SDK throw). Without this branch the loop only reacts to `result`,
+            // so an error-terminated stream froze on a silent "Working..." pulse.
+            if (data.type === "error") {
+              setSseError(typeof data.message === "string" ? data.message : "Stream error");
+              setSseStatus("error");
+              setThrottled(false);
+              continue;
+            }
+            // C1: non-fatal throttle/retry signals — surface a transient
+            // indicator while the turn continues streaming.
+            if (data.type === "rate_limit" || data.type === "api_retry") {
+              setThrottled(true);
+              continue;
+            }
             if (data.type === "result") {
               if (data.is_error || data.error) {
                 let errorMsg = typeof data.error === "string"
@@ -374,8 +433,10 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
                 }
                 setSseError(errorMsg);
                 setSseStatus("error");
+                setThrottled(false);
               } else {
                 setSseStatus("idle");
+                setThrottled(false);
               }
             }
           } catch {
@@ -384,7 +445,11 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
         }
       }
     } catch (err) {
-      if (!(err instanceof DOMException && err.name === "AbortError")) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // C2: Stop / Ctrl+C aborted the fetch. Clear the partial streaming
+        // preview so the perpetual "Working..." pulse doesn't linger.
+        onStreamingReset?.();
+      } else {
         console.error("Command dispatch error:", err);
         setSseStatus("error");
       }
@@ -527,6 +592,9 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
 
   function handleStop() {
     abortRef.current?.abort();
+    // C2: clear the streaming preview immediately on Stop so the spinner
+    // doesn't linger. The AbortError catch also resets for the Ctrl+C path.
+    onStreamingReset?.();
   }
 
   function handlePaste(e: ReactClipboardEvent<HTMLTextAreaElement>) {
@@ -652,8 +720,19 @@ export function PromptInput({ sessionCwd, sessionId, projectHash, activeSessionI
             }}
           />
         </div>
+        {/* C1: throttle indicator — server is rate-limited / retrying */}
+        {throttled && running && (
+          <span
+            data-testid="sse-throttle-indicator"
+            title="Rate limited — retrying..."
+            className="flex items-center gap-1 text-xs font-semibold text-dt-amber shrink-0"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-dt-amber animate-pulse shrink-0" />
+            Throttled
+          </span>
+        )}
         {/* SSE status indicator */}
-        {running && sseStatus === "streaming" && (
+        {running && sseStatus === "streaming" && !throttled && (
           <span
             className="w-2 h-2 rounded-full bg-dt-green animate-pulse-opacity shadow-[0_0_6px_var(--grn)] shrink-0"
             title="Streaming response..."

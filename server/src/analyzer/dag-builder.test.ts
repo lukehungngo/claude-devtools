@@ -207,6 +207,32 @@ describe("buildAgentDAG", () => {
     expect(dag.nodes[0].status).toBe("completed");
   });
 
+  it("marks main active mid-flight when a PRIOR turn's turn_duration precedes the last tool_use (running session)", () => {
+    // Ground-truth bug (2026-05-30): a running session's current turn is
+    // mid-flight (last main assistant has stop_reason=tool_use, no closing
+    // turn_duration yet), but a PRIOR turn's turn_duration leaks into Signal 2
+    // and wrongly marks main "completed". Signal 2 must only count a
+    // turn_duration that occurs AFTER the last main assistant event.
+    const events: SessionEvent[] = [
+      makeAssistantEvent({ timestamp: "2026-03-23T10:00:00Z", stopReason: "tool_use" }),
+      {
+        type: "system",
+        subtype: "turn_duration",
+        uuid: "sys-prior",
+        timestamp: "2026-03-23T10:00:01Z",
+        sessionId: "test-session",
+        durationMs: 1234,
+      } as SystemEvent,
+      makeUserEvent({ timestamp: "2026-03-23T10:00:02Z" }),
+      // Current turn, still mid-flight — no closing turn_duration after this.
+      makeAssistantEvent({ timestamp: "2026-03-23T10:00:03Z", stopReason: "tool_use" }),
+    ];
+
+    const dag = buildAgentDAG(events, new Map(), new Map(), true);
+
+    expect(dag.nodes[0].status).toBe("active");
+  });
+
   it("counts tool calls correctly on main node", () => {
     const mainEvents: SessionEvent[] = [
       makeAssistantEvent({
@@ -338,10 +364,47 @@ describe("buildAgentDAG", () => {
     expect(dag.nodes[0].model).toBe("claude-sonnet-4-6");
   });
 
-  it("detects error status from tool_result with is_error in user events", () => {
+  it("marks main active over error when the session is live and mid-flight despite a past tool error", () => {
+    // 2-mode model (running | finished): a LIVE agent that hit a tool error is
+    // still RUNNING — it processes the error result and continues. Liveness wins
+    // over error; error precedence applies only once the agent is no longer
+    // running. Ground-truth: every long agentic session hits tool errors, so an
+    // erroring-but-running main must still surface as "active". [2026-05-30]
+    const events: SessionEvent[] = [
+      makeAssistantEvent({
+        timestamp: "2026-03-23T10:00:00Z",
+        content: [{ type: "tool_use", id: "t1", name: "Bash", input: {} }],
+        stopReason: "tool_use",
+      }),
+      {
+        type: "user",
+        uuid: "u-err",
+        timestamp: "2026-03-23T10:00:01Z",
+        sessionId: "test-session",
+        userType: "internal",
+        message: {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "t1", content: "boom", is_error: true }],
+        },
+      } as SessionEvent,
+      // Current turn still mid-flight — no terminal signal after the error.
+      makeAssistantEvent({ timestamp: "2026-03-23T10:00:02Z", stopReason: "tool_use" }),
+    ];
+
+    const dag = buildAgentDAG(events, new Map(), new Map(), true);
+
+    expect(dag.nodes[0].status).toBe("active");
+  });
+
+  it("marks an ABORTED-with-error agent (no terminal signal, session ended) as error", () => {
+    // "error" now means a genuine failure: the agent never completed (last event
+    // is a tool_use with no end_turn/turn_duration after) AND the session has
+    // ended (sessionIsRunning=false → indeterminate) AND it hit a tool error.
+    // A completed agent with an incidental tool error is "completed" (separate test).
     const events: SessionEvent[] = [
       makeAssistantEvent({
         timestamp: "2020-01-01T00:00:00Z",
+        stopReason: "tool_use",
         content: [
           { type: "tool_use", id: "t1", name: "Bash", input: { command: "exit 1" } },
         ],
@@ -366,12 +429,16 @@ describe("buildAgentDAG", () => {
       } as SessionEvent,
     ];
 
-    const dag = buildAgentDAG(events, new Map(), new Map());
+    const dag = buildAgentDAG(events, new Map(), new Map(), false);
 
     expect(dag.nodes[0].status).toBe("error");
   });
 
-  it("error takes precedence over completion (end_turn present but tool_result has is_error)", () => {
+  it("a COMPLETED agent with an incidental tool error is 'completed', not 'error'", () => {
+    // An agent that finished (end_turn present) succeeded — a recoverable
+    // tool_result.is_error during its run must NOT flag it red. Ground truth
+    // (2026-05-30): 100% of "error" nodes had actually completed; error was
+    // grossly over-counted. Completion wins over an incidental tool error.
     const events: SessionEvent[] = [
       makeAssistantEvent({
         stopReason: "tool_use",
@@ -397,7 +464,7 @@ describe("buildAgentDAG", () => {
 
     const dag = buildAgentDAG(events, new Map(), new Map());
 
-    expect(dag.nodes[0].status).toBe("error");
+    expect(dag.nodes[0].status).toBe("completed");
   });
 
   it("detects error from a tool_result that is NOT among the last 3 events (time-invariant error)", () => {
@@ -430,7 +497,8 @@ describe("buildAgentDAG", () => {
       makeAssistantEvent({ stopReason: "tool_use" }),
     ];
 
-    const dag = buildAgentDAG(events, new Map(), new Map());
+    // sessionIsRunning=false: ended session → error precedence applies.
+    const dag = buildAgentDAG(events, new Map(), new Map(), false);
 
     expect(dag.nodes[0].status).toBe("error");
   });

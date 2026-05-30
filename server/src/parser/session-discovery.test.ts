@@ -361,6 +361,34 @@ describe("loadFullSession cross-project", () => {
     expect(result.subagentMeta.get("ccc")?.agentType).toBe("general-purpose");
   });
 
+  it("T-NESTED: discovers agents in nested subagents/workflows/<wf>/ dirs and ignores non-agent files", () => {
+    const sessionId = "sess-nested";
+    const projectsRoot = path.join(tmpHome, ".claude", "projects");
+    const projectA = path.join(projectsRoot, "project-a");
+    const mainA = path.join(projectA, `${sessionId}.jsonl`);
+    writeJsonl(mainA, [makeUserEventLine(sessionId, "u1")]);
+
+    // Top-level subagent.
+    writeJsonl(path.join(projectA, sessionId, "subagents", "agent-top.jsonl"), [
+      makeUserEventLine(sessionId, "t1"),
+    ]);
+    // NESTED workflow agents — previously dropped by the non-recursive scan.
+    const wfDir = path.join(projectA, sessionId, "subagents", "workflows", "wf_abc");
+    writeJsonl(path.join(wfDir, "agent-wf1.jsonl"), [makeUserEventLine(sessionId, "w1")]);
+    writeJsonl(path.join(wfDir, "agent-wf2.jsonl"), [makeUserEventLine(sessionId, "w2")]);
+    // A non-agent bookkeeping file that must NOT become an agent node.
+    writeJsonl(path.join(wfDir, "journal.jsonl"), [makeUserEventLine(sessionId, "j1")]);
+
+    const info = makeSessionInfo(sessionId, "project-a", mainA);
+    const result = loadFullSession(info);
+
+    expect(result.subagentEvents.has("top")).toBe(true);
+    expect(result.subagentEvents.has("wf1")).toBe(true);
+    expect(result.subagentEvents.has("wf2")).toBe(true);
+    expect(result.subagentEvents.has("journal")).toBe(false);
+    expect(result.subagentEvents.size).toBe(3);
+  });
+
   it("T-CROSS-2: picks the larger main JSONL when session exists in multiple project dirs", () => {
     const sessionId = "sess-bigger";
     const projectsRoot = path.join(tmpHome, ".claude", "projects");

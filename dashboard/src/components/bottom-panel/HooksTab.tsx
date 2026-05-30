@@ -369,7 +369,7 @@ export function HooksTab({
   }, [rows, search, filterEvent]);
 
   const stats = useMemo(() => {
-    let total = rows.length;
+    const total = rows.length;
     let nonzeroExit = 0;
     let cancelled = 0;
     let totalMs = 0;

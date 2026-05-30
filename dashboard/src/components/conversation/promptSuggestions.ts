@@ -18,10 +18,12 @@ export function computeSuggestion(
     return "Describe what you'd like to build...";
   }
 
-  // TODO: No need, because context.lastTurnHadError have a very high error rate, so it's not useful to show.
-  // if (context.lastTurnHadError) {
-  // return "Fix the error above";
-  // }
+  // C5 (Phase B): re-enabled. When the last turn ended with a tool_result
+  // error, nudge the user toward fixing it instead of the generic "continue"
+  // copy. Keeps the `lastTurnHadError` prop live rather than shipping it dead.
+  if (context.lastTurnHadError) {
+    return "Fix the error above";
+  }
 
   return "Continue with next steps...";
 }

@@ -93,7 +93,9 @@ describe("buildAgentDAG single-pass optimization", () => {
     expect(mainNode.tokenUsage.cacheReadTokens).toBe(125);
     expect(mainNode.toolCalls).toBe(5); // t1-t5
     expect(mainNode.mcpToolCalls).toBe(1); // mcp__server__read
-    expect(mainNode.status).toBe("error"); // last user event has is_error
+    // Main's last assistant event is end_turn → it completed; an incidental
+    // tool_result.is_error during a completed run is NOT a failure → "completed".
+    expect(mainNode.status).toBe("completed");
 
     // Edge detection via Agent tool_use descriptions
     const edgeFromMain = dag.edges.filter(e => e.source === "main");

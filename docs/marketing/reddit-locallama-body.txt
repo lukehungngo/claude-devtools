@@ -1,0 +1,19 @@
+Probably more r/ChatGPTCoding territory but the architecture might interest people here.
+
+Claude Code stores every session as a JSONL transcript in `~/.claude/projects/`. I built a Node-based watcher + dashboard around it. Nothing API-side, nothing proxied — it just reads the files Claude Code already writes.
+
+Tech notes:
+- Incremental parsing with byte offsets (openSync/readSync) — never re-reads the full file
+- Server-side metric aggregation, dashboard receives pre-computed numbers
+- WebSocket pushes only deltas; REST for initial load
+- Fail-safe parser skips malformed lines, never crashes
+- 60fps target on 1000-event sessions (React.memo, RAF batching, stable refs)
+- ~200MB memory ceiling for typical session
+
+Stack: Express + WebSocket on the server, React + Vite + Tailwind on the dashboard. Single npx command spins up both.
+
+    npx @lukehungngo/claude-devtools
+
+MIT. Repo: https://github.com/lukehungngo/claude-devtools
+
+If you've built anything similar for other agent frameworks (Aider, Cline, OpenHands) I'd love to compare notes. The JSONL transcript model makes observability genuinely tractable vs. the SDK-proxy approach.

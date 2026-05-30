@@ -9,14 +9,13 @@ const ALLOWLIST = new Set([
   "components/AgentFlowDAG.tsx",
   "components/AgentLogs.tsx",
   "components/AgentNodeCard.tsx",
-  // Graph tab — dynamic absolute node position (left/top) only.
-  "components/graph/AgentGraphNode.tsx",
   "components/TopBar.tsx",
   "components/Layout.tsx",
   "components/conversation/AgentPills.tsx",
   "components/conversation/ToolEntries.tsx",
   "components/conversation/TurnCard.tsx",
   "components/viewer/ToolCallBlock.tsx",
+  "routes/GraphPage.tsx", // dynamic right-rail width from the resize handle
 ]);
 
 async function walk(dir) {

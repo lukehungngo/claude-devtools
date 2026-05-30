@@ -6,7 +6,7 @@ import { useEventStream } from "../hooks/useEventStream";
 import { resolveProjectHashForFetch } from "../lib/repoSlug";
 import { groupEventsIntoTurns, groupEventsIntoTurnsIncremental, getEventsForTurn } from "../lib/turnSnapshot";
 import { isAgentCompleted } from "../lib/agentStatus";
-import { ConversationView } from "../components/conversation/ConversationView";
+import { ConversationView, type BashOutputEntry } from "../components/conversation/ConversationView";
 import { RawLogView } from "../components/conversation/RawLogView";
 import { Menu, RefreshCw } from "lucide-react";
 import { AgentLogTab } from "../components/bottom-panel/AgentLogTab";
@@ -127,6 +127,11 @@ export function SessionPage() {
   const [selectedTurnIndex, setSelectedTurnIndex] = useState<number | null>(null);
   const [mainTab, setMainTab] = useState<"conversation" | "raw-log" | "agent-log">("conversation");
   const [activePanel, setActivePanel] = useState<string | null>(null);
+  // C4: inline `!bash` command results, threaded into ConversationView.
+  const [bashOutputs, setBashOutputs] = useState<BashOutputEntry[]>([]);
+  const handleBashOutput = useCallback((result: BashOutputEntry) => {
+    setBashOutputs((prev) => [...prev, result]);
+  }, []);
 
   // Cache REST event UUIDs separately — only rebuilds when REST data changes, not on every live event
   const restKeys = useMemo(() => new Set(events.map((e) => e.uuid)), [events]);
@@ -298,6 +303,7 @@ export function SessionPage() {
     setSelectedAgent(null);
     setHighlightedTurnIndex(undefined);
     setSelectedTurnIndex(null);
+    setBashOutputs([]);
     sdkContextWindowRef.current = undefined;
     lastScannedLiveIndexRef.current = 0;
     lastDagRefreshTimeRef.current = 0;
@@ -437,6 +443,8 @@ export function SessionPage() {
           onTurnClick={handleTurnClick}
           onOpenPanel={handleOpenPanel}
           onSdkContextWindow={handleSdkContextWindow}
+          bashOutputs={bashOutputs}
+          onBashOutput={handleBashOutput}
         />
       ) : mainTab === "raw-log" ? (
         <RawLogView

@@ -22,6 +22,23 @@ vi.mock("../analyzer/efficiency/index.js", () => ({
   getDetectedResults: vi.fn(() => []),
 }));
 
+// F4 (test-isolation): the API-key fallback path imports @anthropic-ai/sdk and
+// calls client.messages.stream(). Previously the "falls back to API key" test
+// let this make a REAL network call that fails with a 401 after a multi-second
+// round-trip. That slow real request starved the parallel suite and caused a
+// sibling test (routes-session.test.ts) to time out. Mock the SDK so the
+// fallback fails deterministically and instantly, exercising the SAME error
+// handler (the test still asserts "Report generation failed").
+vi.mock("@anthropic-ai/sdk", () => ({
+  default: class {
+    messages = {
+      stream: () => {
+        throw new Error("No API key configured (mocked)");
+      },
+    };
+  },
+}));
+
 const app = express();
 app.use(express.json());
 app.use(createEfficiencyRoutes({} as RouteContext));

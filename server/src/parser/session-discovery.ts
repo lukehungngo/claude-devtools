@@ -25,7 +25,7 @@ export function invalidateDiscoveryCache(): void {
   repoGroupsCache = null;
 }
 
-function getClaudeProjectsDir(): string {
+export function getClaudeProjectsDir(): string {
   return join(homedir(), ".claude", "projects");
 }
 
@@ -319,31 +319,45 @@ export function loadFullSession(sessionInfo: SessionInfo): {
         }
       }
 
-      // Subagents: merge every `{projectDir}/{sessionId}/subagents/*`.
+      // Subagents: merge every `agent-*` transcript under
+      // `{projectDir}/{sessionId}/subagents/`, RECURSING into nested dirs.
+      // Workflow-dispatched agents live in `subagents/workflows/<wf-id>/`,
+      // so a non-recursive scan silently dropped them from the graph. Only
+      // files whose basename starts with `agent-` are agents; bookkeeping
+      // files like `journal.jsonl` are skipped.
       const subagentDir = join(projectDirPath, sessionInfo.id, "subagents");
       if (!existsSync(subagentDir)) continue;
 
-      for (const file of readdirSync(subagentDir)) {
-        if (file.endsWith(".jsonl")) {
-          const agentId = file.replace(".jsonl", "").replace("agent-", "");
-          subagentEvents.set(
-            agentId,
-            parseJsonlFile(join(subagentDir, file))
-          );
-        } else if (file.endsWith(".meta.json")) {
-          const agentId = file
-            .replace(".meta.json", "")
-            .replace("agent-", "");
-          try {
-            const meta = JSON.parse(
-              readFileSync(join(subagentDir, file), "utf-8")
-            );
-            subagentMeta.set(agentId, {
-              agentType: meta.agentType || agentId,
-              description: meta.description || agentId,
-            });
-          } catch {
-            // ignore malformed meta
+      const stack: string[] = [subagentDir];
+      while (stack.length > 0) {
+        const dir = stack.pop() as string;
+        let entries;
+        try {
+          entries = readdirSync(dir, { withFileTypes: true });
+        } catch {
+          continue; // unreadable dir — skip, never crash discovery
+        }
+        for (const entry of entries) {
+          const full = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            stack.push(full);
+            continue;
+          }
+          if (!entry.name.startsWith("agent-")) continue;
+          if (entry.name.endsWith(".jsonl")) {
+            const agentId = entry.name.replace(".jsonl", "").replace("agent-", "");
+            subagentEvents.set(agentId, parseJsonlFile(full));
+          } else if (entry.name.endsWith(".meta.json")) {
+            const agentId = entry.name.replace(".meta.json", "").replace("agent-", "");
+            try {
+              const meta = JSON.parse(readFileSync(full, "utf-8"));
+              subagentMeta.set(agentId, {
+                agentType: meta.agentType || agentId,
+                description: meta.description || agentId,
+              });
+            } catch {
+              // ignore malformed meta
+            }
           }
         }
       }

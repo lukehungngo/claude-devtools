@@ -34,6 +34,7 @@ export const HOOK_EVENTS_LOCAL = [
   "InstructionsLoaded",
   "CwdChanged",
   "FileChanged",
+  "MessageDisplay",
 ] as const;
 
 export type HookEventName = (typeof HOOK_EVENTS_LOCAL)[number];

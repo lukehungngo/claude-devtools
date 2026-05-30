@@ -73,13 +73,25 @@ function tryOtherSignals(
   agentId: string,
   events: readonly SessionEvent[],
 ): boolean {
-  // Signal 2: main-only turn_duration
+  // Signal 2: main-only turn_duration that CLOSES the current/last turn.
+  //
+  // A turn_duration marks main "completed" ONLY when it occurs AFTER the last
+  // main assistant event. A PRIOR turn's turn_duration must not mark main
+  // completed while a later turn is still mid-flight (last assistant has
+  // stop_reason=tool_use, with no closing turn_duration emitted yet). Scanning
+  // for ANY turn_duration anywhere — the old behavior — made the main agent of
+  // every multi-turn running session render "completed", so the graph never
+  // showed a running agent. [ground-truth bug 2026-05-30, session 98269c6b:
+  // last main assistant stop_reason=tool_use, last turn_duration precedes it.]
   if (agentId === "main") {
-    for (const e of events) {
-      if (
-        e.type === "system" &&
-        (e as SystemEvent).subtype === "turn_duration"
-      ) {
+    const mainEvts = eventsForAgent(events, "main");
+    let lastAssistantIdx = -1;
+    for (let i = 0; i < mainEvts.length; i++) {
+      if (mainEvts[i].type === "assistant") lastAssistantIdx = i;
+    }
+    for (let i = lastAssistantIdx + 1; i < mainEvts.length; i++) {
+      const e = mainEvts[i];
+      if (e.type === "system" && (e as SystemEvent).subtype === "turn_duration") {
         return true;
       }
     }

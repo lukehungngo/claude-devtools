@@ -6,20 +6,50 @@ vi.mock("../parser/jsonl-reader.js", () => ({
   parseJsonlFile: vi.fn(() => []),
 }));
 
+vi.mock("../parser/session-discovery.js", () => ({
+  getClaudeProjectsDir: () => "/projects",
+}));
+
 vi.mock("node:fs", async () => {
   const actual = await vi.importActual("node:fs");
+  // statSync returns a unique (mtimeMs,size) per call so the module-level
+  // entry cache in getAgentEvents always misses across tests (no stale-cache
+  // contamination); parseJsonlFile (also mocked) is therefore always consulted.
+  let n = 0;
   return {
     ...actual,
     existsSync: vi.fn(() => true),
+    readdirSync: vi.fn(() => []),
+    statSync: vi.fn(() => ({ mtimeMs: ++n, size: ++n })),
   };
 });
 
 import { getAgentEvents } from "./agent-events.js";
 import { parseJsonlFile } from "../parser/jsonl-reader.js";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 
 const mockedParseJsonlFile = vi.mocked(parseJsonlFile);
 const mockedExistsSync = vi.mocked(existsSync);
+const mockedReaddirSync = vi.mocked(readdirSync);
+
+/** Minimal Dirent for readdirSync({ withFileTypes: true }) mocks. */
+function dirent(name: string, isDir: boolean) {
+  return { name, isDirectory: () => isDir } as unknown as import("node:fs").Dirent;
+}
+
+/**
+ * Make readdirSync resolve a subagent transcript at a given path layout.
+ * `layout` maps a directory-path suffix → its entries.
+ */
+function mockTree(layout: Array<{ endsWith: string; entries: ReturnType<typeof dirent>[] }>) {
+  mockedReaddirSync.mockImplementation((p: Parameters<typeof readdirSync>[0]) => {
+    const s = String(p);
+    for (const { endsWith, entries } of layout) {
+      if (s.endsWith(endsWith)) return entries as unknown as ReturnType<typeof readdirSync>;
+    }
+    return [] as unknown as ReturnType<typeof readdirSync>;
+  });
+}
 
 function makeSessionInfo(overrides: Partial<SessionInfo> = {}): SessionInfo {
   return {
@@ -107,12 +137,16 @@ describe("getAgentEvents", () => {
     expect(result[1].eventType).toBe("user");
   });
 
-  it("returns log entries for a subagent from its specific file", () => {
+  it("returns log entries for a flat subagent (subagents/agent-<id>.jsonl)", () => {
     const events: SessionEvent[] = [
       makeAssistantEvent("a1", "2026-03-23T10:00:00Z"),
     ];
     mockedExistsSync.mockReturnValue(true);
     mockedParseJsonlFile.mockReturnValue(events);
+    mockTree([
+      { endsWith: "/projects", entries: [dirent("abc123", true)] },
+      { endsWith: "/subagents", entries: [dirent("agent-sub-1.jsonl", false)] },
+    ]);
 
     const result = getAgentEvents(makeSessionInfo(), "sub-1");
 
@@ -120,8 +154,33 @@ describe("getAgentEvents", () => {
     expect(result[0].agentId).toBe("sub-1");
   });
 
-  it("returns empty array when subagent file does not exist", () => {
-    mockedExistsSync.mockReturnValue(false);
+  it("finds a NESTED workflow subagent (subagents/workflows/<wf>/agent-<id>.jsonl)", () => {
+    // Regression: workflow-dispatched child nodes returned an empty log because
+    // the lookup only checked the flat subagents/ path. [2026-05-30]
+    const events: SessionEvent[] = [
+      makeAssistantEvent("w1", "2026-03-23T10:00:00Z"),
+    ];
+    mockedExistsSync.mockReturnValue(true);
+    mockedParseJsonlFile.mockReturnValue(events);
+    mockTree([
+      { endsWith: "/projects", entries: [dirent("abc123", true)] },
+      { endsWith: "/subagents", entries: [dirent("workflows", true)] },
+      { endsWith: "/workflows", entries: [dirent("wf_x", true)] },
+      { endsWith: "/wf_x", entries: [dirent("agent-wf-agent-1.jsonl", false)] },
+    ]);
+
+    const result = getAgentEvents(makeSessionInfo(), "wf-agent-1");
+
+    expect(result).toHaveLength(1);
+    expect(result[0].agentId).toBe("wf-agent-1");
+  });
+
+  it("returns empty array when the subagent file is not found anywhere", () => {
+    mockedExistsSync.mockReturnValue(true);
+    mockTree([
+      { endsWith: "/projects", entries: [dirent("abc123", true)] },
+      { endsWith: "/subagents", entries: [dirent("agent-someone-else.jsonl", false)] },
+    ]);
 
     const result = getAgentEvents(makeSessionInfo(), "nonexistent-agent");
 
@@ -245,6 +304,34 @@ describe("getAgentEvents", () => {
     expect(result).toHaveLength(1);
     expect(result[0].eventType).toBe("queue-operation");
     expect(result[0].contentPreview).toContain("queue");
+  });
+
+  it("includes the FULL untruncated content (with newlines) in the `content` field", () => {
+    const longText = "L".repeat(300) + "\nsecond line";
+    const event: AssistantEvent = {
+      type: "assistant",
+      uuid: "a1",
+      timestamp: "2026-03-23T10:00:00Z",
+      sessionId: "test-session",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: longText }],
+        model: "claude-sonnet-4-6",
+        id: "msg-1",
+        type: "message",
+        stop_reason: "end_turn",
+        usage: { input_tokens: 100, output_tokens: 50 },
+      },
+    };
+    mockedParseJsonlFile.mockReturnValue([event]);
+
+    const result = getAgentEvents(makeSessionInfo(), "main");
+
+    // contentPreview stays truncated (≤120 + no newlines); content is the full text.
+    expect(result[0].contentPreview.length).toBeLessThanOrEqual(120);
+    expect(result[0].content).toBe(longText);
+    expect(result[0].content).toContain("\nsecond line");
+    expect(result[0].content.length).toBeGreaterThan(300);
   });
 
   it("handles error tool_result with [ERROR] prefix", () => {

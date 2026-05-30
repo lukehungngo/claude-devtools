@@ -164,6 +164,20 @@ describe("isAgentCompleted — Signal 2 (turn_duration, main-only)", () => {
     expect(isAgentCompleted("main", events)).toBe(true);
   });
 
+  it("T-COMPL-2b main is NOT completed when a PRIOR turn's turn_duration precedes a mid-flight tool_use turn", () => {
+    // Ground-truth bug (2026-05-30): a multi-turn running session whose current
+    // turn is mid-flight (last assistant stop_reason=tool_use, no closing
+    // turn_duration). A prior turn's turn_duration must NOT mark main completed.
+    const events: SessionEvent[] = [
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:01Z", stopReason: "tool_use" }),
+      makeSystemEvent({ subtype: "turn_duration", timestamp: "2026-01-01T00:00:02Z" }),
+      makeUserEvent({ timestamp: "2026-01-01T00:00:03Z" }),
+      makeAssistantEvent({ timestamp: "2026-01-01T00:00:04Z", stopReason: "tool_use" }),
+    ];
+    expect(isAgentCompleted("main", events)).toBe(false);
+    expect(getAgentStatus("main", events, true)).toBe("running");
+  });
+
   it("T-COMPL-2a subagent with turn_duration in stream is NOT completed by that alone", () => {
     // turn_duration is main-only. Even if one is in the stream, subagent
     // must find its OWN terminal signal (not main's).

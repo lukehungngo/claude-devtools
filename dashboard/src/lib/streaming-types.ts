@@ -165,6 +165,13 @@ export interface StreamingState {
    * transport-layer re-delivery, not a new denial.
    */
   permissionDenials: PermissionDeniedRecord[];
+  /**
+   * C2 (Phase B): true once the live turn has ended (server `result` or
+   * `done`). The streaming preview keeps its content but stops showing the
+   * "Working..." pulse, and ConversationView hides the duplicate preview so
+   * only the WS-committed TurnCard remains. Cleared on reset (next submit).
+   */
+  finalized: boolean;
 }
 
 export function createInitialStreamingState(): StreamingState {
@@ -184,6 +191,7 @@ export function createInitialStreamingState(): StreamingState {
     liveTasks: new Map(),
     liveHooks: new Map(),
     permissionDenials: [],
+    finalized: false,
   };
 }
 

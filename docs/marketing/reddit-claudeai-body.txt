@@ -1,0 +1,27 @@
+Like a lot of you I've been running long Claude Code sessions and watching the cost rack up with no real visibility into what's happening.
+
+Claude Code already writes a complete transcript of every session as a JSONL file in `~/.claude/projects/`. I built a small dashboard that reads it in real time:
+
+**What you see:**
+- Every turn — user message, assistant response, tool calls with full payloads
+- Token counts per turn (input / output / cache hits)
+- Cost per turn + running total — split by model
+- DAG view of subagents when you fan out with Task()
+- Browser-side permission prompts — no more "can I run rm -rf?" in your terminal when you're 5 tabs deep
+
+**Bonus:**
+- Picks up existing sessions automatically (anything Claude Code has ever written)
+- Works with Docker containers (auto-detected)
+- Remote collector for sessions on other machines
+
+**How to try:**
+
+    npx @lukehungngo/claude-devtools
+
+Opens at http://localhost:3142. MIT, runs entirely locally, no signup.
+
+Repo + screenshots: https://github.com/lukehungngo/claude-devtools
+
+Honest about gaps — not a Claude Code replacement, just an observability layer. Hooks integration is partial, Windows works but less polished. Active development.
+
+Would love to hear what's missing for your workflow.

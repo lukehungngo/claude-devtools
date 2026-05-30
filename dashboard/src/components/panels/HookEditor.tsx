@@ -25,9 +25,10 @@ interface LegacyHookItem {
 }
 
 // CC hook event types are the SDK's authoritative HOOK_EVENTS list
-// (29 entries as of SDK 0.3.143 — see sdk.d.ts). Ordered for the editor
-// by lifecycle group so related hooks cluster together. Anything not in
-// LIFECYCLE_ORDER falls to the end alphabetically.
+// (30 entries as of SDK 0.3.156 — see sdk.d.ts; MessageDisplay added in
+// 0.3.152). Ordered for the editor by lifecycle group so related hooks
+// cluster together. Anything not in LIFECYCLE_ORDER falls to the end
+// alphabetically.
 const LIFECYCLE_ORDER: readonly string[] = [
   "SessionStart", "SessionEnd", "Setup",
   "UserPromptSubmit", "UserPromptExpansion",
@@ -43,6 +44,7 @@ const LIFECYCLE_ORDER: readonly string[] = [
   "WorktreeCreate", "WorktreeRemove",
   "InstructionsLoaded", "ConfigChange",
   "CwdChanged", "FileChanged",
+  "MessageDisplay",
 ];
 
 const EVENT_TYPES = [...HOOK_EVENTS].sort((a, b) => {

@@ -179,12 +179,22 @@ export function createSessionRoutes({ state }: RouteContext): Router {
       let subagentMeta!: Map<string, { agentType: string; description: string }>;
       let cacheHit = false;
 
-      // Count subagent files so cache invalidates when new subagents appear
+      // Count subagent files so the metrics cache invalidates when new subagents
+      // appear. Must RECURSE into subagents/workflows/<wf>/ (matching
+      // loadFullSession) — a flat count missed nested workflow agents, so a new
+      // workflow agent left the cached DAG/WorkflowTable stale until the TTL.
       const subagentDir = join(session.path.replace(/\.jsonl$/, ""), "subagents");
       let subagentFileCount = 0;
       try {
         if (existsSync(subagentDir)) {
-          subagentFileCount = readdirSync(subagentDir).filter(f => f.endsWith(".jsonl")).length;
+          const stack: string[] = [subagentDir];
+          while (stack.length > 0) {
+            const dir = stack.pop() as string;
+            for (const entry of readdirSync(dir, { withFileTypes: true })) {
+              if (entry.isDirectory()) stack.push(join(dir, entry.name));
+              else if (entry.name.startsWith("agent-") && entry.name.endsWith(".jsonl")) subagentFileCount += 1;
+            }
+          }
         }
       } catch { /* ignore */ }
 
@@ -640,6 +650,20 @@ export function createSessionRoutes({ state }: RouteContext): Router {
       return res.status(404).json({ error: "Session not found" });
     }
 
+    // S2 (audit P2) — reject a concurrent double-submit BEFORE flushing SSE
+    // headers. Once headers flush we can only emit a swallowed {type:"error"}
+    // SSE frame, and the rejected request's close→abort would kill the FIRST,
+    // legitimately-streaming turn. Pre-check status and return 409 JSON so the
+    // client sees a real rejection and the live stream is untouched. The
+    // close→abort handler below is therefore only registered for the request
+    // that actually owns the stream.
+    // F2: "waiting-permission" (a parked permission / AskUserQuestion prompt)
+    // is also a busy state — a concurrent submit here would race the first
+    // turn's AbortController. Reject any non-terminal active state.
+    if (session.status === "streaming" || session.status === "waiting-permission") {
+      return res.status(409).json({ error: "Session is already streaming" });
+    }
+
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -647,8 +671,16 @@ export function createSessionRoutes({ state }: RouteContext): Router {
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
 
+    // S1 (audit P1) — Node fires the response 'close' event after EVERY
+    // res.end() (success AND error paths), not only on a genuine client
+    // disconnect. A deferred 'close' from this turn must NOT abort the NEXT
+    // message's fresh AbortController. Guard with a request-local flag: only
+    // abort when the stream did not complete normally (true disconnect).
+    let finished = false;
     res.on("close", () => {
-      sessionManager.abortSession(sessionId);
+      if (!finished) {
+        sessionManager.abortSession(sessionId);
+      }
     });
 
     try {
@@ -703,11 +735,18 @@ export function createSessionRoutes({ state }: RouteContext): Router {
         }
       }
 
+      // Mark the turn complete BEFORE res.end() so the trailing 'close' event
+      // (S1) does not abort the next message's stream.
+      finished = true;
       res.write(
         `data: ${JSON.stringify({ type: "done", exitCode: 0 })}\n\n`
       );
       res.end();
     } catch (err) {
+      // The turn has settled (errored): the trailing 'close' must not abort a
+      // subsequent message either. sendMessage already reset this session's
+      // status, so there is nothing live for this request to abort.
+      finished = true;
       res.write(
         `data: ${JSON.stringify({ type: "error", message: err instanceof Error ? err.message : String(err) })}\n\n`
       );

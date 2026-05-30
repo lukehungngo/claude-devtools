@@ -250,6 +250,56 @@ describe("PromptInput", () => {
     });
   });
 
+  describe("C3: permissionMode applied on first send", () => {
+    it("POSTs the chosen permissionMode after creating a new session, before the message", async () => {
+      fetchMock = vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ sessionId: "new-1" }) }) // /sessions/new
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ success: true, mode: "plan" }) }) // /permission-mode
+        .mockResolvedValueOnce({ ok: true, body: { getReader: () => ({ read: vi.fn().mockResolvedValue({ done: true, value: undefined }) }) } }); // message
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { container } = render(
+        <PromptInput sessionCwd="/tmp" permissionMode="plan" />
+      );
+      const textarea = container.querySelector("textarea")!;
+      fireEvent.change(textarea, { target: { value: "do it" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      expect(fetchMock.mock.calls[0][0]).toBe("/api/sessions/new");
+      // permission-mode applied to the freshly-created session BEFORE the message
+      expect(fetchMock.mock.calls[1][0]).toBe("/api/sessions/new-1/permission-mode");
+      const modeBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+      expect(modeBody.mode).toBe("plan");
+      expect(fetchMock.mock.calls[2][0]).toBe("/api/sessions/new-1/message");
+    });
+
+    it("does NOT POST permission-mode when mode is default", async () => {
+      fetchMock = vi.fn()
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ sessionId: "new-2" }) })
+        .mockResolvedValueOnce({ ok: true, body: { getReader: () => ({ read: vi.fn().mockResolvedValue({ done: true, value: undefined }) }) } });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { container } = render(
+        <PromptInput sessionCwd="/tmp" permissionMode="default" />
+      );
+      const textarea = container.querySelector("textarea")!;
+      fireEvent.change(textarea, { target: { value: "go" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
+      });
+
+      const modeCall = fetchMock.mock.calls.find(
+        (c: unknown[]) => typeof c[0] === "string" && (c[0] as string).includes("/permission-mode")
+      );
+      expect(modeCall).toBeUndefined();
+      // First call new, second call message — no mode call in between.
+      expect(fetchMock.mock.calls[0][0]).toBe("/api/sessions/new");
+      expect(fetchMock.mock.calls[1][0]).toBe("/api/sessions/new-2/message");
+    });
+  });
+
   describe("client-side slash command handling", () => {
     it("submitting /help does NOT call fetch and shows local output", async () => {
       const { container } = render(<PromptInput />);
@@ -972,6 +1022,42 @@ describe("PromptInput", () => {
       expect(abortSpy).toHaveBeenCalled();
     });
 
+    it("C2: calls onStreamingReset when the stream is aborted via Ctrl+C", async () => {
+      vi.useRealTimers();
+      const onStreamingReset = vi.fn();
+
+      const mockReader = {
+        read: vi.fn().mockReturnValue(new Promise(() => {})), // never resolves
+      };
+      fetchMock.mockResolvedValue({ ok: true, body: { getReader: () => mockReader } });
+
+      const { container } = render(
+        <PromptInput
+          sessionCwd="/test"
+          sessionId="sess-1"
+          projectHash="proj-1"
+          activeSessionId="active-1"
+          onStreamingReset={onStreamingReset}
+        />
+      );
+      const textarea = container.querySelector("textarea")!;
+      fireEvent.change(textarea, { target: { value: "hello" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter" });
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      // reset is called once at submit start; clear so we assert the abort call.
+      onStreamingReset.mockClear();
+
+      await act(async () => {
+        fireEvent.keyDown(document, { key: "c", ctrlKey: true });
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      expect(onStreamingReset).toHaveBeenCalled();
+    });
+
     it("does not abort when Ctrl+C is pressed while idle (allows normal copy)", () => {
       const abortSpy = vi.spyOn(AbortController.prototype, "abort");
 
@@ -1192,6 +1278,74 @@ describe("PromptInput", () => {
       const banner = container.querySelector("[data-testid='sse-error-banner']");
       expect(banner).not.toBeNull();
       expect(banner!.textContent).toContain("Rate limit exceeded");
+    });
+
+    it("C1: shows error banner when a top-level error SSE frame arrives (no result)", async () => {
+      vi.useRealTimers();
+
+      const errorPayload = JSON.stringify({ type: "error", message: "Claude AI usage limit reached" });
+      const sseData = `data: ${errorPayload}\n\n`;
+      const encoder = new TextEncoder();
+      let readCount = 0;
+      const mockReader = {
+        read: vi.fn().mockImplementation(() => {
+          readCount++;
+          if (readCount === 1) {
+            return Promise.resolve({ done: false, value: encoder.encode(sseData) });
+          }
+          return Promise.resolve({ done: true, value: undefined });
+        }),
+      };
+      fetchMock.mockResolvedValue({ ok: true, body: { getReader: () => mockReader } });
+
+      const { container } = render(
+        <PromptInput sessionCwd="/test" sessionId="sess-1" projectHash="proj-1" activeSessionId="active-1" />
+      );
+      const textarea = container.querySelector("textarea")!;
+      fireEvent.change(textarea, { target: { value: "hello" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter" });
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      const banner = container.querySelector("[data-testid='sse-error-banner']");
+      expect(banner).not.toBeNull();
+      expect(banner!.textContent).toContain("Claude AI usage limit reached");
+    });
+
+    it("C1: shows a throttle indicator when a rate_limit SSE frame arrives", async () => {
+      vi.useRealTimers();
+
+      // rate_limit frame, then the stream keeps reading (no immediate result)
+      // before terminating — the indicator should be visible while streaming.
+      const rlPayload = JSON.stringify({ type: "rate_limit" });
+      const encoder = new TextEncoder();
+      let readCount = 0;
+      const mockReader = {
+        read: vi.fn().mockImplementation(() => {
+          readCount++;
+          if (readCount === 1) {
+            return Promise.resolve({ done: false, value: encoder.encode(`data: ${rlPayload}\n\n`) });
+          }
+          // Keep the stream open so running stays true and the indicator shows.
+          if (readCount === 2) return new Promise(() => {});
+          return Promise.resolve({ done: true, value: undefined });
+        }),
+      };
+      fetchMock.mockResolvedValue({ ok: true, body: { getReader: () => mockReader } });
+
+      const { container } = render(
+        <PromptInput sessionCwd="/test" sessionId="sess-1" projectHash="proj-1" activeSessionId="active-1" />
+      );
+      const textarea = container.querySelector("textarea")!;
+      fireEvent.change(textarea, { target: { value: "hello" } });
+      await act(async () => {
+        fireEvent.keyDown(textarea, { key: "Enter" });
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      const throttle = container.querySelector("[data-testid='sse-throttle-indicator']");
+      expect(throttle).not.toBeNull();
     });
 
     it("dismisses error banner when dismiss button is clicked", async () => {

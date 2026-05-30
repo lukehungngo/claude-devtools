@@ -10,6 +10,7 @@ import type {
   RepoConfig,
 } from "../types.js";
 import { buildAgentDAG } from "./dag-builder.js";
+import { buildWorkflows } from "./workflows.js";
 import { buildToolStats } from "./tool-stats.js";
 import { normalizeContent } from "../lib/normalizeContent.js";
 import { getModelContextWindow } from "../cache/model-context-cache.js";
@@ -259,6 +260,9 @@ export function computeMetrics(
   // Build DAG
   const dag = buildAgentDAG(mainEvents, subagentEvents, subagentMeta, effectiveIsRunning);
 
+  // Workflows — orchestrated multi-agent runs (subagents/workflows/<wf>/journal.jsonl)
+  const workflows = buildWorkflows(sessionInfo, subagentEvents, effectiveIsRunning);
+
   // Tool stats
   const tools = buildToolStats(allEvents);
 
@@ -308,6 +312,7 @@ export function computeMetrics(
   return {
     session: { ...sessionInfo, isRunning: effectiveIsRunning },
     dag,
+    workflows,
     tokens: totalTokens,
     tokensByModel,
     tokensByTurn,

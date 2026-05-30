@@ -56,6 +56,24 @@ describe("StreamingTurnArea", () => {
     expect(container.textContent).toContain("Compacting conversation context...");
   });
 
+  // C2 (Phase B): once the turn is finalized (result/done) the live preview
+  // must disappear so the WS-committed TurnCard isn't duplicated and the
+  // "Working..." pulse no longer lies about activity.
+  describe("finalize on terminal events (C2)", () => {
+    it("returns null when finalized even if response text exists", () => {
+      const state = makeState({ responseText: "Here is my response.", finalized: true });
+      const { container } = render(<StreamingTurnArea state={state} />);
+      expect(container.innerHTML).toBe("");
+    });
+
+    it("keeps rendering the preview while not finalized", () => {
+      const state = makeState({ responseText: "Streaming...", finalized: false });
+      const { container } = render(<StreamingTurnArea state={state} />);
+      expect(container.textContent).toContain("Working...");
+      expect(container.textContent).toContain("Streaming...");
+    });
+  });
+
   describe("CompactResultBanner attribution (P2-9)", () => {
     it("prepends 'Pre-compacted by <hookName>' when attributedTo set (success)", () => {
       const state = makeState({

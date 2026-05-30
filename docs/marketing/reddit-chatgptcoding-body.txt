@@ -1,0 +1,22 @@
+If you use Claude Code regularly, you've probably hit the "wait, how did I just spend $4 on that?" moment.
+
+I built Claude DevTools — a local dashboard that watches your Claude Code sessions and shows you:
+
+- Live trace of every tool call (with payloads, status, duration)
+- Token + cost per turn, split by model
+- Cache hit ratio (huge for understanding why some prompts are way cheaper)
+- Subagent DAG view when you fan out
+- Approve permissions from the browser instead of the terminal
+- Works with Docker and remote machines via a small collector
+
+It reads the JSONL files Claude Code already writes in `~/.claude/projects/`, so it picks up your historical sessions immediately — no replay needed.
+
+    npx @lukehungngo/claude-devtools
+
+Opens at localhost:3142. MIT, no signup, no telemetry.
+
+Repo + screenshots: https://github.com/lukehungngo/claude-devtools
+
+I've been dogfooding it for a few weeks. The cost-per-turn split was the surprise — turned out my big context-stuffed prompts were the cheap ones (cache hits) and the small-but-frequent agent loops were the expensive ones.
+
+Feedback welcome. What's missing for your workflow?

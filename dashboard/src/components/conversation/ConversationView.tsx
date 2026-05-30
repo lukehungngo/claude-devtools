@@ -14,6 +14,7 @@ import { RewindMenu } from "./RewindMenu";
 import { RotateCcw } from "lucide-react";
 import { QuestionBlock } from "./QuestionBlock";
 import { PromptInput } from "./PromptInput";
+import { BashOutputBlock } from "./BashOutputBlock";
 import { ContextWarningBanner } from "./ContextWarningBanner";
 import { MemoTurnCard } from "./TurnCard";
 import { TurnDivider } from "./TurnDivider";
@@ -34,6 +35,14 @@ export interface QuestionItem {
   status: "pending" | "answered";
   answer?: string;
   timestamp?: string;
+}
+
+/** C4: result of a `!bash` command run from the composer, rendered inline. */
+export interface BashOutputEntry {
+  command: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
 }
 
 interface ConversationViewProps {
@@ -62,6 +71,13 @@ interface ConversationViewProps {
   onOpenPanel?: (panel: string) => void;
   /** Called when SDK result delivers an authoritative context window size */
   onSdkContextWindow?: (contextWindow: number) => void;
+  /**
+   * C4: completed `!bash` command results to render inline (newest last).
+   * Threaded from SessionPage; the matching `onBashOutput` callback appends here.
+   */
+  bashOutputs?: BashOutputEntry[];
+  /** C4: called by PromptInput when a `!bash` command completes. */
+  onBashOutput?: (result: BashOutputEntry) => void;
 }
 
 // ─── Virtualized turn list ──────────────────────────────────────────
@@ -488,6 +504,8 @@ export function ConversationView({
   onSessionStarted,
   onOpenPanel,
   onSdkContextWindow,
+  bashOutputs,
+  onBashOutput,
 }: ConversationViewProps) {
   const layoutCtx = useContext(LayoutContext);
   const usage = layoutCtx?.usage ?? null;
@@ -906,7 +924,41 @@ export function ConversationView({
         </button>
       </div>
 
-      {/* Command input — hidden until ready to release */}
+      {/* C4: inline `!bash` command results, newest last */}
+      {bashOutputs && bashOutputs.length > 0 && (
+        <div className="shrink-0 overflow-y-auto max-h-[220px] px-6 dt-scrollbar">
+          {bashOutputs.map((out, idx) => (
+            <BashOutputBlock
+              key={idx}
+              command={out.command}
+              stdout={out.stdout}
+              stderr={out.stderr}
+              exitCode={out.exitCode}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Command input */}
+      <PromptInput
+        sessionCwd={sessionCwd}
+        sessionId={sessionId}
+        projectHash={projectHash}
+        activeSessionId={activeSessionId}
+        onSessionStarted={onSessionStarted}
+        getAssistantResponses={getAssistantResponses}
+        metrics={metrics}
+        usage={usage}
+        costs={costs}
+        events={events}
+        onOpenPanel={onOpenPanel}
+        hasMessages={turns.length > 0}
+        lastTurnHadError={lastTurnHadError}
+        onStreamingEvent={streamingActions.handleSSEEvent}
+        onStreamingReset={streamingActions.reset}
+        permissionMode={permissionMode}
+        onBashOutput={onBashOutput}
+      />
 
       {/* RewindMenu — conditionally rendered on Esc+Esc or trigger button click */}
       {showRewindMenu && (

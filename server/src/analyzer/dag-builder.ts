@@ -113,7 +113,7 @@ function findAgentCompletion(
  * tool_result ack) and incorporates session-level activity. Error detection
  * stays here because it's a content check on the same event stream.
  */
-function analyzeEvents(events: SessionEvent[]): {
+export function analyzeEvents(events: SessionEvent[]): {
   tokens: AggregatedTokens;
   toolCalls: number;
   mcpToolCalls: number;
@@ -217,8 +217,22 @@ function analyzeEvents(events: SessionEvent[]): {
 }
 
 /**
- * Derive a node's status from error flag + getAgentStatus.
- * Error takes precedence over completion.
+ * Derive a node's status from getAgentStatus + error flag.
+ *
+ * Precedence: active (running) > completed > error.
+ *
+ * - running  — no terminal signal AND the session is live → the agent is active
+ *   (liveness wins even if it hit a tool error earlier — errors don't stop it).
+ * - completed — the agent emitted its OWN terminal signal (end_turn / result /
+ *   parent ack), so it SUCCEEDED. An incidental `tool_result.is_error` during a
+ *   run it finished (a recoverable failed grep/read/non-zero exit) does NOT make
+ *   it a failure. Completion therefore wins over `hasError`.
+ * - error — only an agent that NEVER completed (indeterminate: aborted /
+ *   truncated, no terminal signal) AND hit an error is genuinely failed.
+ *
+ * [2026-05-30: the error count was massively inflated — ground truth showed
+ * 100% of "error" nodes had actually completed and were flagged red purely by an
+ * incidental tool error. `error > completed` was the wrong precedence.]
  */
 function deriveStatus(
   agentId: string,
@@ -226,10 +240,12 @@ function deriveStatus(
   hasError: boolean,
   sessionIsRunning: boolean,
 ): "active" | "completed" | "error" {
-  if (hasError) return "error";
   const status = getAgentStatus(agentId, events, sessionIsRunning);
-  // "indeterminate" = session closed, no terminal signal → agent is no longer running
-  return status === "running" ? "active" : "completed";
+  if (status === "running") return "active";
+  // A completed agent succeeded — incidental tool errors don't make it "error".
+  if (status === "completed") return "completed";
+  // Not running and never completed (indeterminate) → genuine failure if it errored.
+  return hasError ? "error" : "completed";
 }
 
 export function buildAgentDAG(

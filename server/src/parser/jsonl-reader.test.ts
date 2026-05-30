@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
+import { writeFileSync, mkdirSync, rmSync, existsSync, appendFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { parseJsonlFile, parseJsonlIncremental } from "./jsonl-reader.js";
 
@@ -345,7 +345,6 @@ describe("parseJsonlIncremental", () => {
     const offsetAfterFirst = first.newOffset;
 
     // Append a third event
-    const { appendFileSync } = require("node:fs");
     const line3 = JSON.stringify(event3) + "\n";
     appendFileSync(filePath, line3);
 
@@ -357,7 +356,6 @@ describe("parseJsonlIncremental", () => {
     expect(second.events[0].uuid).toBe("u3");
 
     // New offset should be the full file size in bytes
-    const { statSync } = require("node:fs");
     const fileSize = statSync(filePath).size;
     expect(second.newOffset).toBe(fileSize);
   });

@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import type { SessionEvent, SessionMetrics, AgentDAG, SubagentMeta } from "../lib/types";
-import type { TurnSnapshot } from "../lib/turnSnapshot";
+import type { SessionEvent, SessionMetrics, AgentDAG } from "../lib/types";
 import type { SessionWsHandlers, LayoutContextValue } from "../contexts/LayoutContext";
 
 // ── Mocks ────────────────────────────────────────────────────────────
@@ -10,16 +9,6 @@ const refreshSpy = vi.fn();
 const useSessionMetricsMock = vi.fn();
 vi.mock("./useSessionData", () => ({
   useSessionMetrics: (...args: unknown[]) => useSessionMetricsMock(...args),
-}));
-
-const groupEventsIntoTurnsMock = vi.fn();
-vi.mock("../lib/turnSnapshot", () => ({
-  groupEventsIntoTurns: (...args: unknown[]) => groupEventsIntoTurnsMock(...args),
-}));
-
-const filterDagForTurnMock = vi.fn();
-vi.mock("../lib/filterDagForTurn", () => ({
-  filterDagForTurn: (...args: unknown[]) => filterDagForTurnMock(...args),
 }));
 
 // Capture the handlers registered by the hook.
@@ -44,19 +33,22 @@ const tokens = {
   totalCost: 0,
 };
 
+// A FULL session dag spanning multiple turns' worth of agents.
 const dag: AgentDAG = {
   nodes: [
     { id: "main", type: "main", tokenUsage: tokens, toolCalls: 0, mcpToolCalls: 0, status: "active" },
     { id: "agent_a", type: "engineer", parentId: "main", tokenUsage: tokens, toolCalls: 0, mcpToolCalls: 0, status: "completed" },
+    { id: "agent_b", type: "reviewer", parentId: "main", tokenUsage: tokens, toolCalls: 0, mcpToolCalls: 0, status: "completed" },
+    { id: "agent_c", type: "general-purpose", parentId: "main", tokenUsage: tokens, toolCalls: 0, mcpToolCalls: 0, status: "active" },
   ],
-  edges: [{ source: "main", target: "agent_a" }],
+  edges: [
+    { source: "main", target: "agent_a" },
+    { source: "main", target: "agent_b" },
+    { source: "main", target: "agent_c" },
+  ],
 };
 
-const turn1 = { turnNumber: 1 } as unknown as TurnSnapshot;
-const turn2 = { turnNumber: 2 } as unknown as TurnSnapshot;
-
 const events: SessionEvent[] = [{ type: "user" } as unknown as SessionEvent];
-const subagentMeta: SubagentMeta = {};
 const metrics = { dag } as unknown as SessionMetrics;
 
 beforeEach(() => {
@@ -67,13 +59,10 @@ beforeEach(() => {
   useSessionMetricsMock.mockReturnValue({
     metrics,
     events,
-    subagentMeta,
+    subagentMeta: {},
     loading: false,
     refresh: refreshSpy,
   });
-  groupEventsIntoTurnsMock.mockReturnValue([turn1, turn2]);
-  // filterDagForTurn returns the full dag (both nodes) for the test.
-  filterDagForTurnMock.mockReturnValue(dag);
 });
 
 afterEach(() => {
@@ -82,15 +71,20 @@ afterEach(() => {
 });
 
 describe("useGraphSession", () => {
-  it("derives lastTurn, dagForTurn and runningAgentIds (active nodes only)", () => {
+  it("exposes the FULL session dag (every agent, not just one turn)", () => {
     const { result } = renderHook(() => useGraphSession("hA", "s1"), { wrapper });
-
-    expect(result.current.lastTurn).toBe(turn2);
-    expect(filterDagForTurnMock).toHaveBeenCalledWith(dag, turn2);
-    expect(result.current.dagForTurn).toBe(dag);
-    expect(result.current.runningAgentIds.has("main")).toBe(true);
-    expect(result.current.runningAgentIds.has("agent_a")).toBe(false);
+    // All 4 nodes — main + 3 agents across the session — are present.
+    expect(result.current.dag).toBe(dag);
+    expect(result.current.dag?.nodes.length).toBe(4);
     expect(result.current.liveEventCount).toBe(events.length);
+  });
+
+  it("derives runningAgentIds from active nodes only", () => {
+    const { result } = renderHook(() => useGraphSession("hA", "s1"), { wrapper });
+    expect(result.current.runningAgentIds.has("main")).toBe(true);
+    expect(result.current.runningAgentIds.has("agent_c")).toBe(true);
+    expect(result.current.runningAgentIds.has("agent_a")).toBe(false);
+    expect(result.current.runningAgentIds.has("agent_b")).toBe(false);
   });
 
   it("registers a WS handler for the selected session", () => {
@@ -106,7 +100,6 @@ describe("useGraphSession", () => {
     act(() => {
       registeredHandlers?.onNewEvents("s1", "/path.jsonl", [{ type: "assistant" } as unknown as SessionEvent]);
     });
-    // Not called immediately (debounced).
     expect(refreshSpy).not.toHaveBeenCalled();
 
     act(() => {
@@ -131,7 +124,7 @@ describe("useGraphSession", () => {
     expect(registerSessionHandlers).toHaveBeenCalledWith(null);
   });
 
-  it("returns null dag/turn when no session is selected", () => {
+  it("returns a null dag when no session is selected", () => {
     useSessionMetricsMock.mockReturnValue({
       metrics: null,
       events: [],
@@ -139,12 +132,8 @@ describe("useGraphSession", () => {
       loading: false,
       refresh: refreshSpy,
     });
-    groupEventsIntoTurnsMock.mockReturnValue([]);
-    filterDagForTurnMock.mockReturnValue(null);
-
     const { result } = renderHook(() => useGraphSession(null, null), { wrapper });
-    expect(result.current.lastTurn).toBeNull();
-    expect(result.current.dagForTurn).toBeNull();
+    expect(result.current.dag).toBeNull();
     expect(result.current.runningAgentIds.size).toBe(0);
   });
 });

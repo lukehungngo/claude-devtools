@@ -17,8 +17,27 @@ describe("useAgentLogs", () => {
     renderHook(() => useAgentLogs("hash1", "sess1", "agent1"));
 
     expect(fetch).toHaveBeenCalledWith(
-      "/api/sessions/hash1/sess1/events/agent1"
+      "/api/sessions/hash1/sess1/events/agent1",
+      expect.objectContaining({ signal: expect.anything() })
     );
+  });
+
+  it("does NOT double-fetch on mount when liveEventCount is already positive", async () => {
+    // Regression: liveEventCount is the always-positive TOTAL event count, so
+    // the live-refetch effect must NOT fire on mount (only on an increase).
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ events: [] }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    renderHook(() => useAgentLogs("hash1", "sess1", "agent1", 3000));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it("does not fetch when projectHash is null", () => {
@@ -28,6 +47,13 @@ describe("useAgentLogs", () => {
 
   it("does not fetch when sessionId is null", () => {
     renderHook(() => useAgentLogs("hash1", null, "agent1"));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not fetch when agentId is empty (no agent selected)", () => {
+    // Graph tab detail panel passes "" when no node is selected; an empty
+    // agentId must NOT hit /events/ (empty param → 404).
+    renderHook(() => useAgentLogs("hash1", "sess1", ""));
     expect(fetch).not.toHaveBeenCalled();
   });
 

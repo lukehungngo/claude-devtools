@@ -322,6 +322,75 @@ describe("useStreamingState", () => {
     expect(result.current.state.lastResultFinishReasons).toEqual(["tool_use"]);
   });
 
+  // F3 (Phase B) — the streaming reducer no longer tracks the unread
+  // `streamError` / `isThrottled` fields (PromptInput surfaces errors via its
+  // own local sseError/throttle state). The remaining user-visible behavior is
+  // finalization: a fatal `error` frame finalizes the turn, while non-fatal
+  // `rate_limit` / `api_retry` frames do NOT finalize (the turn continues).
+  describe("error / throttle finalization (C1/F3)", () => {
+    it("finalizes the turn on a top-level error event", () => {
+      const { result } = renderHook(() => useStreamingState());
+      expect(result.current.state.finalized).toBe(false);
+      act(() => {
+        result.current.actions.handleSSEEvent({ type: "error", message: "Rate limit exceeded" });
+      });
+      expect(result.current.state.finalized).toBe(true);
+    });
+
+    it("does NOT finalize on a non-fatal rate_limit event (turn continues)", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({ type: "rate_limit" });
+      });
+      expect(result.current.state.finalized).toBe(false);
+    });
+
+    it("does NOT finalize on a non-fatal api_retry event (turn continues)", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({ type: "api_retry" });
+      });
+      expect(result.current.state.finalized).toBe(false);
+    });
+
+    it("does not expose dead streamError / isThrottled fields", () => {
+      const { result } = renderHook(() => useStreamingState());
+      expect("streamError" in result.current.state).toBe(false);
+      expect("isThrottled" in result.current.state).toBe(false);
+    });
+  });
+
+  // C2 (Phase B) — the streaming preview must finalize on result/done so the
+  // perpetual "Working..." pulse clears and the committed TurnCard is not
+  // duplicated by a live preview.
+  describe("finalize on terminal events (C2)", () => {
+    it("marks finalized=true on result", () => {
+      const { result } = renderHook(() => useStreamingState());
+      expect(result.current.state.finalized).toBe(false);
+      act(() => {
+        result.current.actions.handleSSEEvent({ type: "result", is_error: false });
+      });
+      expect(result.current.state.finalized).toBe(true);
+    });
+
+    it("marks finalized=true on done", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({ type: "done" });
+      });
+      expect(result.current.state.finalized).toBe(true);
+    });
+
+    it("resets finalized to false on reset", () => {
+      const { result } = renderHook(() => useStreamingState());
+      act(() => {
+        result.current.actions.handleSSEEvent({ type: "result", is_error: false });
+        result.current.actions.reset();
+      });
+      expect(result.current.state.finalized).toBe(false);
+    });
+  });
+
   // NEW-7 — structured Task lifecycle messages.
   describe("live task lifecycle (NEW-7)", () => {
     it("task_started creates a running LiveTaskState entry", () => {

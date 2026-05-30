@@ -293,6 +293,36 @@ export function useStreamingState(): UseStreamingStateReturn {
               typeof incomingStop === "string" ? incomingStop : prev.lastResultStopReason,
             lastResultFinishReasons:
               incomingFinish !== undefined ? incomingFinish : prev.lastResultFinishReasons,
+            // C2: the turn is over — finalize the preview.
+            finalized: true,
+          };
+        }
+
+        // C1: server-emitted top-level error frame (rate_limit / billing /
+        // SDK throw). The fatal error finalizes the turn so the streaming area
+        // stops the "Working..." pulse. PromptInput surfaces the error text via
+        // its own local sseError state (F3 — the reducer no longer tracks it).
+        case "error": {
+          return {
+            ...prev,
+            finalized: true,
+          };
+        }
+
+        // C1: non-fatal throttle/retry signals. The turn continues, so do NOT
+        // finalize. PromptInput drives its own transient throttle indicator
+        // (F3 — the reducer no longer tracks isThrottled).
+        case "rate_limit":
+        case "api_retry": {
+          return prev;
+        }
+
+        // C2: terminal stream-end marker emitted by the server after the SDK
+        // iterator drains. Finalize the preview so "Working..." stops pulsing.
+        case "done": {
+          return {
+            ...prev,
+            finalized: true,
           };
         }
 

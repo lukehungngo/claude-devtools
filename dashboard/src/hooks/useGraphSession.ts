@@ -1,62 +1,50 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
-import type { SessionEvent, AgentDAG } from "../lib/types";
-import type { TurnSnapshot } from "../lib/turnSnapshot";
+import type { SessionEvent, AgentDAG, WorkflowSummary } from "../lib/types";
 import { useSessionMetrics } from "./useSessionData";
-import { groupEventsIntoTurns } from "../lib/turnSnapshot";
-import { filterDagForTurn } from "../lib/filterDagForTurn";
 import { LayoutContext } from "../contexts/LayoutContext";
 
 /** Debounce window before refreshing on new live events (Invariant #8). */
 const REFRESH_DEBOUNCE_MS = 1500;
 
 export interface GraphSessionState {
-  dagForTurn: AgentDAG | null;
+  /** The session's FULL agent graph — every agent the session spawned across
+   *  all turns (not scoped to one turn). */
+  dag: AgentDAG | null;
+  /** Orchestrated multi-agent workflows in this session (empty when none). */
+  workflows: WorkflowSummary[];
   runningAgentIds: Set<string>;
-  lastTurn: TurnSnapshot | null;
   events: SessionEvent[];
   liveEventCount: number;
   loading: boolean;
 }
 
 /**
- * Load a session's metrics + events, derive the most recent turn's filtered
- * agent DAG, and keep it live by registering a debounced WS refresh for the
- * selected session. Reuses the authoritative server `status` (no client
- * re-derivation — avoids the status-flash gotcha).
+ * Load a session's metrics + events and expose its FULL agent DAG (every agent
+ * the session spawned), kept live by a debounced WS refresh for the selected
+ * session. Reuses the authoritative server `status` (no client re-derivation —
+ * avoids the status-flash gotcha).
+ *
+ * Note: this intentionally shows the WHOLE session, not just the most recent
+ * turn — a session spans many agents across turns and the graph must surface
+ * all of them.
  */
 export function useGraphSession(
   projectHash: string | null,
   sessionId: string | null,
 ): GraphSessionState {
   const layout = useContext(LayoutContext);
-  const { metrics, events, subagentMeta, loading, refresh } = useSessionMetrics(
-    projectHash,
-    sessionId,
-  );
+  const { metrics, events, loading, refresh } = useSessionMetrics(projectHash, sessionId);
 
-  const turns = useMemo(
-    () => groupEventsIntoTurns(events, subagentMeta),
-    [events, subagentMeta],
-  );
+  const dag = useMemo<AgentDAG | null>(() => metrics?.dag ?? null, [metrics?.dag]);
 
-  const lastTurn = useMemo<TurnSnapshot | null>(
-    () => (turns.length > 0 ? turns[turns.length - 1] : null),
-    [turns],
-  );
-
-  const dagForTurn = useMemo<AgentDAG | null>(
-    () => filterDagForTurn(metrics?.dag ?? null, lastTurn ?? undefined),
-    [metrics?.dag, lastTurn],
-  );
+  const workflows = useMemo<WorkflowSummary[]>(() => metrics?.workflows ?? [], [metrics?.workflows]);
 
   const runningAgentIds = useMemo<Set<string>>(
-    () => new Set((dagForTurn?.nodes ?? []).filter((n) => n.status === "active").map((n) => n.id)),
-    [dagForTurn],
+    () => new Set((dag?.nodes ?? []).filter((n) => n.status === "active").map((n) => n.id)),
+    [dag],
   );
 
   // ── Live: debounced refresh on new events for the selected session ──
-  // Keep the selected sessionId + refresh fn in refs so the WS handler is
-  // stable and never reads stale closures (Invariant #8).
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   const refreshRef = useRef(refresh);
@@ -85,9 +73,9 @@ export function useGraphSession(
   }, [registerSessionHandlers, sessionId]);
 
   return {
-    dagForTurn,
+    dag,
+    workflows,
     runningAgentIds,
-    lastTurn,
     events,
     liveEventCount: events.length,
     loading,

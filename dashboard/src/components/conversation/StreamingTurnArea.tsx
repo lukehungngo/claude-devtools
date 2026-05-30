@@ -84,6 +84,11 @@ export function StreamingTurnArea({ state, sessionId }: StreamingTurnAreaProps):
   const isCompacting = state.isCompacting;
   const hasCompactResult = state.compactResult !== null;
 
+  // C2: once the turn is finalized (server result/done) the WS-committed
+  // TurnCard already shows this content. Drop the live preview so we don't
+  // double-render the response or keep pulsing a dishonest "Working..." spinner.
+  if (state.finalized) return null;
+
   if (!hasThinking && !hasTools && !hasResponse && !isCompacting && !hasCompactResult) return null;
 
   return (

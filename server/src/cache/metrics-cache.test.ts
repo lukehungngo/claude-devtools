@@ -20,6 +20,7 @@ function makeMetrics(overrides: Partial<SessionMetrics> = {}): SessionMetrics {
   return {
     session: makeSessionInfo(),
     dag: { nodes: [], edges: [] },
+    workflows: [],
     tokens: {
       inputTokens: 1000,
       outputTokens: 500,

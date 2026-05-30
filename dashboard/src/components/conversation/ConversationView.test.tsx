@@ -516,6 +516,41 @@ describe("ConversationView handleClear fetch guard", () => {
   });
 });
 
+describe("ConversationView bash output rendering (C4)", () => {
+  it("renders a BashOutputBlock for each bashOutputs entry with stdout and exit code", () => {
+    const events = [makeUserEvent("Prompt", 0), makeAssistantEvent(1)];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+
+    render(
+      <ConversationView
+        events={events}
+        turns={turns}
+        metrics={null}
+        bashOutputs={[
+          { command: "ls -la", stdout: "total 0\nfile.txt", stderr: "", exitCode: 0 },
+        ]}
+      />
+    );
+
+    const logs = screen.getAllByRole("log");
+    expect(logs.length).toBe(1);
+    expect(logs[0].textContent).toContain("ls -la");
+    expect(logs[0].textContent).toContain("file.txt");
+    expect(logs[0].textContent).toContain("exit 0");
+  });
+
+  it("renders nothing extra when bashOutputs is empty", () => {
+    const events = [makeUserEvent("Prompt", 0), makeAssistantEvent(1)];
+    const turns = groupEventsIntoTurns(events as SessionEvent[]);
+
+    render(
+      <ConversationView events={events} turns={turns} metrics={null} bashOutputs={[]} />
+    );
+
+    expect(screen.queryAllByRole("log")).toHaveLength(0);
+  });
+});
+
 describe("ConversationView onDecideSession", () => {
   function makePermission(overrides?: Partial<PermissionRequest>): PermissionRequest {
     return {

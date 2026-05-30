@@ -85,12 +85,17 @@ describe("useInsightsAggregate", () => {
   });
 
   it("computes delta from daily[] slices", async () => {
-    const now = new Date();
-    const makeDate = (daysAgo: number): string => {
-      const d = new Date(now);
-      d.setUTCDate(d.getUTCDate() - daysAgo);
-      return d.toISOString().slice(0, 10);
-    };
+    // Mirror the hook's daysAgoLocalString(): build fixture dates in LOCAL
+    // time so the [from,to) window boundaries align regardless of timezone or
+    // time-of-day. Building UTC date strings here (setUTCDate/toISOString)
+    // caused a midnight-boundary flake in UTC+ timezones — near local midnight
+    // the UTC calendar date lags the local date by one day, shifting a 200-slice
+    // into the previous window and yielding delta 0.5 instead of 1.0.
+    const tzOffset = new Date().getTimezoneOffset();
+    const makeDate = (daysAgo: number): string =>
+      new Date(Date.now() - tzOffset * 60_000 - daysAgo * 86_400_000)
+        .toISOString()
+        .slice(0, 10);
     const widerAggregate = makeAggregate({
       daily: [
         { date: makeDate(1), tokensIn: 200, tokensOut: 80, cost: 0.002 },

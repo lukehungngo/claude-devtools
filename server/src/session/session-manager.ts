@@ -3,7 +3,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { AgentInfo, McpServerStatus, PermissionResult, PermissionUpdate, Query, RewindFilesResult, SDKControlGetContextUsageResponse, PermissionMode as SdkPermissionMode } from "@anthropic-ai/claude-agent-sdk";
+import type { AgentInfo, McpServerStatus, PermissionResult, PermissionUpdate, Query, RewindFilesResult, SDKControlGetContextUsageResponse } from "@anthropic-ai/claude-agent-sdk";
 import { sessionLog } from "../logger.js";
 import { isToolAllowedForSession } from "../hooks/permission-handler.js";
 import { discoverSessions } from "../parser/session-discovery.js";
@@ -212,7 +212,12 @@ export class SessionManager {
   ): AsyncGenerator<unknown> {
     const session = this.activeSessions.get(sessionId);
     if (!session) throw new Error(`Session ${sessionId} not found`);
-    if (session.status === "streaming") throw new Error(`Session ${sessionId} is already streaming`);
+    // F2: treat any non-terminal active state as busy. During a permission /
+    // AskUserQuestion prompt the status is "waiting-permission"; a second turn
+    // must not replace session.abortController and start a concurrent query().
+    if (session.status === "streaming" || session.status === "waiting-permission") {
+      throw new Error(`Session ${sessionId} is already streaming`);
+    }
 
     sessionLog.info({ sessionId, promptLength: prompt.length }, "sendMessage: streaming started");
     session.status = "streaming";
@@ -256,15 +261,16 @@ export class SessionManager {
           forkSession: false,
           includePartialMessages: true,
           enableFileCheckpointing: true,
-          // Our PermissionMode includes 'auto' which the SDK type omits.
-          // Cast through unknown to SdkPermissionMode for SDK compatibility.
-          permissionMode: session.permissionMode as unknown as SdkPermissionMode,
+          // SDK 0.3.156 PermissionMode now includes 'auto' and 'dontAsk',
+          // matching our union exactly — direct assignment is type-safe and
+          // surfaces any future SDK divergence at compile time (no cast to hide it).
+          permissionMode: session.permissionMode,
           ...(session.permissionMode === "bypassPermissions" ? { allowDangerouslySkipPermissions: true } : {}),
           ...(session.model ? { model: session.model } : {}),
           ...(session.effortLevel ? { effort: session.effortLevel } : {}),
           ...(session.fastMode ? { settings: { fastMode: true } } : {}),
           canUseTool: async (toolName, input, options) => {
-            return this.handlePermission(session, toolName, input, {
+            const opts: CanUseToolOptions = {
               title: options.title,
               displayName: options.displayName,
               description: options.description,
@@ -273,7 +279,14 @@ export class SessionManager {
               agentID: options.agentID,
               blockedPath: (options as Record<string, unknown>).blockedPath as string | undefined,
               decisionReason: (options as Record<string, unknown>).decisionReason as string | undefined,
-            });
+            };
+            // S3 — AskUserQuestion surfaces as a canUseTool ask. Bridge it to
+            // the dashboard's interactive question flow instead of the
+            // approve/deny permission flow.
+            if (toolName === "AskUserQuestion") {
+              return this.handleQuestion(session, input, opts);
+            }
+            return this.handlePermission(session, toolName, input, opts);
           },
         },
       });
@@ -376,6 +389,124 @@ export class SessionManager {
     });
   }
 
+  /**
+   * S3 (audit P1) — AskUserQuestion bridge.
+   *
+   * The SDK surfaces an interactive AskUserQuestion as a `canUseTool` ask
+   * (sdk.d.ts:188-230). There is no dedicated answer callback in the SDK
+   * Options — the only host-facing interception point for the tool is
+   * `canUseTool`, and the documented "ask" path is the can_use_tool
+   * control_request (sdk.d.ts:3365). We therefore bridge it here:
+   *   1. register a resolver in questionResolvers keyed by a question id,
+   *   2. broadcast a `user-question` WS message (WsUserQuestionMessage,
+   *      types.ts:810-818) so the dashboard renders the prompt,
+   *   3. return a Promise<PermissionResult> that settles once the user
+   *      answers. The user's answer is fed back to the model via the ANSWER
+   *      channel: the `allow` variant carrying `updatedInput.answers`
+   *      (Anthropic Agent SDK "Handle clarifying questions";
+   *      PermissionResultAllow.updatedInput, sdk.d.ts ~1999). DENY would make
+   *      the model perceive its question as REFUSED rather than answered.
+   *
+   * `answers` maps each question's `question` text → the selected option
+   * `label` string. The dashboard surfaces a single answer today, so we answer
+   * the first question; if the model asked more than one (AskUserQuestion
+   * allows 1-4), we warn that the rest aren't surfaced yet rather than denying.
+   *
+   * Returns an allow-with-answer PermissionResult (or, on timeout after
+   * RESOLVER_TIMEOUT_MS, a genuine deny — a timeout is a real non-answer).
+   */
+  private handleQuestion(
+    session: ActiveSession,
+    input: Record<string, unknown>,
+    options?: CanUseToolOptions
+  ): Promise<PermissionResult> {
+    const questionId = randomUUID();
+    const questionText = SessionManager.extractQuestionText(input);
+
+    // The original questions array drives how we key the answer back to the
+    // model. AskUserQuestion may ask 1-4 questions; the dashboard collects a
+    // single answer today, so we answer the first and warn (not deny) if more.
+    const questions = Array.isArray(input.questions) ? input.questions : [];
+    const firstQuestionText =
+      questions.length > 0 &&
+      questions[0] &&
+      typeof questions[0] === "object" &&
+      typeof (questions[0] as { question?: unknown }).question === "string"
+        ? ((questions[0] as { question: string }).question)
+        : questionText;
+    if (questions.length > 1) {
+      sessionLog.warn(
+        { sessionId: session.sessionId, questionId, questionCount: questions.length },
+        "AskUserQuestion: multiple questions asked; only the first is surfaced to the dashboard"
+      );
+    }
+
+    sessionLog.info(
+      { sessionId: session.sessionId, questionId, toolUseID: options?.toolUseID },
+      "AskUserQuestion: bridging to dashboard"
+    );
+    session.status = "waiting-permission";
+
+    this.broadcast({
+      type: "user-question",
+      question: {
+        id: questionId,
+        sessionId: session.sessionId,
+        questionText,
+        status: "pending",
+      },
+    });
+
+    return new Promise<PermissionResult>((resolve) => {
+      const timeout = setTimeout(() => {
+        session.questionResolvers.delete(questionId);
+        if (session.status === "waiting-permission") {
+          session.status = "streaming";
+        }
+        sessionLog.warn(
+          { sessionId: session.sessionId, questionId },
+          "AskUserQuestion: timed out"
+        );
+        resolve({ behavior: "deny", message: "Question request timed out" });
+      }, RESOLVER_TIMEOUT_MS);
+
+      // The closure is invoked by resolveQuestion(questionId, answer). It feeds
+      // the answer back to the awaiting SDK canUseTool promise via the ANSWER
+      // channel — the `allow` variant with updatedInput.answers keyed by the
+      // question text — and clears the timeout. resolveQuestion also handles
+      // resolver removal + status restoration + a `status` broadcast.
+      session.questionResolvers.set(questionId, (answer: string) => {
+        clearTimeout(timeout);
+        resolve({
+          behavior: "allow",
+          updatedInput: {
+            questions,
+            answers: { [firstQuestionText]: answer },
+          },
+        });
+      });
+    });
+  }
+
+  /**
+   * Extract the primary question text from an AskUserQuestion tool input.
+   * Shape per SDK `AskUserQuestionInput` (sdk-tools.d.ts:608-621):
+   * `{ questions: [{ question, header, options, ... }, ...] }`.
+   * Fail-safe: never throws; returns a generic prompt when the shape is
+   * unexpected (invariant #3 — never crash on external data).
+   */
+  static extractQuestionText(input: Record<string, unknown>): string {
+    const questions = input.questions;
+    if (Array.isArray(questions) && questions.length > 0) {
+      const first = questions[0];
+      if (first && typeof first === "object") {
+        const q = (first as { question?: unknown }).question;
+        if (typeof q === "string" && q.length > 0) return q;
+      }
+    }
+    return "The agent has a question for you.";
+  }
+
   /** Set the permission mode for a session.
    *  If session is actively streaming, calls the SDK method for immediate effect. */
   setPermissionMode(sessionId: string, mode: PermissionMode): boolean {
@@ -385,8 +516,8 @@ export class SessionManager {
 
     // If streaming, call SDK method for immediate mid-session effect
     if (session.activeQuery?.setPermissionMode) {
-      // Our PermissionMode includes 'auto' which SDK omits -- cast through unknown
-      session.activeQuery.setPermissionMode(mode as unknown as SdkPermissionMode).catch((err: unknown) => {
+      // SDK 0.3.156 PermissionMode matches our union (incl. 'auto'/'dontAsk') — no cast needed.
+      session.activeQuery.setPermissionMode(mode).catch((err: unknown) => {
         sessionLog.warn({ sessionId, error: String(err) }, "SDK setPermissionMode failed");
       });
     }
